@@ -41,4 +41,5 @@ fi
 
 export NODE_EXTRA_CA_CERTS="$mkcert_root_ca_file"
 
-foreman start -f Procfile.dev "$@"
+# Call the react-on-rails development server with all arguments
+exec "$(dirname "$0")/dev-react-on-rails" "$@"
