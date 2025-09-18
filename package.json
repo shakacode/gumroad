@@ -59,7 +59,7 @@
     "react-calendar": "^5.0.0",
     "react-dom": "^18.1.0",
     "react-media-recorder": "^1.7.1",
-    "react-on-rails": "^14.0.0",
+    "react-on-rails": "^16.0.0",
     "react-router-dom": "^6.11.1",
     "react-select": "^5.7.0",
     "react-sortablejs": "^6.1.4",

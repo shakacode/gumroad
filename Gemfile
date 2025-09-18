@@ -192,7 +192,7 @@ gem "zip-zip", "~> 0.3"
 gem "rouge", "~> 4.0"
 gem "ruby-openai", "~> 7.0"
 gem "anycable-rails", "~> 1.5"
-gem "react_on_rails", "~> 14.0"
+gem "react_on_rails", "~> 16.0"
 gem "psych", "~> 5.2.3"
 
 group :development do
