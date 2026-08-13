@@ -37,12 +37,14 @@ USER app
 # subsequent builds via `--cache-from $REPO:test-cache`.
 COPY --chown=app:app package.json package-lock.json ./
 COPY --chown=app:app patches ./patches
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Application source. COPY --chown sets ownership inline, so we no longer
 # need a recursive `chown -R app:app $APP_DIR` step (which previously
 # duplicated all of $APP_DIR — including node_modules — into a new layer).
 COPY --chown=app:app . ./
+
+RUN RAILS_ENV=test NODE_ENV=test npm run build:product-rsc:test
 
 # Switch back so subsequent ImageMagick edits and the worker step's `su -c
 # ... app` pattern work correctly.

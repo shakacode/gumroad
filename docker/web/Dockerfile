@@ -45,11 +45,19 @@ RUN cd $APP_DIR \
   && bundle config set without 'development test' \
   && BUNDLE_GEMS__CONTRIBSYS__COM=$BUNDLE_GEMS__CONTRIBSYS__COM bundle install
 
+# Keep JavaScript dependencies cacheable too. npm needs legacy peer resolution
+# for this application until its existing dependency tree can be updated.
+COPY package.json package-lock.json $APP_DIR/
+COPY patches $APP_DIR/patches
+RUN cd $APP_DIR && npm ci --legacy-peer-deps
+
 # Full source tree last: changes here only invalidate the layers below.
 COPY . $APP_DIR/
 
 RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
-  && rmdir /usr/local/share/geoip
+  && rmdir /usr/local/share/geoip \
+  && cd $APP_DIR \
+  && NODE_ENV=production npm run build:product-rsc
 
 # TODO: look into solutions that prevent image bloating and/or avoids --squash
 RUN chmod -R 755 $BUNDLE_PATH \
