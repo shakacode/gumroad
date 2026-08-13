@@ -1,0 +1,23 @@
+# React on Rails reads Shakapacker's private bundle location even though Vite
+# remains the application's browser-asset pipeline.
+default: &default
+  source_path: app/javascript
+  source_entry_path: product_rsc
+  nested_entries: false
+  public_root_path: public
+  public_output_path: product-rsc
+  private_output_path: ssr-generated
+  cache_path: tmp/shakapacker
+  cache_manifest: false
+  compile: false
+  shakapacker_precompile: false
+  assets_bundler: webpack
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default
