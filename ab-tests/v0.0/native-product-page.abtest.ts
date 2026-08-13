@@ -1,0 +1,26 @@
+import { abTest, waitForAllImages, waitForFontsReady, waitForNoMutations } from "shaka-shared";
+
+abTest(
+  "v0.0 Microsoft 365 product: Inertia control vs React on Rails RSC",
+  {
+    startingPath: "/l/O365IT?layout=discover&recommended_by=search",
+    experimentPathOverride: "/l/O365IT?layout=discover&recommended_by=search&rsc=1",
+    testTypes: ["visreg", "perf", "accessibility"],
+    visregSelectors: ["article"],
+    config: { visreg: { mismatchThreshold: 0.5, maxNumDiffPixels: 4_000 } },
+  },
+  async ({ page, annotate, isControl }) => {
+    await page.locator(isControl ? "#app[data-page]" : "#native-product-rsc-root").waitFor({ state: "attached" });
+    if (await page.locator(isControl ? "#native-product-rsc-root" : "#app[data-page]").count()) {
+      throw new Error(`Expected ${isControl ? "Inertia" : "React on Rails RSC"} renderer only`);
+    }
+    await page.locator("article").waitFor({ state: "visible" });
+    await page.getByRole("heading", { level: 1, name: /Microsoft 365 for IT Pros/u }).waitFor({ state: "visible" });
+    await page.getByLabel("Product preview").waitFor({ state: "visible" });
+    await page.locator('article [itemprop="price"]:visible').first().waitFor({ state: "visible" });
+    // Vite's development connection keeps the Inertia control from reaching
+    // Playwright's networkidle state; the visual readiness checks still settle both sides.
+    await Promise.all([waitForAllImages(page), waitForFontsReady(page), waitForNoMutations(page)]);
+    await annotate(`Microsoft ${isControl ? "Inertia" : "RSC"} rendered`);
+  },
+);
