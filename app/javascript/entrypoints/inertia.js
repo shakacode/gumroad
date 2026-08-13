@@ -4,8 +4,11 @@ import { createRoot } from "react-dom/client";
 
 import AppWrapper from "../inertia/app_wrapper.tsx";
 import Layout, { PublicLayout, LoggedInUserLayout } from "../inertia/layout.tsx";
+import installBrowserTranslationGuard from "../utils/browser_translation_guard";
 import { isUnredirectedDownloadPagePollResponse, warnAboutDroppedPollResponse } from "../utils/inertia_partial_reload";
 import { defaults as requestDefaults } from "../utils/request";
+
+installBrowserTranslationGuard();
 
 // Keep the `request()` util's CSRF token current for Inertia pages. `base_page.ts` only
 // sets `requestDefaults.headers` on legacy react-on-rails pages, so without this a `request()`
@@ -13,27 +16,6 @@ import { defaults as requestDefaults } from "../utils/request";
 // fails CSRF verification. `authenticity_token` is a shared Inertia prop, fresh on every visit.
 function syncRequestCsrfToken(token) {
   if (token) requestDefaults.headers = { ...requestDefaults.headers, "X-CSRF-Token": token };
-}
-
-// Prevent "Failed to execute 'removeChild' on 'Node'" errors caused by
-// browser translation extensions (e.g. Google Translate) relocating DOM nodes.
-// See https://github.com/facebook/react/issues/11538
-if (typeof Node !== "undefined") {
-  const originalRemoveChild = Node.prototype.removeChild;
-  Node.prototype.removeChild = function (child) {
-    if (child.parentNode !== this) {
-      return child;
-    }
-    return originalRemoveChild.apply(this, arguments);
-  };
-
-  const originalInsertBefore = Node.prototype.insertBefore;
-  Node.prototype.insertBefore = function (newNode, referenceNode) {
-    if (referenceNode && referenceNode.parentNode !== this) {
-      return newNode;
-    }
-    return originalInsertBefore.apply(this, arguments);
-  };
 }
 
 router.on("start", (event) => {

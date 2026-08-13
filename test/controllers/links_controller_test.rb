@@ -4937,6 +4937,62 @@ class LinksControllerShowTest < ActionController::TestCase
     assert page["props"]["product"].present?
   end
 
+  test "GET show keeps the Inertia bootstrap on ordinary full HTML Discover responses" do
+    link = create_product(user: @user)
+
+    get :show, params: { id: link.to_param, layout: "discover" }
+
+    assert_response :success
+    assert_includes response.body, 'id="app" data-page='
+    layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
+    assert_includes layout, '@native_product_rsc_props ? "rsc_base" : "base"'
+  end
+
+  test "GET show streams the existing Discover product only for the full HTML RSC opt-in" do
+    link = create_product(user: @user)
+    stream_options = nil
+    @controller = ProductRscLinksController.new
+    @response_klass = ActionController::LiveTestResponse
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**options|
+      stream_options = options
+      render plain: "streamed product RSC"
+    end
+
+    get :show, params: { id: link.to_param, layout: "discover", rsc: "1" }
+
+    assert_response :success
+    assert_equal({ template: "links/rsc_show", layout: "inertia", rsc_stream_observability: true }, stream_options)
+    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_equal link.name, props.dig(:product, :name)
+    assert props.key?(:taxonomy_path)
+    assert props.key?(:taxonomies_for_nav)
+    custom_styles_meta = props.fetch(:_inertia_meta).find { |tag| tag[:head_key] == "custom_styles" }
+    assert_equal link.user.seller_profile.custom_styles.to_s, custom_styles_meta[:inner_content]
+    assert_includes props.dig(:global, :href), "rsc=1"
+    assert_not props.dig(:global).key?(:csp_nonce)
+    assert_equal @controller.instance_variable_get(:@precomputed_rendering_context).except(:csp_nonce).compact,
+                 props.dig(:global).except(:href)
+    assert_equal @controller.instance_variable_get(:@precomputed_rendering_context).fetch(:csp_nonce),
+                 @controller.send(:content_security_policy_nonce)
+    assert response.headers["Last-Modified"].present?
+    assert_equal "no", response.headers["X-Accel-Buffering"]
+  end
+
+  test "GET show keeps Discover autocomplete partial requests on Inertia" do
+    link = create_product(user: @user)
+    @request.headers["X-Inertia"] = "true"
+    @request.headers["X-Inertia-Partial-Data"] = "autocomplete_results"
+    @request.headers["X-Inertia-Partial-Component"] = "Products/Discover/Show"
+
+    get :show, params: { id: link.to_param, layout: "discover", rsc: "1", query: "test" }
+
+    assert_response :success
+    page = inertia_page
+    assert_equal "Products/Discover/Show", page["component"]
+    assert page["props"].key?("autocomplete_results")
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)
+  end
+
   test "GET show renders Products/Iframe/Show with product props for embed param" do
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
