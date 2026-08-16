@@ -1,10 +1,14 @@
 import { abTest, waitForAllImages, waitForFontsReady, waitForNoMutations } from "shaka-shared";
 
+const PRODUCT_URL = "http://luisfurushio.localhost:3000/l/bgfjk?layout=discover&recommended_by=search";
+
 abTest(
   "v0.0 Residential Design product: Inertia control vs React on Rails RSC",
   {
-    startingPath: "/l/bgfjk?layout=discover&recommended_by=search",
-    experimentPathOverride: "/l/bgfjk?layout=discover&recommended_by=search&rsc=1",
+    // Lighthouse identifies its page by origin, so start on the creator host
+    // instead of following Gumroad's localhost-to-subdomain redirect.
+    startingPath: PRODUCT_URL,
+    experimentPathOverride: `${PRODUCT_URL}&rsc=1`,
     testTypes: ["visreg", "perf", "accessibility"],
     visregSelectors: ["article"],
   },
