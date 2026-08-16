@@ -4945,7 +4945,8 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_response :success
     assert_includes response.body, 'id="app" data-page='
     layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
-    assert_includes layout, '@native_product_rsc_props ? "rsc_base" : "base"'
+    assert_includes layout, 'vite_typescript_tag "base", skip_style_tags: true'
+    assert_includes layout, 'vite_typescript_tag "rsc_base", skip_style_tags: true, async: true'
   end
 
   test "GET show streams the existing Discover product only for the full HTML RSC opt-in" do
@@ -4962,6 +4963,8 @@ class LinksControllerShowTest < ActionController::TestCase
 
     assert_response :success
     assert_equal({ template: "links/rsc_show", layout: "inertia", rsc_stream_observability: true }, stream_options)
+    rsc_template = Rails.root.join("app/views/links/rsc_show.html.erb").read
+    assert_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", async: true'
     props = @controller.instance_variable_get(:@native_product_rsc_props)
     assert_equal link.name, props.dig(:product, :name)
     assert props.key?(:taxonomy_path)

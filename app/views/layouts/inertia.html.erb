@@ -19,8 +19,11 @@
       </footer>
     <% end %>
     <% unless @hide_layouts %>
-      <% vite_entrypoint = @native_product_rsc_props ? "rsc_base" : "base" %>
-      <%= vite_typescript_tag vite_entrypoint, skip_style_tags: true %>
+      <% if @native_product_rsc_props %>
+        <%= vite_typescript_tag "rsc_base", skip_style_tags: true, async: true %>
+      <% else %>
+        <%= vite_typescript_tag "base", skip_style_tags: true %>
+      <% end %>
     <% end %>
     <%= yield :script %>
   </body>
