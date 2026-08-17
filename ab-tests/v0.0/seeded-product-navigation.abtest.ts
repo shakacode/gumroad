@@ -31,7 +31,7 @@ abTest(
     await creatorLink.evaluate((element: Element) => element.removeAttribute("target"));
     const port = isControl ? CONTROL_PORT : EXPERIMENT_PORT;
     const expectedProfileUrl = `http://o365itpros.localhost:${port}/?recommended_by=search`;
-    await Promise.all([page.waitForURL(expectedProfileUrl), creatorLink.click()]);
+    await Promise.all([page.waitForURL(expectedProfileUrl, { waitUntil: "domcontentloaded" }), creatorLink.click()]);
 
     await page.locator("main").waitFor({ state: "visible" });
     await page.getByRole("link", { name: product.name, exact: true }).waitFor({ state: "visible" });
