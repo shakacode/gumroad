@@ -2,7 +2,7 @@
 
 This directory is a stable local snapshot of public product covers from the
 [Office 365 for IT Pros Gumroad storefront](https://o365itpros.gumroad.com/),
-captured on 2026-08-11. Keeping the assets local makes development and
+captured on 2026-08-11, with visible metadata refreshed on 2026-08-17. Keeping the assets local makes development and
 ShakaPerf twin runs deterministic and avoids live network requests.
 
 | Local file | Public product page | Public image URL | SHA-256 |
@@ -14,7 +14,9 @@ ShakaPerf twin runs deterministic and avoids live network requests.
 
 The seller and product metadata mirrors those public pages. Fixture emails,
 buyer identities, purchases, and written review messages are synthetic and use
-reserved `example.com` addresses.
+reserved `example.com` addresses. The seed records each local preview's
+intrinsic dimensions so its cover frame uses the same aspect ratio and viewport
+height constraint as the public page.
 
 ## Graphic Guide to Residential Design
 

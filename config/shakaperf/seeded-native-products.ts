@@ -7,7 +7,7 @@ export type SeededNativeProduct = {
 export const ADDITIONAL_SEEDED_NATIVE_PRODUCTS: SeededNativeProduct[] = [
   {
     label: "PowerShell",
-    name: "Automating Microsoft 365 with PowerShell (2027 Edition)",
+    name: "Automating Microsoft 365 with PowerShell (2027 edition)",
     permalink: "M365PS",
   },
   {

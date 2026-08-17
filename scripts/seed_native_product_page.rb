@@ -13,11 +13,41 @@
 module NativeProductPageSeed
   OWNER = "native-product-page-benchmark"
   OWNER_KEY = "native_product_page_fixture_owner"
-  VERSION = 3
+  VERSION = 4
   VERSION_KEY = "native_product_page_fixture_version"
   SELLER_EMAIL = "office365-it-pros-benchmark@example.com"
-  BUYER_COUNT = 21
+  BUYER_COUNT = 22
   MEDIA_BASE_PATH = "/native-product-page-fixture"
+  MEDIA_DIMENSIONS = {
+    "microsoft-365.png" => [1_000, 1_414],
+    "powershell.png" => [1_005, 1_421],
+    "purview.png" => [1_005, 1_421],
+    "power-platform.png" => [1_005, 1_421],
+    "residential-guide-preview-1.jpg" => [2_311, 1_771],
+    "residential-guide-preview-2.jpg" => [1_800, 1_379],
+    "residential-guide-preview-3.jpg" => [1_800, 1_379],
+    "residential-guide-preview-4.jpg" => [1_800, 1_379],
+    "residential-guide-preview-5.jpg" => [1_800, 1_379],
+  }.freeze
+  NAV_TAXONOMY_SLUGS = %w[
+    drawing-and-painting
+    self-improvement
+    3d
+    design
+    music-and-sound-design
+    films
+    software-development
+    gaming
+    business-and-money
+    education
+    photography
+    writing-and-publishing
+    comics-and-graphic-novels
+    fitness-and-health
+    recorded-music
+    fiction-books
+    audio
+  ].freeze
   LOCAL_PORT = ENV.fetch("DEV_LANE_PORT", "3000")
   ReviewIdentity = Data.define(:id, :email, :name)
 
@@ -31,8 +61,35 @@ module NativeProductPageSeed
       pages: 1_000,
       cover: "microsoft-365.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
-      review_count: 21,
+      review_count: 22,
+      taxonomy_slug: "software-development",
       tags: ["microsoft 365", "it administration"],
+      custom_attributes: [
+        { "name" => "Pages", "value" => "1000" },
+        { "name" => "Technology", "value" => "Microsoft 365" },
+        { "name" => "Technology", "value" => "Office 365" },
+        { "name" => "Technology", "value" => "Copilot for Microsoft 365" },
+        { "name" => "Technology", "value" => "Exchange Online" },
+        { "name" => "Technology", "value" => "Entra ID" },
+        { "name" => "Technology", "value" => "SharePoint Online" },
+        { "name" => "Technology", "value" => "Microsoft Teams" },
+        { "name" => "Technology", "value" => "PowerShell" },
+        { "name" => "Technology", "value" => "Microsoft Graph" },
+        { "name" => "Technology", "value" => "Microsoft Graph PowerShell SDK" },
+        { "name" => "Technology", "value" => "Planner" },
+        { "name" => "Technology", "value" => "Teams devices" },
+        { "name" => "Technology", "value" => "Intune" },
+        { "name" => "Technology", "value" => "Purview Compliance" },
+        { "name" => "Technology", "value" => "Information Protection" },
+        { "name" => "Technology", "value" => "eDiscovery" },
+        { "name" => "Technology", "value" => "Stream" },
+        { "name" => "Technology", "value" => "OneDrive for Business" },
+        { "name" => "Technology", "value" => "Power Pages" },
+        { "name" => "Technology", "value" => "Copilot Studio" },
+        { "name" => "Technology", "value" => "Power Apps" },
+        { "name" => "Technology", "value" => "Power Automate" },
+        { "name" => "ISBN", "value" => "9798329544596" },
+      ],
       description: <<~HTML,
         <h2>The ultimate guide to managing Microsoft 365</h2>
         <p>A continuously updated reference for tenant administrators, architects, and support teams. The bundle covers identity, Exchange Online, Teams, SharePoint Online, security, compliance, and practical automation.</p>
@@ -49,14 +106,26 @@ module NativeProductPageSeed
     {
       unique_permalink: "MPSAUTOMATION",
       permalink: "M365PS",
-      name: "Automating Microsoft 365 with PowerShell (2027 Edition)",
-      summary: "Practical PowerShell automation for Microsoft 365 administrators",
+      name: "Automating Microsoft 365 with PowerShell (2027 edition)",
+      summary: "Copies of the book in PDF and EPUB format",
       price_cents: 1995,
       pages: 450,
       cover: "powershell.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
       review_count: 0,
+      taxonomy_slug: "software-development",
       tags: ["powershell", "automation"],
+      custom_attributes: [
+        { "name" => "Pages", "value" => "450" },
+        { "name" => "Technology", "value" => "PowerShell" },
+        { "name" => "Technology", "value" => "Microsoft Graph" },
+        { "name" => "Technology", "value" => "Microsoft Graph PowerShell SDK" },
+        { "name" => "Technology", "value" => "Microsoft 365" },
+        { "name" => "Technology", "value" => "Exchange Online" },
+        { "name" => "Technology", "value" => "Entra ID" },
+        { "name" => "Technology", "value" => "SharePoint Online" },
+        { "name" => "Technology", "value" => "Microsoft Teams" },
+      ],
       description: <<~HTML,
         <h2>Turn repetitive administration into reliable automation</h2>
         <p>A hands-on guide to the Microsoft Graph PowerShell SDK, Exchange Online, Teams, SharePoint Online, and Entra ID. Examples focus on reporting, lifecycle management, resilient scripts, and secure unattended execution.</p>
@@ -73,7 +142,14 @@ module NativeProductPageSeed
       cover: "purview.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
       review_count: 0,
+      taxonomy_slug: "software-development",
       tags: ["microsoft purview", "compliance"],
+      custom_attributes: [
+        { "name" => "Data Loss Prevention", "value" => "Information Protection" },
+        { "name" => "Data Lifecycle Management", "value" => "Retention labels and policies" },
+        { "name" => "Auditing and Reporting", "value" => "Sensitivity labels and policies" },
+        { "name" => "Communication Compliance", "value" => "eDiscovery" },
+      ],
       description: <<~HTML,
         <h2>Put Microsoft Purview into practice</h2>
         <p>Understand retention, sensitivity labels, eDiscovery, audit, data loss prevention, and insider risk from an administrator's perspective. Scenario-led chapters connect configuration choices to day-to-day governance work.</p>
@@ -90,7 +166,15 @@ module NativeProductPageSeed
       cover: "power-platform.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
       review_count: 0,
+      taxonomy_slug: "software-development",
       tags: ["power platform", "governance"],
+      custom_attributes: [
+        { "name" => "Microsoft 365", "value" => "Power Platform" },
+        { "name" => "Power BI", "value" => "Power Automate" },
+        { "name" => "Power Apps", "value" => "Copilot Studio" },
+        { "name" => "Power Pages", "value" => "Microsoft Fabric" },
+        { "name" => "Microsoft 365 Fabric", "value" => "" },
+      ],
       description: <<~HTML,
         <h2>Operate Power Platform with confidence</h2>
         <p>A concise field guide to environments, connectors, data policies, the Power Platform admin center, governance at scale, and the Center of Excellence starter kit.</p>
@@ -109,6 +193,7 @@ module NativeProductPageSeed
     preview_images: (1..5).map { |index| "residential-guide-preview-#{index}.jpg" },
     native_type: Link::NATIVE_TYPE_EBOOK,
     rating_counts: { 5 => 231, 4 => 5, 3 => 2 },
+    taxonomy_slug: "architecture",
     tags: ["residential design", "architecture"],
     custom_attributes: [
       { "name" => "Pages", "value" => "300" },
@@ -188,6 +273,8 @@ module NativeProductPageSeed
   module_function
 
   def run!
+    seed_taxonomy_navigation!
+
     ActiveRecord::Base.transaction do
       seller = owned_user!(
         email: SELLER_EMAIL,
@@ -269,6 +356,7 @@ module NativeProductPageSeed
       description: attributes.fetch(:description),
       filetype: "pdf",
       native_type: attributes.fetch(:native_type),
+      taxonomy: Taxonomy.find_by!(slug: attributes.fetch(:taxonomy_slug)),
       price_cents: attributes.fetch(:price_cents),
       display_product_reviews: true,
       draft: false,
@@ -317,14 +405,27 @@ module NativeProductPageSeed
   def seed_previews!(product:, images:)
     desired_guids = images.each_with_index.map do |image, index|
       guid = "native-page-#{product.unique_permalink.downcase}-#{index + 1}"
-      product.asset_previews.find_or_initialize_by(guid:).update!(
+      width, height = MEDIA_DIMENSIONS.fetch(image)
+      preview = product.asset_previews.find_or_initialize_by(guid:)
+      preview.update!(
         unsplash_url: "#{MEDIA_BASE_PATH}/#{image}",
         deleted_at: nil,
         position: index,
       )
+      preview.update!(oembed: { "info" => { "width" => width, "height" => height } })
       guid
     end
     product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: Time.current)
+  end
+
+  def seed_taxonomy_navigation!
+    Taxonomy::Seeder.new.perform
+    NAV_TAXONOMY_SLUGS.reverse_each.with_index(1) do |slug, recent_sales_count|
+      taxonomy = Taxonomy.find_by!(slug:, parent_id: nil)
+      taxonomy.create_taxonomy_stat! unless taxonomy.taxonomy_stat
+      taxonomy.taxonomy_stat.update!(recent_sales_count:)
+    end
+    Rails.cache.delete("taxonomies_for_nav")
   end
 
   def seed_variants!(product:, names:)
