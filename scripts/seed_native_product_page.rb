@@ -13,10 +13,11 @@
 module NativeProductPageSeed
   OWNER = "native-product-page-benchmark"
   OWNER_KEY = "native_product_page_fixture_owner"
-  VERSION = 4
+  VERSION = 5
   VERSION_KEY = "native_product_page_fixture_version"
   SELLER_EMAIL = "office365-it-pros-benchmark@example.com"
   BUYER_COUNT = 22
+  STOREFRONT_CREATED_AT = Time.utc(2026, 1, 1)
   MEDIA_BASE_PATH = "/native-product-page-fixture"
   MEDIA_DIMENSIONS = {
     "microsoft-365.png" => [1_000, 1_414],
@@ -58,6 +59,7 @@ module NativeProductPageSeed
       name: "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
       summary: "Four books: The main Microsoft 365 for IT Pros eBook and Automating Microsoft 365 with PowerShell, Microsoft Purview for IT Pros, and Power Platform for IT Pros. All books come in EPUB and PDF formats.",
       price_cents: 5995,
+      storefront_position: 1,
       pages: 1_000,
       cover: "microsoft-365.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
@@ -109,6 +111,7 @@ module NativeProductPageSeed
       name: "Automating Microsoft 365 with PowerShell (2027 edition)",
       summary: "Copies of the book in PDF and EPUB format",
       price_cents: 1995,
+      storefront_position: 3,
       pages: 450,
       cover: "powershell.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
@@ -138,6 +141,7 @@ module NativeProductPageSeed
       name: "Microsoft Purview for IT Pros (2027 Edition)",
       summary: "Deep technical insight into how the most important Microsoft Purview solutions work. Includes coverage of Data Lifecycle Management, Data Loss Prevention, Information Protection, and eDiscovery.",
       price_cents: 1295,
+      storefront_position: 2,
       pages: 310,
       cover: "purview.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
@@ -162,6 +166,7 @@ module NativeProductPageSeed
       name: "Power Platform for IT Pros (2027 Edition)",
       summary: "Learn how to exploit the capabilities of Microsoft Power Platform to automate Microsoft 365 management",
       price_cents: 1295,
+      storefront_position: 0,
       pages: 280,
       cover: "power-platform.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
@@ -359,6 +364,7 @@ module NativeProductPageSeed
       native_type: attributes.fetch(:native_type),
       taxonomy: Taxonomy.find_by!(slug: attributes.fetch(:taxonomy_slug)),
       price_cents: attributes.fetch(:price_cents),
+      created_at: STOREFRONT_CREATED_AT - attributes.fetch(:storefront_position, 0).days,
       display_product_reviews: true,
       draft: false,
       purchase_disabled_at: nil,

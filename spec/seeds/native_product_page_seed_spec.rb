@@ -51,6 +51,9 @@ RSpec.describe "native product page seed" do
       add_new_products: true,
     )
     expect(product_section.shown_products).to match_array(Link.where(unique_permalink: unique_permalinks.first(4)).pluck(:id))
+    expect(Link.where(id: product_section.shown_products).order(created_at: :desc).pluck(:custom_permalink)).to eq(
+      %w[PowerPlatform O365IT M365Purview M365PS],
+    )
     expect(seller.seller_profile.json_data).to eq(
       "tabs" => [{ "name" => "Products", "sections" => [product_section.id] }],
     )
