@@ -42,6 +42,18 @@ RSpec.describe "native product page seed" do
       name: "Automating Microsoft 365 with PowerShell (2027 edition)",
       reviews_count: 0,
     )
+    product_section = seller.seller_profile_sections.on_profile.sole
+    expect(product_section).to have_attributes(
+      type: "SellerProfileProductsSection",
+      header: "Microsoft 365",
+      default_product_sort: ProductSortKey::NEWEST,
+      show_filters: false,
+      add_new_products: true,
+    )
+    expect(product_section.shown_products).to match_array(Link.where(unique_permalink: unique_permalinks.first(4)).pluck(:id))
+    expect(seller.seller_profile.json_data).to eq(
+      "tabs" => [{ "name" => "Products", "sections" => [product_section.id] }],
+    )
 
     furushio = User.find_by!(email: "luis-furushio-benchmark@example.com")
     residential_guide = Link.fetch_leniently("bgfjk")

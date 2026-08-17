@@ -291,6 +291,7 @@ module NativeProductPageSeed
       )
       buyers = seed_buyers!
       products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:) }
+      seed_seller_profile!(seller:, products:)
       products << seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT)
 
       puts "Seeded 2 creators: #{products.size} products and #{products.sum(&:reviews_count)} reviews."
@@ -416,6 +417,26 @@ module NativeProductPageSeed
       guid
     end
     product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: Time.current)
+  end
+
+  def seed_seller_profile!(seller:, products:)
+    section = seller.seller_profile_sections.find_or_initialize_by(
+      type: "SellerProfileProductsSection",
+      header: "Microsoft 365",
+      product_id: nil,
+    )
+    section.update!(
+      json_data: {
+        "default_product_sort" => ProductSortKey::NEWEST,
+        "shown_products" => products.map(&:id),
+        "show_filters" => false,
+        "add_new_products" => true,
+      },
+    )
+    seller.seller_profile_sections.on_profile.where.not(id: section.id).delete_all
+
+    profile = SellerProfile.find_or_initialize_by(seller:)
+    profile.update!(json_data: { "tabs" => [{ "name" => "Products", "sections" => [section.id] }] })
   end
 
   def seed_taxonomy_navigation!
