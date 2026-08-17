@@ -84,7 +84,7 @@ export default defineConfig({
   },
 
   twinServers: {
-    controlDir: process.env.SHAKAPERF_CONTROL_DIR || join(projectDir, ".shakaperf-control"),
+    controlDir: process.env.SHAKAPERF_CONTROL_DIR || join(projectDir, "..", "gumroad-control"),
     experimentDir: process.env.SHAKAPERF_EXPERIMENT_DIR || projectDir,
     dockerBuildDir: ".",
     dockerfile: join(projectDir, "twin-servers/Dockerfile"),
