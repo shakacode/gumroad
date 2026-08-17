@@ -3,6 +3,7 @@
 .env.*
 .claude
 .shakaperf-control
+twin-servers
 node_modules
 log/*
 tmp/*
