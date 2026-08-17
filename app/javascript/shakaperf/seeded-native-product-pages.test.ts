@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import "../../../ab-tests/v0.0/seeded-native-product-pages.abtest";
 import "../../../ab-tests/v0.0/seeded-product-navigation.abtest";
+import "../../../ab-tests/v0.0/seeded-seller-page.abtest";
 import {
   ADDITIONAL_SEEDED_NATIVE_PRODUCTS,
   seededDiscoverProductUrl,
@@ -34,6 +35,19 @@ describe("seeded native product ShakaPerf definitions", () => {
     expect(seededDiscoverProductUrl(product, 3100)).toBe(
       "http://o365itpros.localhost:3100/l/M365PS?layout=discover&recommended_by=search",
     );
+  });
+
+  it("compares the canonical seller page on both twins", () => {
+    const definition = getRegisteredTests().find(({ name }) => name.startsWith("v0.0 Office 365 seller page:"));
+
+    expect(definition).toMatchObject({
+      startingPath: "http://o365itpros.localhost:3100/",
+      experimentPathOverride: "http://o365itpros.localhost:3200/",
+      visregSelectors: ["main"],
+    });
+    expect(definition?.testTypes).toEqual(expect.arrayContaining(["visreg", "perf", "accessibility"]));
+    expect(definition?.testFn.toString()).toContain('locator("#app[data-page]")');
+    expect(definition?.testFn.toString()).toContain("redirects are not allowed");
   });
 
   it("measures a product-to-creator navigation on both renderers", () => {
