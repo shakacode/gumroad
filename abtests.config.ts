@@ -33,6 +33,16 @@ export default defineConfig({
     parallelism: 1,
     beforeNavigate: async ({ context }) => {
       await installRequestBlocking(context, ["/recaptcha/", "/cart_items_count"]);
+      await context.addInitScript(() => {
+        window.addEventListener(
+          "DOMContentLoaded",
+          () => {
+            const footer = document.querySelector<HTMLElement>("#bullet-footer");
+            if (footer) footer.hidden = true;
+          },
+          { once: true },
+        );
+      });
     },
     playwrightOptions: {
       browser: "chromium",
