@@ -2,7 +2,7 @@
 
 class NativeProductRscRequestConstraint
   def self.matches?(request)
-    request.params["rsc"] == "1" &&
+    (request.params["rsc"] == "1" || ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"] == "1") &&
       request.params["layout"] == Product::Layout::DISCOVER &&
       request.format.html? &&
       !request.inertia? &&

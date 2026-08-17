@@ -782,11 +782,7 @@ class LinksController < ApplicationController
 
   private
     def native_product_rsc_request?
-      params[:rsc] == "1" &&
-        params[:layout] == Product::Layout::DISCOVER &&
-        request.format.html? &&
-        !request.inertia? &&
-        request.headers["X-Inertia-Partial-Data"].blank?
+      NativeProductRscRequestConstraint.matches?(request)
     end
 
     def render_native_product_rsc(product_props)
