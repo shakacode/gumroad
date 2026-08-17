@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import "../../../ab-tests/v0.0/seeded-native-product-pages.abtest";
 import "../../../ab-tests/v0.0/seeded-product-navigation.abtest";
 import "../../../ab-tests/v0.0/seeded-seller-page.abtest";
+import "../../../ab-tests/v0.0/seeded-seller-product-navigation.abtest";
 import {
   ADDITIONAL_SEEDED_NATIVE_PRODUCTS,
   seededDiscoverProductUrl,
@@ -13,7 +14,9 @@ import {
 
 describe("seeded native product ShakaPerf definitions", () => {
   it("covers every additional seeded product on both twin ports", () => {
-    const definitions = getRegisteredTests().filter(({ name }) => name.startsWith("v0.0") && name.includes("product:"));
+    const definitions = getRegisteredTests().filter(({ name }) =>
+      ADDITIONAL_SEEDED_NATIVE_PRODUCTS.some(({ label }) => name.startsWith(`v0.0 ${label} product:`)),
+    );
 
     expect(definitions).toHaveLength(ADDITIONAL_SEEDED_NATIVE_PRODUCTS.length);
     expect(
@@ -48,6 +51,18 @@ describe("seeded native product ShakaPerf definitions", () => {
     expect(definition?.testTypes).toEqual(expect.arrayContaining(["visreg", "perf", "accessibility"]));
     expect(definition?.testFn.toString()).toContain('locator("#app[data-page]")');
     expect(definition?.testFn.toString()).toContain("redirects are not allowed");
+  });
+
+  it("measures canonical seller-to-profile-product navigation on both twins", () => {
+    const definition = getRegisteredTests().find(({ name }) => name.startsWith("v0.0 Office 365 seller to product:"));
+
+    expect(definition).toMatchObject({
+      startingPath: "http://o365itpros.localhost:3100/",
+      experimentPathOverride: "http://o365itpros.localhost:3200/",
+      visregSelectors: ["main"],
+    });
+    expect(definition?.testFn.toString()).toContain("productLink.click()");
+    expect(definition?.testFn.toString()).toContain("Profile-layout product navigation");
   });
 
   it("measures a product-to-creator navigation on both renderers", () => {
