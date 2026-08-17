@@ -5,7 +5,9 @@ import "../../../ab-tests/v0.0/seeded-native-product-pages.abtest";
 import "../../../ab-tests/v0.0/seeded-product-navigation.abtest";
 import {
   ADDITIONAL_SEEDED_NATIVE_PRODUCTS,
-  seededNativeProductUrl,
+  seededDiscoverProductUrl,
+  seededProfileProductUrl,
+  seededSellerUrl,
 } from "../../../config/shakaperf/seeded-native-products";
 
 describe("seeded native product ShakaPerf definitions", () => {
@@ -17,9 +19,20 @@ describe("seeded native product ShakaPerf definitions", () => {
       definitions.map(({ startingPath, experimentPathOverride }) => ({ startingPath, experimentPathOverride })),
     ).toEqual(
       ADDITIONAL_SEEDED_NATIVE_PRODUCTS.map((product) => ({
-        startingPath: seededNativeProductUrl(product, 3100),
-        experimentPathOverride: seededNativeProductUrl(product, 3200),
+        startingPath: seededDiscoverProductUrl(product, 3100),
+        experimentPathOverride: seededDiscoverProductUrl(product, 3200),
       })),
+    );
+  });
+
+  it("builds canonical seller and generated profile-product URLs", () => {
+    const product = ADDITIONAL_SEEDED_NATIVE_PRODUCTS[0];
+
+    if (!product) throw new Error("Missing seeded product");
+    expect(seededSellerUrl(3100)).toBe("http://o365itpros.localhost:3100/");
+    expect(seededProfileProductUrl(product, 3100)).toBe("http://o365itpros.localhost:3100/l/M365PS?layout=profile");
+    expect(seededDiscoverProductUrl(product, 3100)).toBe(
+      "http://o365itpros.localhost:3100/l/M365PS?layout=discover&recommended_by=search",
     );
   });
 

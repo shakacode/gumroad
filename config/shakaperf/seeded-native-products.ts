@@ -22,7 +22,14 @@ export const ADDITIONAL_SEEDED_NATIVE_PRODUCTS: SeededNativeProduct[] = [
   },
 ];
 
-const productPath = (permalink: string) => `/l/${permalink}?layout=discover&recommended_by=search`;
+const storefrontOrigin = (port: number) => `http://o365itpros.localhost:${port}`;
+const seededProductUrl = (product: SeededNativeProduct, port: number) =>
+  `${storefrontOrigin(port)}/l/${product.permalink}`;
 
-export const seededNativeProductUrl = (product: SeededNativeProduct, port: number) =>
-  `http://o365itpros.localhost:${port}${productPath(product.permalink)}`;
+export const seededSellerUrl = (port: number) => `${storefrontOrigin(port)}/`;
+
+export const seededProfileProductUrl = (product: SeededNativeProduct, port: number) =>
+  `${seededProductUrl(product, port)}?layout=profile`;
+
+export const seededDiscoverProductUrl = (product: SeededNativeProduct, port: number) =>
+  `${seededProductUrl(product, port)}?layout=discover&recommended_by=search`;

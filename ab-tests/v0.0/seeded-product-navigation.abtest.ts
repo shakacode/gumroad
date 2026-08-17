@@ -2,7 +2,7 @@ import { abTest, waitForAllImages, waitForFontsReady, waitForNoMutations } from 
 
 import {
   ADDITIONAL_SEEDED_NATIVE_PRODUCTS,
-  seededNativeProductUrl,
+  seededDiscoverProductUrl,
 } from "../../config/shakaperf/seeded-native-products";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
@@ -11,8 +11,8 @@ const product = ADDITIONAL_SEEDED_NATIVE_PRODUCTS.find(({ label }) => label === 
 
 if (!product) throw new Error("Missing seeded Power Platform product");
 
-const controlUrl = seededNativeProductUrl(product, CONTROL_PORT);
-const experimentUrl = seededNativeProductUrl(product, EXPERIMENT_PORT);
+const controlUrl = seededDiscoverProductUrl(product, CONTROL_PORT);
+const experimentUrl = seededDiscoverProductUrl(product, EXPERIMENT_PORT);
 
 abTest(
   "v0.0 Seeded creator navigation: Inertia control vs React on Rails RSC",
