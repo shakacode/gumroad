@@ -1,6 +1,9 @@
+import { join } from "node:path";
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT, defineConfig, installRequestBlocking } from "shaka-shared";
 
-const BASE_URL = "http://localhost:3000";
+const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
+const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
+const projectDir = process.cwd();
 
 const LIGHTHOUSE_CONFIG = {
   throttling: {
@@ -22,8 +25,9 @@ const LIGHTHOUSE_CONFIG = {
 
 export default defineConfig({
   shared: {
-    controlURL: BASE_URL,
-    experimentURL: BASE_URL,
+    controlURL: `http://localhost:${CONTROL_PORT}`,
+    experimentURL: `http://localhost:${EXPERIMENT_PORT}`,
+    testPathPattern: "ab-tests/v0\\.0/.*\\.abtest\\.ts$",
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
     parallelism: 1,
@@ -66,5 +70,21 @@ export default defineConfig({
 
   audit: {
     lighthouseConfig: LIGHTHOUSE_CONFIG,
+  },
+
+  twinServers: {
+    controlDir: process.env.SHAKAPERF_CONTROL_DIR || join(projectDir, ".shakaperf-control"),
+    experimentDir: process.env.SHAKAPERF_EXPERIMENT_DIR || projectDir,
+    dockerBuildDir: ".",
+    dockerfile: join(projectDir, "twin-servers/Dockerfile"),
+    procfile: "twin-servers/Procfile",
+    composeFile: "twin-servers/docker-compose.yml",
+    ports: { control: CONTROL_PORT, experiment: EXPERIMENT_PORT },
+    setupCommands: [
+      {
+        command: "/shakaperf-twin/setup-products",
+        description: "Loading and seeding isolated product databases",
+      },
+    ],
   },
 });

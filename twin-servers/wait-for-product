@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  control)
+    port="${SHAKAPERF_CONTROL_PORT:-3100}"
+    ;;
+  experiment)
+    port="${SHAKAPERF_EXPERIMENT_PORT:-3200}"
+    ;;
+  *)
+    echo "Usage: $0 <control|experiment>" >&2
+    exit 2
+    ;;
+esac
+
+host="o365itpros.localhost"
+url="http://${host}:${port}/l/O365IT?layout=discover&recommended_by=search"
+attempt=0
+echo "Waiting for seeded product: ${url}"
+until curl --fail --silent --output /dev/null --resolve "${host}:${port}:127.0.0.1" "${url}"; do
+  attempt=$((attempt + 1))
+  if [ "${attempt}" -ge 90 ]; then
+    echo "Timed out waiting for seeded product: ${url}" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "Seeded product ready: ${url}"
+exec tail -f /dev/null

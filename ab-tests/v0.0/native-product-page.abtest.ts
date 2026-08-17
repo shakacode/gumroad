@@ -1,14 +1,14 @@
 import { abTest, waitForAllImages, waitForFontsReady, waitForNoMutations } from "shaka-shared";
 
-const PRODUCT_URL = "http://o365itpros.localhost:3000/l/O365IT?layout=discover&recommended_by=search";
+const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
+const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
+const PRODUCT_PATH = "/l/O365IT?layout=discover&recommended_by=search";
 
 abTest(
   "v0.0 Microsoft 365 product: Inertia control vs React on Rails RSC",
   {
-    // Lighthouse identifies its page by origin, so start on the creator host
-    // instead of following Gumroad's localhost-to-subdomain redirect.
-    startingPath: PRODUCT_URL,
-    experimentPathOverride: `${PRODUCT_URL}&rsc=1`,
+    startingPath: `http://o365itpros.localhost:${CONTROL_PORT}${PRODUCT_PATH}`,
+    experimentPathOverride: `http://o365itpros.localhost:${EXPERIMENT_PORT}${PRODUCT_PATH}`,
     testTypes: ["visreg", "perf", "accessibility"],
     visregSelectors: ["article"],
     config: { visreg: { mismatchThreshold: 0.5, maxNumDiffPixels: 4_000 } },

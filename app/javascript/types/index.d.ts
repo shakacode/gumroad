@@ -19,6 +19,10 @@ declare namespace NodeJS {
       DOMAIN: string;
       PROTOCOL: string;
       NODE_ENV: string;
+      SHAKAPERF_CONTROL_DIR?: string;
+      SHAKAPERF_CONTROL_PORT?: string;
+      SHAKAPERF_EXPERIMENT_DIR?: string;
+      SHAKAPERF_EXPERIMENT_PORT?: string;
     };
   }
 }

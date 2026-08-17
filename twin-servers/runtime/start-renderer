@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+node_pids="$(pidof node 2>/dev/null || true)"
+if [ -n "${node_pids}" ]; then
+  for node_pid in ${node_pids}; do
+    kill "${node_pid}"
+  done
+fi
+
+exec node client/node-renderer.cjs

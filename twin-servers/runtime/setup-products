@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')"
+export STRONGBOX_GENERAL
+export STRONGBOX_GENERAL_PASSWORD=""
+
+memcached -d
+DISABLE_SPRING=1 bundle exec rails db:drop db:create db:schema:load
+DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb
