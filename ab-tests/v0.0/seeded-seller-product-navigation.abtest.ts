@@ -33,9 +33,7 @@ abTest(
     }
 
     await page.locator("#app[data-page]").waitFor({ state: "attached" });
-    await page
-      .getByRole("heading", { level: 1, name: "Office 365 for IT Pros", exact: true })
-      .waitFor({ state: "visible" });
+    await page.getByRole("link", { name: "Office 365 for IT Pros", exact: true }).waitFor({ state: "visible" });
 
     const productLink = page.locator(`a[href="${expectedProductUrl}"]`).first();
     await productLink.waitFor({ state: "visible" });
@@ -50,6 +48,6 @@ abTest(
     await page.getByLabel("Product preview").waitFor({ state: "visible" });
     await page.locator('[itemprop="price"]:visible').first().waitFor({ state: "visible" });
     await Promise.all([waitForAllImages(page), waitForFontsReady(page), waitForNoMutations(page)]);
-    await annotate(`${isControl ? "Control" : "Migration branch"} seller navigated to profile-layout product`);
+    await annotate(`${isControl ? "Control" : "Experiment"} profile product rendered`);
   },
 );

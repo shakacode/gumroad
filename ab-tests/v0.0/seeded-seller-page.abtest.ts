@@ -29,7 +29,8 @@ abTest(
     }
 
     await page.locator("main").waitFor({ state: "visible" });
-    await page.getByRole("heading", { level: 1, name: SELLER_NAME, exact: true }).waitFor({ state: "visible" });
+    await page.getByRole("link", { name: SELLER_NAME, exact: true }).waitFor({ state: "visible" });
+    await page.getByRole("heading", { level: 2, name: "Microsoft 365", exact: true }).waitFor({ state: "visible" });
     for (const productName of [PRIMARY_PRODUCT_NAME, ...ADDITIONAL_SEEDED_NATIVE_PRODUCTS.map(({ name }) => name)]) {
       await page.getByText(productName, { exact: true }).first().waitFor({ state: "visible" });
     }
