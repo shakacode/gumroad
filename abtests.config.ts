@@ -38,6 +38,7 @@ export default defineConfig({
       browser: "chromium",
       args: ["--no-sandbox"],
       waitTimeout: 60_000,
+      gotoParameters: { waitUntil: "domcontentloaded" },
     },
     browserConsole: {
       failOn: ["error"],
