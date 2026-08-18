@@ -6,6 +6,13 @@ vendor/bundle/
 tmp/
 log/
 node_modules/
+public/vite/
+public/vite-dev/
+public/vite-test/
+public/product-rsc/
+ssr-generated/
+.node-renderer-bundles/
+compare-results*/
 ci_scripts/
 .githooks/
 docker/tmp/
