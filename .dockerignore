@@ -13,6 +13,7 @@ public/product-rsc/
 ssr-generated/
 .node-renderer-bundles/
 compare-results*/
+qa-media/
 ci_scripts/
 .githooks/
 docker/tmp/
