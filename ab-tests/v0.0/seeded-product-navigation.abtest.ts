@@ -20,6 +20,7 @@ abTest(
     startingPath: controlUrl,
     experimentPathOverride: experimentUrl,
     testTypes: ["visreg", "perf", "accessibility"],
+    visregSelectors: ["main > header"],
   },
   async ({ page, annotate, isControl }) => {
     await page.locator(isControl ? "#app[data-page]" : "#native-product-rsc-root").waitFor({ state: "attached" });

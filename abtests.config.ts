@@ -32,6 +32,16 @@ export default defineConfig({
     viewports: ["desktop", "phone"],
     parallelism: 1,
     beforeNavigate: async ({ context }) => {
+      // Development authorizes rack-mini-profiler on every request; keep its injected UI and requests out of measurements.
+      await context.addCookies(
+        [CONTROL_PORT, EXPERIMENT_PORT].flatMap((port) =>
+          ["o365itpros", "luisfurushio"].map((subdomain) => ({
+            name: "__profilin",
+            value: "p=t,dp=t",
+            url: `http://${subdomain}.localhost:${port}`,
+          })),
+        ),
+      );
       await installRequestBlocking(context, ["/recaptcha/", "/cart_items_count"]);
       await context.addInitScript(() => {
         window.addEventListener(
