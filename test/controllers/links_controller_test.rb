@@ -4982,6 +4982,19 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal "no", response.headers["X-Accel-Buffering"]
   end
 
+  test "GET show closes the live response when the RSC request redirects to the creator host" do
+    link = create_product(user: @user)
+    @controller = ProductRscLinksController.new
+    @response_klass = ActionController::LiveTestResponse
+    @request.host = DOMAIN
+
+    get :show, params: { id: link.to_param, layout: "discover", rsc: "1" }
+
+    assert_response :moved_permanently
+    assert response.stream.closed?
+    assert_includes response.location, @user.subdomain
+  end
+
   test "GET show keeps Discover autocomplete partial requests on Inertia" do
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
