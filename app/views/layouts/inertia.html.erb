@@ -19,9 +19,7 @@
       </footer>
     <% end %>
     <% unless @hide_layouts %>
-      <% if @native_product_rsc_props %>
-        <%= vite_typescript_tag "rsc_base", skip_style_tags: true, async: true %>
-      <% else %>
+      <% unless @native_product_rsc_props %>
         <%= vite_typescript_tag "base", skip_style_tags: true %>
       <% end %>
     <% end %>

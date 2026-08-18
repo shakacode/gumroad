@@ -4946,7 +4946,7 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_includes response.body, 'id="app" data-page='
     layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
     assert_includes layout, 'vite_typescript_tag "base", skip_style_tags: true'
-    assert_includes layout, 'vite_typescript_tag "rsc_base", skip_style_tags: true, async: true'
+    assert_not_includes layout, 'vite_typescript_tag "rsc_base"'
   end
 
   test "GET show streams the existing Discover product only for the full HTML RSC opt-in" do
@@ -4966,6 +4966,9 @@ class LinksControllerShowTest < ActionController::TestCase
     rsc_template = Rails.root.join("app/views/links/rsc_show.html.erb").read
     assert_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", defer: true'
     assert_not_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", async: true'
+    rsc_client_entry = Rails.root.join("app/javascript/product_rsc/client_entry.tsx").read
+    assert_includes rsc_client_entry, "installBrowserTranslationGuard();"
+    assert_includes rsc_client_entry, "BasePage.initialize();"
     props = @controller.instance_variable_get(:@native_product_rsc_props)
     assert_equal link.name, props.dig(:product, :name)
     assert props.key?(:taxonomy_path)
