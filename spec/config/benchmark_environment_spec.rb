@@ -8,11 +8,20 @@ RSpec.describe "benchmark Rails environment" do
     require "json"
 
     storage = ActiveStorage::Blob.services.fetch(:benchmark)
-    requests = %w[localhost:3100 o365itpros.localhost:3100].to_h do |host|
+    storefront_hosts = %w[localhost:3100 o365itpros.localhost:3100]
+    requests = storefront_hosts.to_h do |host|
       session = ActionDispatch::Integration::Session.new(Rails.application)
       session.host! host
       session.get("/healthcheck")
       [host, { status: session.response.status, location: session.response.location }]
+    end
+    vite_paths = {
+      entry: "#{Rails.application.config.asset_host}/vite/assets/entry.js",
+      lazy_chunk: "#{ViteRuby.config.asset_host}/vite/assets/lazy-chunk.js",
+    }
+    vite_urls = storefront_hosts.to_h do |host|
+      storefront_url = "http://#{host}/l/example"
+      [host, vite_paths.transform_values { |path| URI.join(storefront_url, path).to_s }]
     end
 
     payload = {
@@ -52,7 +61,8 @@ RSpec.describe "benchmark Rails environment" do
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
       session_key: Rails.application.config.session_options[:key],
       session_secure: Rails.application.config.session_options[:secure],
-      requests:
+      requests:,
+      vite_urls:,
     }
 
     puts "BENCHMARK_CONFIG=#{JSON.generate(payload)}"
@@ -114,6 +124,20 @@ RSpec.describe "benchmark Rails environment" do
       vite_auto_build: false,
       vite_output_dir: "vite",
     )
+  end
+
+  it "resolves initial and lazy Vite assets against each storefront origin" do
+    expect(@benchmark_config[:vite_urls]).to eq(
+      "localhost:3100": {
+        entry: "http://localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://localhost:3100/vite/assets/lazy-chunk.js",
+      },
+      "o365itpros.localhost:3100": {
+        entry: "http://o365itpros.localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://o365itpros.localhost:3100/vite/assets/lazy-chunk.js",
+      },
+    )
+    expect(@benchmark_config[:vite_urls].to_json).not_to include("assets.gumroad.com")
   end
 
   it "uses disposable local database, Mongo and MinIO configuration" do
