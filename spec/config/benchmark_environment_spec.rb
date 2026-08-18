@@ -135,6 +135,7 @@ RSpec.describe "benchmark Rails environment" do
       vite_auto_build: false,
       vite_output_dir: "vite",
     )
+    expect(@benchmark_config[:middleware]).to include("Rack::Deflater")
   end
 
   it "resolves initial and lazy Vite assets against each storefront origin" do
