@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+export RAILS_ENV=benchmark
+export RACK_ENV=benchmark
+export NODE_ENV=production
+export VITE_RUBY_MODE=production
+export VITE_RUBY_ASSET_HOST=""
+export VITE_RUBY_AUTO_BUILD=false
+
 pidfile="tmp/pids/server.pid"
 if [ -f "${pidfile}" ]; then
   old_pid="$(cat "${pidfile}")"

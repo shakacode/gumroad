@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+export RAILS_ENV=benchmark
+export RACK_ENV=benchmark
+export NODE_ENV=production
+
 node_pids="$(pidof node 2>/dev/null || true)"
 if [ -n "${node_pids}" ]; then
   for node_pid in ${node_pids}; do
