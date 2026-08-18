@@ -50,14 +50,14 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
              methods: [:get]
   end
 
-  if Rails.env.development? || Rails.env.test?
+  if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
     allow do
       origins "*"
       resource "/fonts/ABCFavorit-Regular*"
     end
   end
 
-  if Rails.env.development?
+  if Rails.env.development? || Rails.env.benchmark?
     # Allow XHRs across *.localhost subdomains (e.g. localhost:3000 fetching
     # seller.localhost:3000) since each subdomain is its own browser origin.
     # In production the equivalent path doesn't run cross-origin in normal flows,
