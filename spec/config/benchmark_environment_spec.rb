@@ -23,6 +23,9 @@ RSpec.describe "benchmark Rails environment" do
       storefront_url = "http://#{host}/l/example"
       [host, vite_paths.transform_values { |path| URI.join(storefront_url, path).to_s }]
     end
+    rack_attack_request = Rack::Attack::Request.new(
+      Rack::MockRequest.env_for("/", "HTTP_CF_CONNECTING_IP" => "203.0.113.10")
+    )
 
     payload = {
       rails_env: Rails.env.to_s,
@@ -60,6 +63,7 @@ RSpec.describe "benchmark Rails environment" do
       currency_source: CURRENCY_SOURCE,
       analytics_enabled: ApplicationController.new.send(:analytics_enabled?, seller: nil),
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
+      rack_attack_safelisted: Rack::Attack.configuration.safelisted?(rack_attack_request),
       session_key: Rails.application.config.session_options[:key],
       session_secure: Rails.application.config.session_options[:secure],
       requests:,
@@ -71,7 +75,13 @@ RSpec.describe "benchmark Rails environment" do
 
   ASSET_HOST_RUNNER = <<~'RUBY'
     require "json"
-    puts "ASSET_HOST_CONFIG=#{JSON.generate(asset_host: Rails.application.config.asset_host)}"
+    rack_attack_request = Rack::Attack::Request.new(
+      Rack::MockRequest.env_for("/", "HTTP_CF_CONNECTING_IP" => "203.0.113.10")
+    )
+    puts "ASSET_HOST_CONFIG=#{JSON.generate(
+      asset_host: Rails.application.config.asset_host,
+      rack_attack_safelisted: Rack::Attack.configuration.safelisted?(rack_attack_request),
+    )}"
   RUBY
 
   def run_environment(environment, runner, extra_env = {})
@@ -166,6 +176,7 @@ RSpec.describe "benchmark Rails environment" do
 
   it "keeps HTTP localhost and seller subdomains routable" do
     expect(@benchmark_config).to include(domain: "localhost:3100", protocol: "http")
+    expect(@benchmark_config[:rack_attack_safelisted]).to be(true)
     expect(@benchmark_config[:requests]).to eq(
       "localhost:3100": { status: 200, location: nil },
       "o365itpros.localhost:3100": { status: 200, location: nil },
@@ -203,5 +214,7 @@ RSpec.describe "benchmark Rails environment" do
 
     expect(development[:asset_host]).to eq("http://app.localhost:3000")
     expect(production[:asset_host]).to eq("https://assets.gumroad.com")
+    expect(development[:rack_attack_safelisted]).to be(false)
+    expect(production[:rack_attack_safelisted]).to be(false)
   end
 end
