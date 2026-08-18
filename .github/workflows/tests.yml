@@ -232,7 +232,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/asset-cache
-          key: asset-precompile-${{ hashFiles('app/assets/**', 'app/javascript/**', 'config/webpack/**', 'config/shakapacker.yml', 'Gemfile.lock', 'package-lock.json', '.ruby-version') }}
+          key: asset-precompile-${{ hashFiles('app/assets/**', 'app/javascript/**', 'config/rspack/**', 'config/shakapacker.yml', 'Gemfile.lock', 'package-lock.json', '.ruby-version') }}
           restore-keys: |
             asset-precompile-
       - name: Build and push test image

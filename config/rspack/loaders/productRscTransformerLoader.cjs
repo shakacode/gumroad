@@ -22,16 +22,14 @@ function transformViteDynamicImports(source) {
 module.exports = function productRscTransformerLoader(source) {
   this.cacheable();
 
+  const transformedSource = transformViteDynamicImports(transformViteUrlGlobs(source));
+  if (!/\btypia\b/u.test(transformedSource)) return transformedSource;
+
   const configPath =
     this.getOptions().tsconfigPath ?? ts.findConfigFile(process.cwd(), ts.sys.fileExists, "tsconfig.json");
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
   const compilerOptions = ts.parseJsonConfigFileContent(configFile.config, ts.sys, path.dirname(configPath)).options;
-  const sourceFile = ts.createSourceFile(
-    this.resourcePath,
-    transformViteDynamicImports(transformViteUrlGlobs(source)),
-    compilerOptions.target,
-    true,
-  );
+  const sourceFile = ts.createSourceFile(this.resourcePath, transformedSource, compilerOptions.target, true);
   const host = ts.createCompilerHost(compilerOptions);
   const originalGetSourceFile = host.getSourceFile.bind(host);
 

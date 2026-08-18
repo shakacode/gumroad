@@ -11,7 +11,7 @@ default: &default
   cache_manifest: false
   compile: false
   shakapacker_precompile: false
-  assets_bundler: webpack
+  assets_bundler: rspack
 
 development:
   <<: *default

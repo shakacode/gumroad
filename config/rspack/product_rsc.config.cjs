@@ -1,7 +1,7 @@
+const { DefinePlugin, ProvidePlugin, optimize } = require("@rspack/core");
 const fs = require("fs");
 const path = require("path");
-const { RSCWebpackPlugin } = require("react-on-rails-rsc/WebpackPlugin");
-const webpack = require("webpack");
+const { RSCRspackPlugin } = require("react-on-rails-rsc/RspackPlugin");
 
 const rootPath = path.resolve(__dirname, "../..");
 const sourcePath = path.join(rootPath, "app/javascript");
@@ -27,19 +27,28 @@ const serverResolve = {
   ...baseResolve,
   alias: {
     ...baseResolve.alias,
-    "@rails/activestorage$": path.join(__dirname, "activestorage_server.js"),
+    "@rails/activestorage": path.join(__dirname, "activestorage_server.js"),
   },
 };
+
+const swcLoader = (syntax, tsx = false, moduleType) => ({
+  loader: "builtin:swc-loader",
+  options: {
+    jsc: {
+      parser: { syntax, ...(syntax === "typescript" ? { tsx } : { jsx: true }) },
+      target: "es2019",
+      transform: { react: { runtime: "automatic" } },
+    },
+    ...(moduleType ? { module: { type: moduleType } } : {}),
+  },
+});
 
 const createScriptRules = (rscBundle = false) => [
   {
     test: /\.tsx$/u,
     exclude: /node_modules/u,
     use: [
-      {
-        loader: "esbuild-loader",
-        options: { loader: "tsx", target: "es2019" },
-      },
+      swcLoader("typescript", true),
       ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
       { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") },
     ],
@@ -48,10 +57,7 @@ const createScriptRules = (rscBundle = false) => [
     test: /\.ts$/u,
     exclude: /node_modules/u,
     use: [
-      {
-        loader: "esbuild-loader",
-        options: { loader: "ts", target: "es2019" },
-      },
+      swcLoader("typescript"),
       ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
       { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") },
     ],
@@ -59,22 +65,13 @@ const createScriptRules = (rscBundle = false) => [
   {
     test: /\.(?:js|mjs)$/u,
     exclude: /node_modules/u,
-    use: [
-      {
-        loader: "esbuild-loader",
-        options: { loader: "jsx", target: "es2019" },
-      },
-      ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
-    ],
+    use: [swcLoader("ecmascript"), ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : [])],
   },
   {
     test: /\.cjs$/u,
     exclude: /node_modules/u,
     use: [
-      {
-        loader: "esbuild-loader",
-        options: { loader: "jsx", target: "es2019", format: "cjs" },
-      },
+      swcLoader("ecmascript", false, "commonjs"),
       ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
     ],
   },
@@ -87,11 +84,11 @@ const assetRule = {
 };
 
 const plugins = (ssr) => [
-  new webpack.DefinePlugin({ SSR: JSON.stringify(ssr) }),
-  new webpack.ProvidePlugin({ Routes: path.join(sourcePath, "utils/routes.js") }),
+  new DefinePlugin({ SSR: JSON.stringify(ssr) }),
+  new ProvidePlugin({ Routes: path.join(sourcePath, "utils/routes.js") }),
   ...(hasProductRscEntry
     ? [
-        new RSCWebpackPlugin({
+        new RSCRspackPlugin({
           isServer: ssr,
           clientReferences: [
             {
@@ -129,11 +126,11 @@ const serverConfig = {
   target: "node",
   module: { rules: [assetRule, ...createScriptRules()] },
   optimization: { minimize: false },
-  plugins: [...plugins(true), new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })],
+  plugins: [...plugins(true), new optimize.LimitChunkCountPlugin({ maxChunks: 1 })],
   output: {
     filename: "server-bundle.js",
     globalObject: "this",
-    libraryTarget: "commonjs2",
+    library: { type: "commonjs2" },
     path: privateOutputPath,
   },
 };
@@ -154,11 +151,11 @@ const rscConfig = {
   target: "node",
   module: { rules: [assetRule, ...createScriptRules(true)] },
   optimization: { minimize: false },
-  plugins: [...plugins(true), new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })],
+  plugins: [...plugins(true), new optimize.LimitChunkCountPlugin({ maxChunks: 1 })],
   output: {
     filename: "rsc-bundle.js",
     globalObject: "this",
-    libraryTarget: "commonjs2",
+    library: { type: "commonjs2" },
     path: privateOutputPath,
   },
 };

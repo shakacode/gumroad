@@ -69,6 +69,8 @@
   "devDependencies": {
     "@eslint/compat": "^1.1.1",
     "@eslint/js": "^9.6.0",
+    "@rspack/cli": "^2.1.10",
+    "@rspack/core": "^2.1.10",
     "@tailwindcss/cli": "^4.1.14",
     "@tailwindcss/postcss": "^4.1.14",
     "@tailwindcss/typography": "^0.5.19",
@@ -111,9 +113,7 @@
     "unplugin-auto-import": "^19.0.0",
     "vite": "^6.0.0",
     "vite-plugin-ruby": "^5.1.0",
-    "vitest": "^4.1.8",
-    "webpack": "5.108.4",
-    "webpack-cli": "7.2.1"
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "@tiptap/extension-blockquote": "$@tiptap/starter-kit",
@@ -140,14 +140,14 @@
   },
   "scripts": {
     "build": "npm run build:pages-tailwind && npx vite build",
-    "build:product-rsc": "webpack --config config/webpack/product_rsc.config.cjs",
-    "build:product-rsc:test": "RAILS_ENV=test NODE_ENV=test webpack --config config/webpack/product_rsc.config.cjs",
+    "build:product-rsc": "rspack --config config/rspack/product_rsc.config.cjs",
+    "build:product-rsc:test": "RAILS_ENV=test NODE_ENV=test rspack --config config/rspack/product_rsc.config.cjs",
     "build:pages-tailwind": "node scripts/build_pages_tailwind.mjs",
     "build:widget": "WIDGET_TARGET=gumroad npx vite build --config vite.config.widget.ts && WIDGET_TARGET=gumroad-embed npx vite build --config vite.config.widget.ts",
     "lint-fast": "DISABLE_TYPE_CHECKED=1 npx eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "watch:product-rsc": "webpack --watch --config config/webpack/product_rsc.config.cjs",
+    "watch:product-rsc": "rspack --watch --config config/rspack/product_rsc.config.cjs",
     "setup": "bundle exec rails js:export && npm run build:pages-tailwind",
     "postinstall": "patch-package && ts-patch install -s"
   },
