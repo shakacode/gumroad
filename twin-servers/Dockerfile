@@ -74,6 +74,8 @@ COPY --chown=${NON_ROOT_USER}:${NON_ROOT_USER} . ./
 ENV RAILS_ENV=development \
     RACK_ENV=development \
     NODE_ENV=production \
+    VITE_RUBY_MODE=production \
+    VITE_RUBY_ASSET_HOST=/ \
     RAILS_LOG_TO_STDOUT=true \
     RAILS_SERVE_STATIC_FILES=true \
     VITE_RUBY_AUTO_BUILD=false \
@@ -105,7 +107,7 @@ ENV RAILS_ENV=development \
 RUN export STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')" && \
     export STRONGBOX_GENERAL_PASSWORD="" && \
     npm run setup && \
-    bundle exec ruby -ractive_support/core_ext/object/blank bin/vite build --clobber --mode development && \
+    bundle exec ruby -ractive_support/core_ext/object/blank bin/vite build --mode production && \
     if npm run | grep -q 'build:product-rsc'; then npm run build:product-rsc; fi && \
     bundle exec rails assets:precompile
 
