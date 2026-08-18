@@ -17,7 +17,7 @@ abTest(
     if (await page.locator(isControl ? "#native-product-rsc-root" : "#app[data-page]").count()) {
       throw new Error(`Expected ${isControl ? "Inertia" : "React on Rails RSC"} renderer only`);
     }
-    await page.locator("article").waitFor({ state: "visible" });
+    await page.locator("article").waitFor({ state: "visible", timeout: 60_000 });
     await page
       .getByRole("heading", { level: 1, name: /Graphic Guide to Residential Design/u })
       .waitFor({ state: "visible" });

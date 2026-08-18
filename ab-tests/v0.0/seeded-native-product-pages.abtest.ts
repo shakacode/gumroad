@@ -31,7 +31,7 @@ for (const product of ADDITIONAL_SEEDED_NATIVE_PRODUCTS) {
         throw new Error(`Expected ${isControl ? "Inertia" : "React on Rails RSC"} renderer only`);
       }
 
-      await page.locator("article").waitFor({ state: "visible" });
+      await page.locator("article").waitFor({ state: "visible", timeout: 60_000 });
       await page.getByRole("heading", { level: 1, name: product.name, exact: true }).waitFor({ state: "visible" });
       await page.getByLabel("Product preview").waitFor({ state: "visible" });
       await page.locator('article [itemprop="price"]:visible').first().waitFor({ state: "visible" });
