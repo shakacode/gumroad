@@ -58,6 +58,7 @@ RSpec.describe "benchmark Rails environment" do
       braintree_environment: Braintree::Configuration.environment.to_s,
       paypal_url: PAYPAL_URL,
       currency_source: CURRENCY_SOURCE,
+      analytics_enabled: ApplicationController.new.send(:analytics_enabled?, seller: nil),
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
       session_key: Rails.application.config.session_options[:key],
       session_secure: Rails.application.config.session_options[:secure],
@@ -189,6 +190,7 @@ RSpec.describe "benchmark Rails environment" do
       braintree_environment: "sandbox",
       paypal_url: "https://www.sandbox.paypal.com",
       currency_source: Rails.root.join("lib/currency/backup_rates.json").to_s,
+      analytics_enabled: false,
       session_key: "_gumroad_app_session_benchmark",
       session_secure: false,
     )
