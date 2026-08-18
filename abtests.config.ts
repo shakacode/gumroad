@@ -31,6 +31,7 @@ export default defineConfig({
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
     parallelism: 1,
+    timeoutMs: 240_000,
     beforeNavigate: async ({ context }) => {
       // Development authorizes rack-mini-profiler on every request; keep its injected UI and requests out of measurements.
       await context.addCookies(
