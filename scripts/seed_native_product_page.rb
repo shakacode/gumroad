@@ -13,7 +13,7 @@
 module NativeProductPageSeed
   OWNER = "native-product-page-benchmark"
   OWNER_KEY = "native_product_page_fixture_owner"
-  VERSION = 5
+  VERSION = 6
   VERSION_KEY = "native_product_page_fixture_version"
   SELLER_EMAIL = "office365-it-pros-benchmark@example.com"
   BUYER_COUNT = 22
@@ -414,12 +414,26 @@ module NativeProductPageSeed
       guid = "native-page-#{product.unique_permalink.downcase}-#{index + 1}"
       width, height = MEDIA_DIMENSIONS.fetch(image)
       preview = product.asset_previews.find_or_initialize_by(guid:)
-      preview.update!(
-        unsplash_url: "#{MEDIA_BASE_PATH}/#{image}",
-        deleted_at: nil,
-        position: index,
+      preview.assign_attributes(deleted_at: nil, position: index)
+      preview.unsplash_url = "#{MEDIA_BASE_PATH}/#{image}" unless preview.file.attached?
+      preview.save!
+
+      content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
+      unless preview.file.attached? && preview.file.filename.to_s == image
+        blob = Rails.root.join("public/native-product-page-fixture", image).open("rb") do |file|
+          ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
+        end
+        preview.file.attach(blob)
+      end
+      preview.file.blob.update!(
+        metadata: preview.file.blob.metadata.merge(
+          "identified" => true,
+          "analyzed" => true,
+          "width" => width,
+          "height" => height,
+        ),
       )
-      preview.update!(oembed: { "info" => { "width" => width, "height" => height } })
+      preview.update!(unsplash_url: nil, oembed: nil)
       guid
     end
     product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: Time.current)

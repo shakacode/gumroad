@@ -27,8 +27,10 @@ RSpec.describe "native product page seed" do
     expect(product.custom_attributes).to include("name" => "Pages", "value" => "1000")
     expect(product.taxonomy).to have_attributes(slug: "software-development", parent_id: nil)
     expect(product.thumbnail.url).to eq("/native-product-page-fixture/microsoft-365.png")
-    expect(product.display_asset_previews.first.as_json).to include(
-      url: "/native-product-page-fixture/microsoft-365.png",
+    preview = product.display_asset_previews.first
+    expect(preview).to have_attributes(display_type: "image")
+    expect(preview.file.filename.to_s).to eq("microsoft-365.png")
+    expect(preview.as_json).to include(
       width: 670,
       height: 947,
       native_width: 1_000,
