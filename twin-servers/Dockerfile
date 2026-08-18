@@ -104,7 +104,9 @@ ENV RAILS_ENV=development \
     CUSTOM_DOMAIN=localhost \
     BRANCH_DEPLOYMENT=false
 
-RUN export STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')" && \
+# A slash becomes the protocol-relative host `vite` during compilation; empty keeps chunk imports under /vite.
+RUN export VITE_RUBY_ASSET_HOST="" && \
+    export STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')" && \
     export STRONGBOX_GENERAL_PASSWORD="" && \
     npm run setup && \
     if node -e 'process.exit(require("./package.json").scripts["build:product-rsc"] ? 0 : 1)'; then npm run build:product-rsc; fi && \
