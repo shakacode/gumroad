@@ -107,8 +107,7 @@ ENV RAILS_ENV=development \
 RUN export STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')" && \
     export STRONGBOX_GENERAL_PASSWORD="" && \
     npm run setup && \
-    bundle exec ruby -ractive_support/core_ext/object/blank bin/vite build --mode production && \
-    if npm run | grep -q 'build:product-rsc'; then npm run build:product-rsc; fi && \
+    if node -e 'process.exit(require("./package.json").scripts["build:product-rsc"] ? 0 : 1)'; then npm run build:product-rsc; fi && \
     bundle exec rails assets:precompile
 
 RUN mkdir -p log tmp/pids tmp/cache storage public/native-product-page-fixture
