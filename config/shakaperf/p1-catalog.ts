@@ -20,6 +20,7 @@ export const P1_DISCOVER = {
   productCount: 24,
   firstProductName: "ShakaPerf Programming Kit 01",
   firstProductPermalink: "shakaperf-programming-1",
+  lastProductName: "ShakaPerf Programming Kit 24",
 } as const;
 
 export const p1DiscoverCategoryUrl = (port: number) => `http://localhost:${port}${P1_DISCOVER.categoryPath}`;
