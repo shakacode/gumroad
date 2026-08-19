@@ -2,8 +2,8 @@
 
 require "spec_helper"
 
-describe "Product RSC", :product_rsc_renderer, type: :system, js: true do
-  let(:product) { create(:product, name: "Product RSC smoke product", price_cents: 1200) }
+describe "Product React on Rails rendering", :product_rsc_renderer, type: :system, js: true do
+  let(:product) { create(:product, name: "Product React on Rails smoke product", price_cents: 1200) }
   let(:large_taxonomy_navigation) do
     Array.new(250) do |index|
       {
@@ -27,7 +27,7 @@ describe "Product RSC", :product_rsc_renderer, type: :system, js: true do
     product.user.seller_profile.update!(background_color: "#123456")
   end
 
-  it "renders the Discover product through RSC without changing the ordinary page content" do
+  it "server-renders the Discover product without changing the ordinary page content" do
     expect(large_taxonomy_navigation.to_json.bytesize).to be > 10_000
 
     ordinary_url = short_link_path(id: product.unique_permalink, layout: "discover")
@@ -44,17 +44,8 @@ describe "Product RSC", :product_rsc_renderer, type: :system, js: true do
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page.evaluate_script("document.readyState")).to eq("complete")
-    payload_scripts = page.evaluate_script(<<~JS)
-      (() => {
-        const scripts = [...document.querySelectorAll('script[data-react-on-rails-rsc-payload="true"]')];
-        return {
-          bytes: scripts.reduce((sum, script) => sum + new TextEncoder().encode(script.textContent).length, 0),
-          allNonced: scripts.every((script) => script.nonce.length > 0),
-        };
-      })()
-    JS
-    expect(payload_scripts.fetch("bytes")).to be > 10_000
-    expect(payload_scripts.fetch("allNonced")).to be(true)
+    expect(page).to have_css("#native-product-rsc-root[data-react-class='NativeProductPage']")
+    expect(page).to have_no_css('script[data-react-on-rails-rsc-payload="true"]', visible: :all)
     expect(page.evaluate_script(<<~JS)).to be(true)
       [...document.head.querySelectorAll("style")].some((style) => style.textContent.includes("--body-bg: #123456"))
     JS
