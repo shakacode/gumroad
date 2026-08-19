@@ -1,5 +1,7 @@
 const { DefinePlugin, ProvidePlugin, optimize } = require("@rspack/core");
+const fs = require("fs");
 const path = require("path");
+const { RSCRspackPlugin } = require("react-on-rails-rsc/RspackPlugin");
 
 const rootPath = path.resolve(__dirname, "../..");
 const sourcePath = path.join(rootPath, "app/javascript");
@@ -8,6 +10,7 @@ const publicOutputPath = path.join(rootPath, "public/product-rsc");
 const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "development";
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
 const productRscClientReferencesDirectory = path.join(sourcePath, "product_rsc");
+const hasProductRscEntry = fs.existsSync(productRscClientReferencesDirectory);
 
 const baseResolve = {
   extensions: [".js", ".mjs", ".ts", ".tsx", ".json"],
@@ -40,26 +43,37 @@ const swcLoader = (syntax, tsx = false, moduleType) => ({
   },
 });
 
-const createScriptRules = () => [
+const createScriptRules = (rscBundle = false) => [
   {
     test: /\.tsx$/u,
     exclude: /node_modules/u,
-    use: [swcLoader("typescript", true), { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") }],
+    use: [
+      swcLoader("typescript", true),
+      ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
+      { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") },
+    ],
   },
   {
     test: /\.ts$/u,
     exclude: /node_modules/u,
-    use: [swcLoader("typescript"), { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") }],
+    use: [
+      swcLoader("typescript"),
+      ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
+      { loader: path.join(__dirname, "loaders/productRscTransformerLoader.cjs") },
+    ],
   },
   {
     test: /\.(?:js|mjs)$/u,
     exclude: /node_modules/u,
-    use: [swcLoader("ecmascript")],
+    use: [swcLoader("ecmascript"), ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : [])],
   },
   {
     test: /\.cjs$/u,
     exclude: /node_modules/u,
-    use: [swcLoader("ecmascript", false, "commonjs")],
+    use: [
+      swcLoader("ecmascript", false, "commonjs"),
+      ...(rscBundle ? [{ loader: "react-on-rails-rsc/WebpackLoader" }] : []),
+    ],
   },
 ];
 
@@ -72,6 +86,20 @@ const assetRule = {
 const plugins = (ssr) => [
   new DefinePlugin({ SSR: JSON.stringify(ssr) }),
   new ProvidePlugin({ Routes: path.join(sourcePath, "utils/routes.js") }),
+  ...(hasProductRscEntry
+    ? [
+        new RSCRspackPlugin({
+          isServer: ssr,
+          clientReferences: [
+            {
+              directory: productRscClientReferencesDirectory,
+              recursive: true,
+              include: /\.(?:js|ts|jsx|tsx)$/u,
+            },
+          ],
+        }),
+      ]
+    : []),
 ];
 
 const clientConfig = {
@@ -107,4 +135,29 @@ const serverConfig = {
   },
 };
 
-module.exports = [clientConfig, serverConfig];
+const rscConfig = {
+  name: "product-rsc-rsc",
+  mode,
+  devtool: "eval",
+  entry: { "rsc-bundle": path.join(productRscClientReferencesDirectory, "server_entry.tsx") },
+  resolve: {
+    ...serverResolve,
+    conditionNames: ["react-server", "..."],
+    alias: {
+      ...serverResolve.alias,
+      "react-dom/server": false,
+    },
+  },
+  target: "node",
+  module: { rules: [assetRule, ...createScriptRules(true)] },
+  optimization: { minimize: false },
+  plugins: [...plugins(true), new optimize.LimitChunkCountPlugin({ maxChunks: 1 })],
+  output: {
+    filename: "rsc-bundle.js",
+    globalObject: "this",
+    library: { type: "commonjs2" },
+    path: privateOutputPath,
+  },
+};
+
+module.exports = [clientConfig, serverConfig, rscConfig];

@@ -1,5 +1,6 @@
-import ReactOnRails from "react-on-rails-pro";
+import "react-on-rails-pro";
+import registerServerComponent from "react-on-rails-pro/registerServerComponent/server";
 
-import NativeProductPage from "./NativeProductRscPage";
+import NativeProductRscPage from "./NativeProductRscPage";
 
-ReactOnRails.register({ NativeProductPage });
+registerServerComponent({ NativeProductRscPage });
