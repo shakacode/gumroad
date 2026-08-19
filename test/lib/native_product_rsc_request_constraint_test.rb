@@ -4,10 +4,14 @@ require "test_helper"
 
 class NativeProductRscRequestConstraintTest < ActiveSupport::TestCase
   setup do
+    @original_shakaperf_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
     @original_shakaperf_native_product_rsc = ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"]
+    ENV.delete("SHAKAPERF_NATIVE_PUBLIC_RSC")
+    ENV.delete("SHAKAPERF_NATIVE_PRODUCT_RSC")
   end
 
   teardown do
+    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = @original_shakaperf_native_public_rsc
     ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"] = @original_shakaperf_native_product_rsc
   end
 

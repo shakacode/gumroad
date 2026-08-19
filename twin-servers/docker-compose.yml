@@ -10,7 +10,7 @@ services:
       VITE_RUBY_MODE: production
       VITE_RUBY_ASSET_HOST: ""
       VITE_RUBY_AUTO_BUILD: "false"
-      SHAKAPERF_NATIVE_PRODUCT_RSC: "0"
+      SHAKAPERF_NATIVE_PUBLIC_RSC: "0"
       DEV_LANE_PORT: ${CONTROL_PORT}
       DATABASE_HOST: mysql-control
       MONGO_DATABASE_URL: mongo-control:27017
@@ -50,7 +50,7 @@ services:
       - "${EXPERIMENT_PORT}:3000"
     environment:
       <<: *control-environment
-      SHAKAPERF_NATIVE_PRODUCT_RSC: "1"
+      SHAKAPERF_NATIVE_PUBLIC_RSC: "1"
       DEV_LANE_PORT: ${EXPERIMENT_PORT}
       DATABASE_HOST: mysql-experiment
       MONGO_DATABASE_URL: mongo-experiment:27017
