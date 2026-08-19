@@ -20,7 +20,5 @@ ReactOnRailsPro.configure do |config|
   config.prerender_caching = true
   config.tracing = Rails.env.development?
 
-  config.enable_rsc_support = true
-  config.rsc_bundle_js_file = "rsc-bundle.js"
-  config.rsc_payload_generation_url_path = "rsc_payload/"
+  config.enable_rsc_support = false
 end

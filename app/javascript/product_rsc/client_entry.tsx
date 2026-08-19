@@ -1,9 +1,10 @@
-import "react-on-rails-pro/registerDefaultRSCProvider/client";
-import registerServerComponent from "react-on-rails-pro/registerServerComponent/client";
+import ReactOnRails from "react-on-rails-pro/client";
 
 import BasePage from "$app/utils/base_page";
 import installBrowserTranslationGuard from "$app/utils/browser_translation_guard";
 
+import NativeProductPage from "./NativeProductRscPage";
+
 installBrowserTranslationGuard();
 BasePage.initialize();
-registerServerComponent("NativeProductRscPage");
+ReactOnRails.register({ NativeProductPage });

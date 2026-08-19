@@ -44,8 +44,6 @@ class LinksController < ApplicationController
   before_action :ensure_domain_belongs_to_seller, only: %i[show landing_iframe_content landing_version]
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
-  before_action :prepare_live_streaming_response, only: :show, if: :native_product_rsc_request?
-  prepend_around_action :clear_live_active_record_connections, only: :show, if: :native_product_rsc_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
@@ -791,13 +789,7 @@ class LinksController < ApplicationController
         _inertia_meta: inertia_meta.meta_tags,
         global: @precomputed_rendering_context.except(:csp_nonce).compact.merge(href: request.original_url)
       )
-      release_live_active_record_connections
-
-      stream_view_containing_react_components(
-        template: "links/rsc_show",
-        layout: "inertia",
-        rsc_stream_observability: true
-      )
+      render template: "links/rsc_show", layout: "inertia"
     end
 
     def price_cents_from_units(value)
