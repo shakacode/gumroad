@@ -1,9 +1,11 @@
+import * as os from "node:os";
 import { join } from "node:path";
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT, defineConfig, installRequestBlocking } from "shaka-shared";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
 const projectDir = process.cwd();
+const PARALLELISM = Math.max(1, Math.floor(os.cpus().length / 2));
 
 const LIGHTHOUSE_CONFIG = {
   throttling: {
@@ -18,19 +20,17 @@ const LIGHTHOUSE_CONFIG = {
   logLevel: "error" as const,
   output: "html" as const,
   onlyCategories: ["performance"],
-  maxWaitForLoad: 60_000,
-  networkQuietThresholdMs: 1_000,
-  cpuQuietThresholdMs: 1_000,
+  maxWaitForFcp: 90_000,
+  maxWaitForLoad: 90_000,
 };
 
 export default defineConfig({
   shared: {
     controlURL: `http://localhost:${CONTROL_PORT}`,
     experimentURL: `http://localhost:${EXPERIMENT_PORT}`,
-    testPathPattern: "ab-tests/v0\\.0/.*\\.abtest\\.ts$",
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
-    parallelism: 1,
+    parallelism: PARALLELISM,
     timeoutMs: 240_000,
     beforeNavigate: async ({ context }) => {
       // Development authorizes rack-mini-profiler on every request; keep its injected UI and requests out of measurements.
