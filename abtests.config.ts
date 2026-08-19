@@ -84,8 +84,12 @@ export default defineConfig({
     ports: { control: CONTROL_PORT, experiment: EXPERIMENT_PORT },
     setupCommands: [
       {
+        command: "/shakaperf-twin/setup-database",
+        description: "Resetting and normally seeding isolated databases",
+      },
+      {
         command: "/shakaperf-twin/setup-products",
-        description: "Loading and seeding isolated product databases",
+        description: "Loading additional benchmark catalogs",
       },
     ],
   },
