@@ -30,23 +30,14 @@ const forEachImage = (
   });
 
 const setImageSrcInView = (view: EditorView, src: string, newSrc: string) =>
-  forEachImage(view, src, (descendant, nodePos) => {
-    view.dispatch(
-      view.state.tr.setNodeMarkup(nodePos, undefined, { ...descendant.attrs, src: newSrc, uploading: undefined }),
-    );
+  forEachImage(view, src, (_, nodePos) => {
+    view.dispatch(view.state.tr.setNodeMarkup(nodePos, undefined, { src: newSrc }));
   });
 
 const deleteImageInView = (view: EditorView, src: string) =>
   forEachImage(view, src, (descendant, nodePos) => {
     view.dispatch(view.state.tr.deleteRange(nodePos, nodePos + descendant.nodeSize));
   });
-
-const imageAttributes = (image: HTMLImageElement) => ({
-  src: image.src,
-  alt: image.getAttribute("alt"),
-  width: image.getAttribute("width"),
-  height: image.getAttribute("height"),
-});
 
 export const uploadImages = ({
   view,
@@ -109,27 +100,6 @@ const ImageNodeView = ({ node, editor, getPos }: NodeViewProps) => {
 
   const [isImageLoaded, setIsImageLoaded] = React.useState(false);
   const isUploading = editor.isEditable && !!attrs.uploading && isImageLoaded;
-  const handleImageLoad = React.useCallback(
-    (event: React.SyntheticEvent<HTMLImageElement>) => {
-      setIsImageLoaded(true);
-      if (!editor.isEditable || (attrs.width && attrs.height)) return;
-
-      const position = getPos();
-      const currentNode = editor.state.doc.nodeAt(position);
-      if (!currentNode) return;
-      const { naturalWidth, naturalHeight } = event.currentTarget;
-      if (!naturalWidth || !naturalHeight) return;
-
-      editor.view.dispatch(
-        editor.state.tr.setNodeMarkup(position, undefined, {
-          ...currentNode.attrs,
-          width: naturalWidth,
-          height: naturalHeight,
-        }),
-      );
-    },
-    [attrs.height, attrs.width, editor, getPos],
-  );
   const imageMarkup = (
     <img
       {...{ ...attrs, uploading: undefined }}
@@ -138,7 +108,7 @@ const ImageNodeView = ({ node, editor, getPos }: NodeViewProps) => {
         editor.isEditable && "cursor-pointer",
         hasFocus && "outline-2 outline-accent",
       )}
-      onLoad={handleImageLoad}
+      onLoad={() => setIsImageLoaded(true)}
       onClick={handleImageClick}
       data-drag-handle
       contentEditable={false}
@@ -197,9 +167,6 @@ export const Image = TiptapNode.create({
   isolating: true,
   addAttributes: () => ({
     src: { default: null },
-    alt: { default: null },
-    width: { default: null },
-    height: { default: null },
     link: { default: null },
     uploading: { default: undefined },
   }),
@@ -212,9 +179,9 @@ export const Image = TiptapNode.create({
         if (childNode instanceof HTMLAnchorElement) {
           const img = childNode.childNodes[0];
           if (!(img instanceof HTMLImageElement)) return false;
-          return { ...imageAttributes(img), link: childNode.href };
+          return { src: img.src, link: childNode.href };
         } else if (childNode instanceof HTMLImageElement) {
-          return imageAttributes(childNode);
+          return { src: childNode.src };
         }
 
         return false;

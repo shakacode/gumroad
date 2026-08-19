@@ -210,7 +210,7 @@ export const Layout = (
   );
 };
 
-const CtaBar = ({
+export const CtaBar = ({
   product,
   purchase,
   discountCode,
@@ -241,7 +241,6 @@ const CtaBar = ({
   } = selectionAttributes;
 
   const [visible, setVisible] = React.useState(false);
-  const ref = React.useRef<null | HTMLDivElement>(null);
   const isDesktop = useIsAboveBreakpoint("lg");
 
   React.useEffect(() => {
@@ -256,8 +255,6 @@ const CtaBar = ({
     ).observe(ctaButtonRef.current);
   }, [ctaButtonRef.current]);
 
-  const height = ref.current?.getBoundingClientRect().height ?? 0;
-
   // Same comparison rule as the main price tag: only a tier that adds nothing to
   // the bundle's price can honestly be compared against the standalone sum.
   const bundleComparisonPriceCents = getBundleComparisonPriceCents(product, selectedOption);
@@ -268,10 +265,10 @@ const CtaBar = ({
       aria-label="Product information bar"
       className="border-0 bg-background"
       style={{
-        overflow: "hidden",
         padding: 0,
-        height: visible ? height : 0,
-        transition: "var(--transition-duration)",
+        // IntersectionObserver can update after rich content loads; transforms keep that reveal out of layout.
+        transform: `translateY(${visible ? 0 : isDesktop ? "-100%" : "100%"})`,
+        transition: "transform var(--transition-duration)",
         flexShrink: 0,
         order: isDesktop ? undefined : 1,
         boxShadow: visible
@@ -286,14 +283,7 @@ const CtaBar = ({
         marginTop: hasHero ? "var(--border-width)" : undefined,
       }}
     >
-      <div
-        ref={ref}
-        className="mx-auto flex max-w-product-page items-center justify-between gap-2 p-4 lg:gap-4 lg:px-8"
-        style={{
-          transition: "var(--transition-duration)",
-          marginTop: visible || !isDesktop ? undefined : -height,
-        }}
-      >
+      <div className="mx-auto flex max-w-product-page items-center justify-between gap-2 p-4 lg:gap-4 lg:px-8">
         <PriceTag
           currencyCode={product.currency_code}
           oldPrice={discountedPriceCents < priceCents ? priceCents : undefined}
