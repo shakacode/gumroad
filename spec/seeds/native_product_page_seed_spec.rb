@@ -114,6 +114,19 @@ RSpec.describe "native product page seed" do
         *(1..6).map { "/native-product-page-fixture/residential-guide-detail-#{_1}.jpg" },
       ],
     )
+    expect(
+      Nokogiri::HTML.fragment(residential_guide.description).css("img").map { [_1["width"], _1["height"]] },
+    ).to eq(
+      [
+        %w[400 400],
+        %w[1042 492],
+        %w[1042 567],
+        %w[2083 930],
+        %w[4167 1881],
+        %w[1042 708],
+        %w[1042 483],
+      ],
+    )
     expect(residential_guide.tags.pluck(:name)).to match_array(["residential design", "architecture"])
     expect(residential_guide.variant_categories_alive.first.alive_variants.in_order.pluck(:name)).to eq(["ENGLISH", "ESPAÑOL"])
     expect(residential_guide.product_reviews.visible_on_product_page.group(:rating).count).to eq(3 => 2, 4 => 5, 5 => 231)

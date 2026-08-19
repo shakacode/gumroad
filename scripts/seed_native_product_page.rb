@@ -275,13 +275,13 @@ module NativeProductPageSeed
         <li>An immediate download link after purchase</li>
         <li>Your name watermarked on the file</li>
       </ul>
-      <figure><img src="#{MEDIA_BASE_PATH}/luis-furushio-profile.png" alt="Luis Furushio"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-1.jpg" alt="Residential design guide sample spread"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-2.jpg" alt="Residential design guide floor plan sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-3.jpg" alt="Residential design guide illustration sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-4.jpg" alt="Residential design guide interior sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-5.jpg" alt="Residential design guide exterior sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-6.jpg" alt="Residential design guide reference sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/luis-furushio-profile.png" alt="Luis Furushio" width="400" height="400"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-1.jpg" alt="Residential design guide sample spread" width="1042" height="492"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-2.jpg" alt="Residential design guide floor plan sample" width="1042" height="567"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-3.jpg" alt="Residential design guide illustration sample" width="2083" height="930"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-4.jpg" alt="Residential design guide interior sample" width="4167" height="1881"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-5.jpg" alt="Residential design guide exterior sample" width="1042" height="708"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-6.jpg" alt="Residential design guide reference sample" width="1042" height="483"></figure>
       <h3>📌 License and Support</h3>
       <p>This is a digital product. If you have technical issues, email <a href="mailto:hola@luisfurushio.com">hola@luisfurushio.com</a>.</p>
     HTML
