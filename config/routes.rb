@@ -299,11 +299,19 @@ Rails.application.routes.draw do
   constraints DiscoverDomainConstraint do
     get "/", to: "home#about"
 
+    get "/discover", to: "discover_rsc#index", constraints: lambda { |request|
+      DiscoverDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+    }
     get "/discover", to: "discover#index"
 
     product_info_and_purchase_routes
 
     constraints DiscoverTaxonomyConstraint do
+      get "/*taxonomy", to: "discover_rsc#index", constraints: lambda { |request|
+        DiscoverDomainConstraint.matches?(request) &&
+          DiscoverTaxonomyConstraint.matches?(request) &&
+          NativePublicRscRequestConstraint.matches?(request)
+      }
       get "/*taxonomy", to: "discover#index", as: :discover_taxonomy
     end
 
@@ -1281,6 +1289,9 @@ Rails.application.routes.draw do
 
     # discover
     get "/blackfriday", to: redirect("/discover?offer_code=BLACKFRIDAY2025"), as: :blackfriday
+    get "/discover", to: "discover_rsc#index", constraints: lambda { |request|
+      GumroadDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+    }
     get "/discover", to: "discover#index"
     get "/discover/categories",          to: "discover#categories"
 
@@ -1309,7 +1320,6 @@ Rails.application.routes.draw do
     # Default the format to html (like /l/:id) so the custom-HTML wrapper renders
     # for Accept: */* crawlers/unfurlers too, not just browsers sending text/html.
     # An explicit .json still serves the public profile API.
-    get "/:username", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: NativePublicRscRequestConstraint
     get "/:username", to: "users#show", as: "user", defaults: { format: "html" }
     # Iframe content endpoint for profiles with custom_html. Subdomain and
     # custom-domain equivalents live in UserCustomDomainConstraint below.
@@ -1518,7 +1528,9 @@ Rails.application.routes.draw do
     get "/:slug/landing/embed", to: "user_pages#landing_iframe_content", constraints: { slug: page_slug }, as: :user_page_landing
     get "/:slug/landing/version", to: "user_pages#landing_version", constraints: { slug: page_slug }, as: :user_page_landing_version
     get "/:slug", to: "user_pages#show", constraints: { slug: page_slug }, as: :user_page
-    get "/", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: NativePublicRscRequestConstraint
+    get "/", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: lambda { |request|
+      UserCustomDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+    }
     get "/", to: "users#show", defaults: { format: "html" }
   end
 

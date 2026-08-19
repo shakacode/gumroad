@@ -8,3 +8,4 @@ installBrowserTranslationGuard();
 BasePage.initialize();
 registerServerComponent("NativeProductRscPage");
 registerServerComponent("NativeProfileRscPage");
+registerServerComponent("NativeDiscoverRscPage");

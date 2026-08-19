@@ -4,11 +4,10 @@ require "spec_helper"
 
 describe "Public seller profile RSC routing", type: :request do
   let(:seller) { create(:user, username: "rscseller", name: "RSC Seller") }
-  let(:seller_host) { "#{seller.username}.test.gumroad.com" }
+  let(:seller_url) { seller.subdomain_with_protocol }
 
   before do
     create(:product, user: seller, name: "RSC profile product")
-    stub_const("ROOT_DOMAIN", "test.gumroad.com")
     allow_any_instance_of(ActionView::Base).to receive(:vite_entrypoint_stylesheet_tag).and_return("")
     allow_any_instance_of(ActionView::Base).to receive(:vite_typescript_tag).and_return("")
   end
@@ -24,7 +23,7 @@ describe "Public seller profile RSC routing", type: :request do
       controller.response_body = "server-rendered profile"
     end
 
-    get "http://#{seller_host}/", params: { rsc: "1" }
+    get seller_url, params: { rsc: "1" }
 
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered profile")
@@ -37,7 +36,7 @@ describe "Public seller profile RSC routing", type: :request do
   end
 
   it "keeps an ordinary full HTML request on Inertia" do
-    get "http://#{seller_host}/"
+    get seller_url
 
     expect(response).to be_successful
     expect(response.body).to include('id="app" data-page=')
@@ -51,7 +50,7 @@ describe "Public seller profile RSC routing", type: :request do
       "X-Inertia-Partial-Data" => "creator_profile",
     }
 
-    get "http://#{seller_host}/", params: { rsc: "1" }, headers: headers
+    get seller_url, params: { rsc: "1" }, headers: headers
 
     expect(response).to be_successful
     expect(response.parsed_body["component"]).to eq("Users/Show")
@@ -62,7 +61,7 @@ describe "Public seller profile RSC routing", type: :request do
     seller.update!(custom_html: "<h1>Custom profile</h1>")
     Feature.activate_user(:custom_html_pages, seller)
 
-    get "http://#{seller_host}/", params: { rsc: "1" }
+    get seller_url, params: { rsc: "1" }
 
     expect(response).to be_successful
     expect(response.body).to include(%(src="/landing/embed"))
@@ -72,18 +71,11 @@ describe "Public seller profile RSC routing", type: :request do
   end
 
   it "leaves JSON responses on the public profile API path" do
-    get "http://test.gumroad.com/#{seller.username}.json", params: { rsc: "1" }
+    get "#{UrlService.root_domain_with_protocol}/#{seller.username}.json", params: { rsc: "1" }
 
     expect(response).to be_successful
     expect(response.media_type).to eq("application/json")
     expect(response.parsed_body["username"]).to eq(seller.username)
-  end
-
-  it "preserves the root-domain redirect" do
-    get "http://test.gumroad.com/#{seller.username}", params: { rsc: "1" }
-
-    expect(response).to have_http_status(:moved_permanently)
-    expect(response.location).to eq("http://#{seller_host}/?rsc=1")
   end
 
   it "resolves an opted-in request on a seller custom domain" do

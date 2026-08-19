@@ -26,6 +26,7 @@ import { Fieldset } from "$app/components/ui/Fieldset";
 import { Label } from "$app/components/ui/Label";
 import { Radio } from "$app/components/ui/Radio";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
+import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
 import { CardWishlist } from "$app/components/Wishlist/Card";
 
@@ -243,9 +244,10 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
 
 function DiscoverIndex() {
   const props = typia.assert<Props>(usePage().props);
+  const originalLocation = useOriginalLocation();
   const defaultSortOrder = props.curated_product_ids.length > 0 ? "curated" : undefined;
 
-  const initialParsed = parseUrlParams(window.location.href, props.curated_product_ids, defaultSortOrder);
+  const initialParsed = parseUrlParams(originalLocation, props.curated_product_ids, defaultSortOrder);
   // Whether the CURRENT sort came from an explicit `?sort=` param (URL nav, popstate) vs. only
   // the implicit curated default — used to keep the SEO title suffix off a page the user
   // explicitly navigated to with `?sort=curated`, even though that equals the default value.
@@ -351,7 +353,7 @@ function DiscoverIndex() {
   const isCuratedProducts = (() => {
     try {
       if (!recommendedProducts.length || !recommendedProducts[0]?.url) return false;
-      const u = new URL(recommendedProducts[0].url, window.location.origin);
+      const u = new URL(recommendedProducts[0].url, originalLocation);
       return u.searchParams.get("recommended_by") === "products_for_you";
     } catch {
       return false;

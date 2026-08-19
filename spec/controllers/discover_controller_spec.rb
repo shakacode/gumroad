@@ -50,6 +50,15 @@ describe DiscoverController, type: :controller, inertia: true do
       expect(inertia.props).not_to have_key(:recommended_wishlists)
     end
 
+    it "keeps an opted-in request on Inertia when dispatched to the control controller" do
+      get :index, params: { rsc: "1" }
+
+      expect(response).to be_successful
+      expect_inertia.to render_component("Discover/Index")
+      expect(inertia.props).to include(:search_results, :taxonomies_for_nav)
+      expect(inertia.props[:search_offset]).to eq(DiscoverController::RECOMMENDED_PRODUCTS_COUNT + 1)
+    end
+
     it "sets black friday page props when offer code is provided" do
       allow(Feature).to receive(:active?).and_call_original
       allow(Feature).to receive(:active?).with(:offer_codes_search).and_return(true)
@@ -115,7 +124,7 @@ describe DiscoverController, type: :controller, inertia: true do
       it "only fetches search_results when filtering without taxonomy change" do
         request.headers["X-Inertia-Partial-Data"] = "search_results"
 
-        get :index, params: { query: "test", tags: "design" }
+        get :index, params: { query: "test", tags: "design", rsc: "1" }
 
         expect(response).to be_successful
         props = response.parsed_body.fetch("props")
@@ -255,7 +264,7 @@ describe DiscoverController, type: :controller, inertia: true do
         it "returns autocomplete results with empty query" do
           request.headers["X-Inertia-Partial-Data"] = "autocomplete_results"
 
-          get :index, params: { query: "" }
+          get :index, params: { query: "", rsc: "1" }
 
           expect(response).to be_successful
           props = response.parsed_body.fetch("props")
