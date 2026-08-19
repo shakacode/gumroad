@@ -73,6 +73,31 @@ module ProductRscRenderer
 end
 
 RSpec.configure do |config|
+  Capybara.register_driver :product_rsc_chrome do |app|
+    options = Selenium::WebDriver::Chrome::Options.new
+    options.add_preference("intl.accept_languages", "en-US")
+    options.logging_prefs = { driver: "DEBUG" }
+
+    if ENV["IN_DOCKER"] == "true"
+      docker_browser_args.reject { _1.start_with?("--host-resolver-rules=") }.each { |arg| options.args << arg }
+      options.args << "--window-size=1440,900"
+    else
+      options.add_emulation(device_metrics: { width: 1440, height: 900, touch: false })
+    end
+    options.args << "--host-resolver-rules=" \
+                    "MAP *.test.gumroad.com 127.0.0.1,MAP test.gumroad.com 127.0.0.1," \
+                    "MAP localhost ~NOTFOUND," \
+                    "MAP js.stripe.com ~NOTFOUND,MAP *.stripe.network ~NOTFOUND," \
+                    "MAP www.googletagmanager.com ~NOTFOUND"
+
+    http_client = Selenium::WebDriver::Remote::Http::Default.new(open_timeout: 120, read_timeout: 120)
+    Capybara::Selenium::Driver.new(app, browser: :chrome, http_client:, options:)
+  end
+
+  config.before(:each, :product_rsc_renderer, type: :system) do
+    driven_by :product_rsc_chrome
+  end
+
   config.around(:each, :product_rsc_renderer) do |example|
     ProductRscRenderer.with_running_renderer { example.run }
   end

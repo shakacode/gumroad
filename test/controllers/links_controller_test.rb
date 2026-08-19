@@ -4953,7 +4953,7 @@ class LinksControllerShowTest < ActionController::TestCase
     link = create_product(user: @user)
     render_options = nil
     @controller = ProductRscLinksController.new
-    @controller.define_singleton_method(:render) do |**options|
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**options|
       render_options = options
       self.response_body = "server-rendered product"
     end
@@ -4961,18 +4961,22 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: link.to_param, layout: "discover", rsc: "1" }
 
     assert_response :success
-    assert_equal({ template: "links/rsc_show", layout: "inertia" }, render_options)
+    assert_equal(
+      { template: "links/rsc_show", layout: "inertia", rsc_stream_observability: true },
+      render_options
+    )
     rsc_template = Rails.root.join("app/views/links/rsc_show.html.erb").read
     assert_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", defer: true'
     assert_not_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", async: true'
-    assert_includes rsc_template, "react_component("
-    assert_includes rsc_template, '"NativeProductPage"'
-    assert_includes rsc_template, "prerender: true"
-    assert_not_includes rsc_template, "stream_react_component("
+    assert_includes rsc_template, "stream_react_component("
+    assert_includes rsc_template, '"NativeProductRscPage"'
+    assert_no_match(/<%= react_component\(/, rsc_template)
     rsc_client_entry = Rails.root.join("app/javascript/product_rsc/client_entry.tsx").read
     assert_includes rsc_client_entry, "installBrowserTranslationGuard();"
     assert_includes rsc_client_entry, "BasePage.initialize();"
-    assert_includes rsc_client_entry, "ReactOnRails.register({ NativeProductPage });"
+    assert_includes rsc_client_entry, 'registerServerComponent("NativeProductRscPage");'
+    rsc_server_entry = Rails.root.join("app/javascript/product_rsc/server_entry.tsx").read
+    assert_includes rsc_server_entry, "registerServerComponent({ NativeProductRscPage"
     props = @controller.instance_variable_get(:@native_product_rsc_props)
     assert_equal link.name, props.dig(:product, :name)
     assert props.key?(:taxonomy_path)
@@ -4984,7 +4988,8 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal @controller.instance_variable_get(:@precomputed_rendering_context).except(:csp_nonce).compact,
                  props.dig(:global).except(:href)
     assert response.headers["Last-Modified"].present?
-    assert_not_kind_of ActionController::LiveTestResponse, response
+    assert_includes ProductRscLinksController.ancestors, ActionController::Live
+    assert_not_includes LinksController.ancestors, ActionController::Live
   end
 
   test "GET show keeps Discover autocomplete partial requests on Inertia" do

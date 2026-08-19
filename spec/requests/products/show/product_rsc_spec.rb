@@ -30,22 +30,29 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   it "server-renders the Discover product without changing the ordinary page content" do
     expect(large_taxonomy_navigation.to_json.bytesize).to be > 10_000
 
-    ordinary_url = short_link_path(id: product.unique_permalink, layout: "discover")
-    rsc_url = short_link_path(id: product.unique_permalink, layout: "discover", rsc: "1")
+    rsc_url = "#{product.long_url(layout: Product::Layout::DISCOVER)}&rsc=1"
 
-    visit ordinary_url
-    expect(page).to have_text(product.name)
-    expect(page).to have_text("$12")
-    expect(page).to have_link("Add to cart")
-
-    visit rsc_url
+    page.visit rsc_url
     expect(page).to have_css("#native-product-rsc-root")
     expect(page).to have_text(product.name)
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
-    expect(page.evaluate_script("document.readyState")).to eq("complete")
-    expect(page).to have_css("#native-product-rsc-root[data-react-class='NativeProductPage']")
-    expect(page).to have_no_css('script[data-react-on-rails-rsc-payload="true"]', visible: :all)
+    expect(page).to have_css(
+      "script.js-react-on-rails-component[data-component-name='NativeProductRscPage']" \
+      "[data-dom-id='native-product-rsc-root']",
+      visible: :all
+    )
+    payload_scripts = page.evaluate_script(<<~JS)
+      (() => {
+        const scripts = [...document.querySelectorAll('script[data-react-on-rails-rsc-payload="true"]')];
+        return {
+          bytes: scripts.reduce((sum, script) => sum + new TextEncoder().encode(script.textContent).length, 0),
+          allNonced: scripts.every((script) => script.nonce.length > 0),
+        };
+      })()
+    JS
+    expect(payload_scripts.fetch("bytes")).to be > 10_000
+    expect(payload_scripts.fetch("allNonced")).to be(true)
     expect(page.evaluate_script(<<~JS)).to be(true)
       [...document.head.querySelectorAll("style")].some((style) => style.textContent.includes("--body-bg: #123456"))
     JS

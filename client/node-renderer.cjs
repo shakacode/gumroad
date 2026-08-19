@@ -24,7 +24,7 @@ const config = {
   workersCount: configuredWorkersCount ?? 3,
   supportModules: true,
   enableHealthEndpoints: true,
-  additionalContext: { URL, AbortController, File },
+  additionalContext: { URL, AbortController, File, FormData },
   stubTimers: false,
   replayServerAsyncOperationLogs: true,
 };
