@@ -61,4 +61,27 @@ RSpec.describe "ShakaPerf benchmark runtime" do
       "export NODE_ENV=production",
     )
   end
+
+  it "loads every benchmark catalog before reindexing both twin databases" do
+    expected_mounts = [
+      "../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro",
+      "../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro",
+      "../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro",
+      "../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro",
+    ]
+    %w[control-server experiment-server].each do |service|
+      expect(compose.dig("services", service, "volumes")).to include(*expected_mounts)
+    end
+
+    commands = Rails.root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
+    expect(commands).to eq(
+      [
+        "DISABLE_SPRING=1 bundle exec rails db:drop db:create db:schema:load",
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb",
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_seller_profile.rb",
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_discover.rb",
+        'DISABLE_SPRING=1 bundle exec rails runner "DevTools.delete_all_indices_and_reindex_all"',
+      ],
+    )
+  end
 end

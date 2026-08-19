@@ -30,6 +30,8 @@ services:
       - control_volume:/home/${USER}/app
       - ./runtime:/shakaperf-twin:ro
       - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro
+      - ../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro
       - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
     depends_on:
       mysql-control:
@@ -68,6 +70,8 @@ services:
       - experiment_volume:/home/${USER}/app
       - ./runtime:/shakaperf-twin:ro
       - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro
+      - ../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro
       - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
     depends_on:
       mysql-experiment:
