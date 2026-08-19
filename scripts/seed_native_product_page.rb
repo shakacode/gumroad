@@ -13,7 +13,7 @@
 module NativeProductPageSeed
   OWNER = "native-product-page-benchmark"
   OWNER_KEY = "native_product_page_fixture_owner"
-  VERSION = 6
+  VERSION = 7
   VERSION_KEY = "native_product_page_fixture_version"
   SELLER_EMAIL = "office365-it-pros-benchmark@example.com"
   BUYER_COUNT = 22
@@ -49,6 +49,7 @@ module NativeProductPageSeed
     fiction-books
     audio
   ].freeze
+  RECOMMENDED_PRODUCT_PERMALINKS = %w[OITPROS MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros].freeze
   LOCAL_PORT = ENV.fetch("DEV_LANE_PORT", "3000")
   ReviewIdentity = Data.define(:id, :email, :name)
 
@@ -63,6 +64,8 @@ module NativeProductPageSeed
       pages: 1_000,
       cover: "microsoft-365.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
+      is_bundle: true,
+      bundle_children: %w[MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros],
       review_count: 22,
       taxonomy_slug: "software-development",
       tags: ["microsoft 365", "it administration"],
@@ -106,6 +109,25 @@ module NativeProductPageSeed
       HTML
     },
     {
+      unique_permalink: "MCOREGUIDE",
+      permalink: "M365Core",
+      name: "Microsoft 365 Core Guide (2027 Edition)",
+      summary: "The main Microsoft 365 for IT Pros guide in PDF and EPUB formats",
+      price_cents: 3995,
+      storefront_position: 4,
+      pages: 1_000,
+      cover: "microsoft-365.png",
+      native_type: Link::NATIVE_TYPE_EBOOK,
+      review_count: 4,
+      taxonomy_slug: "software-development",
+      tags: ["microsoft 365", "it administration"],
+      description: <<~HTML,
+        <h2>The core Microsoft 365 operations guide</h2>
+        <p>The main book from the Microsoft 365 for IT Pros bundle, covering identity, Exchange Online, Teams, SharePoint Online, security, compliance, and tenant operations.</p>
+        <p>Includes PDF and EPUB formats with monthly updates throughout the edition.</p>
+      HTML
+    },
+    {
       unique_permalink: "MPSAUTOMATION",
       permalink: "M365PS",
       name: "Automating Microsoft 365 with PowerShell (2027 edition)",
@@ -115,7 +137,8 @@ module NativeProductPageSeed
       pages: 450,
       cover: "powershell.png",
       native_type: Link::NATIVE_TYPE_EBOOK,
-      review_count: 0,
+      review_count: 3,
+      variants: ["PDF and EPUB", "PDF only"],
       taxonomy_slug: "software-development",
       tags: ["powershell", "automation"],
       custom_attributes: [
@@ -145,7 +168,7 @@ module NativeProductPageSeed
       pages: 310,
       cover: "purview.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
-      review_count: 0,
+      review_count: 2,
       taxonomy_slug: "software-development",
       tags: ["microsoft purview", "compliance"],
       custom_attributes: [
@@ -170,7 +193,7 @@ module NativeProductPageSeed
       pages: 280,
       cover: "power-platform.png",
       native_type: Link::NATIVE_TYPE_DIGITAL,
-      review_count: 0,
+      review_count: 2,
       taxonomy_slug: "software-development",
       tags: ["power platform", "governance"],
       custom_attributes: [
@@ -296,8 +319,11 @@ module NativeProductPageSeed
       )
       buyers = seed_buyers!
       products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:) }
+      seed_bundle_products!(products:)
       seed_seller_profile!(seller:, products:)
-      products << seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT)
+      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT)
+      products << residential_guide
+      seed_recommendations!(source: residential_guide, products:)
 
       puts "Seeded 2 creators: #{products.size} products and #{products.sum(&:reviews_count)} reviews."
       products.each do |product|
@@ -313,6 +339,10 @@ module NativeProductPageSeed
     if user && user.json_data[OWNER_KEY] != OWNER
       raise "Refusing to overwrite non-fixture user with email #{email.inspect}"
     end
+    username_owner = User.find_by(username:)
+    if username_owner && username_owner != user
+      raise "Refusing to claim username #{username.inspect} already used by user #{username_owner.id}"
+    end
 
     user ||= User.new(email:)
     user.assign_attributes(
@@ -320,7 +350,7 @@ module NativeProductPageSeed
       username:,
       bio:,
       user_risk_state: "compliant",
-      confirmed_at: user.confirmed_at || Time.current,
+      confirmed_at: user.confirmed_at || STOREFRONT_CREATED_AT,
       payment_address: email,
       **attributes,
     )
@@ -369,6 +399,7 @@ module NativeProductPageSeed
       draft: false,
       purchase_disabled_at: nil,
       deleted_at: nil,
+      is_bundle: attributes.fetch(:is_bundle, false),
     )
     product.json_data[OWNER_KEY] = OWNER
     product.json_data[VERSION_KEY] = VERSION
@@ -401,12 +432,38 @@ module NativeProductPageSeed
         buyer:,
         rating: ratings.fetch(index),
         message: review_messages.fetch((index + attributes[:review_message_offset].to_i) % review_messages.size),
+        position: index,
       )
     end
     remove_surplus_reviews!(product:, reviewers:)
     product.sync_review_stat
 
     product.reload
+  end
+
+  def seed_bundle_products!(products:)
+    products_by_permalink = products.index_by(&:unique_permalink)
+    PRODUCTS.each do |attributes|
+      bundle = products_by_permalink.fetch(attributes.fetch(:unique_permalink))
+      desired_ids = attributes.fetch(:bundle_children, []).each_with_index.map do |permalink, position|
+        child = products_by_permalink.fetch(permalink)
+        variant = child.has_multiple_variants? ? child.alive_variants.in_order.first : nil
+        bundle_product = bundle.bundle_products.find_or_initialize_by(product: child)
+        bundle_product.update!(variant:, quantity: 1, position:, deleted_at: nil)
+        bundle_product.id
+      end
+      bundle.bundle_products.where.not(id: desired_ids).update_all(deleted_at: STOREFRONT_CREATED_AT)
+    end
+  end
+
+  def seed_recommendations!(source:, products:)
+    recommended_products = RECOMMENDED_PRODUCT_PERMALINKS.map do |permalink|
+      products.find { _1.unique_permalink == permalink } || raise("Missing recommended product #{permalink}")
+    end
+    recommended_products.each_with_index do |product, index|
+      SalesRelatedProductsInfo.find_or_create_info(source.id, product.id).update!(sales_count: recommended_products.size - index)
+    end
+    UpdateCachedSalesRelatedProductsInfosJob.new.perform(source.id)
   end
 
   def seed_previews!(product:, images:)
@@ -436,7 +493,7 @@ module NativeProductPageSeed
       preview.update!(unsplash_url: nil, oembed: nil)
       guid
     end
-    product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: Time.current)
+    product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: STOREFRONT_CREATED_AT)
   end
 
   def seed_seller_profile!(seller:, products:)
@@ -471,7 +528,7 @@ module NativeProductPageSeed
 
   def seed_variants!(product:, names:)
     if names.empty?
-      product.variant_categories.alive.update_all(deleted_at: Time.current)
+      product.variant_categories.alive.update_all(deleted_at: STOREFRONT_CREATED_AT)
       return
     end
 
@@ -481,8 +538,8 @@ module NativeProductPageSeed
       variant = category.variants.find_or_initialize_by(name:)
       variant.update!(price_difference_cents: 0, position_in_category: index, deleted_at: nil)
     end
-    category.variants.alive.where.not(name: names).update_all(deleted_at: Time.current)
-    product.variant_categories.alive.where.not(id: category.id).update_all(deleted_at: Time.current)
+    category.variants.alive.where.not(name: names).update_all(deleted_at: STOREFRONT_CREATED_AT)
+    product.variant_categories.alive.where.not(id: category.id).update_all(deleted_at: STOREFRONT_CREATED_AT)
   end
 
   def guest_reviewers(product:, count:)
@@ -501,8 +558,9 @@ module NativeProductPageSeed
     purchases.delete_all
   end
 
-  def seed_review!(product:, seller:, buyer:, rating:, message:)
+  def seed_review!(product:, seller:, buyer:, rating:, message:, position:)
     identity = buyer.id ? { purchaser_id: buyer.id } : { email: buyer.email }
+    reviewed_at = STOREFRONT_CREATED_AT + position.minutes
     purchase = Purchase.find_or_initialize_by(link_id: product.id, **identity)
     if purchase.persisted? && purchase.seller_id != seller.id
       raise "Refusing to overwrite non-fixture purchase #{purchase.id}"
@@ -522,13 +580,16 @@ module NativeProductPageSeed
         card_country: "US",
         ip_address: "192.0.2.#{buyer.email.bytes.sum % 200 + 1}",
         offer_code: fixture_offer_code!(seller),
+        created_at: reviewed_at,
+        updated_at: reviewed_at,
       )
       purchase.send(:calculate_fees)
       purchase.save!
     end
-    purchase.update!(purchase_state: "successful", succeeded_at: purchase.succeeded_at || Time.current)
+    purchase.update!(purchase_state: "successful", succeeded_at: reviewed_at, created_at: reviewed_at, updated_at: reviewed_at)
 
-    purchase.post_review(rating:, message:)
+    review = purchase.post_review(rating:, message:)
+    review.update_columns(created_at: reviewed_at, updated_at: reviewed_at)
   end
 
   def fixture_offer_code!(seller)

@@ -4,24 +4,29 @@ require "spec_helper"
 
 RSpec.describe "native product page seed" do
   let(:seed_file) { Rails.root.join("scripts/seed_native_product_page.rb") }
-  let(:unique_permalinks) { %w[OITPROS MPSAUTOMATION MPURVIEW PowerPlatformITPros bgfjk] }
+  let(:unique_permalinks) { %w[OITPROS MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros bgfjk] }
 
   it "creates an idempotent catalog with production-shaped preview metadata" do
     expect { load(seed_file, true) }
-      .to change { Link.where(unique_permalink: unique_permalinks).count }.from(0).to(5)
-      .and change { Purchase.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }.from(0).to(260)
-      .and change { ProductReview.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }.from(0).to(260)
+      .to change { Link.where(unique_permalink: unique_permalinks).count }.from(0).to(6)
+      .and change { Purchase.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }.from(0).to(271)
+      .and change { ProductReview.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }.from(0).to(271)
 
     seller = User.find_by!(email: "office365-it-pros-benchmark@example.com")
     product = Link.fetch_leniently("O365IT")
 
     expect(seller).to have_attributes(name: "Office 365 for IT Pros", username: "o365itpros")
+    expect(seller.json_data).to include(
+      "native_product_page_fixture_owner" => "native-product-page-benchmark",
+      "native_product_page_fixture_version" => 7,
+    )
     expect(product).to have_attributes(
       user: seller,
       name: "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
       price_cents: 5_995,
       native_type: Link::NATIVE_TYPE_EBOOK,
       display_product_reviews?: true,
+      is_bundle?: true,
     )
     expect(product.custom_summary).to include("Four books")
     expect(product.custom_attributes).to include("name" => "Pages", "value" => "1000")
@@ -42,8 +47,20 @@ RSpec.describe "native product page seed" do
     expect(product.average_rating).to eq(5.0)
     expect(Link.fetch_leniently("M365PS")).to have_attributes(
       name: "Automating Microsoft 365 with PowerShell (2027 edition)",
-      reviews_count: 0,
+      reviews_count: 3,
     )
+    bundle_children = product.bundle_products.alive.in_order.includes(:product, :variant)
+    expect(bundle_children.map { _1.product.unique_permalink }).to eq(
+      %w[MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros],
+    )
+    expect(bundle_children.map { _1.product.thumbnail_alive.url }).to eq(
+      %w[microsoft-365.png powershell.png purview.png power-platform.png].map { "/native-product-page-fixture/#{_1}" },
+    )
+    expect(bundle_children.map { _1.product.price_cents }).to eq([3_995, 1_995, 1_295, 1_295])
+    expect(bundle_children.map { _1.product.reviews_count }).to eq([4, 3, 2, 2])
+    expect(bundle_children.map { _1.product.user }).to all(eq(seller))
+    expect(bundle_children.second.variant.name).to eq("PDF and EPUB")
+    expect(bundle_children.map(&:position)).to eq([0, 1, 2, 3])
     product_section = seller.seller_profile_sections.on_profile.sole
     expect(product_section).to have_attributes(
       type: "SellerProfileProductsSection",
@@ -52,9 +69,9 @@ RSpec.describe "native product page seed" do
       show_filters: false,
       add_new_products: true,
     )
-    expect(product_section.shown_products).to match_array(Link.where(unique_permalink: unique_permalinks.first(4)).pluck(:id))
+    expect(product_section.shown_products).to match_array(Link.where(unique_permalink: unique_permalinks.first(5)).pluck(:id))
     expect(Link.where(id: product_section.shown_products).order(created_at: :desc).pluck(:custom_permalink)).to eq(
-      %w[PowerPlatform O365IT M365Purview M365PS],
+      %w[PowerPlatform O365IT M365Purview M365PS M365Core],
     )
     expect(seller.seller_profile.json_data).to eq(
       "tabs" => [{ "name" => "Products", "sections" => [product_section.id] }],
@@ -88,10 +105,29 @@ RSpec.describe "native product page seed" do
         *Array.new(4, { native_width: 1_800, native_height: 1_379 }),
       ],
     )
+    expect(residential_guide.display_asset_previews.map { _1.file.blob.byte_size }).to eq(
+      [254_320, 263_964, 280_776, 283_991, 176_091],
+    )
+    expect(Nokogiri::HTML.fragment(residential_guide.description).css("img").map { _1["src"] }).to eq(
+      [
+        "/native-product-page-fixture/luis-furushio-profile.png",
+        *(1..6).map { "/native-product-page-fixture/residential-guide-detail-#{_1}.jpg" },
+      ],
+    )
     expect(residential_guide.tags.pluck(:name)).to match_array(["residential design", "architecture"])
     expect(residential_guide.variant_categories_alive.first.alive_variants.in_order.pluck(:name)).to eq(["ENGLISH", "ESPAÑOL"])
     expect(residential_guide.product_reviews.visible_on_product_page.group(:rating).count).to eq(3 => 2, 4 => 5, 5 => 231)
     expect(residential_guide.json_data.dig("fixture_source_snapshot", "sales_count")).to eq(10_858)
+    recommendations = RecommendedProducts::DiscoverService.fetch(
+      purchaser: nil,
+      cart_product_ids: [residential_guide.id],
+      recommender_model_name: RecommendedProductsService::MODEL_SALES,
+    )
+    expect(recommendations.map { _1.product.unique_permalink }).to eq(
+      %w[OITPROS MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros],
+    )
+    expect(recommendations.map { _1.product.thumbnail_alive }).to all(be_present)
+    expect(recommendations.map { _1.product.product_review_stat }).to all(be_present)
     expect(Discover::TaxonomyPresenter.new.taxonomies_for_nav.first(17).pluck(:slug)).to eq(
       %w[
         drawing-and-painting
@@ -117,8 +153,10 @@ RSpec.describe "native product page seed" do
     expect { load(seed_file, true) }
       .to not_change { User.where("email LIKE ?", "%benchmark%example.com").count }
       .and not_change { Link.where(unique_permalink: unique_permalinks).count }
+      .and not_change { BundleProduct.where(bundle: product).count }
       .and not_change { Purchase.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }
       .and not_change { ProductReview.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }
+      .and not_change { CachedSalesRelatedProductsInfo.where(product: residential_guide).count }
   end
 
   it "refuses to overwrite a product that already uses a fixture permalink" do
@@ -137,5 +175,14 @@ RSpec.describe "native product page seed" do
       .to raise_error(RuntimeError, /Refusing to overwrite non-fixture user/)
 
     expect(unrelated_seller.reload.name).to eq("Existing seller")
+  end
+
+  it "refuses to claim a fixture username owned by another user" do
+    unrelated_seller = create(:user, username: "o365itpros", email: "unrelated@example.com")
+
+    expect { load(seed_file, true) }
+      .to raise_error(RuntimeError, /Refusing to claim username/)
+
+    expect(unrelated_seller.reload.email).to eq("unrelated@example.com")
   end
 end
