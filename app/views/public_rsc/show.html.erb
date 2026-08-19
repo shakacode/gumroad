@@ -1,0 +1,11 @@
+<% content_for :script do %>
+  <%= javascript_include_tag "/product-rsc/product_rsc.js", defer: true, crossorigin: "anonymous" %>
+<% end %>
+<%= stream_react_component(
+  @public_rsc_component_name,
+  props: @public_rsc_props,
+  auto_load_bundle: false,
+  replay_console: false,
+  trace: false,
+  id: @public_rsc_root_id
+) %>

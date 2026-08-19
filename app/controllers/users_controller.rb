@@ -32,7 +32,10 @@ class UsersController < ApplicationController
       format.html do
         set_user_page_meta(@user)
         set_favicon_meta_tags(@user)
-        render inertia: "Users/Show", props: ProfilePresenter.new(pundit_user:, seller: @user).profile_props(seller_custom_domain_url:, request:)
+        profile_props = ProfilePresenter.new(pundit_user:, seller: @user).profile_props(seller_custom_domain_url:, request:)
+        return render_native_profile_rsc(profile_props) if respond_to?(:render_native_profile_rsc, true)
+
+        render inertia: "Users/Show", props: profile_props
       end
       format.json { render json: ProfilePresenter::PublicApiProps.new(seller: @user, seller_custom_domain_url:).props }
       format.any { e404 }
