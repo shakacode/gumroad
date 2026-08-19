@@ -2,6 +2,7 @@ import { getRegisteredTests } from "shaka-shared";
 import { describe, expect, it } from "vitest";
 
 import "../../../ab-tests/v0.0/seeded-native-product-pages.abtest";
+import "../../../ab-tests/v0.0/native-product-page.abtest";
 import "../../../ab-tests/v0.0/seeded-product-navigation.abtest";
 import "../../../ab-tests/v0.0/seeded-seller-page.abtest";
 import "../../../ab-tests/v0.0/seeded-seller-product-navigation.abtest";
@@ -13,6 +14,19 @@ import {
 } from "../../../config/shakaperf/seeded-native-products";
 
 describe("seeded native product ShakaPerf definitions", () => {
+  it("measures the seeded bundle and verifies its child-product cards", () => {
+    const definition = getRegisteredTests().find(({ name }) =>
+      name.startsWith("v0.0 Microsoft 365 cold bundle product:"),
+    );
+
+    expect(definition).toMatchObject({
+      startingPath: "http://o365itpros.localhost:3100/l/O365IT?layout=discover&recommended_by=search",
+      experimentPathOverride: "http://o365itpros.localhost:3200/l/O365IT?layout=discover&recommended_by=search",
+    });
+    expect(definition?.testFn.toString()).toContain("BUNDLE_PRODUCT_NAMES");
+    expect(definition?.testFn.toString()).toContain("This bundle contains...");
+  });
+
   it("covers every additional seeded product on both twin ports", () => {
     const definitions = getRegisteredTests().filter(({ name }) =>
       ADDITIONAL_SEEDED_NATIVE_PRODUCTS.some(({ label }) => name.startsWith(`v0.0 ${label} product:`)),
