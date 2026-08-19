@@ -41,7 +41,7 @@ RSpec.describe "ShakaPerf benchmark runtime" do
   end
 
   it "overrides old image defaults when runtime scripts execute in place" do
-    %w[start-rails setup-products].each do |script_name|
+    %w[start-rails setup-database setup-products].each do |script_name|
       script = Rails.root.join("twin-servers/runtime", script_name).read
 
       expect(script).to include(
@@ -62,7 +62,7 @@ RSpec.describe "ShakaPerf benchmark runtime" do
     )
   end
 
-  it "loads every benchmark catalog before reindexing both twin databases" do
+  it "normally seeds and reindexes before loading the additional benchmark catalogs" do
     expected_mounts = [
       "../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro",
       "../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro",
@@ -73,15 +73,26 @@ RSpec.describe "ShakaPerf benchmark runtime" do
       expect(compose.dig("services", service, "volumes")).to include(*expected_mounts)
     end
 
-    commands = Rails.root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
-    expect(commands).to eq(
+    config = Rails.root.join("abtests.config.ts").read
+    expect(config.index('command: "/shakaperf-twin/setup-database"')).to be <
+      config.index('command: "/shakaperf-twin/setup-products"')
+
+    database_commands = Rails.root.join("twin-servers/runtime/setup-database").read.lines.grep(/bundle exec rails/).map(&:strip)
+    expect(database_commands).to eq(["DISABLE_SPRING=1 bundle exec rails db:reset"])
+
+    product_commands = Rails.root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
+    expect(product_commands).to eq(
       [
-        "DISABLE_SPRING=1 bundle exec rails db:drop db:create db:schema:load",
         "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb",
         "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_seller_profile.rb",
         "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_discover.rb",
         'DISABLE_SPRING=1 bundle exec rails runner "DevTools.delete_all_indices_and_reindex_all"',
       ],
     )
+
+    normal_seed_source = [Rails.root.join("db/seeds.rb"), *Rails.root.glob("db/seeds/**/*.rb")].map(&:read).join("\n")
+    %w[seed_native_product_page seed_shakaperf_seller_profile seed_shakaperf_discover].each do |seed_name|
+      expect(normal_seed_source).not_to include(seed_name)
+    end
   end
 end
