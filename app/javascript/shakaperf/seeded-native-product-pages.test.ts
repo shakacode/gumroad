@@ -53,15 +53,24 @@ describe("seeded native product ShakaPerf definitions", () => {
     expect(definition?.testFn.toString()).toContain("redirects are not allowed");
   });
 
-  it("measures canonical seller-to-profile-product navigation on both twins", () => {
+  it("compares Inertia seller-to-product navigation with a full document reload", () => {
     const definition = getRegisteredTests().find(({ name }) => name.startsWith("v0.0 Office 365 seller to product:"));
 
     expect(definition).toMatchObject({
       startingPath: "http://o365itpros.localhost:3100/",
       experimentPathOverride: "http://o365itpros.localhost:3200/",
       visregSelectors: ["main"],
+      markers: [
+        {
+          start: "shakaperf-seller-product-navigation-start",
+          end: "shakaperf-seller-product-navigation-end",
+          label: "seller-to-product navigation",
+        },
+      ],
     });
     expect(definition?.testFn.toString()).toContain("productLink.click()");
+    expect(definition?.testFn.toString()).toContain("page.goto(expectedProductUrl");
+    expect(definition?.testFn.toString()).toContain("performance.timeOrigin");
     expect(definition?.testFn.toString()).toContain("Profile-layout product navigation");
   });
 
@@ -73,6 +82,6 @@ describe("seeded native product ShakaPerf definitions", () => {
       experimentPathOverride: "http://o365itpros.localhost:3200/l/PowerPlatform?layout=discover&recommended_by=search",
     });
     expect(definition?.testFn.toString()).toContain('removeAttribute("target")');
-    expect(definition?.testFn.toString()).toContain("creatorLink.click()");
+    expect(definition?.testFn.toString()).toContain("creatorLink.click(");
   });
 });

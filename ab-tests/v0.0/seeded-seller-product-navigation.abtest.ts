@@ -16,14 +16,17 @@ const controlSellerUrl = seededSellerUrl(CONTROL_PORT);
 const experimentSellerUrl = seededSellerUrl(EXPERIMENT_PORT);
 const controlProductUrl = seededProfileProductUrl(product, CONTROL_PORT);
 const experimentProductUrl = seededProfileProductUrl(product, EXPERIMENT_PORT);
+const NAVIGATION_START_MARK = "shakaperf-seller-product-navigation-start";
+const NAVIGATION_END_MARK = "shakaperf-seller-product-navigation-end";
 
 abTest(
-  "v0.0 Office 365 seller to product: canonical profile navigation",
+  "v0.0 Office 365 seller to product: Inertia navigation vs full document reload",
   {
     startingPath: controlSellerUrl,
     experimentPathOverride: experimentSellerUrl,
     testTypes: ["visreg", "perf", "accessibility"],
     visregSelectors: ["main"],
+    markers: [{ start: NAVIGATION_START_MARK, end: NAVIGATION_END_MARK, label: "seller-to-product navigation" }],
   },
   async ({ page, annotate, isControl }) => {
     const expectedSellerUrl = isControl ? controlSellerUrl : experimentSellerUrl;
@@ -37,7 +40,14 @@ abTest(
 
     const productLink = page.locator(`a[href="${expectedProductUrl}"]`).first();
     await productLink.waitFor({ state: "visible" });
-    await Promise.all([page.waitForURL(expectedProductUrl, { waitUntil: "domcontentloaded" }), productLink.click()]);
+    const initialTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+    await page.evaluate((mark: string) => performance.mark(mark), NAVIGATION_START_MARK);
+    await annotate(isControl ? "Navigate with Inertia" : "Navigate with a full document reload");
+    if (isControl) {
+      await Promise.all([page.waitForURL(expectedProductUrl, { waitUntil: "domcontentloaded" }), productLink.click()]);
+    } else {
+      await page.goto(expectedProductUrl, { waitUntil: "domcontentloaded" });
+    }
 
     await page.locator("#app[data-page]").waitFor({ state: "attached" });
     if (await page.locator("#native-product-rsc-root").count()) {
@@ -48,6 +58,12 @@ abTest(
     await page.getByLabel("Product preview").waitFor({ state: "visible" });
     await page.locator('[itemprop="price"]:visible').first().waitFor({ state: "visible" });
     await Promise.all([waitForAllImages(page), waitForFontsReady(page), waitForNoMutations(page)]);
-    await annotate(`${isControl ? "Control" : "Experiment"} profile product rendered`);
+    await page.evaluate((mark: string) => performance.mark(mark), NAVIGATION_END_MARK);
+
+    const finalTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+    if (isControl ? finalTimeOrigin !== initialTimeOrigin : finalTimeOrigin === initialTimeOrigin) {
+      throw new Error(`Expected ${isControl ? "Inertia to preserve" : "native navigation to replace"} the document`);
+    }
+    await annotate(`${isControl ? "Inertia" : "Full-reload"} profile product rendered`);
   },
 );
