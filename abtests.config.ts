@@ -1,6 +1,8 @@
 import * as os from "node:os";
 import { join } from "node:path";
-import { DESKTOP_VIEWPORT, PHONE_VIEWPORT, defineConfig, installRequestBlocking } from "shaka-shared";
+import { DESKTOP_VIEWPORT, PHONE_VIEWPORT, defineConfig } from "shaka-shared";
+
+import { prepareShakaPerfNavigation } from "./config/shakaperf/prepare-navigation";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
@@ -32,29 +34,7 @@ export default defineConfig({
     viewports: ["desktop", "phone"],
     parallelism: PARALLELISM,
     timeoutMs: 240_000,
-    beforeNavigate: async ({ context }) => {
-      // Development authorizes rack-mini-profiler on every request; keep its injected UI and requests out of measurements.
-      await context.addCookies(
-        [CONTROL_PORT, EXPERIMENT_PORT].flatMap((port) =>
-          ["o365itpros", "luisfurushio"].map((subdomain) => ({
-            name: "__profilin",
-            value: "p=t,dp=t",
-            url: `http://${subdomain}.localhost:${port}`,
-          })),
-        ),
-      );
-      await installRequestBlocking(context, ["/recaptcha/", "/cart_items_count"]);
-      await context.addInitScript(() => {
-        window.addEventListener(
-          "DOMContentLoaded",
-          () => {
-            const footer = document.querySelector<HTMLElement>("#bullet-footer");
-            if (footer) footer.hidden = true;
-          },
-          { once: true },
-        );
-      });
-    },
+    beforeNavigate: prepareShakaPerfNavigation,
     playwrightOptions: {
       browser: "chromium",
       args: ["--no-sandbox"],
