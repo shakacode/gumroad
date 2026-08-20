@@ -14,7 +14,7 @@ class LinksController < ApplicationController
 
   enable_mobile_app_web_view only: %i[new create edit]
 
-  # Products/Show and Products/Profile/Show both render from #show.
+  # Standard and profile product pages render their currency controls from #show.
   self.buyer_currency_footer_actions = %w[show].freeze
 
   DEFAULT_PRICE = 500
@@ -213,29 +213,17 @@ class LinksController < ApplicationController
           return head :conflict
         end
 
-        if native_product_rsc_request?
-          product_props = case params[:layout]
-                          when Product::Layout::PROFILE
-                            presenter.profile_product_props(**presenter_props)
-                          when Product::Layout::DISCOVER
-                            discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
-                            presenter.discover_product_props(discover_props:, **presenter_props)
-                          else
-                            presenter.product_page_props(**presenter_props)
-          end
-
-          return render_native_product_rsc(product_props.merge(page_layout: params[:layout]))
+        product_props = case params[:layout]
+                        when Product::Layout::PROFILE
+                          presenter.profile_product_props(**presenter_props)
+                        when Product::Layout::DISCOVER
+                          discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
+                          presenter.discover_product_props(discover_props:, **presenter_props)
+                        else
+                          presenter.product_page_props(**presenter_props)
         end
 
-        case params[:layout]
-        when Product::Layout::PROFILE
-          render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
-        when Product::Layout::DISCOVER
-          discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
-          render inertia: "Products/Discover/Show", props: presenter.discover_product_props(discover_props:, **presenter_props)
-        else
-          render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
-        end
+        render_native_product_rsc(product_props.merge(page_layout: params[:layout]))
       end
       format.json { render json: ProductPresenter::PublicApiProps.new(product: @product, seller_custom_domain_url:).props }
       format.any { e404 }
@@ -797,7 +785,7 @@ class LinksController < ApplicationController
 
   private
     def native_product_rsc_request?
-      product_rsc_controller? && !request.inertia? && NativeProductRscRequestConstraint.matches?(request)
+      !request.inertia? && NativeProductRscRequestConstraint.matches?(request)
     end
 
     def product_rsc_controller?

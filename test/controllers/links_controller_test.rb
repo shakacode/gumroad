@@ -46,7 +46,7 @@ module LinksControllerTestHelpers
 
   def inertia_page
     assert_equal "application/json", response.media_type
-    response.parsed_body
+    JSON.parse(response.body)
   end
 
   # For assertions that need both the Inertia page object and the rendered HTML
@@ -4882,6 +4882,9 @@ class LinksControllerShowTest < ActionController::TestCase
     # request's executor, so the value set in the global setup doesn't survive.
     # Stubbing the reader keeps url generation working across the request.
     ActiveStorage::Current.stubs(:url_options).returns(protocol: "https", host: "localhost", port: nil)
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**options|
+      render html: "", layout: options.fetch(:layout)
+    end
   end
 
   def product
@@ -4889,6 +4892,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show 404s when link isn't found" do
+    @controller = LinksController.new
     assert_raises(ActionController::RoutingError) { get :show, params: { id: "NOT real" } }
   end
 
@@ -4903,26 +4907,15 @@ class LinksControllerShowTest < ActionController::TestCase
 
   # --- layout variants --------------------------------------------------------
 
-  test "GET show renders Products/Show with product props for default layout" do
+  test "GET show server-renders profile products" do
     link = create_product(user: @user)
-    @request.headers["X-Inertia"] = "true"
-    get :show, params: { id: link.to_param }
-    assert_response :success
-    page = inertia_page
-    assert_equal "Products/Show", page["component"]
-    assert page["props"]["product"].present?
-    assert_equal link.name, page["props"]["product"]["name"]
-  end
-
-  test "GET show renders Products/Profile/Show with creator_profile for profile layout" do
-    link = create_product(user: @user)
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param, layout: "profile" }
+
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Profile/Show", page["component"]
-    assert page["props"]["creator_profile"].present?
-    assert page["props"]["product"].present?
+    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_equal Product::Layout::PROFILE, props[:page_layout]
+    assert props[:creator_profile].present?
+    assert_equal link.name, props.dig(:product, :name)
   end
 
   test "GET show always server-renders Discover products with React on Rails" do
@@ -4999,6 +4992,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show keeps Discover autocomplete partial requests on Inertia" do
+    @controller = LinksController.new
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
     @request.headers["X-Inertia-Partial-Data"] = "autocomplete_results"
@@ -5014,6 +5008,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show renders Products/Iframe/Show with product props for embed param" do
+    @controller = LinksController.new
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param, embed: "true" }
@@ -5024,6 +5019,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show renders Products/Iframe/Show with product props for overlay param" do
+    @controller = LinksController.new
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param, overlay: "true" }
@@ -5036,12 +5032,13 @@ class LinksControllerShowTest < ActionController::TestCase
   # --- json format ------------------------------------------------------------
 
   test "GET show returns the public product JSON representation" do
+    @controller = LinksController.new
     link = create_product(user: @user, name: "Public API Product", price_cents: 600)
 
     get :show, params: { id: link.to_param }, format: :json
 
     assert_response :success
-    body = response.parsed_body
+    body = JSON.parse(response.body)
     assert_equal ProductPresenter::PublicApiProps::API_VERSION, body["api_version"]
     assert_equal link.external_id, body["id"]
     assert_equal link.unique_permalink, body["permalink"]
@@ -5052,25 +5049,28 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show does not leak buyer, admin, or analytics fields" do
+    @controller = LinksController.new
     link = create_product(user: @user)
 
     get :show, params: { id: link.to_param }, format: :json
 
-    body = response.parsed_body
+    body = JSON.parse(response.body)
     %w[purchase buyer wishlists can_edit analytics has_third_party_analytics is_compliance_blocked admin_info].each do |forbidden|
       assert_not body.key?(forbidden)
     end
   end
 
   test "GET show omits sales_count unless the creator opts in" do
+    @controller = LinksController.new
     link = create_product(user: @user, should_show_sales_count: false)
 
     get :show, params: { id: link.to_param }, format: :json
 
-    assert_nil response.parsed_body["sales_count"]
+    assert_nil JSON.parse(response.body)["sales_count"]
   end
 
   test "GET show returns JSON (not the custom-HTML landing page) for products with custom HTML" do
+    @controller = LinksController.new
     link = create_product(user: @user, name: "Custom HTML Product")
     link.update!(custom_html: "<h1>My custom landing page</h1>")
     Feature.activate_user(:custom_html_pages, @user)
@@ -5079,7 +5079,7 @@ class LinksControllerShowTest < ActionController::TestCase
 
     assert_response :success
     assert_equal "application/json", response.media_type
-    body = response.parsed_body
+    body = JSON.parse(response.body)
     assert_equal ProductPresenter::PublicApiProps::API_VERSION, body["api_version"]
     assert_equal link.external_id, body["id"]
     assert_not_includes response.body, "My custom landing page"
@@ -5370,13 +5370,12 @@ class LinksControllerShowTest < ActionController::TestCase
     purchase = create_purchase(purchaser: visitor, link: product)
     sign_in(visitor)
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.to_param }
 
     assert_response :success
-    page = inertia_page
-    assert_equal product.external_id, page["props"]["product"]["id"]
-    assert_equal purchase.external_id, page["props"]["purchase"]["id"]
+    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_equal product.external_id, props.dig(:product, :id)
+    assert_equal purchase.external_id, props.dig(:purchase, :id)
   end
 
   # --- logged-out buyer arriving from a review reminder email -----------------
@@ -5384,31 +5383,28 @@ class LinksControllerShowTest < ActionController::TestCase
   test "GET show recognizes the purchase when the purchase id and email digest match" do
     purchase = create_purchase(link: product)
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id, purchase_email_digest: purchase.email_digest }
 
     assert_response :success
-    assert_equal purchase.external_id, inertia_page["props"]["purchase"]["id"]
+    assert_equal purchase.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:purchase, :id)
   end
 
   test "GET show ignores the purchase when the email digest doesn't match" do
     purchase = create_purchase(link: product)
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id, purchase_email_digest: "wrong-digest" }
 
     assert_response :success
-    assert_nil inertia_page["props"]["purchase"]
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
   end
 
   test "GET show ignores the purchase when the email digest is missing" do
     purchase = create_purchase(link: product)
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id }
 
     assert_response :success
-    assert_nil inertia_page["props"]["purchase"]
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
   end
 
   test "GET show recognizes a review-eligible not_charged free trial purchase" do
@@ -5417,11 +5413,10 @@ class LinksControllerShowTest < ActionController::TestCase
     trial_purchase.update!(should_exclude_product_review: false)
     assert_equal true, trial_purchase.allows_review_to_be_counted?
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: trial_purchase.link.to_param, purchase_id: trial_purchase.external_id, purchase_email_digest: trial_purchase.email_digest }
 
     assert_response :success
-    assert_equal trial_purchase.external_id, inertia_page["props"]["purchase"]["id"]
+    assert_equal trial_purchase.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:purchase, :id)
   end
 
   test "GET show ignores an unconverted free trial purchase that can't yet leave a review" do
@@ -5429,11 +5424,10 @@ class LinksControllerShowTest < ActionController::TestCase
     trial_purchase = create_free_trial_membership_purchase(link: trial_product)
     assert_equal false, trial_purchase.allows_review_to_be_counted?
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: trial_purchase.link.to_param, purchase_id: trial_purchase.external_id, purchase_email_digest: trial_purchase.email_digest }
 
     assert_response :success
-    assert_nil inertia_page["props"]["purchase"]
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
   end
 
   test "GET show ignores a gift-sender purchase even with a matching email digest" do
@@ -5441,11 +5435,10 @@ class LinksControllerShowTest < ActionController::TestCase
     gifter_purchase = create_purchase(link: product, is_gift_sender_purchase: true, gift_given: gift)
     create_purchase(link: product, is_gift_receiver_purchase: true, gift_received: gift, purchase_state: "gift_receiver_purchase_successful")
 
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.to_param, purchase_id: gifter_purchase.external_id, purchase_email_digest: gifter_purchase.email_digest }
 
     assert_response :success
-    assert_nil inertia_page["props"]["purchase"]
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
   end
 
   # --- meta tags sanitization -------------------------------------------------
@@ -5479,15 +5472,12 @@ class LinksControllerShowTest < ActionController::TestCase
 
   # --- asset previews ---------------------------------------------------------
 
-  test "GET show includes asset preview data in Inertia props" do
+  test "GET show includes asset preview data in RSC props" do
     asset_product = create_product_with_file_and_preview(user: @user)
-    @request.headers["X-Inertia"] = "true"
     get(:show, params: { id: asset_product.to_param })
 
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Show", page["component"]
-    assert page["props"]["product"].present?
+    assert @controller.instance_variable_get(:@native_product_rsc_props)[:product].present?
   end
 
   test "GET show redirects from unique_permalink to custom_permalink URL preserving the original query parameter string" do
@@ -5545,6 +5535,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show returns 404 when the product is deleted" do
+    @controller = LinksController.new
     deleted_product = create_product(user: @user, deleted_at: 2.days.ago)
     assert_raises(ActionController::RoutingError) do
       get :show, params: { id: deleted_product.to_param }
@@ -5558,6 +5549,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show responds with 404 when the user is deleted" do
+    @controller = LinksController.new
     deleted_user = create_user(deleted_at: 2.days.ago)
     deleted_user_product = create_product(custom_permalink: "moohat", user: deleted_user)
     assert_raises(ActionController::RoutingError) do
@@ -5572,6 +5564,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show 404s on an unsupported format" do
+    @controller = LinksController.new
     link = create_product(user: @user)
     assert_raises(ActionController::RoutingError) do
       get(:show, params: { id: link.to_param, format: :php })
@@ -5684,15 +5677,14 @@ class LinksControllerShowTest < ActionController::TestCase
     assert html_doc.css("link[rel='canonical'][href='#{product.long_url}']").present?
   end
 
-  test "GET show includes product data in Inertia props" do
+  test "GET show includes product data in RSC props" do
     product = create_product(user: @user, price_currency_type: "usd", price_cents: 525)
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: product.unique_permalink }
 
     assert_response :success
-    page = inertia_page
-    assert page["props"]["product"].present?
-    assert_equal product.name, page["props"]["product"]["name"]
+    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    assert props[:product].present?
+    assert_equal product.name, props.dig(:product, :name)
   end
 
   test "GET show renders seller custom_styles in the head as a style tag" do
@@ -5743,19 +5735,19 @@ class LinksControllerShowTest < ActionController::TestCase
 
   # --- custom domains ---------------------------------------------------------
 
-  test "GET show assigns the product and renders the Inertia page when the custom domain matches a product's custom domain" do
+  test "GET show assigns the product when the custom domain matches a product's custom domain" do
     product = create_product
     create_custom_domain(domain: "www.example1.com", user: nil, product:)
     @request.host = "www.example1.com"
 
-    @request.headers["X-Inertia"] = "true"
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal "Products/Show", inertia_page["component"]
+    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
   end
 
   test "GET show raises RoutingError when the custom domain matches a deleted product" do
+    @controller = LinksController.new
     product = create_product
     create_custom_domain(domain: "www.example1.com", user: nil, product:)
     @request.host = "www.example1.com"
@@ -5771,14 +5763,14 @@ class LinksControllerShowTest < ActionController::TestCase
     custom_domain.update!(product: nil, user: create_user, deleted_at: DateTime.parse("2020-01-01"))
     create_custom_domain(domain: "www.example1.com", user: nil, product:)
 
-    @request.headers["X-Inertia"] = "true"
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal "Products/Show", inertia_page["component"]
+    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
   end
 
   test "GET show raises RoutingError when a product's custom domain is deleted" do
+    @controller = LinksController.new
     product = create_product
     custom_domain = create_custom_domain(domain: "www.example1.com", user: nil, product:)
     @request.host = "www.example1.com"
@@ -5793,26 +5785,24 @@ class LinksControllerShowTest < ActionController::TestCase
     @request.host = "www.example1.com"
     custom_domain.update!(domain: "example1.com")
 
-    @request.headers["X-Inertia"] = "true"
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal "Products/Show", inertia_page["component"]
+    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
   end
 
   # --- subdomains -------------------------------------------------------------
 
-  test "GET show assigns the product and renders the Inertia page when the subdomain and unique permalink are valid and present" do
+  test "GET show assigns the product when the subdomain and unique permalink are valid and present" do
     with_const(:ROOT_DOMAIN, "test.gumroad.com") do
       user = create_user(username: "testuser")
       @request.host = "#{user.username}.test.gumroad.com"
       product = create_product(user:)
 
-      @request.headers["X-Inertia"] = "true"
       get :show, params: { id: product.unique_permalink }
       assert_response :success
       assert_equal product, assigns[:product]
-      assert_equal "Products/Show", inertia_page["component"]
+      assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
     end
   end
 
@@ -5827,21 +5817,21 @@ class LinksControllerShowTest < ActionController::TestCase
     end
   end
 
-  test "GET show assigns the product and renders the Inertia page when the subdomain and custom permalink are valid and present" do
+  test "GET show assigns the product when the subdomain and custom permalink are valid and present" do
     with_const(:ROOT_DOMAIN, "test.gumroad.com") do
       user = create_user(username: "testuser")
       @request.host = "#{user.username}.test.gumroad.com"
       product = create_product(user:, custom_permalink: "test-link")
 
-      @request.headers["X-Inertia"] = "true"
       get :show, params: { id: product.custom_permalink }
       assert_response :success
       assert_equal product, assigns[:product]
-      assert_equal "Products/Show", inertia_page["component"]
+      assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
     end
   end
 
   test "GET show raises RoutingError when the seller from subdomain is different from product's seller" do
+    @controller = LinksController.new
     with_const(:ROOT_DOMAIN, "test.gumroad.com") do
       user = create_user(username: "testuser")
       @request.host = "#{user.username}.test.gumroad.com"
@@ -5905,6 +5895,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show 404s on the bare domain when the only mapping points at a deleted product" do
+    @controller = LinksController.new
     setup_legacy_products
     @request.host = DOMAIN
     # Clear the live holders first, or the live-first read answers before the
