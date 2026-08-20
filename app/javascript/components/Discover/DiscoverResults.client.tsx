@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "$app/pages/Discover/Index";
+export { DiscoverIndex as default } from "$app/components/Discover/Index";

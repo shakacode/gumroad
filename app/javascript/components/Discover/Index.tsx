@@ -12,7 +12,6 @@ import { classNames } from "$app/utils/classNames";
 import { CurrencyCode, formatPriceCentsWithCurrencySymbol } from "$app/utils/currency";
 import { discoverTitleGenerator, Taxonomy } from "$app/utils/discover";
 
-import { Layout } from "$app/components/Discover/Layout";
 import { RecentlyViewed, RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed";
 import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import { HomeFooter } from "$app/components/Home/Shared/Footer";
@@ -242,7 +241,20 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
   return { params: parsedParams, sortWasExplicit };
 };
 
-function DiscoverIndex({ renderHeader = true }: { renderHeader?: boolean }) {
+export type DiscoverPageLayoutProps = {
+  onTaxonomyChange: (newTaxonomyPath?: string) => void;
+  query?: string | undefined;
+  setQuery: (query: string) => void;
+  showTaxonomy: boolean;
+  taxonomiesForNav: Taxonomy[];
+  taxonomyPath?: string | undefined;
+};
+
+export function DiscoverIndex({
+  renderLayout,
+}: {
+  renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
+}) {
   const props = typia.assert<Props>(usePage().props);
   const originalLocation = useOriginalLocation();
   const defaultSortOrder = props.curated_product_ids.length > 0 ? "curated" : undefined;
@@ -288,12 +300,13 @@ function DiscoverIndex({ renderHeader = true }: { renderHeader?: boolean }) {
     const urlString = url.pathname + url.search;
     const currentUrlString = window.location.pathname + window.location.search;
     if (urlString !== currentUrlString) {
-      const shouldFetchRecommendations =
-        url.pathname !== new URL(window.location.href).pathname ||
-        state.params.offer_code !==
-          parseUrlParams(window.location.href, props.curated_product_ids, defaultSortOrder).params.offer_code;
+      const currentParams = parseUrlParams(window.location.href, props.curated_product_ids, defaultSortOrder).params;
+      const offerCodeChanged = state.params.offer_code !== currentParams.offer_code;
+      const shouldFetchRecommendations = url.pathname !== new URL(window.location.href).pathname;
 
-      if (shouldFetchRecommendations) {
+      if (offerCodeChanged) {
+        window.location.assign(url.toString());
+      } else if (shouldFetchRecommendations) {
         router.get(
           url.toString(),
           {},
@@ -377,205 +390,210 @@ function DiscoverIndex({ renderHeader = true }: { renderHeader?: boolean }) {
     });
   };
 
-  return (
+  const content = (
     <>
-      <Layout
-        {...(renderHeader ? {} : { className: "contents" })}
-        renderHeader={renderHeader}
-        taxonomyPath={taxonomyPath}
-        taxonomiesForNav={props.taxonomies_for_nav}
-        showTaxonomy
-        onTaxonomyChange={handleTaxonomyChange}
-        query={state.params.query}
-        setQuery={(query) => dispatch({ type: "set-params", params: { query, taxonomy: taxonomyPath } })}
-      >
-        {showBlackFridayHero ? (
-          <header className="relative flex flex-col items-center justify-center">
-            <div className="relative flex min-h-[72vh] w-full flex-col items-center justify-center bg-black">
+      {showBlackFridayHero ? (
+        <header className="relative flex flex-col items-center justify-center">
+          <div className="relative flex min-h-[72vh] w-full flex-col items-center justify-center bg-black">
+            <img
+              src={saleImage}
+              alt="Sale"
+              className="absolute top-1/2 left-40 hidden w-32 -translate-y-1/2 rotate-[-24deg] object-contain md:left-12 md:block md:w-40 lg:left-36 lg:w-48 xl:left-60 xl:w-60"
+              draggable={false}
+            />
+            <div className="relative">
+              <img src={blackFridayImage} alt="Black Friday" className="max-w-96 object-contain" draggable={false} />
               <img
                 src={saleImage}
                 alt="Sale"
-                className="absolute top-1/2 left-40 hidden w-32 -translate-y-1/2 rotate-[-24deg] object-contain md:left-12 md:block md:w-40 lg:left-36 lg:w-48 xl:left-60 xl:w-60"
+                className="absolute right-0 bottom-0 w-27.5 rotate-[16deg] object-contain md:hidden"
                 draggable={false}
               />
-              <div className="relative">
-                <img src={blackFridayImage} alt="Black Friday" className="max-w-96 object-contain" draggable={false} />
-                <img
-                  src={saleImage}
-                  alt="Sale"
-                  className="absolute right-0 bottom-0 w-27.5 rotate-[16deg] object-contain md:hidden"
-                  draggable={false}
-                />
-              </div>
-              <img
-                src={saleImage}
-                alt="Sale"
-                className="absolute top-1/2 right-40 hidden w-32 -translate-y-1/2 rotate-[24deg] object-contain md:right-12 md:block md:w-40 lg:right-36 lg:w-48 xl:right-60 xl:w-60"
-                draggable={false}
-              />
-              <div className="font-regular mx-12 text-center text-xl text-white">
-                Snag creator-made deals <br className="block sm:hidden" /> before they're gone.
-              </div>
-              {!isBlackFridayPage && (
-                <div className="mt-8 text-base">
-                  <BlackFridayButton offerCode={props.black_friday_offer_code} taxonomy={taxonomyPath} />
-                </div>
-              )}
             </div>
-            <div className="h-14 w-full overflow-hidden border-b border-black bg-yellow-400">
-              <div className="flex h-14 min-w-fit items-center gap-x-4 whitespace-nowrap hover:[animation-play-state:paused] motion-safe:animate-[marquee-scroll_80s_linear_infinite] motion-reduce:animate-none">
-                {props.black_friday_stats ? (
-                  <>
-                    {(() => {
-                      const stats = props.black_friday_stats;
-                      return Array.from({ length: 5 }, (_, i) => (
-                        <BlackFridayBanner key={i} stats={stats} currencyCode={props.currency_code} />
-                      ));
-                    })()}
-                  </>
-                ) : null}
+            <img
+              src={saleImage}
+              alt="Sale"
+              className="absolute top-1/2 right-40 hidden w-32 -translate-y-1/2 rotate-[24deg] object-contain md:right-12 md:block md:w-40 lg:right-36 lg:w-48 xl:right-60 xl:w-60"
+              draggable={false}
+            />
+            <div className="font-regular mx-12 text-center text-xl text-white">
+              Snag creator-made deals <br className="block sm:hidden" /> before they're gone.
+            </div>
+            {!isBlackFridayPage && (
+              <div className="mt-8 text-base">
+                <BlackFridayButton offerCode={props.black_friday_offer_code} taxonomy={taxonomyPath} />
               </div>
-            </div>
-          </header>
-        ) : null}
-        <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
-          {showRecommendationSections ? (
-            <Deferred data={["recommended_products"]} fallback={<ProductsCarouselSkeleton />}>
-              {recommendedProducts.length ? (
-                <ProductsCarousel
-                  products={recommendedProducts}
-                  title={isCuratedProducts ? "Recommended" : "Featured products"}
-                />
-              ) : null}
-            </Deferred>
-          ) : null}
-          {showRecommendationSections ? (
-            <Deferred data={["recently_viewed"]} fallback={null}>
-              <RecentlyViewed data={props.recently_viewed} />
-            </Deferred>
-          ) : null}
-          <section ref={resultsRef} className="flex flex-col gap-4">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--spacer-2)", flexWrap: "wrap" }}>
-              <h2>
-                {state.params.query || hasOfferCode
-                  ? state.results?.products.length
-                    ? `Showing 1-${state.results.products.length} of ${state.results.total} products`
-                    : null
-                  : sortTitles[typia.is<keyof typeof sortTitles>(state.params.sort) ? state.params.sort : "trending"]}
-              </h2>
-              {state.params.query || hasOfferCode ? null : (
-                <Tabs>
-                  {props.curated_product_ids.length > 0 ? (
-                    <Tab
-                      isSelected={state.params.sort === "curated"}
-                      onClick={() =>
-                        updateParams({
-                          sort: "curated",
-                          curated_product_ids: props.curated_product_ids.slice(recommendedProductsCount),
-                        })
-                      }
-                    >
-                      Curated
-                    </Tab>
-                  ) : null}
-                  <Tab
-                    isSelected={!state.params.sort || state.params.sort === "default"}
-                    onClick={() => updateParams({ sort: undefined })}
-                  >
-                    Trending
-                  </Tab>
-                  {props.curated_product_ids.length === 0 ? (
-                    <Tab
-                      isSelected={state.params.sort === "best_sellers"}
-                      onClick={() => updateParams({ sort: "best_sellers" })}
-                    >
-                      Best Sellers
-                    </Tab>
-                  ) : null}
-                  <Tab
-                    isSelected={state.params.sort === "hot_and_new"}
-                    onClick={() => updateParams({ sort: "hot_and_new" })}
-                  >
-                    Hot &amp; New
-                  </Tab>
-                </Tabs>
-              )}
-            </div>
-            <CardGrid
-              state={state}
-              dispatchAction={dispatch}
-              currencyCode={props.currency_code}
-              hideSort={!state.params.query && !hasOfferCode}
-              defaults={{
-                taxonomy: state.params.taxonomy,
-                query: state.params.query,
-                sort: state.params.query || hasOfferCode ? "default" : state.params.sort,
-              }}
-              appendFilters={
+            )}
+          </div>
+          <div className="h-14 w-full overflow-hidden border-b border-black bg-yellow-400">
+            <div className="flex h-14 min-w-fit items-center gap-x-4 whitespace-nowrap hover:[animation-play-state:paused] motion-safe:animate-[marquee-scroll_80s_linear_infinite] motion-reduce:animate-none">
+              {props.black_friday_stats ? (
                 <>
+                  {(() => {
+                    const stats = props.black_friday_stats;
+                    return Array.from({ length: 5 }, (_, i) => (
+                      <BlackFridayBanner key={i} stats={stats} currencyCode={props.currency_code} />
+                    ));
+                  })()}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </header>
+      ) : null}
+      <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
+        {showRecommendationSections ? (
+          <Deferred data={["recommended_products"]} fallback={<ProductsCarouselSkeleton />}>
+            {recommendedProducts.length ? (
+              <ProductsCarousel
+                products={recommendedProducts}
+                title={isCuratedProducts ? "Recommended" : "Featured products"}
+              />
+            ) : null}
+          </Deferred>
+        ) : null}
+        {showRecommendationSections ? (
+          <Deferred data={["recently_viewed"]} fallback={null}>
+            <RecentlyViewed data={props.recently_viewed} />
+          </Deferred>
+        ) : null}
+        <section ref={resultsRef} className="flex flex-col gap-4">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--spacer-2)", flexWrap: "wrap" }}>
+            <h2>
+              {state.params.query || hasOfferCode
+                ? state.results?.products.length
+                  ? `Showing 1-${state.results.products.length} of ${state.results.total} products`
+                  : null
+                : sortTitles[typia.is<keyof typeof sortTitles>(state.params.sort) ? state.params.sort : "trending"]}
+            </h2>
+            {state.params.query || hasOfferCode ? null : (
+              <Tabs>
+                {props.curated_product_ids.length > 0 ? (
+                  <Tab
+                    isSelected={state.params.sort === "curated"}
+                    onClick={() =>
+                      updateParams({
+                        sort: "curated",
+                        curated_product_ids: props.curated_product_ids.slice(recommendedProductsCount),
+                      })
+                    }
+                  >
+                    Curated
+                  </Tab>
+                ) : null}
+                <Tab
+                  isSelected={!state.params.sort || state.params.sort === "default"}
+                  onClick={() => updateParams({ sort: undefined })}
+                >
+                  Trending
+                </Tab>
+                {props.curated_product_ids.length === 0 ? (
+                  <Tab
+                    isSelected={state.params.sort === "best_sellers"}
+                    onClick={() => updateParams({ sort: "best_sellers" })}
+                  >
+                    Best Sellers
+                  </Tab>
+                ) : null}
+                <Tab
+                  isSelected={state.params.sort === "hot_and_new"}
+                  onClick={() => updateParams({ sort: "hot_and_new" })}
+                >
+                  Hot &amp; New
+                </Tab>
+              </Tabs>
+            )}
+          </div>
+          <CardGrid
+            state={state}
+            dispatchAction={dispatch}
+            currencyCode={props.currency_code}
+            hideSort={!state.params.query && !hasOfferCode}
+            defaults={{
+              taxonomy: state.params.taxonomy,
+              query: state.params.query,
+              sort: state.params.query || hasOfferCode ? "default" : state.params.sort,
+            }}
+            appendFilters={
+              <>
+                <CardContent asChild details>
+                  <Details>
+                    <DetailsToggle chevronPosition="right" className="grow">
+                      Rating
+                    </DetailsToggle>
+                    <Fieldset role="group">
+                      {range(4, 0).map((number) => (
+                        <Label key={number} className="w-full">
+                          <span className="flex shrink-0 items-center gap-1">
+                            <RatingStars rating={number} />
+                            and up
+                          </span>
+                          <Radio
+                            wrapperClassName="ml-auto"
+                            value={number}
+                            aria-label={`${number} ${number === 1 ? "star" : "stars"} and up`}
+                            checked={number === state.params.rating}
+                            readOnly
+                            onClick={() =>
+                              updateParams(state.params.rating === number ? { rating: undefined } : { rating: number })
+                            }
+                          />
+                        </Label>
+                      ))}
+                    </Fieldset>
+                  </Details>
+                </CardContent>
+                {hasOfferCode ? (
                   <CardContent asChild details>
-                    <Details>
+                    <Details open>
                       <DetailsToggle chevronPosition="right" className="grow">
-                        Rating
+                        Offer code
                       </DetailsToggle>
-                      <Fieldset role="group">
-                        {range(4, 0).map((number) => (
-                          <Label key={number} className="w-full">
-                            <span className="flex shrink-0 items-center gap-1">
-                              <RatingStars rating={number} />
-                              and up
-                            </span>
-                            <Radio
-                              wrapperClassName="ml-auto"
-                              value={number}
-                              aria-label={`${number} ${number === 1 ? "star" : "stars"} and up`}
-                              checked={number === state.params.rating}
-                              readOnly
-                              onClick={() =>
-                                updateParams(
-                                  state.params.rating === number ? { rating: undefined } : { rating: number },
-                                )
-                              }
-                            />
-                          </Label>
-                        ))}
-                      </Fieldset>
+                      <div className="flex items-center justify-between gap-2 py-1">
+                        <span>{props.black_friday_offer_code}</span>
+                        <button
+                          onClick={() => updateParams({ offer_code: undefined })}
+                          className="flex cursor-pointer items-center justify-center all-unset"
+                          aria-label="Remove offer code filter"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
                     </Details>
                   </CardContent>
-                  {hasOfferCode ? (
-                    <CardContent asChild details>
-                      <Details open>
-                        <DetailsToggle chevronPosition="right" className="grow">
-                          Offer code
-                        </DetailsToggle>
-                        <div className="flex items-center justify-between gap-2 py-1">
-                          <span>{props.black_friday_offer_code}</span>
-                          <button
-                            onClick={() => updateParams({ offer_code: undefined })}
-                            className="flex cursor-pointer items-center justify-center all-unset"
-                            aria-label="Remove offer code filter"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        </div>
-                      </Details>
-                    </CardContent>
-                  ) : null}
-                </>
-              }
-              pagination="button"
-            />
-          </section>
-          {showRecommendationSections ? (
-            <Deferred
-              data={["recommended_wishlists"]}
-              fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}
-            >
-              <RecommendedWishlists wishlists={props.recommended_wishlists ?? null} title={recommendedWishlistsTitle} />
-            </Deferred>
-          ) : null}
-        </div>
-      </Layout>
+                ) : null}
+              </>
+            }
+            pagination="button"
+          />
+        </section>
+        {showRecommendationSections ? (
+          <Deferred
+            data={["recommended_wishlists"]}
+            fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}
+          >
+            <RecommendedWishlists wishlists={props.recommended_wishlists ?? null} title={recommendedWishlistsTitle} />
+          </Deferred>
+        ) : null}
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {renderLayout
+        ? renderLayout(
+            {
+              taxonomyPath,
+              taxonomiesForNav: props.taxonomies_for_nav,
+              showTaxonomy: true,
+              onTaxonomyChange: handleTaxonomyChange,
+              query: state.params.query,
+              setQuery: (query) => dispatch({ type: "set-params", params: { query, taxonomy: taxonomyPath } }),
+            },
+            content,
+          )
+        : content}
       <HomeFooter currencySelector />
     </>
   );

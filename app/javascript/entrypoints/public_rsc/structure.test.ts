@@ -14,18 +14,21 @@ const roots = [
     module: "$app/components/Product/ProductPage",
     component: "../../components/Product/ProductPage.tsx",
     rails: "../../../../app/views/links/rsc_show.html.erb",
+    client: false,
   },
   {
     name: "DiscoverPage",
     module: "$app/components/Discover/DiscoverPage",
     component: "../../components/Discover/DiscoverPage.tsx",
     rails: "../../../../app/controllers/discover_rsc_controller.rb",
+    client: false,
   },
   {
     name: "ProfileRscCompatibilityPage",
     module: "$app/components/Profile/ProfileRscCompatibilityPage.client",
     component: "../../components/Profile/ProfileRscCompatibilityPage.client.tsx",
     rails: "../../../../app/controllers/profile_rsc_users_controller.rb",
+    client: true,
   },
 ] as const;
 
@@ -35,11 +38,11 @@ describe("public RSC structure", () => {
     expect(serverEntry).toContain(`import ${root.name} from "${root.module}";`);
     expect(serverEntry).toContain(root.name);
     expect(read(root.rails)).toContain(`"${root.name}"`);
-    expect(read(root.component)).toMatch(/^"use client";/u);
+    expect(read(root.component).startsWith('"use client";')).toBe(root.client);
   });
 
-  it("preserves the Discover and Profile legacy compatibility imports", () => {
-    expect(read("../../components/Discover/DiscoverPage.tsx")).toContain("$app/pages/Discover/Index");
+  it("keeps only the Profile legacy compatibility import", () => {
+    expect(read("../../components/Discover/DiscoverPage.tsx")).not.toContain("$app/pages/Discover/Index");
     expect(read("../../components/Profile/ProfileRscCompatibilityPage.client.tsx")).toContain("$app/pages/Users/Show");
   });
 

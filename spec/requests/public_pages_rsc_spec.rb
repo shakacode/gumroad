@@ -71,6 +71,12 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
     expect(page).to have_link(product.name)
     click_on "Trending"
     expect(page).to have_current_path(discover_path)
+
+    offer_code = SearchProducts::BLACK_FRIDAY_CODE
+    page.visit discover_path(offer_code:)
+    fill_in "Search products", with: "beats"
+    find_field("Search products").send_keys(:enter)
+    expect(page).to have_current_path(discover_path(offer_code:, query: "beats"), ignore_query: false)
   end
 
   it "server-renders and hydrates an unflagged Discover category" do
@@ -87,6 +93,34 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
     expect(page.title).to include("Music & Sound Design")
     click_on "All"
     expect(page).to have_current_path(discover_path)
+
+    offer_code = SearchProducts::BLACK_FRIDAY_CODE
+    child_taxonomy = create(:taxonomy, parent: taxonomy, slug: "sound-design")
+    Rails.cache.delete("taxonomies_for_nav")
+    DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
+    page.visit "#{UrlService.discover_domain_with_protocol}/#{taxonomy.slug}?offer_code=#{offer_code}"
+    expect_rsc_document(root_id: "discover-rsc-root", component_name: "DiscoverPage")
+    expect(page).to have_link(
+      "Sound Design",
+      href: discover_taxonomy_path("#{taxonomy.slug}/#{child_taxonomy.slug}", offer_code:),
+      visible: :all
+    )
+    category_links = page.all("a", text: "Sound Design", visible: :all)
+    expect(category_links.size).to be >= 2
+    expect(category_links.map { _1[:href] }).to all(include("offer_code=#{offer_code}"))
+    fill_in "Search products", with: "beats"
+    find_field("Search products").send_keys(:enter)
+    expect(page).to have_current_path(
+      discover_taxonomy_path(taxonomy.slug, offer_code:, query: "beats"),
+      ignore_query: false
+    )
+    click_on "Remove offer code filter"
+    expect(page).to have_current_path(discover_taxonomy_path(taxonomy.slug, query: "beats"), ignore_query: false)
+    expect(page).to have_link(
+      "Sound Design",
+      href: discover_taxonomy_path("#{taxonomy.slug}/#{child_taxonomy.slug}"),
+      visible: :all
+    )
   ensure
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
   end

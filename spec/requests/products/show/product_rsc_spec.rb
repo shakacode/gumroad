@@ -10,7 +10,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
         key: index.to_s,
         slug: "taxonomy-#{index}",
         label: "Taxonomy #{index} with a realistically descriptive navigation label",
-        parent_key: index.zero? ? nil : "0",
+        parent_key: index < 10 ? nil : "0",
       }
     end
   end
@@ -37,6 +37,8 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_css("header.hero")
     expect(page).to have_field("Search products")
     expect(page).to have_link("Gumroad")
+    expect(page).to have_text("More Categories")
+    expect(page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")).to be(true)
     expect(page).to have_text(product.name)
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")

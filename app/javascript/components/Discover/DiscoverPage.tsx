@@ -20,12 +20,15 @@ export default function DiscoverPage({ _inertia_meta: inertiaMeta, global, ...di
   return (
     <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={discoverProps}>
       <DiscoverLayout
+        currentSeller={global.current_seller}
+        domainSettings={global.domain_settings}
         taxonomyPath={taxonomyPath}
         taxonomiesForNav={discoverProps.taxonomies_for_nav}
+        offerCode={url.searchParams.get("offer_code") ?? undefined}
         query={url.searchParams.get("query") ?? undefined}
         showTaxonomy
       >
-        <DiscoverResults renderHeader={false} />
+        <DiscoverResults />
       </DiscoverLayout>
     </PageShell>
   );
