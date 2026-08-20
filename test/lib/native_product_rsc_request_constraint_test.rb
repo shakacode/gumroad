@@ -4,11 +4,19 @@ require "test_helper"
 
 class NativeProductRscRequestConstraintTest < ActiveSupport::TestCase
   test "matches every full HTML product page request" do
+    assert NativeProductRscRequestConstraint.matches?(request_for("/l/product"))
+    assert NativeProductRscRequestConstraint.matches?(request_for("/l/product?layout=discover"))
+    assert NativeProductRscRequestConstraint.matches?(request_for("/l/product?layout=profile"))
+    assert NativeProductRscRequestConstraint.matches?(request_for("/l/product?layout=discover&rsc=1"))
+    assert NativeProductRscRequestConstraint.matches?(request_for("/l/product", "HTTP_X_INERTIA" => "true"))
+  end
+
+  test "matches the root path only on a product custom domain" do
+    ProductCustomDomainConstraint.stubs(:matches?).returns(true)
     assert NativeProductRscRequestConstraint.matches?(request_for("/"))
-    assert NativeProductRscRequestConstraint.matches?(request_for("/?layout=discover"))
-    assert NativeProductRscRequestConstraint.matches?(request_for("/?layout=profile"))
-    assert NativeProductRscRequestConstraint.matches?(request_for("/?layout=discover&rsc=1"))
-    assert NativeProductRscRequestConstraint.matches?(request_for("/", "HTTP_X_INERTIA" => "true"))
+
+    ProductCustomDomainConstraint.stubs(:matches?).returns(false)
+    assert_not NativeProductRscRequestConstraint.matches?(request_for("/"))
   end
 
   test "rejects partial, embedded, and non-HTML requests" do
