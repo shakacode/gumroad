@@ -9,7 +9,7 @@ const privateOutputPath = path.join(rootPath, "ssr-generated");
 const publicOutputPath = path.join(rootPath, "public/product-rsc");
 const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "development";
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
-const publicRscEntrypointsDirectory = path.join(sourcePath, "product_rsc");
+const publicRscEntrypointsDirectory = path.join(sourcePath, "entrypoints/public_rsc");
 const hasPublicRscEntry = fs.existsSync(publicRscEntrypointsDirectory);
 const publicRscClientReferences = [
   ["components/Product", /ProductPage\.tsx$/u],
@@ -131,7 +131,7 @@ const clientConfig = {
   name: "public-rsc-client",
   mode,
   devtool: mode === "production" ? "nosources-source-map" : "cheap-module-source-map",
-  entry: { product_rsc: path.join(publicRscEntrypointsDirectory, "client_entry.tsx") },
+  entry: { product_rsc: path.join(publicRscEntrypointsDirectory, "client.tsx") },
   resolve: baseResolve,
   module: { rules: [assetRule, ...createScriptRules()] },
   plugins: [...plugins(false), new PublicRscAssetManifestPlugin()],
@@ -148,7 +148,7 @@ const serverConfig = {
   name: "public-rsc-server",
   mode,
   devtool: "eval",
-  entry: { "server-bundle": path.join(publicRscEntrypointsDirectory, "server_entry.tsx") },
+  entry: { "server-bundle": path.join(publicRscEntrypointsDirectory, "server.tsx") },
   resolve: serverResolve,
   target: "node",
   module: { rules: [assetRule, ...createScriptRules()] },
@@ -166,7 +166,7 @@ const rscConfig = {
   name: "public-rsc-rsc",
   mode,
   devtool: "eval",
-  entry: { "rsc-bundle": path.join(publicRscEntrypointsDirectory, "server_entry.tsx") },
+  entry: { "rsc-bundle": path.join(publicRscEntrypointsDirectory, "server.tsx") },
   resolve: {
     ...serverResolve,
     conditionNames: ["react-server", "..."],

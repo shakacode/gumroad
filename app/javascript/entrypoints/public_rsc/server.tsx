@@ -5,4 +5,4 @@ import DiscoverPage from "$app/components/Discover/DiscoverPage";
 import ProductPage from "$app/components/Product/ProductPage";
 import ProfileRscCompatibilityPage from "$app/components/Profile/ProfileRscCompatibilityPage.client";
 
-registerServerComponent({ ProductPage, DiscoverPage, ProfileRscCompatibilityPage });
+registerServerComponent({ ProductPage, ProfileRscCompatibilityPage, DiscoverPage });

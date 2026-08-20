@@ -4940,11 +4940,11 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_includes rsc_template, "stream_react_component("
     assert_includes rsc_template, '"ProductPage"'
     assert_no_match(/<%= react_component\(/, rsc_template)
-    rsc_client_entry = Rails.root.join("app/javascript/product_rsc/client_entry.tsx").read
+    rsc_client_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/client.tsx").read
     assert_includes rsc_client_entry, "installBrowserTranslationGuard();"
     assert_includes rsc_client_entry, "BasePage.initialize();"
     assert_includes rsc_client_entry, 'registerServerComponent("ProductPage");'
-    rsc_server_entry = Rails.root.join("app/javascript/product_rsc/server_entry.tsx").read
+    rsc_server_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/server.tsx").read
     assert_includes rsc_server_entry, "registerServerComponent({ ProductPage"
     props = @controller.instance_variable_get(:@native_product_rsc_props)
     assert_equal link.name, props.dig(:product, :name)

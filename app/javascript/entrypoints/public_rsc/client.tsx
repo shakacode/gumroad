@@ -7,5 +7,5 @@ import installBrowserTranslationGuard from "$app/utils/browser_translation_guard
 installBrowserTranslationGuard();
 BasePage.initialize();
 registerServerComponent("ProductPage");
-registerServerComponent("DiscoverPage");
 registerServerComponent("ProfileRscCompatibilityPage");
+registerServerComponent("DiscoverPage");

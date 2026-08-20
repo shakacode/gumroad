@@ -108,7 +108,7 @@ RUN export NODE_OPTIONS="--max-old-space-size=4096" && \
     export STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')" && \
     export STRONGBOX_GENERAL_PASSWORD="" && \
     npm run setup && \
-    if node -e 'process.exit(require("./package.json").scripts["build:product-rsc"] ? 0 : 1)'; then npm run build:product-rsc; fi && \
+    if node -e 'process.exit(require("./package.json").scripts["build:public-rsc"] ? 0 : 1)'; then npm run build:public-rsc; fi && \
     bundle exec rails assets:precompile
 
 RUN mkdir -p log tmp/pids tmp/cache storage public/native-product-page-fixture

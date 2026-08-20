@@ -2,7 +2,7 @@
 # remains the application's browser-asset pipeline.
 default: &default
   source_path: app/javascript
-  source_entry_path: product_rsc
+  source_entry_path: entrypoints/public_rsc
   nested_entries: false
   public_root_path: public
   public_output_path: product-rsc

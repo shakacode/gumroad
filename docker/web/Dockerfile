@@ -57,7 +57,7 @@ COPY . $APP_DIR/
 RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
   && rmdir /usr/local/share/geoip \
   && cd $APP_DIR \
-  && NODE_ENV=production npm run build:product-rsc
+  && NODE_ENV=production npm run build:public-rsc
 
 # TODO: look into solutions that prevent image bloating and/or avoids --squash
 RUN chmod -R 755 $BUNDLE_PATH \

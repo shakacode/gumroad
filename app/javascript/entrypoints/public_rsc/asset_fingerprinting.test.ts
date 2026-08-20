@@ -10,7 +10,7 @@ type RspackConfig = {
   };
 };
 
-const configs: RspackConfig[] = createRequire(import.meta.url)("../../../config/rspack/product_rsc.config.cjs");
+const configs: RspackConfig[] = createRequire(import.meta.url)("../../../../config/rspack/public_rsc.config.cjs");
 
 describe("public RSC asset fingerprinting", () => {
   it("content-hashes the entry and every lazy client chunk", () => {
