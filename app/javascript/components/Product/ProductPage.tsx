@@ -9,6 +9,7 @@ import {
   type ProductContentProps,
   ProductDetails,
   ProductSellerAndRatings,
+  ProductSellerReputation,
   ProductTitle,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
@@ -36,6 +37,7 @@ export default function ProductPage({
     title: <ProductTitle content={content} />,
     sellerAndRatings: <ProductSellerAndRatings content={content} />,
     details: <ProductDetails content={content} />,
+    sellerReputation: <ProductSellerReputation content={content} />,
   });
   const interactionProps = {
     ...productProps,

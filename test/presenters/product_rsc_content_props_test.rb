@@ -9,6 +9,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
     assert_equal "A guide", props[:name]
     assert_equal({ name: "Seller" }, props[:seller])
     assert_equal [{ name: "Format", value: "PDF" }], props[:attributes]
+    assert_equal({ average: 4.8, count: 24, products_count: 3 }, props[:seller_reputation])
     assert props[:show_price]
     assert_not props.key?(:description_html)
   end
@@ -34,6 +35,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
         ratings: { average: 5, count: 1 },
         summary: "Summary",
         attributes: [{ name: "Format", value: "PDF" }],
+        seller_reputation: { average: 4.8, count: 24, products_count: 3 },
         price_cents: 1_000,
         bundle_products: [],
         recurrences: nil,

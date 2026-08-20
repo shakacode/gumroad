@@ -18,7 +18,7 @@ import {
   Ratings,
   RatingsWithPercentages,
 } from "$app/parsers/product";
-import { SellerReputation } from "$app/parsers/profile";
+import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 import {
   BuyerLocalCurrencyContext,
@@ -281,6 +281,7 @@ export type ServerContent = {
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
   details: React.ReactNode;
+  sellerReputation: React.ReactNode;
 };
 
 export const InteractiveProduct = ({
@@ -682,13 +683,7 @@ export const InteractiveProduct = ({
           ) : null}
         </section>
         {product.ratings ? <Reviews ratings={product.ratings} productId={product.id} seller={product.seller} /> : null}
-        {product.seller_reputation ? (
-          <SellerReputationSection
-            reputation={product.seller_reputation}
-            hasOwnReviews={product.ratings != null && product.ratings.count > 0}
-            seller={product.seller}
-          />
-        ) : null}
+        {serverContent.sellerReputation}
       </section>
       {purchase && (purchase.membership || purchase.subscription_has_lapsed) && product.is_recurring_billing ? (
         <SubscriptionChoiceModal
@@ -964,37 +959,6 @@ const Review = ({
     <ReviewComponent review={review} seller={seller} canRespond={canRespond} />
     {isLast ? null : <hr />}
   </>
-);
-
-// Labelled creator context, never the product's own rating: the two copy
-// states keep an unreviewed product visibly unreviewed, and the count links
-// through to the seller's profile so the aggregate's composition is inspectable.
-const SellerReputationSection = ({
-  reputation,
-  hasOwnReviews,
-  seller,
-}: {
-  reputation: SellerReputation;
-  hasOwnReviews: boolean;
-  seller: Seller | null;
-}) => (
-  <section className="grid gap-2 p-6 not-first:border-t" aria-label="Creator rating">
-    {!hasOwnReviews ? <div>This product has no reviews yet.</div> : null}
-    <div className="flex flex-wrap items-center gap-1">
-      <RatingStars rating={reputation.average} />
-      <span>
-        Creator rating: {reputation.average} from{" "}
-        {seller ? (
-          <a href={seller.profile_url}>
-            {reputation.count} verified {reputation.count === 1 ? "review" : "reviews"}
-          </a>
-        ) : (
-          `${reputation.count} verified ${reputation.count === 1 ? "review" : "reviews"}`
-        )}{" "}
-        across {reputation.products_count} other products.
-      </span>
-    </div>
-  </section>
 );
 
 export const RatingsSummary = ({ ratings, className }: { ratings: Ratings; className?: string }) => (

@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
@@ -20,6 +21,7 @@ export type ProductContentProps = {
   ratings: { average: number; count: number } | null;
   summary: string | null;
   attributes: { name: string; value: string }[];
+  seller_reputation?: SellerReputation | null;
   show_price: boolean;
 };
 
@@ -92,5 +94,30 @@ export const ProductDetails = ({ content }: { content: ProductContentProps }) =>
         </CardContent>
       ))}
     </Card>
+  );
+};
+
+export const ProductSellerReputation = ({ content }: { content: ProductContentProps }) => {
+  const { ratings, seller, seller_reputation: reputation } = content;
+  if (!reputation) return null;
+
+  return (
+    <section className="grid gap-2 p-6 not-first:border-t" aria-label="Creator rating">
+      {ratings == null || ratings.count === 0 ? <div>This product has no reviews yet.</div> : null}
+      <div className="flex flex-wrap items-center gap-1">
+        <RatingStars rating={reputation.average} />
+        <span>
+          Creator rating: {reputation.average} from{" "}
+          {seller ? (
+            <a href={seller.profile_url}>
+              {reputation.count} verified {reputation.count === 1 ? "review" : "reviews"}
+            </a>
+          ) : (
+            `${reputation.count} verified ${reputation.count === 1 ? "review" : "reviews"}`
+          )}{" "}
+          across {reputation.products_count} other products.
+        </span>
+      </div>
+    </section>
   );
 };

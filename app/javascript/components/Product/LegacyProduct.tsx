@@ -6,6 +6,7 @@ import { AuthorByline } from "$app/components/Product/AuthorByline";
 import { applySelection } from "$app/components/Product/ConfigurationSelector";
 import { InteractiveProduct, RatingsSummary, type ServerContent } from "$app/components/Product/Interactive";
 import { getStandalonePrice } from "$app/components/Product/pricing";
+import { ProductSellerReputation } from "$app/components/Product/ProductContent";
 import { Card, CardContent } from "$app/components/ui/Card";
 
 type Props = Omit<React.ComponentProps<typeof InteractiveProduct>, "serverContent">;
@@ -21,7 +22,7 @@ export const legacyProductContent = ({
     !product.recurrences &&
     product.options.length === 0 &&
     !product.rental?.rent_only &&
-    (basePriceCents !== 0 || product.pwyw);
+    (basePriceCents !== 0 || !!product.pwyw);
   const sellerByline = product.seller ? (
     <AuthorByline
       name={product.seller.name}
@@ -84,6 +85,7 @@ export const legacyProductContent = ({
           ))}
         </Card>
       ) : null,
+    sellerReputation: <ProductSellerReputation content={{ ...product, show_price: showPrice }} />,
   };
 };
 
