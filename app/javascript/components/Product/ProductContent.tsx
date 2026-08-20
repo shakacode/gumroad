@@ -1,10 +1,13 @@
 import * as React from "react";
 
+import { COMMISSION_DEPOSIT_PROPORTION, type ProductNativeType } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
+import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
 import { RatingStars } from "$app/components/RatingStars";
+import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 
 type Seller = {
@@ -21,6 +24,10 @@ export type ProductContentProps = {
   ratings: { average: number; count: number } | null;
   summary: string | null;
   attributes: { name: string; value: string }[];
+  is_compliance_blocked: boolean;
+  is_published: boolean;
+  native_type: ProductNativeType;
+  quantity_remaining: number | null;
   seller_reputation?: SellerReputation | null;
   show_price: boolean;
 };
@@ -30,6 +37,27 @@ export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
     {content.name}
   </h1>
 );
+
+export const ProductAvailabilityNotice = ({ content }: { content: ProductContentProps }) => {
+  const notForSaleMessage = getNotForSaleMessage(content);
+
+  if (notForSaleMessage)
+    return (
+      <Alert role="status" variant="warning">
+        {notForSaleMessage}
+      </Alert>
+    );
+
+  if (content.native_type === "commission")
+    return (
+      <Alert role="status" variant="info">
+        Secure your order with a {`${COMMISSION_DEPOSIT_PROPORTION * 100}%`} deposit today; the remaining balance will
+        be charged upon completion.
+      </Alert>
+    );
+
+  return null;
+};
 
 export const ProductSellerAndRatings = ({ content }: { content: ProductContentProps }) => {
   const { seller, collaborating_user: collaboratingUser, ratings, show_price: showPrice } = content;

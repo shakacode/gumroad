@@ -6,7 +6,7 @@ import { AuthorByline } from "$app/components/Product/AuthorByline";
 import { applySelection } from "$app/components/Product/ConfigurationSelector";
 import { InteractiveProduct, RatingsSummary, type ServerContent } from "$app/components/Product/Interactive";
 import { getStandalonePrice } from "$app/components/Product/pricing";
-import { ProductSellerReputation } from "$app/components/Product/ProductContent";
+import { ProductAvailabilityNotice, ProductSellerReputation } from "$app/components/Product/ProductContent";
 import { Card, CardContent } from "$app/components/ui/Card";
 
 type Props = Omit<React.ComponentProps<typeof InteractiveProduct>, "serverContent">;
@@ -33,6 +33,7 @@ export const legacyProductContent = ({
   ) : null;
 
   return {
+    availabilityNotice: <ProductAvailabilityNotice content={{ ...product, show_price: showPrice }} />,
     title: (
       <h1 itemProp="name" dir="auto">
         {product.name}

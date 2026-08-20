@@ -11,7 +11,6 @@ import {
   AnalyticsData,
   AssetPreview,
   BuyerCurrencyDisplay,
-  COMMISSION_DEPOSIT_PROPORTION,
   CustomButtonTextOption,
   FreeTrial,
   ProductNativeType,
@@ -206,15 +205,6 @@ export type ProductDiscount =
   | { valid: true; code: string; discount: Discount }
   | null;
 
-export const getNotForSaleMessage = (product: ProductData) =>
-  product.is_compliance_blocked
-    ? "Sorry, this item is not available in your location."
-    : product.quantity_remaining === 0
-      ? "Sold out, please go back and pick another option."
-      : !product.is_published
-        ? "This product is not currently for sale."
-        : null;
-
 export type WishlistForProduct = Wishlist & {
   selections_in_wishlist: { variant_id: string | null; recurrence: string | null; rent: boolean; quantity: number }[];
 };
@@ -278,6 +268,7 @@ export type Props = {
 };
 
 export type ServerContent = {
+  availabilityNotice: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
   details: React.ReactNode;
@@ -319,7 +310,6 @@ export const InteractiveProduct = ({
     editable: false,
   });
 
-  const notForSaleMessage = getNotForSaleMessage(product);
   const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
 
   React.useEffect(() => {
@@ -525,16 +515,7 @@ export const InteractiveProduct = ({
       </section>
       <section>
         <section className="grid gap-4 p-6 not-first:border-t">
-          {notForSaleMessage ? (
-            <Alert role="status" variant="warning">
-              {notForSaleMessage}
-            </Alert>
-          ) : product.native_type === "commission" ? (
-            <Alert role="status" variant="info">
-              Secure your order with a {`${COMMISSION_DEPOSIT_PROPORTION * 100}%`} deposit today; the remaining balance
-              will be charged upon completion.
-            </Alert>
-          ) : null}
+          {serverContent.availabilityNotice}
           {discountCode ? (
             discountCode.valid ? (
               (discountedPriceCents < priceCents ||

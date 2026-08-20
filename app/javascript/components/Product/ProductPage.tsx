@@ -7,6 +7,7 @@ import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import type { ServerContent } from "$app/components/Product/Interactive";
 import {
   type ProductContentProps,
+  ProductAvailabilityNotice,
   ProductDetails,
   ProductSellerAndRatings,
   ProductSellerReputation,
@@ -34,6 +35,7 @@ export default function ProductPage({
   ...productProps
 }: ProductPageProps) {
   const toServerContent = (content: ProductContentProps): ServerContent => ({
+    availabilityNotice: <ProductAvailabilityNotice content={content} />,
     title: <ProductTitle content={content} />,
     sellerAndRatings: <ProductSellerAndRatings content={content} />,
     details: <ProductDetails content={content} />,

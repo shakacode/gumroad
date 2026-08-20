@@ -3,7 +3,11 @@ import { cleanup, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ProductSellerReputation, type ProductContentProps } from "$app/components/Product/ProductContent";
+import {
+  ProductAvailabilityNotice,
+  ProductSellerReputation,
+  type ProductContentProps,
+} from "$app/components/Product/ProductContent";
 
 const content = {
   name: "A guide",
@@ -17,11 +21,38 @@ const content = {
   ratings: null,
   summary: null,
   attributes: [],
+  is_compliance_blocked: false,
+  is_published: true,
+  native_type: "digital",
+  quantity_remaining: null,
   show_price: true,
   seller_reputation: { average: 4.8, count: 24, products_count: 3 },
 } satisfies ProductContentProps;
 
 afterEach(cleanup);
+
+describe("ProductAvailabilityNotice", () => {
+  it("renders an unavailable product warning as server content", () => {
+    render(
+      <ProductAvailabilityNotice
+        content={{
+          ...content,
+          is_compliance_blocked: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("Sorry, this item is not available in your location.");
+  });
+
+  it("renders the commission deposit notice as server content", () => {
+    render(<ProductAvailabilityNotice content={{ ...content, native_type: "commission" }} />);
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Secure your order with a 50% deposit today; the remaining balance will be charged upon completion.",
+    );
+  });
+});
 
 describe("ProductSellerReputation", () => {
   it("renders an unreviewed product's creator rating as server content", () => {

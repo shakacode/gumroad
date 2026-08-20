@@ -15,12 +15,8 @@ import {
   PriceSelection,
   withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
-import {
-  getNotForSaleMessage,
-  type ProductData,
-  type ProductDiscount,
-  type Purchase,
-} from "$app/components/Product/Interactive";
+import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
+import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useRunOnce } from "$app/components/useRunOnce";
 

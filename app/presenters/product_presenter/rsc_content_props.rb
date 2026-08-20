@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 class ProductPresenter::RscContentProps
-  CONTENT_KEYS = %i[name seller collaborating_user ratings summary attributes seller_reputation].freeze
+  CONTENT_KEYS = %i[
+    name seller collaborating_user ratings summary attributes seller_reputation
+    is_compliance_blocked is_published native_type quantity_remaining
+  ].freeze
 
   def initialize(product_props:)
     @product_props = product_props
