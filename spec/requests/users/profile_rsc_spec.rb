@@ -12,7 +12,7 @@ describe "Public seller profile RSC routing", type: :request do
     allow_any_instance_of(ActionView::Base).to receive(:vite_typescript_tag).and_return("")
   end
 
-  it "uses the dedicated RSC controller for an opted-in full HTML request" do
+  it "uses the dedicated RSC controller for an unflagged full HTML request" do
     streamed_options = nil
     rsc_component_name = nil
     rsc_props = nil
@@ -23,34 +23,33 @@ describe "Public seller profile RSC routing", type: :request do
       controller.response_body = "server-rendered profile"
     end
 
-    get seller_url, params: { rsc: "1" }
+    get seller_url
 
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered profile")
     expect(streamed_options).to include(template: "public_rsc/show", layout: "inertia")
     expect(rsc_component_name).to eq("ProfileRscCompatibilityPage")
     expect(rsc_props.dig(:creator_profile, :name)).to eq(seller.name)
-    expect(rsc_props.dig(:global, :href)).to include("rsc=1")
+    expect(rsc_props.dig(:global, :href)).to eq("#{seller_url}/")
     expect(rsc_props.dig(:global, :csp_nonce)).to be_nil
     expect(response.headers["Last-Modified"]).to be_present
   end
 
-  it "keeps an ordinary full HTML request on Inertia" do
-    get seller_url
+  it "upgrades a full Inertia visit to an RSC document request" do
+    get seller_url, headers: { "X-Inertia" => "true" }
 
-    expect(response).to be_successful
-    expect(response.body).to include('id="app" data-page=')
-    expect(response.body).not_to include("profile-rsc-root")
+    expect(response).to have_http_status(:conflict)
+    expect(response.headers["X-Inertia-Location"]).to eq("#{seller_url}/")
   end
 
-  it "keeps Inertia and partial requests on Inertia even when opted in" do
+  it "keeps Inertia partial requests on their specialized response" do
     headers = {
       "X-Inertia" => "true",
       "X-Inertia-Partial-Component" => "Users/Show",
       "X-Inertia-Partial-Data" => "creator_profile",
     }
 
-    get seller_url, params: { rsc: "1" }, headers: headers
+    get seller_url, headers: headers
 
     expect(response).to be_successful
     expect(response.parsed_body["component"]).to eq("Users/Show")
@@ -61,7 +60,7 @@ describe "Public seller profile RSC routing", type: :request do
     seller.update!(custom_html: "<h1>Custom profile</h1>")
     Feature.activate_user(:custom_html_pages, seller)
 
-    get seller_url, params: { rsc: "1" }
+    get seller_url
 
     expect(response).to be_successful
     expect(response.body).to include(%(src="/landing/embed"))
@@ -71,22 +70,31 @@ describe "Public seller profile RSC routing", type: :request do
   end
 
   it "leaves JSON responses on the public profile API path" do
-    get "#{UrlService.root_domain_with_protocol}/#{seller.username}.json", params: { rsc: "1" }
+    get "#{UrlService.root_domain_with_protocol}/#{seller.username}.json"
 
     expect(response).to be_successful
     expect(response.media_type).to eq("application/json")
     expect(response.parsed_body["username"]).to eq(seller.username)
   end
 
-  it "resolves an opted-in request on a seller custom domain" do
+  it "resolves an unflagged request on a seller custom domain" do
     create(:custom_domain, domain: "profile-rsc.example.com", user: seller)
     allow_any_instance_of(ProfileRscUsersController).to receive(:stream_view_containing_react_components) do |controller, **|
       controller.response_body = "server-rendered custom-domain profile"
     end
 
-    get "http://profile-rsc.example.com/", params: { rsc: "1" }
+    get "http://profile-rsc.example.com/"
 
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered custom-domain profile")
+  end
+
+  it "resolves a root-domain profile document to the RSC controller" do
+    route = Rails.application.routes.recognize_path(
+      "#{UrlService.root_domain_with_protocol}/#{seller.username}",
+      method: :get
+    )
+
+    expect(route).to include(controller: "profile_rsc_users", action: "show", username: seller.username)
   end
 end

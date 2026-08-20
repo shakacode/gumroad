@@ -1320,6 +1320,7 @@ Rails.application.routes.draw do
     # Default the format to html (like /l/:id) so the custom-HTML wrapper renders
     # for Accept: */* crawlers/unfurlers too, not just browsers sending text/html.
     # An explicit .json still serves the public profile API.
+    get "/:username", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: PublicRscDocumentRequestConstraint
     get "/:username", to: "users#show", as: "user", defaults: { format: "html" }
     # Iframe content endpoint for profiles with custom_html. Subdomain and
     # custom-domain equivalents live in UserCustomDomainConstraint below.

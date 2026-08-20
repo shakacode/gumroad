@@ -8,6 +8,7 @@ module PublicRscRendering
   include LiveStreamingResponseHeaders
 
   included do
+    before_action :upgrade_inertia_visit_to_rsc_document
     before_action :prepare_live_streaming_response
     prepend_around_action :clear_live_active_record_connections
     prepend_around_action :close_live_response_stream
@@ -15,6 +16,13 @@ module PublicRscRendering
   end
 
   private
+    def upgrade_inertia_visit_to_rsc_document
+      return unless request.inertia?
+
+      response.set_header("X-Inertia-Location", request.original_url)
+      head :conflict
+    end
+
     def render_public_rsc_page(component_name:, props:, root_id:)
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
       @public_rsc_component_name = component_name

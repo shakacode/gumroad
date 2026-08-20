@@ -14,7 +14,7 @@ The implementation sequence is defined in [Product page RSC migration roadmap](p
 
 - Revision: `fb39dbe24b3f632d96aa0b7b5e3d3e778fd9796a`
 - Renderer: existing ordinary Discover/Inertia product page
-- Selection: the normal Discover URL without `rsc=1`
+- Selection: the normal Discover-layout product URL
 
 ### Experiment
 

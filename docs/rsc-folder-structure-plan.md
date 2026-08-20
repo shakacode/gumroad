@@ -27,7 +27,7 @@ This plan starts from the application as it exists now:
 - There is no `StandardProductLayout`. A product without an explicit layout uses the default composition. The only explicit product layout values are profile and Discover.
 - The Discover product component remains because autocomplete still uses it as an Inertia partial response.
 - Embed, overlay, JSON, preview, and custom-HTML product requests retain their specialized behavior.
-- The public Discover RSC root is still selected by `PublicRscDocumentRequestConstraint`, including its query-parameter or environment-flag rollout behavior. The ordinary Inertia Discover page remains active.
+- `PublicRscDocumentRequestConstraint` selects every eligible public document while full Inertia visits upgrade and partial requests retain their specialized behavior.
 - The public Profile RSC root and its compatibility behavior remain active and are not part of the Product and Discover server-rendering work.
 - `app/javascript/product_rsc` currently mixes feature roots, an Inertia-compatible client shell, RSC entrypoints, and an asset-fingerprinting test.
 - The current Product, Discover, and Profile RSC root modules are client components. Product and Discover will progressively become server-owned roots with focused client islands.

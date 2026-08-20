@@ -36,9 +36,9 @@ For a parallel lane, `bin/dev-lane 1` assigns Rails to port 3001 and the rendere
 With `demo` as the permalink, compare these two URLs in the same browser:
 
 - Ordinary Discover page: `http://localhost:3000/l/demo?layout=discover`
-- Product RSC opt-in: `http://localhost:3000/l/demo?layout=discover&rsc=1`
+- Discover-layout product RSC: `http://localhost:3000/l/demo?layout=discover`
 
-The RSC URL must show the same product title, seller, price, content and purchase CTA as the ordinary page. Confirm navigation and a client interaction after hydration. Removing `&rsc=1` immediately returns to the unchanged Inertia page; `rsc=1` has no effect unless `layout=discover` is also present.
+The RSC URL must show the same product title, seller, price, content and purchase CTA as the ordinary page. Confirm navigation and a client interaction after hydration. All eligible full product documents use the RSC renderer without a query-parameter opt-in.
 
 ## Docker web runtime
 

@@ -145,9 +145,9 @@ describe UsersController do
 
       context "when the request is from gumroad domain" do
         it "redirects to subdomain profile page" do
-          get :show, params: { username: @user.username, sort: "price_asc", rsc: "1" }
+          get :show, params: { username: @user.username, sort: "price_asc" }
 
-          expect(response).to redirect_to @user.subdomain_with_protocol + "/?rsc=1&sort=price_asc"
+          expect(response).to redirect_to @user.subdomain_with_protocol + "/?sort=price_asc"
           expect(response).to have_http_status(:moved_permanently)
         end
 

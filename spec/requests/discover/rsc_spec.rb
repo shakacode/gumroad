@@ -31,7 +31,7 @@ describe "Discover RSC routing", type: :request do
       controller.response_body = "server-rendered Discover"
     end
 
-    get "http://#{discover_host}/discover", params: { rsc: "1" }
+    get "http://#{discover_host}/discover"
 
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered Discover")
@@ -40,20 +40,17 @@ describe "Discover RSC routing", type: :request do
     expect(rsc_props).to include(:search_results, :recommended_products, :recommended_wishlists, :recently_viewed)
     expect(rsc_props[:recommended_products]).to eq([])
     expect(rsc_props[:recommended_wishlists]).to eq([])
-    expect(rsc_props.dig(:global, :href)).to include("rsc=1")
+    expect(rsc_props.dig(:global, :href)).to eq("http://#{discover_host}/discover")
   end
 
-  it "uses the dedicated RSC controller for a taxonomy page when the experiment gate is enabled" do
+  it "uses the dedicated RSC controller for an unflagged taxonomy page" do
     taxonomy = create(:taxonomy, slug: "music-and-sound-design")
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
-    original_public_rsc = ENV["SHAKAPERF_PUBLIC_RSC"]
-    ENV["SHAKAPERF_PUBLIC_RSC"] = "1"
 
     route = Rails.application.routes.recognize_path("http://#{discover_host}/#{taxonomy.slug}", method: :get)
 
     expect(route).to include(controller: "discover_rsc", action: "index", taxonomy: taxonomy.slug)
   ensure
-    ENV["SHAKAPERF_PUBLIC_RSC"] = original_public_rsc
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
   end
 
@@ -62,9 +59,21 @@ describe "Discover RSC routing", type: :request do
       controller.response_body = "root-domain Discover"
     end
 
-    get "http://test.gumroad.com/discover", params: { rsc: "1" }
+    get "http://test.gumroad.com/discover"
 
     expect(response).to be_successful
     expect(response.body).to eq("root-domain Discover")
+  end
+
+  it "upgrades a full Inertia visit to an RSC document request" do
+    allow_any_instance_of(DiscoverRscController).to receive(:stream_view_containing_react_components) do |controller, **|
+      controller.response_body = "unexpected stream"
+    end
+
+    url = "http://#{discover_host}/discover?sort=hot_and_new"
+    get url, headers: { "X-Inertia" => "true" }
+
+    expect(response).to have_http_status(:conflict)
+    expect(response.headers["X-Inertia-Location"]).to eq(url)
   end
 end

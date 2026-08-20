@@ -13,7 +13,7 @@
 - Do not add, remove, rewrite, or substitute Gumroad product content, marketing copy, seed content, page sections, or visual design.
 - Do not move pricing, discounts, checkout decisions, authorization, analytics policy, custom-domain behavior, metadata, or other business logic out of Rails.
 - Reuse the existing `ProductPresenter#discover_product_props` result as the product contract; do not create a parallel fixture/presenter/data model.
-- Keep ordinary product requests on their existing Inertia path; only `layout=discover&rsc=1` opts into RSC during this migration.
+- Route every eligible full product document through RSC while preserving specialized Inertia partial, embed, overlay, JSON, preview, and custom-HTML behavior.
 - Keep custom HTML, JSON, profile, default, iframe, overlay, partial Inertia requests, redirects, and mutation endpoints on their current behavior.
 - Keep Vite as the existing application/widget pipeline; the React on Rails bundles are product-RSC-specific and must not replace or duplicate existing page content.
 - Use stable versions from the audited demo: React/React DOM/react-server-dom-webpack `19.2.7`, React on Rails Pro gem/npm/node renderer `17.0.0`, and react-on-rails-rsc `19.2.1`.
@@ -104,7 +104,7 @@ git commit -m "Add product RSC runtime"
 
 **Interfaces:**
 - Consumes: Task 1 bundle/runtime names and the unmodified `ProductPresenter#discover_product_props` result.
-- Produces: an HTML stream for `layout=discover&rsc=1` rooted at `product-rsc-root`; all other `LinksController#show` responses retain their existing renderer and props.
+- Produces: an HTML stream for every eligible product document rooted at `product-rsc-root`; specialized `LinksController#show` responses retain their existing renderer and props.
 
 - [ ] **Step 1: Add failing controller coverage for the exact opt-in boundary**
 
@@ -120,7 +120,7 @@ Implement response headers that prevent proxy/Rack buffering and an around-actio
 
 - [ ] **Step 4: Add the narrow controller render dispatch**
 
-Build `discover_product_props` exactly once, return the RSC renderer only for `params[:rsc] == "1"`, `layout=discover`, HTML, and non-partial requests, precompute `RenderingExtension.custom_context(view_context)`, remove `csp_nonce`, append `href`, release DB connections, then stream `links/rsc_show` with the existing `inertia` layout and stream observability.
+Build the layout-specific product props exactly once for eligible HTML document requests, precompute `RenderingExtension.custom_context(view_context)`, remove `csp_nonce`, append `href`, release DB connections, then stream `links/rsc_show` with the existing `inertia` layout and stream observability.
 
 - [ ] **Step 5: Add the RSC wrapper using existing Gumroad components**
 
@@ -180,7 +180,7 @@ Ensure npm dependencies and the product-RSC production bundles are built in the 
 
 - [ ] **Step 5: Document seeded verification**
 
-Document how to run existing services/seeds, identify an existing seeded product permalink, start the app/runtime, and compare the ordinary Discover URL with `layout=discover&rsc=1`. State the opt-in/rollback boundary explicitly.
+Document how to run existing services/seeds, identify an existing seeded product permalink, start the app/runtime, and verify the default, profile, and Discover product compositions through their ordinary URLs.
 
 - [ ] **Step 6: Run focused automated verification**
 

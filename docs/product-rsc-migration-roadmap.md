@@ -17,7 +17,7 @@ All behavior and performance comparisons use `fb39dbe24b3f632d96aa0b7b5e3d3e778f
 
 ## Current state at the baseline
 
-The product RSC path is opt-in through `layout=discover&rsc=1`. Rails routes matching requests to `ProductRscLinksController`, and `LinksController` streams `links/rsc_show` with React on Rails Pro.
+Eligible product documents route to `ProductRscLinksController` without an opt-in, and `LinksController` streams `links/rsc_show` with React on Rails Pro.
 
 The transport and build separation are already useful:
 

@@ -7,7 +7,6 @@ class ProductRscDocumentRequestConstraintTest < ActiveSupport::TestCase
     assert ProductRscDocumentRequestConstraint.matches?(request_for("/l/product"))
     assert ProductRscDocumentRequestConstraint.matches?(request_for("/l/product?layout=discover"))
     assert ProductRscDocumentRequestConstraint.matches?(request_for("/l/product?layout=profile"))
-    assert ProductRscDocumentRequestConstraint.matches?(request_for("/l/product?layout=discover&rsc=1"))
     assert ProductRscDocumentRequestConstraint.matches?(request_for("/l/product", "HTTP_X_INERTIA" => "true"))
   end
 

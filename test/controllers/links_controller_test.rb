@@ -4998,7 +4998,7 @@ class LinksControllerShowTest < ActionController::TestCase
     @request.headers["X-Inertia-Partial-Data"] = "autocomplete_results"
     @request.headers["X-Inertia-Partial-Component"] = "Products/Discover/Show"
 
-    get :show, params: { id: link.to_param, layout: "discover", rsc: "1", query: "test" }
+    get :show, params: { id: link.to_param, layout: "discover", query: "test" }
 
     assert_response :success
     page = inertia_page

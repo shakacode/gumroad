@@ -14,8 +14,6 @@ class DiscoverController < ApplicationController
   before_action :set_affiliate_cookie, only: [:index]
 
   def index
-    params.delete(:rsc)
-
     if autocomplete_only_request?
       create_discover_search!(query: params[:query], autocomplete: true) if params[:query].present?
       return render inertia: "Discover/Index", props: {
