@@ -34,6 +34,9 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
     page.visit rsc_url
     expect(page).to have_css("#product-rsc-root")
+    expect(page).to have_css("header.hero")
+    expect(page).to have_field("Search products")
+    expect(page).to have_link("Gumroad")
     expect(page).to have_text(product.name)
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")

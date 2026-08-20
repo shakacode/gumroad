@@ -65,6 +65,9 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
     page.visit discover_path(sort: "hot_and_new")
 
     expect_rsc_document(root_id: "discover-rsc-root", component_name: "DiscoverPage")
+    expect(page).to have_css("header.hero")
+    expect(page).to have_field("Search products")
+    expect(page).to have_link("Gumroad")
     expect(page).to have_link(product.name)
     click_on "Trending"
     expect(page).to have_current_path(discover_path)

@@ -242,7 +242,7 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
   return { params: parsedParams, sortWasExplicit };
 };
 
-function DiscoverIndex() {
+function DiscoverIndex({ renderHeader = true }: { renderHeader?: boolean }) {
   const props = typia.assert<Props>(usePage().props);
   const originalLocation = useOriginalLocation();
   const defaultSortOrder = props.curated_product_ids.length > 0 ? "curated" : undefined;
@@ -380,6 +380,8 @@ function DiscoverIndex() {
   return (
     <>
       <Layout
+        {...(renderHeader ? {} : { className: "contents" })}
+        renderHeader={renderHeader}
         taxonomyPath={taxonomyPath}
         taxonomiesForNav={props.taxonomies_for_nav}
         showTaxonomy
