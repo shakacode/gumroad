@@ -5,7 +5,8 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 
 const clientEntry = read("./client.tsx");
 const serverEntry = read("./server.tsx");
-const rspackConfig = read("../../../../config/rspack/public_rsc.config.cjs");
+const rspackCommonConfig = read("../../../../config/rspack/public_rsc/common.cjs");
+const rspackCompatibilityConfig = read("../../../../config/rspack/public_rsc.config.cjs");
 
 const roots = [
   {
@@ -47,8 +48,12 @@ describe("public RSC structure", () => {
   });
 
   it("discovers client boundaries recursively from the JavaScript source tree", () => {
-    expect(rspackConfig).toContain("{ directory: sourcePath, recursive: true, include: /\\.[cm]?[jt]sx?$/u }");
-    expect(rspackConfig).not.toContain("existsSync");
-    roots.forEach(({ component }) => expect(rspackConfig).not.toContain(component.split("/").at(-1)));
+    expect(rspackCommonConfig).toContain("{ directory: sourcePath, recursive: true, include: /\\.[cm]?[jt]sx?$/u }");
+    expect(rspackCommonConfig).not.toContain("existsSync");
+    roots.forEach(({ component }) => expect(rspackCommonConfig).not.toContain(component.split("/").at(-1)));
+  });
+
+  it("keeps the legacy Rspack entry as a minimal compatibility export", () => {
+    expect(rspackCompatibilityConfig.trim()).toBe('module.exports = require("./public_rsc/index.cjs");');
   });
 });
