@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf
 
 const clientEntry = read("./client.tsx");
 const serverEntry = read("./server.tsx");
+const rspackConfig = read("../../../../config/rspack/public_rsc.config.cjs");
 
 const roots = [
   {
@@ -43,5 +44,11 @@ describe("public RSC structure", () => {
 
   it("removes the temporary product_rsc application folder", () => {
     expect(existsSync(new URL("../../product_rsc", import.meta.url))).toBe(false);
+  });
+
+  it("discovers client boundaries recursively from the JavaScript source tree", () => {
+    expect(rspackConfig).toContain("{ directory: sourcePath, recursive: true, include: /\\.[cm]?[jt]sx?$/u }");
+    expect(rspackConfig).not.toContain("existsSync");
+    roots.forEach(({ component }) => expect(rspackConfig).not.toContain(component.split("/").at(-1)));
   });
 });

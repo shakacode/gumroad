@@ -1,5 +1,4 @@
 const { DefinePlugin, ProvidePlugin, optimize } = require("@rspack/core");
-const fs = require("fs");
 const path = require("path");
 const { RSCRspackPlugin } = require("react-on-rails-rsc/RspackPlugin");
 
@@ -10,13 +9,7 @@ const publicOutputPath = path.join(rootPath, "public/product-rsc");
 const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "development";
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
 const publicRscEntrypointsDirectory = path.join(sourcePath, "entrypoints/public_rsc");
-const hasPublicRscEntry = fs.existsSync(publicRscEntrypointsDirectory);
-const publicRscClientReferences = [
-  ["components/Product", /ProductPage\.tsx$/u],
-  ["components/Discover", /DiscoverPage\.tsx$/u],
-  ["components/Profile", /ProfileRscCompatibilityPage\.client\.tsx$/u],
-  ["components/PublicPages", /PageShell\.client\.tsx$/u],
-].map(([directory, include]) => ({ directory: path.join(sourcePath, directory), recursive: false, include }));
+const publicRscClientReferences = [{ directory: sourcePath, recursive: true, include: /\.[cm]?[jt]sx?$/u }];
 const publicRscAssetManifest = "asset-manifest.json";
 
 class PublicRscAssetManifestPlugin {
@@ -117,14 +110,10 @@ const assetRule = {
 const plugins = (ssr) => [
   new DefinePlugin({ SSR: JSON.stringify(ssr) }),
   new ProvidePlugin({ Routes: path.join(sourcePath, "utils/routes.js") }),
-  ...(hasPublicRscEntry
-    ? [
-        new RSCRspackPlugin({
-          isServer: ssr,
-          clientReferences: publicRscClientReferences,
-        }),
-      ]
-    : []),
+  new RSCRspackPlugin({
+    isServer: ssr,
+    clientReferences: publicRscClientReferences,
+  }),
 ];
 
 const clientConfig = {
