@@ -4916,10 +4916,18 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal Product::Layout::PROFILE, props[:page_layout]
     assert props[:creator_profile].present?
     assert_equal link.name, props.dig(:product, :name)
+    assert_not props.key?(:products)
   end
 
   test "GET show always server-renders Discover products with React on Rails" do
     link = create_product(user: @user)
+    featured_product = create_product(user: @user, name: "Featured RSC product")
+    featured_section = SellerProfileFeaturedProductSection.create!(
+      seller: @user,
+      product: link,
+      featured_product_id: featured_product.id
+    )
+    link.update!(sections: [featured_section.id])
     render_options = nil
     @controller = ProductRscLinksController.new
     @controller.define_singleton_method(:stream_view_containing_react_components) do |**options|
@@ -4952,6 +4960,9 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal link.name, props.dig(:rsc_product_content, :name)
     assert_nil props.dig(:rsc_product_content, :summary)
     assert_not props[:rsc_product_content].key?(:description_html)
+    assert_equal featured_product.name,
+                 props.dig(:rsc_featured_product_content, featured_section.external_id, :name)
+    assert_not props.key?(:products)
     assert props.key?(:taxonomy_path)
     assert props.key?(:taxonomies_for_nav)
     custom_styles_meta = props.fetch(:_inertia_meta).find { |tag| tag[:head_key] == "custom_styles" }
@@ -4978,6 +4989,7 @@ class LinksControllerShowTest < ActionController::TestCase
     props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal link.name, props.dig(:product, :name)
     assert_nil props[:page_layout]
+    assert_not props.key?(:products)
     assert_not props.key?(:taxonomy_path)
     assert_not props.key?(:taxonomies_for_nav)
   end

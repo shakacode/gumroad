@@ -215,12 +215,12 @@ class LinksController < ApplicationController
 
         product_props = case params[:layout]
                         when Product::Layout::PROFILE
-                          presenter.profile_product_props(**presenter_props)
+                          presenter.profile_product_props(sections_editing: false, **presenter_props)
                         when Product::Layout::DISCOVER
                           discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
-                          presenter.discover_product_props(discover_props:, **presenter_props)
+                          presenter.discover_product_props(discover_props:, sections_editing: false, **presenter_props)
                         else
-                          presenter.product_page_props(**presenter_props)
+                          presenter.product_page_props(sections_editing: false, **presenter_props)
         end
 
         render_product_rsc_document(product_props.merge(page_layout: params[:layout]))
@@ -796,6 +796,12 @@ class LinksController < ApplicationController
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
       @product_rsc_document_props = product_props.merge(
         rsc_product_content: ProductPresenter::RscContentProps.new(product_props: product_props.fetch(:product)).props,
+        rsc_featured_product_content: product_props.fetch(:sections).filter_map do |section|
+          featured_product_props = section[:props]
+          next unless featured_product_props
+
+          [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
+        end.to_h,
         _inertia_meta: inertia_meta.meta_tags,
         global: @precomputed_rendering_context.except(:csp_nonce).compact.merge(href: request.original_url)
       )

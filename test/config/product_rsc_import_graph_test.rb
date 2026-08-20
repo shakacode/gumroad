@@ -42,6 +42,14 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Discover/Nav.tsx")
   end
 
+  test "keeps the legacy product composition out of the RSC client graph" do
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/index.tsx")
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/Layout.tsx")
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/LegacyProduct.tsx")
+  end
+
   private
     def transitive_javascript_imports(entry_files)
       pending = entry_files

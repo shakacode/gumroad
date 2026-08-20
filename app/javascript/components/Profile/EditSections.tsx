@@ -38,8 +38,9 @@ import { ALLOWED_EXTENSIONS } from "$app/utils/file";
 import { assertResponseError, request, ResponseError } from "$app/utils/request";
 
 import { Popover, PopoverContent, PopoverTrigger } from "$app/components/Popover";
-import { Props as ProductProps } from "$app/components/Product";
+import { Product } from "$app/components/Product";
 import { CardGrid, SORT_BY_LABELS, useSearchReducer } from "$app/components/Product/CardGrid";
+import type { Props as ProductProps } from "$app/components/Product/Interactive";
 import { WishlistsSectionView } from "$app/components/Profile/EditSections/WishlistsSectionView";
 import { RichTextEditorToolbar, useImageUploadSettings, useRichTextEditor } from "$app/components/RichTextEditor";
 import { Select } from "$app/components/Select";
@@ -649,7 +650,20 @@ const FeaturedProductSectionView = ({
       }
     >
       {props ? (
-        <FeaturedProductView props={props} />
+        <FeaturedProductView
+          sectionId={section.id}
+          props={props}
+          renderProduct={({ props, selection, setSelection }) => (
+            <Product
+              product={props.product}
+              purchase={props.purchase}
+              discountCode={props.discount_code}
+              wishlists={props.wishlists}
+              selection={selection}
+              setSelection={setSelection}
+            />
+          )}
+        />
       ) : section.featured_product_id ? (
         <Skeleton className="h-128" />
       ) : null}

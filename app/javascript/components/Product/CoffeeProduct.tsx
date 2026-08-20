@@ -2,9 +2,9 @@ import * as React from "react";
 
 import { classNames } from "$app/utils/classNames";
 
-import { Product, Purchase } from "$app/components/Product";
 import { ConfigurationSelector, PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import { CtaButton, getCtaName } from "$app/components/Product/CtaButton";
+import type { ProductData, Purchase } from "$app/components/Product/Interactive";
 import { Fieldset } from "$app/components/ui/Fieldset";
 
 export const CoffeeProduct = ({
@@ -13,7 +13,7 @@ export const CoffeeProduct = ({
   selection: selectionOverride,
   className,
 }: {
-  product: Product;
+  product: ProductData;
   purchase: Purchase | null;
   selection?: Partial<PriceSelection> | null;
   className?: string;

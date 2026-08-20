@@ -25,6 +25,15 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
   before do
     allow_any_instance_of(LinksController).to receive(:taxonomies_for_nav).and_return(large_taxonomy_navigation)
+    featured_product = create(:product, user: seller, name: "Server-rendered featured product")
+    featured_section = create(
+      :seller_profile_featured_product_section,
+      seller:,
+      product:,
+      featured_product_id: featured_product.id,
+      header: "Featured"
+    )
+    product.update!(sections: [featured_section.id], main_section_index: 1)
     product.save_custom_summary("A server-rendered product summary")
     product.save_custom_attributes([{ name: "Format", value: "PDF" }])
     create(:purchase, :with_review, link: product)
@@ -50,6 +59,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_text("A server-rendered product summary")
     expect(page).to have_text("Format")
     expect(page).to have_text("PDF")
+    expect(page).to have_section("Server-rendered featured product", section_element: :article)
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page).to have_css(

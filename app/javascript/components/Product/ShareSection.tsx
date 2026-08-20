@@ -12,8 +12,8 @@ import { useAppDomain } from "$app/components/DomainSettings";
 import { FacebookShareButton } from "$app/components/FacebookShareButton";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "$app/components/Popover";
-import { Product, WishlistForProduct } from "$app/components/Product";
 import { PriceSelection } from "$app/components/Product/ConfigurationSelector";
+import type { ProductData, WishlistForProduct } from "$app/components/Product/Interactive";
 import { showAlert } from "$app/components/server-components/Alert";
 import { TwitterShareButton } from "$app/components/TwitterShareButton";
 import { Alert } from "$app/components/ui/Alert";
@@ -26,7 +26,7 @@ export const ShareSection = ({
   selection,
   wishlists: initialWishlists,
 }: {
-  product: Product;
+  product: ProductData;
   selection: PriceSelection;
   wishlists: WishlistForProduct[];
 }) => {

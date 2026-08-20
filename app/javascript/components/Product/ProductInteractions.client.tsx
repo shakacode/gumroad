@@ -2,40 +2,143 @@
 
 import * as React from "react";
 
-import { PoweredByFooter } from "$app/components/PoweredByFooter";
-import type { ServerContent } from "$app/components/Product";
-import { Layout as ProductLayout, type Props as ProductLayoutProps } from "$app/components/Product/Layout";
-import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
+import { classNames } from "$app/utils/classNames";
 
-export type ProductInteractionsProps = ProductLayoutProps & {
+import { PoweredByFooter } from "$app/components/PoweredByFooter";
+import type { ConfigurationSelectorHandle } from "$app/components/Product/ConfigurationSelector";
+import {
+  InteractiveProduct,
+  useSelectionFromUrl,
+  type Props as ProductProps,
+  type ServerContent,
+} from "$app/components/Product/Interactive";
+import { CtaBar, EditButton } from "$app/components/Product/LayoutControls";
+import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
+import {
+  Section,
+  type FeaturedProductRenderer,
+  type PageProps as SectionsProps,
+} from "$app/components/Profile/Sections";
+
+export type ProductInteractionsProps = ProductProps & {
+  cart?: boolean;
+  featuredProductServerContent: Record<string, ServerContent>;
+  hasHero?: boolean;
+  main_section_index: number;
   page_layout: "discover" | "profile" | null;
   serverContent: ServerContent;
-};
+} & SectionsProps;
 
-export default function ProductInteractions({ page_layout: pageLayout, ...productProps }: ProductInteractionsProps) {
-  const creatorProfile = "creator_profile" in productProps ? productProps.creator_profile : undefined;
+export default function ProductInteractions({
+  product,
+  purchase,
+  discount_code: discountCode,
+  cart,
+  hasHero,
+  wishlists,
+  main_section_index: mainSectionIndex,
+  serverContent,
+  featuredProductServerContent,
+  page_layout: pageLayout,
+  ...sectionProps
+}: ProductInteractionsProps) {
+  const [selection, setSelection] = useSelectionFromUrl(product);
+  const ctaButtonRef = React.useRef<HTMLAnchorElement>(null);
+  const configurationSelectorRef = React.useRef<ConfigurationSelectorHandle>(null);
+  const ctaLabel = cart ? "Add to cart" : undefined;
 
-  if (pageLayout === "discover") return <ProductLayout cart hasHero {...productProps} />;
+  const productView = (
+    <>
+      <EditButton product={product} />
+      <InteractiveProduct
+        product={product}
+        purchase={purchase}
+        discountCode={discountCode}
+        ctaLabel={ctaLabel}
+        selection={selection}
+        setSelection={setSelection}
+        ctaButtonRef={ctaButtonRef}
+        configurationSelectorRef={configurationSelectorRef}
+        wishlists={wishlists}
+        serverContent={serverContent}
+      />
+    </>
+  );
 
-  if (pageLayout === "profile" && creatorProfile) {
+  const mainSection = (
+    <section className="border-b border-border">
+      <div
+        className={classNames(
+          "mx-auto w-full max-w-product-page lg:py-16",
+          sectionProps.sections.length > 0 ? "px-4 py-8" : "p-4 lg:px-8",
+        )}
+      >
+        {productView}
+      </div>
+    </section>
+  );
+
+  const renderFeaturedProduct: FeaturedProductRenderer = ({ sectionId, props, selection, setSelection }) => {
+    const featuredServerContent = featuredProductServerContent[sectionId];
+    if (!featuredServerContent) return null;
+
+    return (
+      <InteractiveProduct
+        product={props.product}
+        purchase={props.purchase}
+        discountCode={props.discount_code}
+        wishlists={props.wishlists}
+        selection={selection}
+        setSelection={setSelection}
+        serverContent={featuredServerContent}
+      />
+    );
+  };
+
+  const content = (
+    <>
+      <CtaBar
+        product={product}
+        purchase={purchase}
+        discountCode={discountCode}
+        ctaLabel={ctaLabel}
+        selection={selection}
+        ctaButtonRef={ctaButtonRef}
+        configurationSelectorRef={configurationSelectorRef}
+        hasHero={!!hasHero}
+      />
+      {sectionProps.sections.length > 0
+        ? sectionProps.sections.map((section, index) => (
+            <React.Fragment key={section.id}>
+              {index === mainSectionIndex ? mainSection : null}
+              <Section section={section} {...sectionProps} renderFeaturedProduct={renderFeaturedProduct} />
+              {mainSectionIndex >= sectionProps.sections.length && index === sectionProps.sections.length - 1
+                ? mainSection
+                : null}
+            </React.Fragment>
+          ))
+        : mainSection}
+    </>
+  );
+
+  if (pageLayout === "discover") return content;
+
+  if (pageLayout === "profile") {
     return (
       <ProfileLayout
-        creatorProfile={creatorProfile}
+        creatorProfile={sectionProps.creator_profile}
         currencySelector
-        shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
+        shownCurrency={product.buyer_currency_display?.buyer_currency_shown}
       >
-        <ProductLayout cart {...productProps} />
+        {content}
       </ProfileLayout>
     );
   }
 
   return (
     <>
-      <ProductLayout {...productProps} />
-      <PoweredByFooter
-        currencySelector
-        shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
-      />
+      {content}
+      <PoweredByFooter currencySelector shownCurrency={product.buyer_currency_display?.buyer_currency_shown} />
     </>
   );
 }

@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { Button, NavigationButton } from "$app/components/Button";
 import { Modal } from "$app/components/Modal";
-import { Purchase } from "$app/components/Product";
+import type { Purchase } from "$app/components/Product/Interactive";
 
 type Props = {
   purchase: Purchase;

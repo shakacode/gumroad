@@ -5,6 +5,7 @@ import { Tab } from "$app/parsers/profile";
 import GuidGenerator from "$app/utils/guid_generator";
 
 import AutoLink from "$app/components/AutoLink";
+import { Product } from "$app/components/Product";
 import { FollowUserFormBlock } from "$app/components/Profile/FollowUserForm";
 import { Layout } from "$app/components/Profile/Layout";
 import { PageProps as SectionsProps, Section, SectionLayout } from "$app/components/Profile/Sections";
@@ -106,6 +107,20 @@ export function useTabs(initial: Tab[]) {
 const PublicProfile = (props: Props) => {
   const { tabs, selectedTab, setSelectedTab } = useTabs(props.tabs);
   const sections = selectedTab?.sections.flatMap((id) => props.sections.find((section) => section.id === id) ?? []);
+  const renderFeaturedProduct = ({
+    props,
+    selection,
+    setSelection,
+  }: Parameters<React.ComponentProps<typeof Section>["renderFeaturedProduct"]>[0]) => (
+    <Product
+      product={props.product}
+      purchase={props.purchase}
+      discountCode={props.discount_code}
+      wishlists={props.wishlists}
+      selection={selection}
+      setSelection={setSelection}
+    />
+  );
 
   return (
     <>
@@ -136,7 +151,9 @@ const PublicProfile = (props: Props) => {
         </header>
       ) : null}
       {sections?.length ? (
-        sections.map((section) => <Section key={section.id} section={section} {...props} />)
+        sections.map((section) => (
+          <Section key={section.id} section={section} {...props} renderFeaturedProduct={renderFeaturedProduct} />
+        ))
       ) : (
         <SectionLayout className="grid flex-1">
           <FollowUserFormBlock creatorProfile={props.creator_profile} />

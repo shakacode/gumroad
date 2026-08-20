@@ -16,10 +16,10 @@ import { CreatorProfile } from "$app/parsers/profile";
 import { CurrencyCode } from "$app/utils/currency";
 import { formatPostDate } from "$app/utils/date";
 
-import { Product, Props as ProductProps } from "$app/components/Product";
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
-import { PriceSelection } from "$app/components/Product/ConfigurationSelector";
+import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
+import type { Props as ProductProps } from "$app/components/Product/Interactive";
 import { FollowForm } from "$app/components/Profile/FollowForm";
 import { useRichTextEditor } from "$app/components/RichTextEditor";
 import { CardContent } from "$app/components/ui/Card";
@@ -145,7 +145,22 @@ const ProductsSectionView = ({
   );
 };
 
-export const FeaturedProductView = ({ props }: { props: ProductProps }) => {
+export type FeaturedProductRenderer = (options: {
+  sectionId: string;
+  props: ProductProps;
+  selection: PriceSelection;
+  setSelection: React.Dispatch<React.SetStateAction<PriceSelection>>;
+}) => React.ReactNode;
+
+export const FeaturedProductView = ({
+  sectionId,
+  props,
+  renderProduct,
+}: {
+  sectionId: string;
+  props: ProductProps;
+  renderProduct: FeaturedProductRenderer;
+}) => {
   const [selection, setSelection] = React.useState<PriceSelection>({
     recurrence: props.product.recurrences?.default ?? null,
     price: { error: false, value: null },
@@ -158,7 +173,7 @@ export const FeaturedProductView = ({ props }: { props: ProductProps }) => {
   return props.product.native_type === "coffee" ? (
     <CoffeeProduct {...props} />
   ) : (
-    <Product {...props} selection={selection} setSelection={setSelection} />
+    renderProduct({ sectionId, props, selection, setSelection })
   );
 };
 
@@ -182,8 +197,16 @@ export const WishlistsSectionView = ({ section }: { section: WishlistsSection })
   <WishlistsView wishlists={section.wishlists} />
 );
 
-const FeaturedProductSectionView = ({ section }: { section: FeaturedProductSection }) =>
-  section.props ? <FeaturedProductView props={section.props} /> : null;
+const FeaturedProductSectionView = ({
+  section,
+  renderFeaturedProduct,
+}: {
+  section: FeaturedProductSection;
+  renderFeaturedProduct: FeaturedProductRenderer;
+}) =>
+  section.props ? (
+    <FeaturedProductView sectionId={section.id} props={section.props} renderProduct={renderFeaturedProduct} />
+  ) : null;
 
 const PostsSectionView = ({ section }: { section: PostsSection }) => <PostsView posts={section.posts} />;
 
@@ -216,7 +239,12 @@ export const SectionLayout = ({
   </section>
 );
 
-export const Section = ({ section, creator_profile, currency_code }: { section: Section } & PageProps) => (
+export const Section = ({
+  section,
+  creator_profile,
+  currency_code,
+  renderFeaturedProduct,
+}: { section: Section; renderFeaturedProduct: FeaturedProductRenderer } & PageProps) => (
   <SectionLayout id={section.id}>
     {section.header ? <h2>{section.header}</h2> : null}
     {section.type === "SellerProfileProductsSection" ? (
@@ -228,7 +256,7 @@ export const Section = ({ section, creator_profile, currency_code }: { section: 
     ) : section.type === "SellerProfileSubscribeSection" ? (
       <SubscribeSectionView key={section.id} section={section} creatorProfile={creator_profile} />
     ) : section.type === "SellerProfileFeaturedProductSection" ? (
-      <FeaturedProductSectionView key={section.id} section={section} />
+      <FeaturedProductSectionView key={section.id} section={section} renderFeaturedProduct={renderFeaturedProduct} />
     ) : (
       <WishlistsSectionView key={section.id} section={section} />
     )}
