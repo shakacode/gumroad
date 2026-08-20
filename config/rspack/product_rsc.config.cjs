@@ -136,7 +136,9 @@ const clientConfig = {
   module: { rules: [assetRule, ...createScriptRules()] },
   plugins: [...plugins(false), new ProductRscAssetManifestPlugin()],
   output: {
-    filename: "[name].js",
+    filename: "[name].[contenthash:8].js",
+    chunkFilename: "[name].[contenthash:8].js",
+    clean: true,
     path: publicOutputPath,
     publicPath: "/product-rsc/",
   },
