@@ -78,7 +78,7 @@ const navigateToCategory = async ({ page, annotate }: TestFnContext) => {
 };
 
 abTest(
-  "v0.0 Discover cold landing performance: Inertia control vs React on Rails RSC",
+  "Discover cold landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
     testTypes: ["perf"],
@@ -87,7 +87,7 @@ abTest(
 );
 
 abTest(
-  "v0.0 Discover warm landing performance: Inertia control vs React on Rails RSC",
+  "Discover warm landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
     testTypes: ["perf"],
@@ -97,7 +97,7 @@ abTest(
 );
 
 abTest(
-  "v0.0 Discover category cold landing performance: Inertia control vs React on Rails RSC",
+  "Discover category cold landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: CATEGORY_PATH,
     testTypes: ["perf"],
@@ -106,7 +106,7 @@ abTest(
 );
 
 abTest(
-  "v0.0 Discover category warm landing performance: Inertia control vs React on Rails RSC",
+  "Discover category warm landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: CATEGORY_PATH,
     testTypes: ["perf"],
@@ -116,7 +116,7 @@ abTest(
 );
 
 abTest(
-  "v0.0 Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
+  "Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
     testTypes: ["perf"],
@@ -126,7 +126,7 @@ abTest(
 );
 
 abTest(
-  "v0.0 Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
+  "Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
     testTypes: ["perf"],

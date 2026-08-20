@@ -3,17 +3,17 @@ import { describe, expect, it } from "vitest";
 
 import "../../../ab-tests/v0.0/discover-page.abtest";
 
-const definitions = () => getRegisteredTests().filter(({ name }) => name.startsWith("v0.0 Discover"));
+const definitions = () => getRegisteredTests().filter(({ name }) => name.startsWith("Discover"));
 
 describe("Discover page ShakaPerf definitions", () => {
   it("registers cold and warm landing and navigation performance scenarios", () => {
     expect(definitions().map(({ name }) => name)).toEqual([
-      "v0.0 Discover cold landing performance: Inertia control vs React on Rails RSC",
-      "v0.0 Discover warm landing performance: Inertia control vs React on Rails RSC",
-      "v0.0 Discover category cold landing performance: Inertia control vs React on Rails RSC",
-      "v0.0 Discover category warm landing performance: Inertia control vs React on Rails RSC",
-      "v0.0 Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
-      "v0.0 Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
+      "Discover cold landing performance: Inertia control vs React on Rails RSC",
+      "Discover warm landing performance: Inertia control vs React on Rails RSC",
+      "Discover category cold landing performance: Inertia control vs React on Rails RSC",
+      "Discover category warm landing performance: Inertia control vs React on Rails RSC",
+      "Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
+      "Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
     ]);
   });
 
