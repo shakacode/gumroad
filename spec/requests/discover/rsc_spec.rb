@@ -3,7 +3,7 @@
 require "spec_helper"
 
 describe "Discover RSC routing", type: :request do
-  let(:discover_host) { "discover.test.gumroad.com" }
+  let(:discover_host) { VALID_DISCOVER_REQUEST_HOST }
   let(:empty_search_results) do
     {
       products: Link.none,
@@ -15,7 +15,6 @@ describe "Discover RSC routing", type: :request do
   end
 
   before do
-    stub_const("DISCOVER_DOMAIN", discover_host)
     allow_any_instance_of(DiscoverController).to receive(:search_products).and_return(empty_search_results)
     allow_any_instance_of(DiscoverController).to receive(:curated_products).and_return([])
     allow_any_instance_of(DiscoverController).to receive(:recommended_wishlists_data).and_return([])
@@ -44,15 +43,18 @@ describe "Discover RSC routing", type: :request do
     expect(rsc_props.dig(:global, :href)).to include("rsc=1")
   end
 
-  it "uses the dedicated RSC controller for a taxonomy page" do
-    allow_any_instance_of(DiscoverRscController).to receive(:stream_view_containing_react_components) do |controller, **|
-      controller.response_body = controller.params[:taxonomy]
-    end
+  it "uses the dedicated RSC controller for a taxonomy page when the experiment gate is enabled" do
+    taxonomy = create(:taxonomy, slug: "music-and-sound-design")
+    DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
+    original_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
+    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = "1"
 
-    get "http://#{discover_host}/3d", params: { rsc: "1" }
+    route = Rails.application.routes.recognize_path("http://#{discover_host}/#{taxonomy.slug}", method: :get)
 
-    expect(response).to be_successful
-    expect(response.body).to eq("3d")
+    expect(route).to include(controller: "discover_rsc", action: "index", taxonomy: taxonomy.slug)
+  ensure
+    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = original_native_public_rsc
+    DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
   end
 
   it "resolves the root-domain Discover route" do

@@ -69,4 +69,25 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
     click_on "Trending"
     expect(page).to have_current_path(discover_path(rsc: "1"))
   end
+
+  it "server-renders and hydrates a Discover category through the experiment gate" do
+    taxonomy = create(:taxonomy, slug: "music-and-sound-design")
+    product = create(:product, :recommendable, taxonomy:, name: "RSC category smoke product")
+    Link.import(force: true, refresh: true)
+    DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
+    original_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
+    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = "1"
+
+    page.visit "#{UrlService.discover_domain_with_protocol}/#{taxonomy.slug}"
+
+    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "NativeDiscoverRscPage")
+    expect(page).to have_current_path("/#{taxonomy.slug}")
+    expect(page).to have_link(product.name)
+    expect(page.title).to include("Music & Sound Design")
+    click_on "All"
+    expect(page).to have_current_path(discover_path)
+  ensure
+    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = original_native_public_rsc
+    DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
+  end
 end
