@@ -10,6 +10,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
     Product/ProductAnalytics.client.tsx
+    Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     PublicPages/PageShell.client.tsx

@@ -1,5 +1,4 @@
 import { Star } from "@boxicons/react";
-import { EditorContent } from "@tiptap/react";
 import { differenceInYears, parseISO } from "date-fns";
 import * as React from "react";
 
@@ -45,7 +44,6 @@ import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
 import { PaginationProps } from "$app/components/Pagination";
-import { CollapsibleDescription } from "$app/components/Product/CollapsibleDescription";
 import {
   applySelection,
   buyerLocalPriceCentsForSelection,
@@ -66,20 +64,16 @@ import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExp
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
+import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
-import { PublicFilesSettingsContext } from "$app/components/ProductEdit/ProductTab/DescriptionEditor";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import { Review as ReviewComponent } from "$app/components/Review";
 import { Review as FormReview, ReviewForm } from "$app/components/ReviewForm";
-import { useRichTextEditor } from "$app/components/RichTextEditor";
 import { showAlert } from "$app/components/server-components/Alert";
-import { PublicFileEmbed } from "$app/components/TiptapExtensions/PublicFileEmbed";
-import { ReviewCard } from "$app/components/TiptapExtensions/ReviewCard";
-import { UpsellCard } from "$app/components/TiptapExtensions/UpsellCard";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { useOnChange } from "$app/components/useOnChange";
@@ -95,13 +89,7 @@ type RefundPolicy = {
   updated_at: string;
 };
 
-export type PublicFile = {
-  id: string;
-  name: string;
-  extension: string | null;
-  file_size: number | null;
-  url: string | null;
-};
+export type { PublicFile } from "$app/components/Product/ProductDescription.client";
 
 export type ProductData = {
   id: string;
@@ -302,15 +290,8 @@ export const InteractiveProduct = ({
   disableAnalytics?: boolean;
   serverContent: ServerContent;
 }) => {
-  const [pageLoaded, setPageLoaded] = React.useState(false);
   const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
   const loggedInUser = useLoggedInUser();
-  const descriptionEditor = useRichTextEditor({
-    // delay initialization to avoid errors in SSR
-    initialValue: pageLoaded ? product.description_html : null,
-    extensions: [UpsellCard, PublicFileEmbed, ReviewCard],
-    editable: false,
-  });
 
   const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
 
@@ -325,15 +306,6 @@ export const InteractiveProduct = ({
     if (maxQuantity !== null && selection.quantity > maxQuantity)
       setSelection?.({ ...selection, quantity: maxQuantity });
   }, [maxQuantity, selection.quantity]);
-  const publicFilesSettings = React.useMemo(
-    () => ({
-      files: product.public_files,
-    }),
-    [product.public_files],
-  );
-
-  useRunOnce(() => setPageLoaded(true));
-
   const isBundle = product.bundle_products.length > 0;
   if (isBundle) basePriceCents = getStandalonePrice(product);
   // What the price tag and the contents list below strike through as the
@@ -497,22 +469,7 @@ export const InteractiveProduct = ({
           </section>
         ) : null}
         <section className="border-t border-border p-6">
-          <CollapsibleDescription>
-            {/* dir="auto" gives the description a base direction from its first strong
-                character; per-block direction for mixed-language content is handled by
-                the unicode-bidi: plaintext rule in _rich_text.scss (gumroad-private#1244). */}
-            {pageLoaded ? (
-              <PublicFilesSettingsContext.Provider value={publicFilesSettings}>
-                <EditorContent className="rich-text" dir="auto" editor={descriptionEditor} />
-              </PublicFilesSettingsContext.Provider>
-            ) : (
-              <div
-                className="rich-text"
-                dir="auto"
-                dangerouslySetInnerHTML={{ __html: product.description_html ?? "" }}
-              />
-            )}
-          </CollapsibleDescription>
+          <ProductDescription descriptionHtml={product.description_html} publicFiles={product.public_files} />
         </section>
       </section>
       <section>

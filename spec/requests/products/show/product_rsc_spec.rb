@@ -34,6 +34,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
       header: "Featured"
     )
     product.update!(sections: [featured_section.id], main_section_index: 1)
+    product.update!(description: "A product description enhanced on the client")
     product.save_custom_summary("A server-rendered product summary")
     product.save_custom_attributes([{ name: "Format", value: "PDF" }])
     create(:purchase, :with_review, link: product)
@@ -54,6 +55,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_text("More Categories")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")).to be(true)
     expect(page).to have_text(product.name)
+    expect(page).to have_text("A product description enhanced on the client")
     expect(page).to have_link("RSC product seller")
     expect(page).to have_text("1 rating")
     expect(page).to have_text("A server-rendered product summary")
