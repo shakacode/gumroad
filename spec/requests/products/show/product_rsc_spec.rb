@@ -38,7 +38,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page).to have_css(
-      "script.js-react-on-rails-component[data-component-name='NativeProductRscPage']" \
+      "script.js-react-on-rails-component[data-component-name='ProductPage']" \
       "[data-dom-id='native-product-rsc-root']",
       visible: :all
     )

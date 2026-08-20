@@ -28,7 +28,7 @@ describe "Public seller profile RSC routing", type: :request do
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered profile")
     expect(streamed_options).to include(template: "public_rsc/show", layout: "inertia")
-    expect(rsc_component_name).to eq("NativeProfileRscPage")
+    expect(rsc_component_name).to eq("ProfileRscCompatibilityPage")
     expect(rsc_props.dig(:creator_profile, :name)).to eq(seller.name)
     expect(rsc_props.dig(:global, :href)).to include("rsc=1")
     expect(rsc_props.dig(:global, :csp_nonce)).to be_nil

@@ -52,7 +52,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
     page.visit "#{seller.subdomain_with_protocol}?rsc=1"
 
-    expect_rsc_document(root_id: "native-profile-rsc-root", component_name: "NativeProfileRscPage")
+    expect_rsc_document(root_id: "native-profile-rsc-root", component_name: "ProfileRscCompatibilityPage")
     expect(page).to have_text("Profile RSC content")
     click_on "Catalog"
     expect(page).to have_selector("a[href*='/l/#{product.unique_permalink}']", text: product.name)
@@ -64,7 +64,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
     page.visit discover_path(sort: "hot_and_new", rsc: "1")
 
-    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "NativeDiscoverRscPage")
+    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "DiscoverPage")
     expect(page).to have_link(product.name)
     click_on "Trending"
     expect(page).to have_current_path(discover_path(rsc: "1"))
@@ -80,7 +80,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
     page.visit "#{UrlService.discover_domain_with_protocol}/#{taxonomy.slug}"
 
-    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "NativeDiscoverRscPage")
+    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "DiscoverPage")
     expect(page).to have_current_path("/#{taxonomy.slug}")
     expect(page).to have_link(product.name)
     expect(page.title).to include("Music & Sound Design")

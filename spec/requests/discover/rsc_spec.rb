@@ -36,7 +36,7 @@ describe "Discover RSC routing", type: :request do
     expect(response).to be_successful
     expect(response.body).to eq("server-rendered Discover")
     expect(streamed_options).to include(template: "public_rsc/show", layout: "inertia")
-    expect(rsc_component_name).to eq("NativeDiscoverRscPage")
+    expect(rsc_component_name).to eq("DiscoverPage")
     expect(rsc_props).to include(:search_results, :recommended_products, :recommended_wishlists, :recently_viewed)
     expect(rsc_props[:recommended_products]).to eq([])
     expect(rsc_props[:recommended_wishlists]).to eq([])

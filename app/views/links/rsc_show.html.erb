@@ -2,7 +2,7 @@
   <%= javascript_include_tag product_rsc_javascript_path, defer: true, crossorigin: "anonymous" %>
 <% end %>
 <%= stream_react_component(
-  "NativeProductRscPage",
+  "ProductPage",
   props: @native_product_rsc_props,
   auto_load_bundle: false,
   replay_console: false,

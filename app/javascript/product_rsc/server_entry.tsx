@@ -1,8 +1,8 @@
 import "react-on-rails-pro";
 import registerServerComponent from "react-on-rails-pro/registerServerComponent/server";
 
-import NativeDiscoverRscPage from "./NativeDiscoverRscPage";
-import NativeProductRscPage from "./NativeProductRscPage";
-import NativeProfileRscPage from "./NativeProfileRscPage";
+import DiscoverPage from "$app/components/Discover/DiscoverPage";
+import ProductPage from "$app/components/Product/ProductPage";
+import ProfileRscCompatibilityPage from "$app/components/Profile/ProfileRscCompatibilityPage.client";
 
-registerServerComponent({ NativeProductRscPage, NativeProfileRscPage, NativeDiscoverRscPage });
+registerServerComponent({ ProductPage, DiscoverPage, ProfileRscCompatibilityPage });

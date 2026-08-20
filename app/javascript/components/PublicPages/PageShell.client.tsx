@@ -32,7 +32,7 @@ export const buildInertiaPage = (
   rememberedState: {},
 });
 
-export default function NativePageRscShell({
+export default function PageShell({
   children,
   global,
   initialPage,

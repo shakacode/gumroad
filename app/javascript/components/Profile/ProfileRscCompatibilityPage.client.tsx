@@ -5,23 +5,23 @@ import * as React from "react";
 import type { MetaTag } from "$app/layouts/components/MetaTags";
 import UsersShow from "$app/pages/Users/Show";
 
-import NativePageRscShell, { buildInertiaPage, type GlobalProps } from "./NativePageRscShell";
+import PageShell, { buildInertiaPage, type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
-export type NativeProfileRscPageProps = Record<string, unknown> & {
+export type ProfileRscCompatibilityPageProps = Record<string, unknown> & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
 };
 
-export default function NativeProfileRscPage({
+export default function ProfileRscCompatibilityPage({
   _inertia_meta: inertiaMeta,
   global,
   ...profileProps
-}: NativeProfileRscPageProps) {
+}: ProfileRscCompatibilityPageProps) {
   const initialPage = buildInertiaPage("Users/Show", global, profileProps, inertiaMeta);
 
   return (
-    <NativePageRscShell global={global} initialPage={initialPage}>
+    <PageShell global={global} initialPage={initialPage}>
       <UsersShow />
-    </NativePageRscShell>
+    </PageShell>
   );
 }

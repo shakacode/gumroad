@@ -6,7 +6,7 @@ class DiscoverRscController < DiscoverController
   private
     def render_native_discover_rsc(discover_props)
       render_public_rsc_page(
-        component_name: "NativeDiscoverRscPage",
+        component_name: "DiscoverPage",
         props: discover_props,
         root_id: "native-discover-rsc-root"
       )

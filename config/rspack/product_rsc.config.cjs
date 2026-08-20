@@ -9,16 +9,22 @@ const privateOutputPath = path.join(rootPath, "ssr-generated");
 const publicOutputPath = path.join(rootPath, "public/product-rsc");
 const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "development";
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
-const productRscClientReferencesDirectory = path.join(sourcePath, "product_rsc");
-const hasProductRscEntry = fs.existsSync(productRscClientReferencesDirectory);
-const productRscAssetManifest = "asset-manifest.json";
+const publicRscEntrypointsDirectory = path.join(sourcePath, "product_rsc");
+const hasPublicRscEntry = fs.existsSync(publicRscEntrypointsDirectory);
+const publicRscClientReferences = [
+  ["components/Product", /ProductPage\.tsx$/u],
+  ["components/Discover", /DiscoverPage\.tsx$/u],
+  ["components/Profile", /ProfileRscCompatibilityPage\.client\.tsx$/u],
+  ["components/PublicPages", /PageShell\.client\.tsx$/u],
+].map(([directory, include]) => ({ directory: path.join(sourcePath, directory), recursive: false, include }));
+const publicRscAssetManifest = "asset-manifest.json";
 
-class ProductRscAssetManifestPlugin {
+class PublicRscAssetManifestPlugin {
   apply(compiler) {
-    compiler.hooks.thisCompilation.tap("ProductRscAssetManifestPlugin", (compilation) => {
+    compiler.hooks.thisCompilation.tap("PublicRscAssetManifestPlugin", (compilation) => {
       compilation.hooks.processAssets.tap(
         {
-          name: "ProductRscAssetManifestPlugin",
+          name: "PublicRscAssetManifestPlugin",
           stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
         },
         () => {
@@ -30,7 +36,7 @@ class ProductRscAssetManifestPlugin {
           if (!entryFile) throw new Error("Missing product RSC client entry");
 
           const manifest = JSON.stringify({ "product_rsc.js": entryFile }, null, 2);
-          compilation.emitAsset(productRscAssetManifest, new compiler.webpack.sources.RawSource(`${manifest}\n`));
+          compilation.emitAsset(publicRscAssetManifest, new compiler.webpack.sources.RawSource(`${manifest}\n`));
         },
       );
     });
@@ -111,30 +117,24 @@ const assetRule = {
 const plugins = (ssr) => [
   new DefinePlugin({ SSR: JSON.stringify(ssr) }),
   new ProvidePlugin({ Routes: path.join(sourcePath, "utils/routes.js") }),
-  ...(hasProductRscEntry
+  ...(hasPublicRscEntry
     ? [
         new RSCRspackPlugin({
           isServer: ssr,
-          clientReferences: [
-            {
-              directory: productRscClientReferencesDirectory,
-              recursive: true,
-              include: /\.(?:js|ts|jsx|tsx)$/u,
-            },
-          ],
+          clientReferences: publicRscClientReferences,
         }),
       ]
     : []),
 ];
 
 const clientConfig = {
-  name: "product-rsc-client",
+  name: "public-rsc-client",
   mode,
   devtool: mode === "production" ? "nosources-source-map" : "cheap-module-source-map",
-  entry: { product_rsc: path.join(productRscClientReferencesDirectory, "client_entry.tsx") },
+  entry: { product_rsc: path.join(publicRscEntrypointsDirectory, "client_entry.tsx") },
   resolve: baseResolve,
   module: { rules: [assetRule, ...createScriptRules()] },
-  plugins: [...plugins(false), new ProductRscAssetManifestPlugin()],
+  plugins: [...plugins(false), new PublicRscAssetManifestPlugin()],
   output: {
     filename: "[name].[contenthash:8].js",
     chunkFilename: "[name].[contenthash:8].js",
@@ -145,10 +145,10 @@ const clientConfig = {
 };
 
 const serverConfig = {
-  name: "product-rsc-server",
+  name: "public-rsc-server",
   mode,
   devtool: "eval",
-  entry: { "server-bundle": path.join(productRscClientReferencesDirectory, "server_entry.tsx") },
+  entry: { "server-bundle": path.join(publicRscEntrypointsDirectory, "server_entry.tsx") },
   resolve: serverResolve,
   target: "node",
   module: { rules: [assetRule, ...createScriptRules()] },
@@ -163,10 +163,10 @@ const serverConfig = {
 };
 
 const rscConfig = {
-  name: "product-rsc-rsc",
+  name: "public-rsc-rsc",
   mode,
   devtool: "eval",
-  entry: { "rsc-bundle": path.join(productRscClientReferencesDirectory, "server_entry.tsx") },
+  entry: { "rsc-bundle": path.join(publicRscEntrypointsDirectory, "server_entry.tsx") },
   resolve: {
     ...serverResolve,
     conditionNames: ["react-server", "..."],

@@ -21,7 +21,7 @@ type GlobalProps = React.ComponentProps<typeof AppWrapper>["global"] & {
   logged_in_user?: unknown;
 };
 
-export type NativeProductRscPageProps = ProductLayoutProps & {
+export type ProductPageProps = ProductLayoutProps & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
   page_layout: "discover" | "profile" | null;
@@ -29,14 +29,14 @@ export type NativeProductRscPageProps = ProductLayoutProps & {
   taxonomies_for_nav?: Taxonomy[];
 };
 
-export default function NativeProductRscPage({
+export default function ProductPage({
   _inertia_meta: inertiaMeta,
   global,
   page_layout: pageLayout,
   taxonomy_path: taxonomyPath,
   taxonomies_for_nav: taxonomiesForNav,
   ...productProps
-}: NativeProductRscPageProps) {
+}: ProductPageProps) {
   const creatorProfile = "creator_profile" in productProps ? productProps.creator_profile : undefined;
   const inertiaPage: Page = {
     component: "links/rsc_show",

@@ -12,9 +12,9 @@ type RspackConfig = {
 
 const configs: RspackConfig[] = createRequire(import.meta.url)("../../../config/rspack/product_rsc.config.cjs");
 
-describe("product RSC asset fingerprinting", () => {
+describe("public RSC asset fingerprinting", () => {
   it("content-hashes the entry and every lazy client chunk", () => {
-    const clientConfig = configs.find(({ name }) => name === "product-rsc-client");
+    const clientConfig = configs.find(({ name }) => name === "public-rsc-client");
 
     expect(clientConfig?.output).toMatchObject({
       filename: "[name].[contenthash:8].js",
