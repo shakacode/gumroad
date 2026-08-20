@@ -12,6 +12,7 @@ import {
   ProductDiscount,
   Purchase,
   RatingsSummary,
+  ServerContent,
   useSelectionFromUrl,
   Props as ProductProps,
 } from "$app/components/Product";
@@ -140,9 +141,19 @@ export const Layout = (
   props: Props & {
     cart?: boolean;
     hasHero?: boolean;
+    serverContent?: ServerContent;
   },
 ) => {
-  const { product, purchase, discount_code: discountCode, cart, hasHero, wishlists, main_section_index } = props;
+  const {
+    product,
+    purchase,
+    discount_code: discountCode,
+    cart,
+    hasHero,
+    wishlists,
+    main_section_index,
+    serverContent,
+  } = props;
   const [selection, setSelection] = useSelectionFromUrl(product);
   const ctaButtonRef = React.useRef<HTMLAnchorElement>(null);
   const ctaLabel = cart ? "Add to cart" : undefined;
@@ -162,6 +173,7 @@ export const Layout = (
         ctaButtonRef={ctaButtonRef}
         configurationSelectorRef={configurationSelectorRef}
         wishlists={wishlists}
+        serverContent={serverContent}
       />
     </>
   );

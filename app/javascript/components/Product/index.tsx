@@ -280,6 +280,12 @@ export type Props = {
   wishlists: WishlistForProduct[];
 };
 
+export type ServerContent = {
+  title: React.ReactNode;
+  sellerAndRatings: React.ReactNode;
+  details: React.ReactNode;
+};
+
 export const Product = ({
   product,
   purchase,
@@ -291,6 +297,7 @@ export const Product = ({
   configurationSelectorRef,
   wishlists = [],
   disableAnalytics,
+  serverContent,
 }: {
   product: Product;
   purchase: Purchase | null;
@@ -302,6 +309,7 @@ export const Product = ({
   configurationSelectorRef?: React.MutableRefObject<ConfigurationSelectorHandle | null>;
   wishlists?: WishlistForProduct[];
   disableAnalytics?: boolean;
+  serverContent?: ServerContent | undefined;
 }) => {
   const [pageLoaded, setPageLoaded] = React.useState(false);
   const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
@@ -395,14 +403,15 @@ export const Product = ({
     return true;
   };
 
-  const sellerByline = product.seller ? (
-    <AuthorByline
-      name={product.seller.name}
-      profileUrl={product.seller.profile_url}
-      avatarUrl={product.seller.avatar_url}
-      isTopCreator={product.seller.is_verified}
-    />
-  ) : null;
+  const sellerByline =
+    !serverContent && product.seller ? (
+      <AuthorByline
+        name={product.seller.name}
+        profileUrl={product.seller.profile_url}
+        avatarUrl={product.seller.avatar_url}
+        isTopCreator={product.seller.is_verified}
+      />
+    ) : null;
 
   const showPrice =
     !product.recurrences &&
@@ -420,9 +429,13 @@ export const Product = ({
               instead of inheriting the document's LTR base direction, which misplaces
               neutral characters like quotes and digits (gumroad-private#1259; same
               rationale as the description fix in #6138). */}
-          <h1 itemProp="name" dir="auto">
-            {product.name}
-          </h1>
+          {serverContent ? (
+            serverContent.title
+          ) : (
+            <h1 itemProp="name" dir="auto">
+              {product.name}
+            </h1>
+          )}
         </header>
         <section className="grid grid-cols-[auto_1fr] gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
           {showPrice ? (
@@ -451,33 +464,39 @@ export const Product = ({
               />
             </div>
           ) : null}
-          {sellerByline ? (
-            <div
-              className={classNames(
-                "flex flex-wrap items-center gap-2 px-6 py-4 outline outline-offset-0 outline-border",
-                !showPrice && "col-span-full sm:col-auto",
-                showPrice && !(product.ratings != null && product.ratings.count > 0) && "sm:col-[2/-1]",
-              )}
-            >
-              {product.collaborating_user ? (
-                <>
-                  {sellerByline} with{" "}
-                  <AuthorByline
-                    name={product.collaborating_user.name}
-                    profileUrl={product.collaborating_user.profile_url}
-                    avatarUrl={product.collaborating_user.avatar_url}
-                  />
-                </>
-              ) : (
-                sellerByline
-              )}
-            </div>
-          ) : null}
-          {product.ratings != null && product.ratings.count > 0 ? (
-            <div className="flex items-center px-6 py-4 outline outline-offset-0 outline-border max-sm:col-span-full">
-              <RatingsSummary ratings={product.ratings} />
-            </div>
-          ) : null}
+          {serverContent ? (
+            serverContent.sellerAndRatings
+          ) : (
+            <>
+              {sellerByline ? (
+                <div
+                  className={classNames(
+                    "flex flex-wrap items-center gap-2 px-6 py-4 outline outline-offset-0 outline-border",
+                    !showPrice && "col-span-full sm:col-auto",
+                    showPrice && !(product.ratings != null && product.ratings.count > 0) && "sm:col-[2/-1]",
+                  )}
+                >
+                  {product.collaborating_user ? (
+                    <>
+                      {sellerByline} with{" "}
+                      <AuthorByline
+                        name={product.collaborating_user.name}
+                        profileUrl={product.collaborating_user.profile_url}
+                        avatarUrl={product.collaborating_user.avatar_url}
+                      />
+                    </>
+                  ) : (
+                    sellerByline
+                  )}
+                </div>
+              ) : null}
+              {product.ratings != null && product.ratings.count > 0 ? (
+                <div className="flex items-center px-6 py-4 outline outline-offset-0 outline-border max-sm:col-span-full">
+                  <RatingsSummary ratings={product.ratings} />
+                </div>
+              ) : null}
+            </>
+          )}
         </section>
         {purchase !== null ? (
           <ExistingPurchaseCard
@@ -719,7 +738,9 @@ export const Product = ({
               Watch link provided after purchase
             </Alert>
           ) : null}
-          {product.summary || product.attributes.length > 0 ? (
+          {serverContent ? (
+            serverContent.details
+          ) : product.summary || product.attributes.length > 0 ? (
             <Card>
               {product.summary ? (
                 <CardContent asChild>

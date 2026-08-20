@@ -3,11 +3,13 @@
 import * as React from "react";
 
 import { PoweredByFooter } from "$app/components/PoweredByFooter";
+import type { ServerContent } from "$app/components/Product";
 import { Layout as ProductLayout, type Props as ProductLayoutProps } from "$app/components/Product/Layout";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 
 export type ProductInteractionsProps = ProductLayoutProps & {
   page_layout: "discover" | "profile" | null;
+  serverContent: ServerContent;
 };
 
 export default function ProductInteractions({ page_layout: pageLayout, ...productProps }: ProductInteractionsProps) {

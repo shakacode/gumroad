@@ -3,7 +3,8 @@
 require "spec_helper"
 
 describe "Product React on Rails rendering", :product_rsc_renderer, type: :system, js: true do
-  let(:product) { create(:product, name: "Product React on Rails smoke product", price_cents: 1200) }
+  let(:seller) { create(:named_user, name: "RSC product seller") }
+  let(:product) { create(:product, user: seller, name: "Product React on Rails smoke product", price_cents: 1200) }
   let(:large_taxonomy_navigation) do
     Array.new(250) do |index|
       {
@@ -24,6 +25,10 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
   before do
     allow_any_instance_of(LinksController).to receive(:taxonomies_for_nav).and_return(large_taxonomy_navigation)
+    product.save_custom_summary("A server-rendered product summary")
+    product.save_custom_attributes([{ name: "Format", value: "PDF" }])
+    create(:purchase, :with_review, link: product)
+    product.reload
     product.user.seller_profile.update!(background_color: "#123456")
   end
 
@@ -40,6 +45,11 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_text("More Categories")
     expect(page.evaluate_script("document.documentElement.scrollWidth <= window.innerWidth")).to be(true)
     expect(page).to have_text(product.name)
+    expect(page).to have_link("RSC product seller")
+    expect(page).to have_text("1 rating")
+    expect(page).to have_text("A server-rendered product summary")
+    expect(page).to have_text("Format")
+    expect(page).to have_text("PDF")
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page).to have_css(

@@ -4,12 +4,19 @@ import type { MetaTag } from "$app/layouts/components/MetaTags";
 import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
+import {
+  type ProductContentProps,
+  ProductDetails,
+  ProductSellerAndRatings,
+  ProductTitle,
+} from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
-import PageShell, { buildInertiaPage, type GlobalProps } from "$app/components/PublicPages/PageShell.client";
+import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
-export type ProductPageProps = ProductInteractionsProps & {
+export type ProductPageProps = Omit<ProductInteractionsProps, "serverContent"> & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
+  rsc_product_content: ProductContentProps;
   taxonomy_path?: string | null;
   taxonomies_for_nav?: Taxonomy[];
 };
@@ -17,15 +24,23 @@ export type ProductPageProps = ProductInteractionsProps & {
 export default function ProductPage({
   _inertia_meta: inertiaMeta,
   global,
+  rsc_product_content: rscProductContent,
   taxonomy_path: taxonomyPath,
   taxonomies_for_nav: taxonomiesForNav,
   ...productProps
 }: ProductPageProps) {
-  const initialPage = buildInertiaPage("links/rsc_show", global, productProps, inertiaMeta);
-  const product = <ProductInteractions {...productProps} />;
+  const interactionProps = {
+    ...productProps,
+    serverContent: {
+      title: <ProductTitle content={rscProductContent} />,
+      sellerAndRatings: <ProductSellerAndRatings content={rscProductContent} />,
+      details: <ProductDetails content={rscProductContent} />,
+    },
+  } as ProductInteractionsProps;
+  const product = <ProductInteractions {...interactionProps} />;
 
   return (
-    <PageShell global={global} initialPage={initialPage}>
+    <PageShell component="links/rsc_show" global={global} inertiaMeta={inertiaMeta} pageProps={productProps}>
       {productProps.page_layout === "discover" && taxonomiesForNav ? (
         <DiscoverLayout
           currentSeller={global.current_seller}

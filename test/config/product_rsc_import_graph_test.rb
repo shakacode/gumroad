@@ -17,6 +17,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
     Discover/DiscoverPage.tsx
+    Product/ProductContent.tsx
     Product/ProductPage.tsx
   ].freeze
 
