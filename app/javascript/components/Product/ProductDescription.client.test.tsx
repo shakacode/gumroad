@@ -1,17 +1,11 @@
 // @vitest-environment happy-dom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProductDescription from "$app/components/Product/ProductDescription.client";
 
-const mocks = vi.hoisted<{ runOnce: (() => void) | null }>(() => ({ runOnce: null }));
-
-vi.mock("$app/components/useRunOnce", () => ({
-  useRunOnce: (callback: () => void) => {
-    mocks.runOnce = callback;
-  },
-}));
+const mocks = vi.hoisted<{ idleCallback: (() => void) | null }>(() => ({ idleCallback: null }));
 
 vi.mock("$app/components/RichTextEditor", () => ({
   useRichTextEditor: () => ({ id: "description-editor" }),
@@ -30,13 +24,25 @@ vi.mock("$app/components/TiptapExtensions/PublicFileEmbed", () => ({ PublicFileE
 vi.mock("$app/components/TiptapExtensions/ReviewCard", () => ({ ReviewCard: { name: "reviewCard" } }));
 vi.mock("$app/components/TiptapExtensions/UpsellCard", () => ({ UpsellCard: { name: "upsellCard" } }));
 
+beforeEach(() => {
+  vi.stubGlobal(
+    "requestIdleCallback",
+    vi.fn((callback: () => void) => {
+      mocks.idleCallback = callback;
+      return 123;
+    }),
+  );
+  vi.stubGlobal("cancelIdleCallback", vi.fn());
+});
+
 afterEach(() => {
   cleanup();
-  mocks.runOnce = null;
+  vi.unstubAllGlobals();
+  mocks.idleCallback = null;
 });
 
 describe("ProductDescription", () => {
-  it("keeps the raw description visible until the client enhancement is ready", () => {
+  it("keeps the raw description visible until the client enhancement is ready", async () => {
     render(
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
@@ -49,9 +55,28 @@ describe("ProductDescription", () => {
     expect(screen.queryByText("Client description source")).toBeNull();
     expect(screen.queryByText("Enhanced description")).toBeNull();
 
-    act(() => mocks.runOnce?.());
+    act(() => mocks.idleCallback?.());
 
+    expect(await screen.findByText("Enhanced description")).toBeTruthy();
     expect(screen.queryByText("Server description")).toBeNull();
-    expect(screen.getByText("Enhanced description")).toBeTruthy();
+  });
+
+  it("does not start the description enhancement until the browser is idle", async () => {
+    render(
+      <ProductDescription
+        descriptionHtml="<p>Client description source</p>"
+        initialContent={<div>Server description</div>}
+        publicFiles={[]}
+      />,
+    );
+
+    expect(window.requestIdleCallback).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Server description")).toBeTruthy();
+    expect(screen.queryByText("Enhanced description")).toBeNull();
+
+    act(() => mocks.idleCallback?.());
+
+    expect(await screen.findByText("Enhanced description")).toBeTruthy();
+    expect(screen.queryByText("Server description")).toBeNull();
   });
 });

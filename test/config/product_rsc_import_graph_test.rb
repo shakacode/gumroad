@@ -74,6 +74,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "description: <ProductDescriptionContent content={content} />"
   end
 
+  test "keeps the description editor behind an asynchronous client boundary" do
+    description = COMPONENT_DIRECTORY.join("Product/ProductDescription.client.tsx").read
+
+    assert_not_includes description, "@tiptap/react"
+    assert_not_includes description, "$app/components/RichTextEditor"
+    assert_includes description, "fetchWithOneRetry(importProductDescriptionEnhancement)"
+    assert_includes description, 'import("$app/components/Product/ProductDescriptionEnhancement")'
+
+    enhancement = COMPONENT_DIRECTORY.join("Product/ProductDescriptionEnhancement.tsx").read
+    assert_includes enhancement, "@tiptap/react"
+    assert_includes enhancement, "$app/components/RichTextEditor"
+  end
+
   private
     def transitive_javascript_imports(entry_files)
       pending = entry_files
