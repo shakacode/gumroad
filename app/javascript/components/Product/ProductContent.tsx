@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { COMMISSION_DEPOSIT_PROPORTION, type ProductNativeType } from "$app/parsers/product";
+import { COMMISSION_DEPOSIT_PROPORTION, type FreeTrial, type ProductNativeType } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 
@@ -24,6 +24,8 @@ export type ProductContentProps = {
   ratings: { average: number; count: number } | null;
   summary: string | null;
   attributes: { name: string; value: string }[];
+  duration_in_months: number | null;
+  free_trial: FreeTrial | null;
   is_compliance_blocked: boolean;
   is_published: boolean;
   native_type: ProductNativeType;
@@ -58,6 +60,22 @@ export const ProductAvailabilityNotice = ({ content }: { content: ProductContent
 
   return null;
 };
+
+export const ProductMembershipNotices = ({ content }: { content: ProductContentProps }) => (
+  <>
+    {content.free_trial ? (
+      <Alert role="status" variant="info">
+        All memberships include a {content.free_trial.duration.amount} {content.free_trial.duration.unit} free trial
+      </Alert>
+    ) : null}
+    {content.duration_in_months ? (
+      <Alert role="status" variant="info">
+        This membership will automatically end after{" "}
+        {content.duration_in_months === 1 ? "one month" : `${content.duration_in_months} months`}
+      </Alert>
+    ) : null}
+  </>
+);
 
 export const ProductSellerAndRatings = ({ content }: { content: ProductContentProps }) => {
   const { seller, collaborating_user: collaboratingUser, ratings, show_price: showPrice } = content;

@@ -269,6 +269,7 @@ export type Props = {
 
 export type ServerContent = {
   availabilityNotice: React.ReactNode;
+  membershipNotices: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
   details: React.ReactNode;
@@ -598,18 +599,7 @@ export const InteractiveProduct = ({
                 : null}
             </Alert>
           ) : null}
-          {product.free_trial ? (
-            <Alert role="status" variant="info">
-              All memberships include a {product.free_trial.duration.amount} {product.free_trial.duration.unit} free
-              trial
-            </Alert>
-          ) : null}
-          {product.duration_in_months ? (
-            <Alert role="status" variant="info">
-              This membership will automatically end after{" "}
-              {product.duration_in_months === 1 ? "one month" : `${product.duration_in_months} months`}
-            </Alert>
-          ) : null}
+          {serverContent.membershipNotices}
           <CtaButton
             ref={ctaButtonRef}
             product={product}

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ProductAvailabilityNotice,
+  ProductMembershipNotices,
   ProductSellerReputation,
   type ProductContentProps,
 } from "$app/components/Product/ProductContent";
@@ -21,6 +22,8 @@ const content = {
   ratings: null,
   summary: null,
   attributes: [],
+  duration_in_months: null,
+  free_trial: null,
   is_compliance_blocked: false,
   is_published: true,
   native_type: "digital",
@@ -51,6 +54,36 @@ describe("ProductAvailabilityNotice", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Secure your order with a 50% deposit today; the remaining balance will be charged upon completion.",
     );
+  });
+});
+
+describe("ProductMembershipNotices", () => {
+  it("renders fixed free-trial terms as server content", () => {
+    render(
+      <ProductMembershipNotices
+        content={{
+          ...content,
+          free_trial: { duration: { amount: 1, unit: "week" } },
+          duration_in_months: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("All memberships include a 1 week free trial");
+  });
+
+  it("renders a fixed membership duration as server content", () => {
+    render(
+      <ProductMembershipNotices
+        content={{
+          ...content,
+          duration_in_months: 6,
+          free_trial: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("This membership will automatically end after 6 months");
   });
 });
 

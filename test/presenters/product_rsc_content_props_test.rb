@@ -10,6 +10,8 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
     assert_equal({ name: "Seller" }, props[:seller])
     assert_equal [{ name: "Format", value: "PDF" }], props[:attributes]
     assert_equal({ average: 4.8, count: 24, products_count: 3 }, props[:seller_reputation])
+    assert_equal({ duration: { amount: 1, unit: "week" } }, props[:free_trial])
+    assert_equal 6, props[:duration_in_months]
     assert_equal false, props[:is_compliance_blocked]
     assert props[:is_published]
     assert_equal "digital", props[:native_type]
@@ -40,6 +42,8 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
         summary: "Summary",
         attributes: [{ name: "Format", value: "PDF" }],
         seller_reputation: { average: 4.8, count: 24, products_count: 3 },
+        free_trial: { duration: { amount: 1, unit: "week" } },
+        duration_in_months: 6,
         is_compliance_blocked: false,
         is_published: true,
         native_type: "digital",

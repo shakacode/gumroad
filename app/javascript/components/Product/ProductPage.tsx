@@ -9,6 +9,7 @@ import {
   type ProductContentProps,
   ProductAvailabilityNotice,
   ProductDetails,
+  ProductMembershipNotices,
   ProductSellerAndRatings,
   ProductSellerReputation,
   ProductTitle,
@@ -36,6 +37,7 @@ export default function ProductPage({
 }: ProductPageProps) {
   const toServerContent = (content: ProductContentProps): ServerContent => ({
     availabilityNotice: <ProductAvailabilityNotice content={content} />,
+    membershipNotices: <ProductMembershipNotices content={content} />,
     title: <ProductTitle content={content} />,
     sellerAndRatings: <ProductSellerAndRatings content={content} />,
     details: <ProductDetails content={content} />,
