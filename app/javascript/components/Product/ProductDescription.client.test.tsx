@@ -37,9 +37,16 @@ afterEach(() => {
 
 describe("ProductDescription", () => {
   it("keeps the raw description visible until the client enhancement is ready", () => {
-    render(<ProductDescription descriptionHtml="<p>Server description</p>" publicFiles={[]} />);
+    render(
+      <ProductDescription
+        descriptionHtml="<p>Client description source</p>"
+        initialContent={<div>Server description</div>}
+        publicFiles={[]}
+      />,
+    );
 
     expect(screen.getByText("Server description")).toBeTruthy();
+    expect(screen.queryByText("Client description source")).toBeNull();
     expect(screen.queryByText("Enhanced description")).toBeNull();
 
     act(() => mocks.runOnce?.());

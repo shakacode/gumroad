@@ -64,6 +64,16 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes interactive_product, "$app/components/useAddThirdPartyAnalytics"
   end
 
+  test "passes server-rendered description content through the client island" do
+    description = COMPONENT_DIRECTORY.join("Product/ProductDescription.client.tsx").read
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_not_includes description, "$app/components/Product/ProductContent"
+    assert_includes interactive_product, "initialContent={serverContent.description}"
+    assert_includes product_page, "description: <ProductDescriptionContent content={content} />"
+  end
+
   private
     def transitive_javascript_imports(entry_files)
       pending = entry_files

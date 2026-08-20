@@ -21,9 +21,11 @@ export type PublicFile = {
 
 const ProductDescription = ({
   descriptionHtml,
+  initialContent,
   publicFiles,
 }: {
   descriptionHtml: string | null;
+  initialContent: React.ReactNode;
   publicFiles: PublicFile[];
 }) => {
   const [pageLoaded, setPageLoaded] = React.useState(false);
@@ -44,7 +46,7 @@ const ProductDescription = ({
           <EditorContent className="rich-text" dir="auto" editor={descriptionEditor} />
         </PublicFilesSettingsContext.Provider>
       ) : (
-        <div className="rich-text" dir="auto" dangerouslySetInnerHTML={{ __html: descriptionHtml ?? "" }} />
+        initialContent
       )}
     </CollapsibleDescription>
   );

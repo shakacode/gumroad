@@ -18,7 +18,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
     assert_nil props[:quantity_remaining]
     assert props[:streamable]
     assert props[:show_price]
-    assert_not props.key?(:description_html)
+    assert_equal "Server description", props[:description_html]
   end
 
   test "hides the static price cell when configuration controls the price" do
@@ -56,7 +56,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
         options: [],
         rental: nil,
         pwyw: nil,
-        description_html: "Not part of the server content",
+        description_html: "Server description",
         **overrides,
       }
 

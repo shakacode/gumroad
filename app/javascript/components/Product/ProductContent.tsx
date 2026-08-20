@@ -24,6 +24,7 @@ export type ProductContentProps = {
   ratings: { average: number; count: number } | null;
   summary: string | null;
   attributes: { name: string; value: string }[];
+  description_html: string | null;
   duration_in_months: number | null;
   free_trial: FreeTrial | null;
   is_compliance_blocked: boolean;
@@ -61,6 +62,10 @@ export const ProductAvailabilityNotice = ({ content }: { content: ProductContent
 
   return null;
 };
+
+export const ProductDescriptionContent = ({ content }: { content: ProductContentProps }) => (
+  <div className="rich-text" dir="auto" dangerouslySetInnerHTML={{ __html: content.description_html ?? "" }} />
+);
 
 export const ProductMembershipNotices = ({ content }: { content: ProductContentProps }) => (
   <>

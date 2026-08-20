@@ -8,6 +8,7 @@ import type { ServerContent } from "$app/components/Product/Interactive";
 import {
   type ProductContentProps,
   ProductAvailabilityNotice,
+  ProductDescriptionContent,
   ProductDetails,
   ProductMembershipNotices,
   ProductSellerAndRatings,
@@ -38,6 +39,7 @@ export default function ProductPage({
 }: ProductPageProps) {
   const toServerContent = (content: ProductContentProps): ServerContent => ({
     availabilityNotice: <ProductAvailabilityNotice content={content} />,
+    description: <ProductDescriptionContent content={content} />,
     membershipNotices: <ProductMembershipNotices content={content} />,
     title: <ProductTitle content={content} />,
     sellerAndRatings: <ProductSellerAndRatings content={content} />,

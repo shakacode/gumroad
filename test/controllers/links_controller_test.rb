@@ -4920,7 +4920,7 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   test "GET show always server-renders Discover products with React on Rails" do
-    link = create_product(user: @user)
+    link = create_product(user: @user, description: "<p>Server <strong>description</strong></p>")
     featured_product = create_product(user: @user, name: "Featured RSC product")
     featured_section = SellerProfileFeaturedProductSection.create!(
       seller: @user,
@@ -4959,7 +4959,7 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal Product::Layout::DISCOVER, props[:page_layout]
     assert_equal link.name, props.dig(:rsc_product_content, :name)
     assert_nil props.dig(:rsc_product_content, :summary)
-    assert_not props[:rsc_product_content].key?(:description_html)
+    assert_equal link.html_safe_description, props.dig(:rsc_product_content, :description_html)
     assert_equal featured_product.name,
                  props.dig(:rsc_featured_product_content, featured_section.external_id, :name)
     assert_not props.key?(:products)

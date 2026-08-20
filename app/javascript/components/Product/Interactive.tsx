@@ -257,6 +257,7 @@ export type Props = {
 
 export type ServerContent = {
   availabilityNotice: React.ReactNode;
+  description: React.ReactNode;
   membershipNotices: React.ReactNode;
   streamingNotice: React.ReactNode;
   title: React.ReactNode;
@@ -469,7 +470,11 @@ export const InteractiveProduct = ({
           </section>
         ) : null}
         <section className="border-t border-border p-6">
-          <ProductDescription descriptionHtml={product.description_html} publicFiles={product.public_files} />
+          <ProductDescription
+            descriptionHtml={product.description_html}
+            initialContent={serverContent.description}
+            publicFiles={product.public_files}
+          />
         </section>
       </section>
       <section>

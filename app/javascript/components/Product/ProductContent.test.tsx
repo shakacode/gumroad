@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ProductAvailabilityNotice,
+  ProductDescriptionContent,
   ProductMembershipNotices,
   ProductSellerReputation,
   ProductStreamingNotice,
@@ -23,6 +24,7 @@ const content = {
   ratings: null,
   summary: null,
   attributes: [],
+  description_html: null,
   duration_in_months: null,
   free_trial: null,
   is_compliance_blocked: false,
@@ -56,6 +58,21 @@ describe("ProductAvailabilityNotice", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Secure your order with a 50% deposit today; the remaining balance will be charged upon completion.",
     );
+  });
+});
+
+describe("ProductDescriptionContent", () => {
+  it("renders the trusted product description as server content", () => {
+    render(
+      <ProductDescriptionContent
+        content={{
+          ...content,
+          description_html: "<p>Server <strong>description</strong></p>",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("description").tagName).toBe("STRONG");
   });
 });
 
