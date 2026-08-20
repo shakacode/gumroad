@@ -10,8 +10,7 @@ class NativePublicRscRequestConstraint
 
   def self.enabled?(request)
     request.params["rsc"] == "1" ||
-      ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] == "1" ||
-      ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"] == "1"
+      ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] == "1"
   end
   private_class_method :enabled?
 end

@@ -2,7 +2,9 @@
 
 class NativeProductRscRequestConstraint
   def self.matches?(request)
-    NativePublicRscRequestConstraint.matches?(request) &&
-      request.params["layout"] == Product::Layout::DISCOVER
+    request.format.html? &&
+      request.headers["X-Inertia-Partial-Data"].blank? &&
+      request.params["embed"].blank? &&
+      request.params["overlay"].blank?
   end
 end

@@ -4925,31 +4925,7 @@ class LinksControllerShowTest < ActionController::TestCase
     assert page["props"]["product"].present?
   end
 
-  test "GET show renders Products/Discover/Show with taxonomy props for discover layout" do
-    link = create_product(user: @user)
-    @request.headers["X-Inertia"] = "true"
-    get :show, params: { id: link.to_param, layout: "discover" }
-    assert_response :success
-    page = inertia_page
-    assert_equal "Products/Discover/Show", page["component"]
-    assert page["props"].key?("taxonomy_path")
-    assert page["props"].key?("taxonomies_for_nav")
-    assert page["props"]["product"].present?
-  end
-
-  test "GET show keeps the Inertia bootstrap on ordinary full HTML Discover responses" do
-    link = create_product(user: @user)
-
-    get :show, params: { id: link.to_param, layout: "discover" }
-
-    assert_response :success
-    assert_includes response.body, 'id="app" data-page='
-    layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
-    assert_includes layout, 'vite_typescript_tag "base", skip_style_tags: true'
-    assert_not_includes layout, 'vite_typescript_tag "rsc_base"'
-  end
-
-  test "GET show server-renders the existing Discover product with React on Rails for the opt-in" do
+  test "GET show always server-renders Discover products with React on Rails" do
     link = create_product(user: @user)
     render_options = nil
     @controller = ProductRscLinksController.new
@@ -4958,7 +4934,7 @@ class LinksControllerShowTest < ActionController::TestCase
       self.response_body = "server-rendered product"
     end
 
-    get :show, params: { id: link.to_param, layout: "discover", rsc: "1" }
+    get :show, params: { id: link.to_param, layout: "discover" }
 
     assert_response :success
     assert_equal(
@@ -4979,17 +4955,47 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_includes rsc_server_entry, "registerServerComponent({ NativeProductRscPage"
     props = @controller.instance_variable_get(:@native_product_rsc_props)
     assert_equal link.name, props.dig(:product, :name)
+    assert_equal Product::Layout::DISCOVER, props[:page_layout]
     assert props.key?(:taxonomy_path)
     assert props.key?(:taxonomies_for_nav)
     custom_styles_meta = props.fetch(:_inertia_meta).find { |tag| tag[:head_key] == "custom_styles" }
     assert_equal link.user.seller_profile.custom_styles.to_s, custom_styles_meta[:inner_content]
-    assert_includes props.dig(:global, :href), "rsc=1"
+    assert_not_includes props.dig(:global, :href), "rsc=1"
     assert_not props.dig(:global).key?(:csp_nonce)
     assert_equal @controller.instance_variable_get(:@precomputed_rendering_context).except(:csp_nonce).compact,
                  props.dig(:global).except(:href)
     assert response.headers["Last-Modified"].present?
     assert_includes ProductRscLinksController.ancestors, ActionController::Live
     assert_not_includes LinksController.ancestors, ActionController::Live
+  end
+
+  test "GET show server-renders standard products without an opt-in" do
+    link = create_product(user: @user)
+    @controller = ProductRscLinksController.new
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**|
+      self.response_body = "server-rendered product"
+    end
+
+    get :show, params: { id: link.to_param }
+
+    assert_response :success
+    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_equal link.name, props.dig(:product, :name)
+    assert_nil props[:page_layout]
+    assert_not props.key?(:taxonomy_path)
+    assert_not props.key?(:taxonomies_for_nav)
+  end
+
+  test "GET show upgrades Inertia navigation to a full RSC document request" do
+    link = create_product(user: @user)
+    @controller = ProductRscLinksController.new
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param }
+
+    assert_response :conflict
+    assert_equal @request.original_url, response.headers["X-Inertia-Location"]
+    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)
   end
 
   test "GET show keeps Discover autocomplete partial requests on Inertia" do

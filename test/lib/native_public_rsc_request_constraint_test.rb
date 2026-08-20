@@ -5,14 +5,11 @@ require "test_helper"
 class NativePublicRscRequestConstraintTest < ActiveSupport::TestCase
   setup do
     @original_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
-    @original_native_product_rsc = ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"]
     ENV.delete("SHAKAPERF_NATIVE_PUBLIC_RSC")
-    ENV.delete("SHAKAPERF_NATIVE_PRODUCT_RSC")
   end
 
   teardown do
     ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = @original_native_public_rsc
-    ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"] = @original_native_product_rsc
   end
 
   test "matches the explicit RSC query opt-in" do
@@ -21,12 +18,6 @@ class NativePublicRscRequestConstraintTest < ActiveSupport::TestCase
 
   test "matches an unflagged request in the public RSC ShakaPerf experiment" do
     ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = "1"
-
-    assert NativePublicRscRequestConstraint.matches?(request_for("/"))
-  end
-
-  test "keeps the product-specific ShakaPerf switch compatible" do
-    ENV["SHAKAPERF_NATIVE_PRODUCT_RSC"] = "1"
 
     assert NativePublicRscRequestConstraint.matches?(request_for("/"))
   end

@@ -196,30 +196,45 @@ class LinksController < ApplicationController
 
     respond_to do |format|
       format.html do
+        if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
+          return render inertia: "Products/Discover/Show", props: {
+            autocomplete_results: Discover::AutocompletePresenter.new(
+              query: params[:query],
+              user: logged_in_user,
+              browser_guid: cookies[:_gumroad_guid]
+            ).props
+          }
+        end
+
+        return render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props) if params[:embed] || params[:overlay]
+
+        if product_rsc_controller? && request.inertia?
+          response.set_header("X-Inertia-Location", request.original_url)
+          return head :conflict
+        end
+
+        if native_product_rsc_request?
+          product_props = case params[:layout]
+                          when Product::Layout::PROFILE
+                            presenter.profile_product_props(**presenter_props)
+                          when Product::Layout::DISCOVER
+                            discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
+                            presenter.discover_product_props(discover_props:, **presenter_props)
+                          else
+                            presenter.product_page_props(**presenter_props)
+          end
+
+          return render_native_product_rsc(product_props.merge(page_layout: params[:layout]))
+        end
+
         case params[:layout]
         when Product::Layout::PROFILE
           render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
         when Product::Layout::DISCOVER
-          if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
-            return render inertia: "Products/Discover/Show", props: {
-              autocomplete_results: Discover::AutocompletePresenter.new(
-                query: params[:query],
-                user: logged_in_user,
-                browser_guid: cookies[:_gumroad_guid]
-              ).props
-            }
-          end
           discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
-          product_props = presenter.discover_product_props(discover_props:, **presenter_props)
-          return render_native_product_rsc(product_props) if native_product_rsc_request?
-
-          render inertia: "Products/Discover/Show", props: product_props
+          render inertia: "Products/Discover/Show", props: presenter.discover_product_props(discover_props:, **presenter_props)
         else
-          if params[:embed] || params[:overlay]
-            render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
-          else
-            render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
-          end
+          render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
         end
       end
       format.json { render json: ProductPresenter::PublicApiProps.new(product: @product, seller_custom_domain_url:).props }
@@ -782,7 +797,11 @@ class LinksController < ApplicationController
 
   private
     def native_product_rsc_request?
-      NativeProductRscRequestConstraint.matches?(request)
+      product_rsc_controller? && !request.inertia? && NativeProductRscRequestConstraint.matches?(request)
+    end
+
+    def product_rsc_controller?
+      is_a?(ProductRscLinksController)
     end
 
     def render_native_product_rsc(product_props)
