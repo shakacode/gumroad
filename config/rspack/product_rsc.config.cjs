@@ -11,6 +11,31 @@ const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "devel
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
 const productRscClientReferencesDirectory = path.join(sourcePath, "product_rsc");
 const hasProductRscEntry = fs.existsSync(productRscClientReferencesDirectory);
+const productRscAssetManifest = "asset-manifest.json";
+
+class ProductRscAssetManifestPlugin {
+  apply(compiler) {
+    compiler.hooks.thisCompilation.tap("ProductRscAssetManifestPlugin", (compilation) => {
+      compilation.hooks.processAssets.tap(
+        {
+          name: "ProductRscAssetManifestPlugin",
+          stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+        },
+        () => {
+          const entryFile = compilation.entrypoints
+            .get("product_rsc")
+            ?.getFiles()
+            .find((file) => file.endsWith(".js"));
+
+          if (!entryFile) throw new Error("Missing product RSC client entry");
+
+          const manifest = JSON.stringify({ "product_rsc.js": entryFile }, null, 2);
+          compilation.emitAsset(productRscAssetManifest, new compiler.webpack.sources.RawSource(`${manifest}\n`));
+        },
+      );
+    });
+  }
+}
 
 const baseResolve = {
   extensions: [".js", ".mjs", ".ts", ".tsx", ".json"],
@@ -109,7 +134,7 @@ const clientConfig = {
   entry: { product_rsc: path.join(productRscClientReferencesDirectory, "client_entry.tsx") },
   resolve: baseResolve,
   module: { rules: [assetRule, ...createScriptRules()] },
-  plugins: plugins(false),
+  plugins: [...plugins(false), new ProductRscAssetManifestPlugin()],
   output: {
     filename: "[name].js",
     path: publicOutputPath,

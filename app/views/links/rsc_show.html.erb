@@ -1,5 +1,5 @@
 <% content_for :script do %>
-  <%= javascript_include_tag "/product-rsc/product_rsc.js", defer: true, crossorigin: "anonymous" %>
+  <%= javascript_include_tag product_rsc_javascript_path, defer: true, crossorigin: "anonymous" %>
 <% end %>
 <%= stream_react_component(
   "NativeProductRscPage",

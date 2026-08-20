@@ -4966,8 +4966,8 @@ class LinksControllerShowTest < ActionController::TestCase
       render_options
     )
     rsc_template = Rails.root.join("app/views/links/rsc_show.html.erb").read
-    assert_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", defer: true'
-    assert_not_includes rsc_template, 'javascript_include_tag "/product-rsc/product_rsc.js", async: true'
+    assert_includes rsc_template, "javascript_include_tag product_rsc_javascript_path, defer: true"
+    assert_not_includes rsc_template, "javascript_include_tag product_rsc_javascript_path, async: true"
     assert_includes rsc_template, "stream_react_component("
     assert_includes rsc_template, '"NativeProductRscPage"'
     assert_no_match(/<%= react_component\(/, rsc_template)
