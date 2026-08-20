@@ -7,6 +7,7 @@ import {
   ProductAvailabilityNotice,
   ProductMembershipNotices,
   ProductSellerReputation,
+  ProductStreamingNotice,
   type ProductContentProps,
 } from "$app/components/Product/ProductContent";
 
@@ -30,6 +31,7 @@ const content = {
   quantity_remaining: null,
   show_price: true,
   seller_reputation: { average: 4.8, count: 24, products_count: 3 },
+  streamable: false,
 } satisfies ProductContentProps;
 
 afterEach(cleanup);
@@ -84,6 +86,21 @@ describe("ProductMembershipNotices", () => {
     );
 
     expect(screen.getByRole("status").textContent).toBe("This membership will automatically end after 6 months");
+  });
+});
+
+describe("ProductStreamingNotice", () => {
+  it("renders post-purchase streaming availability as server content", () => {
+    render(
+      <ProductStreamingNotice
+        content={{
+          ...content,
+          streamable: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status").textContent).toBe("Watch link provided after purchase");
   });
 });
 

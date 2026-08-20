@@ -12,6 +12,7 @@ import {
   ProductMembershipNotices,
   ProductSellerAndRatings,
   ProductSellerReputation,
+  ProductStreamingNotice,
   ProductTitle,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
@@ -42,6 +43,7 @@ export default function ProductPage({
     sellerAndRatings: <ProductSellerAndRatings content={content} />,
     details: <ProductDetails content={content} />,
     sellerReputation: <ProductSellerReputation content={content} />,
+    streamingNotice: <ProductStreamingNotice content={content} />,
   });
   const interactionProps = {
     ...productProps,

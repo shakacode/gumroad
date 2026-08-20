@@ -32,6 +32,7 @@ export type ProductContentProps = {
   quantity_remaining: number | null;
   seller_reputation?: SellerReputation | null;
   show_price: boolean;
+  streamable: boolean;
 };
 
 export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
@@ -76,6 +77,13 @@ export const ProductMembershipNotices = ({ content }: { content: ProductContentP
     ) : null}
   </>
 );
+
+export const ProductStreamingNotice = ({ content }: { content: ProductContentProps }) =>
+  content.streamable ? (
+    <Alert role="status" variant="info">
+      Watch link provided after purchase
+    </Alert>
+  ) : null;
 
 export const ProductSellerAndRatings = ({ content }: { content: ProductContentProps }) => {
   const { seller, collaborating_user: collaboratingUser, ratings, show_price: showPrice } = content;

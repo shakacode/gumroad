@@ -3,7 +3,7 @@
 class ProductPresenter::RscContentProps
   CONTENT_KEYS = %i[
     name seller collaborating_user ratings summary attributes seller_reputation
-    duration_in_months free_trial is_compliance_blocked is_published native_type quantity_remaining
+    duration_in_months free_trial is_compliance_blocked is_published native_type quantity_remaining streamable
   ].freeze
 
   def initialize(product_props:)

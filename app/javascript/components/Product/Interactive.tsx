@@ -270,6 +270,7 @@ export type Props = {
 export type ServerContent = {
   availabilityNotice: React.ReactNode;
   membershipNotices: React.ReactNode;
+  streamingNotice: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
   details: React.ReactNode;
@@ -642,11 +643,7 @@ export const InteractiveProduct = ({
               Available on {formatDate(parseISO(product.preorder.release_date))}
             </Alert>
           ) : null}
-          {product.streamable ? (
-            <Alert role="status" variant="info">
-              Watch link provided after purchase
-            </Alert>
-          ) : null}
+          {serverContent.streamingNotice}
           {serverContent.details}
           <ShareSection product={product} selection={selection} wishlists={wishlists} />
           {product.refund_policy ? (

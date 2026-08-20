@@ -10,6 +10,7 @@ import {
   ProductAvailabilityNotice,
   ProductMembershipNotices,
   ProductSellerReputation,
+  ProductStreamingNotice,
 } from "$app/components/Product/ProductContent";
 import { Card, CardContent } from "$app/components/ui/Card";
 
@@ -92,6 +93,7 @@ export const legacyProductContent = ({
         </Card>
       ) : null,
     sellerReputation: <ProductSellerReputation content={{ ...product, show_price: showPrice }} />,
+    streamingNotice: <ProductStreamingNotice content={{ ...product, show_price: showPrice }} />,
   };
 };
 

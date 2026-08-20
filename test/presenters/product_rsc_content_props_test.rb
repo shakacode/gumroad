@@ -16,6 +16,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
     assert props[:is_published]
     assert_equal "digital", props[:native_type]
     assert_nil props[:quantity_remaining]
+    assert props[:streamable]
     assert props[:show_price]
     assert_not props.key?(:description_html)
   end
@@ -48,6 +49,7 @@ class ProductRscContentPropsTest < ActiveSupport::TestCase
         is_published: true,
         native_type: "digital",
         quantity_remaining: nil,
+        streamable: true,
         price_cents: 1_000,
         bundle_products: [],
         recurrences: nil,
