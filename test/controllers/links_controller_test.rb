@@ -4949,6 +4949,9 @@ class LinksControllerShowTest < ActionController::TestCase
     props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal link.name, props.dig(:product, :name)
     assert_equal Product::Layout::DISCOVER, props[:page_layout]
+    assert_equal link.name, props.dig(:rsc_product_content, :name)
+    assert_nil props.dig(:rsc_product_content, :summary)
+    assert_not props[:rsc_product_content].key?(:description_html)
     assert props.key?(:taxonomy_path)
     assert props.key?(:taxonomies_for_nav)
     custom_styles_meta = props.fetch(:_inertia_meta).find { |tag| tag[:head_key] == "custom_styles" }

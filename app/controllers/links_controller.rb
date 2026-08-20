@@ -795,6 +795,7 @@ class LinksController < ApplicationController
     def render_product_rsc_document(product_props)
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
       @product_rsc_document_props = product_props.merge(
+        rsc_product_content: ProductPresenter::RscContentProps.new(product_props: product_props.fetch(:product)).props,
         _inertia_meta: inertia_meta.meta_tags,
         global: @precomputed_rendering_context.except(:csp_nonce).compact.merge(href: request.original_url)
       )
