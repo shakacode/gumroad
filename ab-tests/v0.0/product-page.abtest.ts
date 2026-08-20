@@ -28,7 +28,7 @@ const waitForProduct = async (page: Page, fixture: ProductFixture) => {
   const product = page.locator("article");
   await product.getByRole("heading", { level: 1, name: fixture.name }).waitFor({ state: "visible" });
   await product.getByLabel("Product preview").waitFor({ state: "visible" });
-  await product.locator('[itemprop="price"]:visible').first().waitFor({ state: "visible" });
+  await product.getByRole("link", { name: "Add to cart", exact: true }).waitFor({ state: "visible" });
   await waitUntilPageSettled(page);
 };
 
