@@ -30,7 +30,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   it "server-renders the Discover product without changing the ordinary page content" do
     expect(large_taxonomy_navigation.to_json.bytesize).to be > 10_000
 
-    rsc_url = "#{product.long_url(layout: Product::Layout::DISCOVER)}&rsc=1"
+    rsc_url = product.long_url(layout: Product::Layout::DISCOVER)
 
     page.visit rsc_url
     expect(page).to have_css("#native-product-rsc-root")
@@ -59,5 +59,16 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page.evaluate_script(<<~JS)).to be(false)
       performance.getEntriesByType("resource").some(({ name }) => name.includes("/rsc_payload/"))
     JS
+  end
+
+  it "server-renders the standard product without an opt-in" do
+    page.visit product.long_url
+
+    expect(page).to have_css("#native-product-rsc-root")
+    expect(page).to have_text(product.name)
+    expect(page).to have_text("$12")
+    expect(page).to have_link("I want this!")
+    expect(page).to have_no_field("Search products")
+    expect(page).to have_no_selector("[role=menubar]")
   end
 end
