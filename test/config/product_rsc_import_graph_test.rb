@@ -9,6 +9,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
+    Product/ProductAnalytics.client.tsx
     Product/ProductInteractions.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     PublicPages/PageShell.client.tsx
@@ -48,6 +49,18 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/index.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/Layout.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/LegacyProduct.tsx")
+  end
+
+  test "isolates product view analytics in a null client island" do
+    analytics = COMPONENT_DIRECTORY.join("Product/ProductAnalytics.client.tsx").read
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+
+    assert analytics.start_with?('"use client";')
+    assert_match(/return null;/, analytics)
+    assert_includes interactive_product, "$app/components/Product/ProductAnalytics.client"
+    assert_not_includes interactive_product, "$app/data/view_event"
+    assert_not_includes interactive_product, "$app/utils/user_analytics"
+    assert_not_includes interactive_product, "$app/components/useAddThirdPartyAnalytics"
   end
 
   private

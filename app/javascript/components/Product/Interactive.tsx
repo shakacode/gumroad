@@ -5,7 +5,6 @@ import * as React from "react";
 
 import { getReviews, type Review } from "$app/data/product_reviews";
 import { trackUserProductAction } from "$app/data/user_action_event";
-import { incrementProductViews } from "$app/data/view_event";
 import { Wishlist } from "$app/data/wishlists";
 import { Discount } from "$app/parsers/checkout";
 import {
@@ -31,7 +30,6 @@ import { formatDate } from "$app/utils/date";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
 import { variantLabel } from "$app/utils/labels";
 import { assertResponseError } from "$app/utils/request";
-import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
 import { Button, NavigationButton } from "$app/components/Button";
 import {
@@ -68,6 +66,7 @@ import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
+import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
@@ -84,7 +83,6 @@ import { ReviewCard } from "$app/components/TiptapExtensions/ReviewCard";
 import { UpsellCard } from "$app/components/TiptapExtensions/UpsellCard";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
-import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
 import { useOnChange } from "$app/components/useOnChange";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useUserAgentInfo } from "$app/components/UserAgent";
@@ -341,28 +339,7 @@ export const InteractiveProduct = ({
     [product.public_files],
   );
 
-  const addThirdPartyAnalytics = useAddThirdPartyAnalytics();
-
-  const { searchParams } = new URL(useOriginalLocation());
-  useRunOnce(() => {
-    setPageLoaded(true);
-
-    if (disableAnalytics) return;
-    if (product.seller) {
-      startTrackingForSeller(product.seller.id, product.analytics);
-      trackBuyerCurrencyDisplayView(product.seller.id, product.buyer_currency_display);
-      trackProductEvent(product.seller.id, {
-        permalink: product.permalink,
-        action: "viewed",
-        product_name: product.name,
-      });
-    } else {
-      trackBuyerCurrencyDisplayView(undefined, product.buyer_currency_display);
-    }
-    void incrementProductViews({ permalink: product.permalink, recommendedBy: searchParams.get("recommended_by") });
-    if (product.has_third_party_analytics)
-      addThirdPartyAnalytics({ permalink: product.permalink, location: "product" });
-  });
+  useRunOnce(() => setPageLoaded(true));
 
   const isBundle = product.bundle_products.length > 0;
   if (isBundle) basePriceCents = getStandalonePrice(product);
@@ -410,6 +387,15 @@ export const InteractiveProduct = ({
 
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
+      <ProductAnalytics
+        analytics={product.analytics}
+        buyerCurrencyDisplay={product.buyer_currency_display}
+        disabled={disableAnalytics}
+        hasThirdPartyAnalytics={product.has_third_party_analytics}
+        permalink={product.permalink}
+        productName={product.name}
+        sellerId={product.seller?.id}
+      />
       <Covers covers={product.covers} mainCoverId={product.main_cover_id} productName={product.name} />
       {product.quantity_remaining !== null ? <Ribbon>{product.quantity_remaining} left</Ribbon> : null}
       <section className="lg:border-r">
