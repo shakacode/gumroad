@@ -18,6 +18,16 @@ else
 end
 
 Rails.application.routes.draw do
+  gumroad_product_rsc_document_request = lambda { |request|
+    GumroadDomainConstraint.matches?(request) && ProductRscDocumentRequestConstraint.matches?(request)
+  }
+  product_custom_domain_rsc_document_request = lambda { |request|
+    ProductCustomDomainConstraint.matches?(request) && ProductRscDocumentRequestConstraint.matches?(request)
+  }
+  user_custom_domain_rsc_document_request = lambda { |request|
+    UserCustomDomainConstraint.matches?(request) && ProductRscDocumentRequestConstraint.matches?(request)
+  }
+
   get "/healthcheck" => "healthcheck#index"
   get "/healthcheck/sidekiq" => "healthcheck#sidekiq"
   get "/healthcheck/payouts" => "healthcheck#payouts"
@@ -1039,16 +1049,16 @@ Rails.application.routes.draw do
 
     get "/products", to: "links#index", as: :products
 
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
-    get "/l/:id", to: "links#show", defaults: { format: "html" }, as: :short_link
+    get "/cart_items_count", to: "links#cart_items_count"
     # Iframe content endpoint for products with custom_html. The two-segment
     # path can't collide with the single-segment offer-code route below, so a
     # seller's "landing" offer code keeps working.
     get "/l/:id/landing/embed", to: "links#landing_iframe_content", as: :short_link_landing
     get "/l/:id/landing/version", to: "links#landing_version", as: :short_link_landing_version
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: gumroad_product_rsc_document_request
+    get "/l/:id", to: "links#show", defaults: { format: "html" }, as: :short_link
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: gumroad_product_rsc_document_request
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }, as: :short_link_offer_code
-    get "/cart_items_count", to: "links#cart_items_count"
 
     get "/products/:id" => redirect("/l/%{id}")
     get "/product/:id" => redirect("/l/%{id}")
@@ -1320,7 +1330,9 @@ Rails.application.routes.draw do
     # Default the format to html (like /l/:id) so the custom-HTML wrapper renders
     # for Accept: */* crawlers/unfurlers too, not just browsers sending text/html.
     # An explicit .json still serves the public profile API.
-    get "/:username", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: PublicRscDocumentRequestConstraint
+    get "/:username", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: lambda { |request|
+      GumroadDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
+    }
     get "/:username", to: "users#show", as: "user", defaults: { format: "html" }
     # Iframe content endpoint for profiles with custom_html. Subdomain and
     # custom-domain equivalents live in UserCustomDomainConstraint below.
@@ -1383,14 +1395,15 @@ Rails.application.routes.draw do
       resource :upload_context, only: [:show]
     end
 
-    get "/", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
-    get "/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
-    get "/", to: "links#show", defaults: { format: "html" }
-    get "/l/:id", to: "links#show", defaults: { format: "html" }
+    get "/cart_items_count", to: "links#cart_items_count"
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
+    get "/", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: product_custom_domain_rsc_document_request
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: product_custom_domain_rsc_document_request
+    get "/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: product_custom_domain_rsc_document_request
+    get "/", to: "links#show", defaults: { format: "html" }
+    get "/l/:id", to: "links#show", defaults: { format: "html" }
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: product_custom_domain_rsc_document_request
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }
     get "/:code", to: "links#show", defaults: { format: "html" }
   end
@@ -1414,11 +1427,25 @@ Rails.application.routes.draw do
     get "/affiliates", to: "affiliate_requests#new", as: :custom_domain_new_affiliate_request
     post "/affiliate_requests", to: "affiliate_requests#create", as: :custom_domain_create_affiliate_request
     get "/updates", to: redirect("/posts")
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
-    get "/l/:id", to: "links#show", defaults: { format: "html" }
+    put "/product_reviews/set", to: "product_reviews#set", format: :json
+    resources :product_reviews, only: [:index, :show]
+    resources :product_review_responses, only: [:update, :destroy], format: :json
+    resources :product_review_videos, only: [] do
+      scope module: :product_review_videos do
+        resource :stream, only: [:show]
+        resources :streaming_urls, only: [:index]
+      end
+    end
+    namespace :product_review_videos do
+      resource :upload_context, only: [:show]
+    end
+
+    get "/cart_items_count", to: "links#cart_items_count"
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: user_custom_domain_rsc_document_request
+    get "/l/:id", to: "links#show", defaults: { format: "html" }
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: user_custom_domain_rsc_document_request
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }
     get "/subscribe", to: "users#subscribe", as: :custom_domain_subscribe
     get "/follow", to: redirect("/subscribe")
@@ -1498,19 +1525,6 @@ Rails.application.routes.draw do
     resources :wishlists, only: [:index, :create, :show, :update] do
       resources :products, only: [:create, :destroy, :index], controller: "wishlists/products"
       resource :followers, only: [:create, :destroy], controller: "wishlists/followers"
-    end
-
-    put "/product_reviews/set", to: "product_reviews#set", format: :json
-    resources :product_reviews, only: [:index, :show]
-    resources :product_review_responses, only: [:update, :destroy], format: :json
-    resources :product_review_videos, only: [] do
-      scope module: :product_review_videos do
-        resource :stream, only: [:show]
-        resources :streaming_urls, only: [:index]
-      end
-    end
-    namespace :product_review_videos do
-      resource :upload_context, only: [:show]
     end
 
     get "/landing/embed", to: "users#landing_iframe_content"

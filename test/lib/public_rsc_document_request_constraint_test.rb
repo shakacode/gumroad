@@ -14,10 +14,15 @@ class PublicRscDocumentRequestConstraintTest < ActiveSupport::TestCase
   test "rejects partial and non-HTML requests" do
     assert_not PublicRscDocumentRequestConstraint.matches?(request_for("/", "HTTP_X_INERTIA_PARTIAL_DATA" => "search_results"))
     assert_not PublicRscDocumentRequestConstraint.matches?(request_for("/.json"))
+    assert_not PublicRscDocumentRequestConstraint.matches?(html_defaulted_request_for("/", "HTTP_ACCEPT" => "application/json"))
   end
 
   private
     def request_for(path, headers = {})
       ActionDispatch::Request.new(Rack::MockRequest.env_for(path, headers))
+    end
+
+    def html_defaulted_request_for(path, headers = {})
+      request_for(path, headers).tap { _1.path_parameters[:format] = "html" }
     end
 end

@@ -5,9 +5,9 @@ require "spec_helper"
 describe "Public seller profile RSC routing", type: :request do
   let(:seller) { create(:user, username: "rscseller", name: "RSC Seller") }
   let(:seller_url) { seller.subdomain_with_protocol }
+  let!(:product) { create(:product, user: seller, name: "RSC profile product") }
 
   before do
-    create(:product, user: seller, name: "RSC profile product")
     allow_any_instance_of(ActionView::Base).to receive(:vite_entrypoint_stylesheet_tag).and_return("")
     allow_any_instance_of(ActionView::Base).to receive(:vite_typescript_tag).and_return("")
   end
@@ -75,6 +75,16 @@ describe "Public seller profile RSC routing", type: :request do
     expect(response).to be_successful
     expect(response.media_type).to eq("application/json")
     expect(response.parsed_body["username"]).to eq(seller.username)
+  end
+
+  it "leaves product review JSON requests on their endpoint on seller subdomains" do
+    get "#{seller_url}/product_reviews",
+        params: { product_id: product.external_id, page: 1 },
+        headers: { "Accept" => "application/json" }
+
+    expect(response).to be_successful
+    expect(response.media_type).to eq("application/json")
+    expect(response.parsed_body).to include("reviews" => [], "pagination" => include("page" => 1))
   end
 
   it "resolves an unflagged request on a seller custom domain" do

@@ -23,10 +23,15 @@ class ProductRscDocumentRequestConstraintTest < ActiveSupport::TestCase
     assert_not ProductRscDocumentRequestConstraint.matches?(request_for("/?embed=true"))
     assert_not ProductRscDocumentRequestConstraint.matches?(request_for("/?overlay=true"))
     assert_not ProductRscDocumentRequestConstraint.matches?(request_for("/.json?layout=discover"))
+    assert_not ProductRscDocumentRequestConstraint.matches?(html_defaulted_request_for("/l/product", "HTTP_ACCEPT" => "application/json"))
   end
 
   private
     def request_for(path, headers = {})
       ActionDispatch::Request.new(Rack::MockRequest.env_for(path, headers))
+    end
+
+    def html_defaulted_request_for(path, headers = {})
+      request_for(path, headers).tap { _1.path_parameters[:format] = "html" }
     end
 end
