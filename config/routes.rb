@@ -6,8 +6,8 @@ require "user_custom_domain_constraint"
 require "gumroad_domain_constraint"
 require "discover_domain_constraint"
 require "discover_taxonomy_constraint"
-require "native_public_rsc_request_constraint"
-require "native_product_rsc_request_constraint"
+require "public_rsc_document_request_constraint"
+require "product_rsc_document_request_constraint"
 require "sidekiq/cron/web"
 require "sidekiq_unique_jobs/web"
 
@@ -300,7 +300,7 @@ Rails.application.routes.draw do
     get "/", to: "home#about"
 
     get "/discover", to: "discover_rsc#index", constraints: lambda { |request|
-      DiscoverDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+      DiscoverDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
     }
     get "/discover", to: "discover#index"
 
@@ -310,7 +310,7 @@ Rails.application.routes.draw do
       get "/*taxonomy", to: "discover_rsc#index", constraints: lambda { |request|
         DiscoverDomainConstraint.matches?(request) &&
           DiscoverTaxonomyConstraint.matches?(request) &&
-          NativePublicRscRequestConstraint.matches?(request)
+          PublicRscDocumentRequestConstraint.matches?(request)
       }
       get "/*taxonomy", to: "discover#index", as: :discover_taxonomy
     end
@@ -1039,14 +1039,14 @@ Rails.application.routes.draw do
 
     get "/products", to: "links#index", as: :products
 
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }, as: :short_link
     # Iframe content endpoint for products with custom_html. The two-segment
     # path can't collide with the single-segment offer-code route below, so a
     # seller's "landing" offer code keeps working.
     get "/l/:id/landing/embed", to: "links#landing_iframe_content", as: :short_link_landing
     get "/l/:id/landing/version", to: "links#landing_version", as: :short_link_landing_version
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }, as: :short_link_offer_code
     get "/cart_items_count", to: "links#cart_items_count"
 
@@ -1290,7 +1290,7 @@ Rails.application.routes.draw do
     # discover
     get "/blackfriday", to: redirect("/discover?offer_code=BLACKFRIDAY2025"), as: :blackfriday
     get "/discover", to: "discover_rsc#index", constraints: lambda { |request|
-      GumroadDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+      GumroadDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
     }
     get "/discover", to: "discover#index"
     get "/discover/categories",          to: "discover#categories"
@@ -1382,14 +1382,14 @@ Rails.application.routes.draw do
       resource :upload_context, only: [:show]
     end
 
-    get "/", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
-    get "/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
+    get "/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/", to: "links#show", defaults: { format: "html" }
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }
     get "/:code", to: "links#show", defaults: { format: "html" }
   end
@@ -1413,11 +1413,11 @@ Rails.application.routes.draw do
     get "/affiliates", to: "affiliate_requests#new", as: :custom_domain_new_affiliate_request
     post "/affiliate_requests", to: "affiliate_requests#create", as: :custom_domain_create_affiliate_request
     get "/updates", to: redirect("/posts")
-    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"
-    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: NativeProductRscRequestConstraint
+    get "/l/:id/:code", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id/:code", to: "links#show", defaults: { format: "html" }
     get "/subscribe", to: "users#subscribe", as: :custom_domain_subscribe
     get "/follow", to: redirect("/subscribe")
@@ -1529,7 +1529,7 @@ Rails.application.routes.draw do
     get "/:slug/landing/version", to: "user_pages#landing_version", constraints: { slug: page_slug }, as: :user_page_landing_version
     get "/:slug", to: "user_pages#show", constraints: { slug: page_slug }, as: :user_page
     get "/", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: lambda { |request|
-      UserCustomDomainConstraint.matches?(request) && NativePublicRscRequestConstraint.matches?(request)
+      UserCustomDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
     }
     get "/", to: "users#show", defaults: { format: "html" }
   end

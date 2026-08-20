@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class NativePublicRscRequestConstraint
+class PublicRscDocumentRequestConstraint
   def self.matches?(request)
     enabled?(request) &&
       request.format.html? &&
@@ -10,7 +10,7 @@ class NativePublicRscRequestConstraint
 
   def self.enabled?(request)
     request.params["rsc"] == "1" ||
-      ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] == "1"
+      ENV["SHAKAPERF_PUBLIC_RSC"] == "1"
   end
   private_class_method :enabled?
 end

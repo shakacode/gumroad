@@ -28,7 +28,7 @@ The transport and build separation are already useful:
 - no duplicate initial `/rsc_payload/` request in the existing system spec;
 - the ordinary Discover route remains an Inertia control and rollback path.
 
-The product root is not yet a real server-first component. `NativeProductRscPage.tsx` starts with `"use client"`, constructs an Inertia `Page`, mounts `InertiaApp`, and passes the existing product props through the client tree. This proves the RSC transport but does not remove Inertia from the product render tree or keep server-safe product rendering off the browser.
+The product root is not yet a real server-first component. `ProductPage.tsx` starts with `"use client"`, constructs an Inertia `Page`, mounts `InertiaApp`, and passes the existing product props through the client tree. This proves the RSC transport but does not remove Inertia from the product render tree or keep server-safe product rendering off the browser.
 
 ## Completion invariants
 

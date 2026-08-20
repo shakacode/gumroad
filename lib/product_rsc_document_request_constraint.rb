@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class NativeProductRscRequestConstraint
+class ProductRscDocumentRequestConstraint
   def self.matches?(request)
     request.format.html? &&
       (request.path != "/" || ProductCustomDomainConstraint.matches?(request)) &&

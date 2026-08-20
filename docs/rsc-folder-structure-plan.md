@@ -21,13 +21,13 @@ The target is:
 This plan starts from the application as it exists now:
 
 - Every eligible full HTML product document is rendered through the streamed product RSC root.
-- Product rendering no longer depends on `?rsc=1`, `SHAKAPERF_NATIVE_PRODUCT_RSC`, or `SHAKAPERF_NATIVE_PUBLIC_RSC`.
+- Product rendering no longer depends on `?rsc=1` or an environment flag.
 - The product RSC root supports the default composition, `layout=profile`, and `layout=discover`.
 - The former standard and profile full-page Inertia product components have already been removed.
 - There is no `StandardProductLayout`. A product without an explicit layout uses the default composition. The only explicit product layout values are profile and Discover.
 - The Discover product component remains because autocomplete still uses it as an Inertia partial response.
 - Embed, overlay, JSON, preview, and custom-HTML product requests retain their specialized behavior.
-- The public Discover RSC root is still selected by `NativePublicRscRequestConstraint`, including its query-parameter or environment-flag rollout behavior. The ordinary Inertia Discover page remains active.
+- The public Discover RSC root is still selected by `PublicRscDocumentRequestConstraint`, including its query-parameter or environment-flag rollout behavior. The ordinary Inertia Discover page remains active.
 - The public Profile RSC root and its compatibility behavior remain active and are not part of the Product and Discover server-rendering work.
 - `app/javascript/product_rsc` currently mixes feature roots, an Inertia-compatible client shell, RSC entrypoints, and an asset-fingerprinting test.
 - The current Product, Discover, and Profile RSC root modules are client components. Product and Discover will progressively become server-owned roots with focused client islands.
@@ -138,10 +138,10 @@ They are not destinations for new RSC application code and must not enter the RS
 
 | Current file                               | Target                                                      | Notes                                                                                                                     |
 | ------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `product_rsc/NativeProductRscPage.tsx`     | `components/Product/ProductPage.tsx`                        | Rename when the server root and client interaction boundary are separated.                                                |
-| `product_rsc/NativeDiscoverRscPage.tsx`    | `components/Discover/DiscoverPage.tsx`                      | Rename when it no longer imports the complete Inertia Discover page.                                                      |
-| `product_rsc/NativeProfileRscPage.tsx`     | `components/Profile/ProfileRscCompatibilityPage.client.tsx` | Behavior-free move only; Profile migration is outside this plan. Keeping the current name temporarily is also acceptable. |
-| `product_rsc/NativePageRscShell.tsx`       | `components/PublicPages/PageShell.client.tsx`               | Keep the compatibility boundary thin and explicit.                                                                        |
+| `product_rsc/ProductRscPage.tsx`               | `components/Product/ProductPage.tsx`                        | Rename when the server root and client interaction boundary are separated.                                                |
+| `product_rsc/DiscoverPage.tsx`                 | `components/Discover/DiscoverPage.tsx`                      | Rename when it no longer imports the complete Inertia Discover page.                                                      |
+| `product_rsc/ProfileRscCompatibilityPage.tsx` | `components/Profile/ProfileRscCompatibilityPage.client.tsx` | Behavior-free move only; Profile migration is outside this plan. Keeping the current name temporarily is also acceptable. |
+| `product_rsc/PageShell.tsx`                    | `components/PublicPages/PageShell.client.tsx`               | Keep the compatibility boundary thin and explicit.                                                                        |
 | `product_rsc/client_entry.tsx`             | `entrypoints/public_rsc/client.tsx`                         | Registration/build infrastructure may retain `rsc` in its path.                                                           |
 | `product_rsc/server_entry.tsx`             | `entrypoints/public_rsc/server.tsx`                         | Update server imports and registrations with the feature moves.                                                           |
 | `product_rsc/asset_fingerprinting.test.ts` | `entrypoints/public_rsc/asset_fingerprinting.test.ts`       | Keep adjacent to the entrypoints it verifies unless the repository has a stronger test convention.                        |
@@ -159,9 +159,8 @@ Use domain page names:
 
 Avoid permanent names such as:
 
-- `NativeDiscoverRscPage`
-- `NativeProductRscPage`
 - `DiscoverRscPage`
+- `ProductRscPage`
 - `ProductServerPage`
 
 Server components are the default inside this tree, so their names do not need `Server` or `Rsc`. An `Rsc` qualifier is tolerable at a temporary compatibility boundary when it prevents ambiguity; remove it when the component becomes the feature-owned server root.

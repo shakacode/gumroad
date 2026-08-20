@@ -98,13 +98,13 @@ git commit -m "Add product RSC runtime"
 - Create: `app/controllers/concerns/live_streaming_response_headers.rb`
 - Create: `app/javascript/product_rsc/server_entry.tsx`
 - Create: `app/javascript/product_rsc/client_entry.tsx`
-- Create: `app/javascript/product_rsc/NativeProductRscPage.tsx`
+- Create: `app/javascript/product_rsc/ProductRscPage.tsx`
 - Create: `app/views/links/rsc_show.html.erb`
 - Modify: `test/controllers/links_controller_test.rb`
 
 **Interfaces:**
 - Consumes: Task 1 bundle/runtime names and the unmodified `ProductPresenter#discover_product_props` result.
-- Produces: an HTML stream for `layout=discover&rsc=1` rooted at `native-product-rsc-root`; all other `LinksController#show` responses retain their existing renderer and props.
+- Produces: an HTML stream for `layout=discover&rsc=1` rooted at `product-rsc-root`; all other `LinksController#show` responses retain their existing renderer and props.
 
 - [ ] **Step 1: Add failing controller coverage for the exact opt-in boundary**
 
@@ -128,7 +128,7 @@ The wrapper must create the minimal Inertia `Page` context and render the same e
 
 - [ ] **Step 6: Register the component and add the stream template**
 
-Register `NativeProductRscPage` in the server entry, initialize the browser entry through React on Rails Pro, include the Task 1 browser bundle explicitly, and call `stream_react_component` with automatic bundle loading and trace/replay disabled.
+Register `ProductRscPage` in the server entry, initialize the browser entry through React on Rails Pro, include the Task 1 browser bundle explicitly, and call `stream_react_component` with automatic bundle loading and trace/replay disabled.
 
 - [ ] **Step 7: Build and run focused tests**
 

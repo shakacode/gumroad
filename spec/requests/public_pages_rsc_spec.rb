@@ -52,7 +52,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
     page.visit "#{seller.subdomain_with_protocol}?rsc=1"
 
-    expect_rsc_document(root_id: "native-profile-rsc-root", component_name: "ProfileRscCompatibilityPage")
+    expect_rsc_document(root_id: "profile-rsc-root", component_name: "ProfileRscCompatibilityPage")
     expect(page).to have_text("Profile RSC content")
     click_on "Catalog"
     expect(page).to have_selector("a[href*='/l/#{product.unique_permalink}']", text: product.name)
@@ -64,7 +64,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
     page.visit discover_path(sort: "hot_and_new", rsc: "1")
 
-    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "DiscoverPage")
+    expect_rsc_document(root_id: "discover-rsc-root", component_name: "DiscoverPage")
     expect(page).to have_link(product.name)
     click_on "Trending"
     expect(page).to have_current_path(discover_path(rsc: "1"))
@@ -75,19 +75,19 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
     product = create(:product, :recommendable, taxonomy:, name: "RSC category smoke product")
     Link.import(force: true, refresh: true)
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
-    original_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
-    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = "1"
+    original_public_rsc = ENV["SHAKAPERF_PUBLIC_RSC"]
+    ENV["SHAKAPERF_PUBLIC_RSC"] = "1"
 
     page.visit "#{UrlService.discover_domain_with_protocol}/#{taxonomy.slug}"
 
-    expect_rsc_document(root_id: "native-discover-rsc-root", component_name: "DiscoverPage")
+    expect_rsc_document(root_id: "discover-rsc-root", component_name: "DiscoverPage")
     expect(page).to have_current_path("/#{taxonomy.slug}")
     expect(page).to have_link(product.name)
     expect(page.title).to include("Music & Sound Design")
     click_on "All"
     expect(page).to have_current_path(discover_path)
   ensure
-    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = original_native_public_rsc
+    ENV["SHAKAPERF_PUBLIC_RSC"] = original_public_rsc
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
   end
 end

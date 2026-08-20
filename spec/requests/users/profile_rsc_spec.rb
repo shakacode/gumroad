@@ -40,7 +40,7 @@ describe "Public seller profile RSC routing", type: :request do
 
     expect(response).to be_successful
     expect(response.body).to include('id="app" data-page=')
-    expect(response.body).not_to include("native-profile-rsc-root")
+    expect(response.body).not_to include("profile-rsc-root")
   end
 
   it "keeps Inertia and partial requests on Inertia even when opted in" do
@@ -65,7 +65,7 @@ describe "Public seller profile RSC routing", type: :request do
 
     expect(response).to be_successful
     expect(response.body).to include(%(src="/landing/embed"))
-    expect(response.body).not_to include("native-profile-rsc-root")
+    expect(response.body).not_to include("profile-rsc-root")
   ensure
     Feature.deactivate_user(:custom_html_pages, seller)
   end

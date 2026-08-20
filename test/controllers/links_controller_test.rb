@@ -4912,7 +4912,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: link.to_param, layout: "profile" }
 
     assert_response :success
-    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal Product::Layout::PROFILE, props[:page_layout]
     assert props[:creator_profile].present?
     assert_equal link.name, props.dig(:product, :name)
@@ -4946,7 +4946,7 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_includes rsc_client_entry, 'registerServerComponent("ProductPage");'
     rsc_server_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/server.tsx").read
     assert_includes rsc_server_entry, "registerServerComponent({ ProductPage"
-    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal link.name, props.dig(:product, :name)
     assert_equal Product::Layout::DISCOVER, props[:page_layout]
     assert props.key?(:taxonomy_path)
@@ -4972,7 +4972,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: link.to_param }
 
     assert_response :success
-    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal link.name, props.dig(:product, :name)
     assert_nil props[:page_layout]
     assert_not props.key?(:taxonomy_path)
@@ -4988,7 +4988,7 @@ class LinksControllerShowTest < ActionController::TestCase
 
     assert_response :conflict
     assert_equal @request.original_url, response.headers["X-Inertia-Location"]
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
   end
 
   test "GET show keeps Discover autocomplete partial requests on Inertia" do
@@ -5004,7 +5004,7 @@ class LinksControllerShowTest < ActionController::TestCase
     page = inertia_page
     assert_equal "Products/Discover/Show", page["component"]
     assert page["props"].key?("autocomplete_results")
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
   end
 
   test "GET show renders Products/Iframe/Show with product props for embed param" do
@@ -5373,7 +5373,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.to_param }
 
     assert_response :success
-    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal product.external_id, props.dig(:product, :id)
     assert_equal purchase.external_id, props.dig(:purchase, :id)
   end
@@ -5386,7 +5386,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id, purchase_email_digest: purchase.email_digest }
 
     assert_response :success
-    assert_equal purchase.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:purchase, :id)
+    assert_equal purchase.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:purchase, :id)
   end
 
   test "GET show ignores the purchase when the email digest doesn't match" do
@@ -5395,7 +5395,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id, purchase_email_digest: "wrong-digest" }
 
     assert_response :success
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:purchase]
   end
 
   test "GET show ignores the purchase when the email digest is missing" do
@@ -5404,7 +5404,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.to_param, purchase_id: purchase.external_id }
 
     assert_response :success
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:purchase]
   end
 
   test "GET show recognizes a review-eligible not_charged free trial purchase" do
@@ -5416,7 +5416,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: trial_purchase.link.to_param, purchase_id: trial_purchase.external_id, purchase_email_digest: trial_purchase.email_digest }
 
     assert_response :success
-    assert_equal trial_purchase.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:purchase, :id)
+    assert_equal trial_purchase.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:purchase, :id)
   end
 
   test "GET show ignores an unconverted free trial purchase that can't yet leave a review" do
@@ -5427,7 +5427,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: trial_purchase.link.to_param, purchase_id: trial_purchase.external_id, purchase_email_digest: trial_purchase.email_digest }
 
     assert_response :success
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:purchase]
   end
 
   test "GET show ignores a gift-sender purchase even with a matching email digest" do
@@ -5438,7 +5438,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.to_param, purchase_id: gifter_purchase.external_id, purchase_email_digest: gifter_purchase.email_digest }
 
     assert_response :success
-    assert_nil @controller.instance_variable_get(:@native_product_rsc_props)[:purchase]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:purchase]
   end
 
   # --- meta tags sanitization -------------------------------------------------
@@ -5477,7 +5477,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get(:show, params: { id: asset_product.to_param })
 
     assert_response :success
-    assert @controller.instance_variable_get(:@native_product_rsc_props)[:product].present?
+    assert @controller.instance_variable_get(:@product_rsc_document_props)[:product].present?
   end
 
   test "GET show redirects from unique_permalink to custom_permalink URL preserving the original query parameter string" do
@@ -5682,7 +5682,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show, params: { id: product.unique_permalink }
 
     assert_response :success
-    props = @controller.instance_variable_get(:@native_product_rsc_props)
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert props[:product].present?
     assert_equal product.name, props.dig(:product, :name)
   end
@@ -5743,7 +5743,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
+    assert_equal product.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:product, :id)
   end
 
   test "GET show raises RoutingError when the custom domain matches a deleted product" do
@@ -5766,7 +5766,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
+    assert_equal product.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:product, :id)
   end
 
   test "GET show raises RoutingError when a product's custom domain is deleted" do
@@ -5788,7 +5788,7 @@ class LinksControllerShowTest < ActionController::TestCase
     get :show
     assert_response :success
     assert_equal product, assigns[:product]
-    assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
+    assert_equal product.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:product, :id)
   end
 
   # --- subdomains -------------------------------------------------------------
@@ -5802,7 +5802,7 @@ class LinksControllerShowTest < ActionController::TestCase
       get :show, params: { id: product.unique_permalink }
       assert_response :success
       assert_equal product, assigns[:product]
-      assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
+      assert_equal product.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:product, :id)
     end
   end
 
@@ -5826,7 +5826,7 @@ class LinksControllerShowTest < ActionController::TestCase
       get :show, params: { id: product.custom_permalink }
       assert_response :success
       assert_equal product, assigns[:product]
-      assert_equal product.external_id, @controller.instance_variable_get(:@native_product_rsc_props).dig(:product, :id)
+      assert_equal product.external_id, @controller.instance_variable_get(:@product_rsc_document_props).dig(:product, :id)
     end
   end
 

@@ -33,13 +33,13 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     rsc_url = product.long_url(layout: Product::Layout::DISCOVER)
 
     page.visit rsc_url
-    expect(page).to have_css("#native-product-rsc-root")
+    expect(page).to have_css("#product-rsc-root")
     expect(page).to have_text(product.name)
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page).to have_css(
       "script.js-react-on-rails-component[data-component-name='ProductPage']" \
-      "[data-dom-id='native-product-rsc-root']",
+      "[data-dom-id='product-rsc-root']",
       visible: :all
     )
     payload_scripts = page.evaluate_script(<<~JS)
@@ -64,7 +64,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   it "server-renders the standard product without an opt-in" do
     page.visit product.long_url
 
-    expect(page).to have_css("#native-product-rsc-root")
+    expect(page).to have_css("#product-rsc-root")
     expect(page).to have_text(product.name)
     expect(page).to have_text("$12")
     expect(page).to have_link("I want this!")

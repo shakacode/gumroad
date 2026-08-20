@@ -46,14 +46,14 @@ describe "Discover RSC routing", type: :request do
   it "uses the dedicated RSC controller for a taxonomy page when the experiment gate is enabled" do
     taxonomy = create(:taxonomy, slug: "music-and-sound-design")
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
-    original_native_public_rsc = ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"]
-    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = "1"
+    original_public_rsc = ENV["SHAKAPERF_PUBLIC_RSC"]
+    ENV["SHAKAPERF_PUBLIC_RSC"] = "1"
 
     route = Rails.application.routes.recognize_path("http://#{discover_host}/#{taxonomy.slug}", method: :get)
 
     expect(route).to include(controller: "discover_rsc", action: "index", taxonomy: taxonomy.slug)
   ensure
-    ENV["SHAKAPERF_NATIVE_PUBLIC_RSC"] = original_native_public_rsc
+    ENV["SHAKAPERF_PUBLIC_RSC"] = original_public_rsc
     DiscoverTaxonomyConstraint.instance_variable_set(:@valid_taxonomy_paths, nil)
   end
 

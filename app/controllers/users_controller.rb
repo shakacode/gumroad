@@ -33,7 +33,7 @@ class UsersController < ApplicationController
         set_user_page_meta(@user)
         set_favicon_meta_tags(@user)
         profile_props = ProfilePresenter.new(pundit_user:, seller: @user).profile_props(seller_custom_domain_url:, request:)
-        return render_native_profile_rsc(profile_props) if respond_to?(:render_native_profile_rsc, true)
+        return render_profile_rsc_document(profile_props) if respond_to?(:render_profile_rsc_document, true)
 
         render inertia: "Users/Show", props: profile_props
       end

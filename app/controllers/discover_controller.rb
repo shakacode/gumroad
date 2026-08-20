@@ -71,9 +71,9 @@ class DiscoverController < ApplicationController
       black_friday_offer_code: SearchProducts::BLACK_FRIDAY_CODE,
     }
 
-    if respond_to?(:render_native_discover_rsc, true)
+    if respond_to?(:render_discover_rsc_document, true)
       black_friday_feature_active = black_friday_feature_active?
-      return render_native_discover_rsc(discover_props.merge(
+      return render_discover_rsc_document(discover_props.merge(
         show_black_friday_hero: black_friday_feature_active,
         black_friday_stats: black_friday_feature_active ? BlackFridayStatsService.fetch_stats : nil,
         recommended_products: recommendations,

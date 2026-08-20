@@ -44,8 +44,8 @@ class LinksController < ApplicationController
   before_action :ensure_domain_belongs_to_seller, only: %i[show landing_iframe_content landing_version]
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
-  before_action :prepare_live_streaming_response, only: :show, if: :native_product_rsc_request?
-  prepend_around_action :clear_live_active_record_connections, only: :show, if: :native_product_rsc_request?
+  before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
+  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_document_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
@@ -223,7 +223,7 @@ class LinksController < ApplicationController
                           presenter.product_page_props(**presenter_props)
         end
 
-        render_native_product_rsc(product_props.merge(page_layout: params[:layout]))
+        render_product_rsc_document(product_props.merge(page_layout: params[:layout]))
       end
       format.json { render json: ProductPresenter::PublicApiProps.new(product: @product, seller_custom_domain_url:).props }
       format.any { e404 }
@@ -784,17 +784,17 @@ class LinksController < ApplicationController
   end
 
   private
-    def native_product_rsc_request?
-      !request.inertia? && NativeProductRscRequestConstraint.matches?(request)
+    def product_rsc_document_request?
+      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
     end
 
     def product_rsc_controller?
       is_a?(ProductRscLinksController)
     end
 
-    def render_native_product_rsc(product_props)
+    def render_product_rsc_document(product_props)
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
-      @native_product_rsc_props = product_props.merge(
+      @product_rsc_document_props = product_props.merge(
         _inertia_meta: inertia_meta.meta_tags,
         global: @precomputed_rendering_context.except(:csp_nonce).compact.merge(href: request.original_url)
       )
