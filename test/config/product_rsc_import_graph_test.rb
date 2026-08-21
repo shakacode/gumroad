@@ -87,6 +87,13 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes enhancement, "$app/components/RichTextEditor"
   end
 
+  test "defers the initial written reviews request until browser idle time" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+
+    assert_includes interactive_product, "scheduleProductReviewsLoad"
+    assert_not_includes interactive_product, "useRunOnce(() => void loadNextPage())"
+  end
+
   private
     def transitive_javascript_imports(entry_files)
       pending = entry_files

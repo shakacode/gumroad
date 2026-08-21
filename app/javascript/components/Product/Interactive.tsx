@@ -66,6 +66,7 @@ import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/componen
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
+import { scheduleProductReviewsLoad } from "$app/components/Product/scheduleProductReviewsLoad";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
@@ -812,19 +813,26 @@ const Reviews = ({
     pagination: { page: 0, pages: 1 },
   });
   const [isLoading, setIsLoading] = React.useState(false);
-  const loadNextPage = async () => {
+  const loadPage = React.useCallback(
+    async (page: number) => {
+      if (ratings.count === 0) return;
+      setIsLoading(true);
+      try {
+        const { reviews, pagination } = await getReviews(productId, page);
+        setState(({ reviews: prevReviews }) => ({ pagination, reviews: [...prevReviews, ...reviews] }));
+      } catch (e) {
+        assertResponseError(e);
+        showAlert(e.message, "error");
+      }
+      setIsLoading(false);
+    },
+    [productId, ratings.count],
+  );
+  const loadNextPage = () => void loadPage(state.pagination.page + 1);
+  React.useEffect(() => {
     if (ratings.count === 0) return;
-    setIsLoading(true);
-    try {
-      const { reviews, pagination } = await getReviews(productId, state.pagination.page + 1);
-      setState(({ reviews: prevReviews }) => ({ pagination, reviews: [...prevReviews, ...reviews] }));
-    } catch (e) {
-      assertResponseError(e);
-      showAlert(e.message, "error");
-    }
-    setIsLoading(false);
-  };
-  useRunOnce(() => void loadNextPage());
+    return scheduleProductReviewsLoad(() => void loadPage(1));
+  }, [loadPage, ratings.count]);
 
   if (ratings.count === 0) return null;
 
@@ -860,11 +868,7 @@ const Reviews = ({
             />
           ))}
           {state.pagination.page < state.pagination.pages ? (
-            <button
-              className="cursor-pointer underline all-unset"
-              onClick={() => void loadNextPage()}
-              disabled={isLoading}
-            >
+            <button className="cursor-pointer underline all-unset" onClick={loadNextPage} disabled={isLoading}>
               Load more
             </button>
           ) : null}
