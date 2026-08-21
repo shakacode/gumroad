@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, X } from "@boxicons/react";
+import { X } from "@boxicons/react";
 import { Deferred, router, usePage } from "@inertiajs/react";
 import { range } from "lodash-es";
 import * as React from "react";
@@ -14,12 +14,11 @@ import { CurrencyCode } from "$app/utils/currency";
 import { discoverTitleGenerator, Taxonomy } from "$app/utils/discover";
 
 import { RecentlyViewed, RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed";
+import { RecommendedProducts, RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
 import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import { HomeFooter } from "$app/components/Home/Shared/Footer";
-import { HorizontalCard } from "$app/components/Product/Card";
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { RatingStars } from "$app/components/RatingStars";
-import { Skeleton } from "$app/components/Skeleton";
 import { CardContent } from "$app/components/ui/Card";
 import { Details, DetailsToggle } from "$app/components/ui/Details";
 import { Fieldset } from "$app/components/ui/Fieldset";
@@ -27,7 +26,6 @@ import { Label } from "$app/components/ui/Label";
 import { Radio } from "$app/components/ui/Radio";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
-import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
 import { CardWishlist } from "$app/components/Wishlist/Card";
 
 type Props = {
@@ -47,71 +45,6 @@ const sortTitles = {
   hot_and_new: "Hot and new products",
   best_sellers: "Best selling products",
 };
-
-const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title: string }) => {
-  const [active, setActive] = React.useState(0);
-  const { itemsRef, handleScroll } = useScrollableCarousel(active, setActive);
-  const [dragStart, setDragStart] = React.useState<number | null>(null);
-
-  return (
-    <section className="grid gap-4">
-      <header className="flex items-center justify-between">
-        <h2>{title}</h2>
-        <div className="flex items-center gap-2">
-          <button
-            className="cursor-pointer all-unset"
-            onClick={() => setActive((active + products.length - 1) % products.length)}
-          >
-            <ArrowLeft className="size-6" />
-          </button>
-          {active + 1} / {products.length}
-          <button
-            className="cursor-pointer all-unset"
-            onClick={() => setActive((active + products.length + 1) % products.length)}
-          >
-            <ArrowRight className="size-6" />
-          </button>
-        </div>
-      </header>
-      <div className="relative">
-        <div
-          className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden"
-          ref={itemsRef}
-          style={{ scrollSnapType: dragStart != null ? "none" : undefined }}
-          onScroll={handleScroll}
-          onMouseDown={(e) => setDragStart(e.clientX)}
-          onMouseMove={(e) => {
-            if (dragStart == null || !itemsRef.current) return;
-            itemsRef.current.scrollLeft -= e.movementX;
-          }}
-          onClick={(e) => {
-            if (dragStart != null && Math.abs(e.clientX - dragStart) > 30) e.preventDefault();
-            setDragStart(null);
-          }}
-          onMouseOut={() => setDragStart(null)}
-        >
-          {products.map((product, idx) => (
-            // Only the first 3 cards are visible, so we can set eager loading for them
-            <HorizontalCard key={product.id} product={product} big eager={idx < 3} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const ProductsCarouselSkeleton = () => (
-  <section className="grid gap-4">
-    <header>
-      <h2>Featured products</h2>
-    </header>
-    <div className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden">
-      {Array.from({ length: 3 }, (_, index) => (
-        <Skeleton key={index} className="h-96" />
-      ))}
-    </div>
-  </section>
-);
 
 // Featured products and search results overlap when there are no filters, so we skip over the featured products in the search request
 // See DiscoverController::RECOMMENDED_PRODUCTS_COUNT
@@ -156,9 +89,11 @@ export type DiscoverPageLayoutProps = {
 
 export function DiscoverResultsCore({
   blackFridayHero,
+  recommendedProducts: recommendedProductsSlot,
   renderLayout,
 }: {
   blackFridayHero: React.ReactNode;
+  recommendedProducts?: React.ReactNode;
   renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
 }) {
   const props = typia.assert<Props>(usePage().props);
@@ -300,10 +235,12 @@ export function DiscoverResultsCore({
     <>
       {blackFridayHero}
       <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
-        {showRecommendationSections ? (
-          <Deferred data={["recommended_products"]} fallback={<ProductsCarouselSkeleton />}>
+        {showRecommendationSections && recommendedProductsSlot ? (
+          recommendedProductsSlot
+        ) : showRecommendationSections ? (
+          <Deferred data={["recommended_products"]} fallback={<RecommendedProductsSkeleton />}>
             {recommendedProducts.length ? (
-              <ProductsCarousel
+              <RecommendedProducts
                 products={recommendedProducts}
                 title={isCuratedProducts ? "Recommended" : "Featured products"}
               />

@@ -1,9 +1,11 @@
 import * as React from "react";
 
 import type { MetaTag } from "$app/layouts/components/MetaTags";
+import type { CardProduct } from "$app/parsers/product";
 import type { CurrencyCode } from "$app/utils/currency";
 import type { Taxonomy } from "$app/utils/discover";
 
+import AsyncRecommendedProducts from "$app/components/Discover/AsyncRecommendedProducts";
 import BlackFridayHero, {
   BlackFridayButtonFrame,
   type BlackFridayStats,
@@ -11,7 +13,12 @@ import BlackFridayHero, {
 } from "$app/components/Discover/BlackFridayHero";
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import DiscoverResults from "$app/components/Discover/DiscoverResults.client";
+import { RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
+
+type AsyncDiscoverPageProps = {
+  recommended_products: CardProduct[];
+};
 
 export type DiscoverPageProps = Record<string, unknown> & {
   _inertia_meta?: MetaTag[];
@@ -22,9 +29,17 @@ export type DiscoverPageProps = Record<string, unknown> & {
   is_black_friday_page: boolean;
   show_black_friday_hero?: boolean;
   taxonomies_for_nav: Taxonomy[];
+  getReactOnRailsAsyncProp: <PropName extends keyof AsyncDiscoverPageProps>(
+    propName: PropName,
+  ) => Promise<AsyncDiscoverPageProps[PropName]>;
 };
 
-export default function DiscoverPage({ _inertia_meta: inertiaMeta, global, ...discoverProps }: DiscoverPageProps) {
+export default function DiscoverPage({
+  _inertia_meta: inertiaMeta,
+  getReactOnRailsAsyncProp,
+  global,
+  ...discoverProps
+}: DiscoverPageProps) {
   const url = new URL(global.href);
   const taxonomyPath = url.pathname === Routes.discover_path() ? undefined : url.pathname.replace(/^\//u, "");
   const {
@@ -51,6 +66,14 @@ export default function DiscoverPage({ _inertia_meta: inertiaMeta, global, ...di
       }
     />
   ) : null;
+  const recommendedProducts = (
+    <React.Suspense fallback={<RecommendedProductsSkeleton />}>
+      <AsyncRecommendedProducts
+        originalLocation={global.href}
+        productsPromise={getReactOnRailsAsyncProp("recommended_products")}
+      />
+    </React.Suspense>
+  );
 
   return (
     <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={clientDiscoverProps}>
@@ -63,7 +86,7 @@ export default function DiscoverPage({ _inertia_meta: inertiaMeta, global, ...di
         query={url.searchParams.get("query") ?? undefined}
         showTaxonomy
       >
-        <DiscoverResults blackFridayHero={blackFridayHero} />
+        <DiscoverResults blackFridayHero={blackFridayHero} recommendedProducts={recommendedProducts} />
       </DiscoverLayout>
     </PageShell>
   );

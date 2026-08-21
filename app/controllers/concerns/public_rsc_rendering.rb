@@ -23,10 +23,11 @@ module PublicRscRendering
       head :conflict
     end
 
-    def render_public_rsc_page(component_name:, props:, root_id:)
+    def render_public_rsc_page(component_name:, props:, root_id:, async_props: {})
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
       @public_rsc_component_name = component_name
       @public_rsc_root_id = root_id
+      @public_rsc_async_props = async_props
       @public_rsc_props = props.merge(
         _inertia_meta: inertia_meta.meta_tags,
         global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)

@@ -9,6 +9,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverResults.client.tsx
     Discover/DiscoverResultsCore.client.tsx
     Discover/MobileMenu.client.tsx
+    Discover/RecommendedProducts.client.tsx
     Discover/Search.client.tsx
     PoweredByFooter.tsx
     Product/CoffeeProduct.tsx
@@ -46,6 +47,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     PublicPages/ProductPageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
+    Discover/AsyncRecommendedProducts.tsx
     Discover/BlackFridayHero.tsx
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
@@ -104,6 +106,22 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes results_core.read, "black_friday.svg"
     assert_not_includes results_core.read, "illustrations/sale.svg"
     assert_not_includes results_core.read, "formatPriceCentsWithCurrencySymbol"
+  end
+
+  test "streams recommendations through a server-owned Suspense slot" do
+    discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+    async_products = COMPONENT_DIRECTORY.join("Discover/AsyncRecommendedProducts.tsx")
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx").read
+
+    assert_predicate async_products, :file?
+    assert_not async_products.read.start_with?('"use client";')
+    assert_includes async_products.read, "React.use(productsPromise)"
+    assert_includes discover_page, 'getReactOnRailsAsyncProp("recommended_products")'
+    assert_includes discover_page, "<React.Suspense"
+    assert_includes discover_page, "recommendedProducts={recommendedProducts}"
+    assert_includes results, "recommendedProducts: React.ReactNode"
+    assert_includes results_core, "showRecommendationSections && recommendedProductsSlot"
   end
 
   test "keeps the legacy product composition out of the RSC client graph" do
