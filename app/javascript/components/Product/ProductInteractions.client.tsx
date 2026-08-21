@@ -15,7 +15,7 @@ import { useProductState } from "$app/components/Product/ProductStateProvider.cl
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 import type { PageProps as SectionsProps } from "$app/components/Profile/Sections";
 
-export type ProductInteractionsProps = ProductProps & {
+export type ProductInteractionsProps = Omit<ProductProps, "discount_code"> & {
   cart?: boolean;
   hasHero?: boolean;
   main_section_index: number;
@@ -27,7 +27,6 @@ export type ProductInteractionsProps = ProductProps & {
 export default function ProductInteractions({
   product,
   purchase,
-  discount_code: discountCode,
   cart,
   hasHero,
   wishlists,
@@ -37,7 +36,8 @@ export default function ProductInteractions({
   page_layout: pageLayout,
   ...sectionProps
 }: ProductInteractionsProps) {
-  const { selection, setSelection, ctaButtonRef, configurationSelectorRef } = useProductState();
+  const { selection, setSelection, ctaButtonRef, configurationSelectorRef, discountCode, setDiscountCode } =
+    useProductState();
   const ctaLabel = cart ? "Add to cart" : undefined;
 
   const productView = (
@@ -47,6 +47,7 @@ export default function ProductInteractions({
         product={product}
         purchase={purchase}
         discountCode={discountCode}
+        setDiscountCode={setDiscountCode}
         ctaLabel={ctaLabel}
         selection={selection}
         setSelection={setSelection}

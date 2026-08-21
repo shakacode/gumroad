@@ -73,9 +73,12 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_predicate provider, :file?
     assert_includes provider.read, "children: React.ReactNode"
     assert_includes provider.read, "useSelectionFromUrl(product)"
+    assert_includes provider.read, "React.useState(initialDiscountCode)"
     assert_includes interactions, "useProductState()"
     assert_not_includes interactions, "useSelectionFromUrl(product)"
-    assert_includes product_page, "<ProductStateProvider product={productProps.product}>"
+    assert_includes interactions, "setDiscountCode={setDiscountCode}"
+    assert_includes product_page, "product={productProps.product}"
+    assert_includes product_page, "initialDiscountCode={productProps.discount_code}"
     assert_includes product_page, "<ProductInteractions {...interactionProps} />"
   end
 

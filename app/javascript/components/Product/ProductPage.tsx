@@ -4,7 +4,7 @@ import type { MetaTag } from "$app/layouts/components/MetaTags";
 import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
-import type { ServerContent } from "$app/components/Product/Interactive";
+import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import {
   type ProductContentProps,
   ProductAvailabilityNotice,
@@ -36,6 +36,7 @@ import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShe
 
 export type ProductPageProps = Omit<ProductInteractionsProps, "serverContent" | "serverProfileSections"> & {
   _inertia_meta?: MetaTag[];
+  discount_code: ProductDiscount;
   global: GlobalProps;
   rsc_product_content: ProductContentProps;
   rsc_featured_product_content: Record<string, ProductContentProps>;
@@ -177,7 +178,7 @@ export default function ProductPage({
     ),
   } satisfies ProductInteractionsProps;
   const product = (
-    <ProductStateProvider product={productProps.product}>
+    <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
       <ProductInteractions {...interactionProps} />
     </ProductStateProvider>
   );

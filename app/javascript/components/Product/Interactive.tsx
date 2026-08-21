@@ -260,6 +260,7 @@ export const InteractiveProduct = ({
   product,
   purchase,
   discountCode: initialDiscountCode,
+  setDiscountCode,
   ctaLabel,
   selection,
   setSelection,
@@ -272,6 +273,7 @@ export const InteractiveProduct = ({
   product: ProductData;
   purchase: Purchase | null;
   discountCode?: ProductDiscount | null;
+  setDiscountCode?: React.Dispatch<React.SetStateAction<ProductDiscount>>;
   ctaLabel?: string | undefined;
   selection: PriceSelection;
   setSelection?: React.Dispatch<React.SetStateAction<PriceSelection>>;
@@ -284,11 +286,12 @@ export const InteractiveProduct = ({
   const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
   const loggedInUser = useLoggedInUser();
 
-  const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
+  const [localDiscountCode, setLocalDiscountCode] = React.useState(initialDiscountCode);
+  const discountCode = setDiscountCode ? initialDiscountCode : localDiscountCode;
 
   React.useEffect(() => {
-    setDiscountCode(initialDiscountCode);
-  }, [initialDiscountCode]);
+    if (!setDiscountCode) setLocalDiscountCode(initialDiscountCode);
+  }, [initialDiscountCode, setDiscountCode]);
 
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
@@ -486,7 +489,11 @@ export const InteractiveProduct = ({
                     {discountCode.discount.expires_at ? (
                       <DiscountExpirationCountdown
                         expiresAt={new Date(discountCode.discount.expires_at)}
-                        onExpiration={() => setDiscountCode({ valid: false, error_code: "inactive" })}
+                        onExpiration={() => {
+                          const inactiveDiscount = { valid: false, error_code: "inactive" } as const;
+                          if (setDiscountCode) setDiscountCode(inactiveDiscount);
+                          else setLocalDiscountCode(inactiveDiscount);
+                        }}
                       />
                     ) : null}
                   </div>
