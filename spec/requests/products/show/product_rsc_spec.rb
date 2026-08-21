@@ -107,6 +107,19 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_no_selector("[role=menubar]")
   end
 
+  it "server-renders a refund policy without fine print" do
+    refund_policy = create(:product_refund_policy, product:, seller:, fine_print: "")
+    seller.update!(refund_policy_enabled: false)
+    product.update!(product_refund_policy_enabled: true)
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_text(refund_policy.title)
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
+
   it "hydrates the server-rendered first image cover without duplication" do
     create_local_image_cover
 

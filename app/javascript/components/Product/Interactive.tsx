@@ -31,6 +31,7 @@ import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
+import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
@@ -288,6 +289,9 @@ export const InteractiveProduct = ({
           {serverContent.streamingNotice}
           {serverContent.details}
           <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />
+          {product.refund_policy ? (
+            <ProductRefundPolicy refundPolicy={product.refund_policy} permalink={product.permalink} />
+          ) : null}
         </section>
         {product.ratings && product.ratings.count > 0 ? (
           <ProductReviews initialContent={serverContent.reviews} productId={product.id} seller={product.seller} />

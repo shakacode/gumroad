@@ -19,6 +19,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductPrice.client.tsx
     Product/ProductPreorderNotice.client.tsx
     Product/ProductPurchaseControls.client.tsx
+    Product/ProductRefundPolicy.client.tsx
     Product/ProductSecondaryActions.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
@@ -267,16 +268,31 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "isolates share and refund actions from the article composition" do
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
+    refund_policy = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicy.client.tsx")
     secondary_actions = COMPONENT_DIRECTORY.join("Product/ProductSecondaryActions.client.tsx")
 
+    assert_predicate refund_policy, :file?
+    assert refund_policy.read.start_with?('"use client";')
+    assert_includes refund_policy.read, "<Modal"
+    assert_includes refund_policy.read, "useUserAgentInfo()"
+    assert_includes refund_policy.read, "trackUserProductAction"
     assert_predicate secondary_actions, :file?
     assert secondary_actions.read.start_with?('"use client";')
     assert_includes secondary_actions.read, "<ShareSection"
-    assert_includes secondary_actions.read, "<Modal"
+    assert_not_includes secondary_actions.read, "<Modal"
+    assert_not_includes secondary_actions.read, "RefundPolicyInfo"
+    assert_not_includes secondary_actions.read, "useUserAgentInfo"
     assert_includes secondary_actions.read, "export const ProductSecondaryActionsFromState"
     assert_includes secondary_actions.read, "const { selection } = useProductState()"
     assert_includes secondary_actions.read, "<ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />"
+    assert_includes product_article, "product.refund_policy?.fine_print ?"
+    assert_includes product_article,
+                    "<ProductRefundPolicy refundPolicy={product.refund_policy} permalink={product.permalink} />"
+    assert_includes product_article, '<div className="text-center">{product.refund_policy.title}</div>'
     assert_includes interactive_product, "<ProductSecondaryActions"
+    assert_includes interactive_product,
+                    "<ProductRefundPolicy refundPolicy={product.refund_policy} permalink={product.permalink} />"
     assert_not_includes interactive_product, 'import { ShareSection }'
     assert_not_includes interactive_product, "RefundPolicyInfo"
     assert_not_includes interactive_product, "useUserAgentInfo"

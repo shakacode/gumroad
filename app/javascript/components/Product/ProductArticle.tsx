@@ -10,6 +10,7 @@ import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductPriceFromState } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControlsFromState } from "$app/components/Product/ProductPurchaseControls.client";
+import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActionsFromState } from "$app/components/Product/ProductSecondaryActions.client";
 
@@ -79,6 +80,11 @@ export default function ProductArticle({ product, purchase, wishlists, ctaLabel,
             {serverContent.streamingNotice}
             {serverContent.details}
             <ProductSecondaryActionsFromState product={product} wishlists={wishlists} />
+            {product.refund_policy?.fine_print ? (
+              <ProductRefundPolicy refundPolicy={product.refund_policy} permalink={product.permalink} />
+            ) : product.refund_policy ? (
+              <div className="text-center">{product.refund_policy.title}</div>
+            ) : null}
           </section>
           {product.ratings && product.ratings.count > 0 ? (
             <ProductReviews initialContent={serverContent.reviews} productId={product.id} seller={product.seller} />

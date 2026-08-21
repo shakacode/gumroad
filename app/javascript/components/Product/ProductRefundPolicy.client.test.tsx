@@ -1,0 +1,61 @@
+// @vitest-environment happy-dom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
+import { UserAgentProvider } from "$app/components/UserAgent";
+
+const mocks = vi.hoisted(() => ({ trackUserProductAction: vi.fn() }));
+
+vi.mock("$app/data/user_action_event", () => ({ trackUserProductAction: mocks.trackUserProductAction }));
+
+const renderPolicy = (finePrint: string | null) =>
+  render(
+    <UserAgentProvider value={{ isMobile: false, locale: "en-US" }}>
+      <ProductRefundPolicy
+        refundPolicy={{
+          title: "30-day money back guarantee",
+          fine_print: finePrint,
+          updated_at: "2024-01-02T00:00:00Z",
+        }}
+        permalink="demo-product"
+      />
+    </UserAgentProvider>,
+  );
+
+beforeEach(() => {
+  mocks.trackUserProductAction.mockReset();
+  window.history.replaceState({}, "", "/products/demo");
+});
+
+afterEach(cleanup);
+
+describe("ProductRefundPolicy", () => {
+  it("renders a policy without fine print as static text", () => {
+    renderPolicy(null);
+
+    expect(screen.getByText("30-day money back guarantee").tagName).toBe("DIV");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("opens and tracks the fine print dialog", async () => {
+    renderPolicy("Refund requests are reviewed within two business days.");
+
+    fireEvent.click(screen.getByRole("link", { name: "30-day money back guarantee" }));
+
+    expect(screen.getByRole("dialog").textContent).toContain("Refund requests are reviewed within two business days.");
+    expect(screen.getByText("Last updated Jan 2, 2024")).toBeTruthy();
+    await waitFor(() =>
+      expect(mocks.trackUserProductAction).toHaveBeenCalledWith({
+        name: "product_refund_policy_fine_print_view",
+        permalink: "demo-product",
+        isModal: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.location.hash).toBe("");
+  });
+});
