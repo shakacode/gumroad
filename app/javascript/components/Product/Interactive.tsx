@@ -31,7 +31,6 @@ import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
 import {
   applySelection,
-  buyerLocalPriceCentsForSelection,
   buyerLocalContextFor,
   ConfigurationSelector,
   ConfigurationSelectorHandle,
@@ -45,11 +44,11 @@ import {
 } from "$app/components/Product/ConfigurationSelector";
 import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
-import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
+import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
@@ -337,12 +336,6 @@ export const InteractiveProduct = ({
     return true;
   };
 
-  const showPrice =
-    !product.recurrences &&
-    product.options.length === 0 &&
-    !product.rental?.rent_only &&
-    (basePriceCents !== 0 || product.pwyw);
-
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
       <ProductAnalytics
@@ -370,32 +363,7 @@ export const InteractiveProduct = ({
           {serverContent.title}
         </header>
         <section className="grid grid-cols-[auto_1fr] gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
-          {showPrice ? (
-            <div className="px-6 py-4 outline outline-offset-0 outline-border">
-              <PriceTag
-                currencyCode={product.currency_code}
-                oldPrice={
-                  comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents
-                    ? comparisonPriceCents
-                    : undefined
-                }
-                price={discountedPriceCents}
-                url={product.long_url}
-                isPayWhatYouWant={!!product.pwyw}
-                isSalesLimited={product.is_sales_limited}
-                creatorName={product.seller?.name}
-                buyerCurrency={product.buyer_currency}
-                buyerLocalCurrencyRate={product.buyer_local_currency_rate}
-                buyerLocalCurrencySubunitToUnit={product.buyer_local_currency_subunit_to_unit}
-                buyerLocalPriceCents={buyerLocalPriceCentsForSelection(
-                  product.buyer_local_price_cents,
-                  discountCode?.valid ? discountCode.discount : null,
-                  selection.quantity,
-                )}
-                buyerLocalOriginalPriceCents={product.buyer_local_original_price_cents}
-              />
-            </div>
-          ) : null}
+          <ProductPrice product={product} selection={selection} discountCode={discountCode} />
           {serverContent.sellerAndRatings}
         </section>
         {purchase !== null ? (

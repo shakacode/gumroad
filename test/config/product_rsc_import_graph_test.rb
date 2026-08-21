@@ -14,6 +14,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductMedia.client.tsx
+    Product/ProductPrice.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
@@ -158,6 +159,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes interactive_product, "serverContent.bundleItems[bundleProduct.id]"
     assert_includes product_page, "<ProductBundleItemContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product/ProductContent.tsx")
+  end
+
+  test "isolates live product pricing from the article composition" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_price = COMPONENT_DIRECTORY.join("Product/ProductPrice.client.tsx")
+
+    assert_predicate product_price, :file?
+    assert product_price.read.start_with?('"use client";')
+    assert_includes product_price.read, "<PriceTag"
+    assert_includes interactive_product,
+                    "<ProductPrice product={product} selection={selection} discountCode={discountCode} />"
+    assert_not_includes interactive_product, 'import { PriceTag }'
+    assert_not_includes interactive_product, "buyerLocalPriceCentsForSelection("
   end
 
   test "renders the receipt shell outside the product client island" do
