@@ -5,7 +5,7 @@ import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
-import ProductArticleInteractions from "$app/components/Product/ProductArticleInteractions.client";
+import ProductArticle from "$app/components/Product/ProductArticle";
 import {
   type ProductContentProps,
   ProductAvailabilityNotice,
@@ -111,7 +111,7 @@ export default function ProductPage({
   const ctaLabel =
     productProps.page_layout === "discover" || productProps.page_layout === "profile" ? "Add to cart" : undefined;
   const productArticle = (
-    <ProductArticleInteractions
+    <ProductArticle
       product={productProps.product}
       purchase={productProps.purchase}
       wishlists={productProps.wishlists}

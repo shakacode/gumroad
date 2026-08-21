@@ -10,7 +10,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
     Product/ProductAnalytics.client.tsx
-    Product/ProductArticleInteractions.client.tsx
     Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductEditButton.client.tsx
@@ -38,6 +37,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
     Discover/DiscoverPage.tsx
+    Product/ProductArticle.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
     Product/ProductRatingsSummary.tsx
@@ -69,18 +69,22 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   end
 
   test "keeps the legacy product composition out of the RSC client graph" do
-    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+    product_clients = CLIENT_COMPONENTS.grep(%r{\AProduct/})
+    client_graph = transitive_javascript_imports(product_clients.map { COMPONENT_DIRECTORY.join(_1) })
 
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/index.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/Layout.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/LegacyProduct.tsx")
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/Interactive.tsx")
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/ProductArticle.tsx")
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/ProductContent.tsx")
   end
 
   test "composes product state around server-owned children" do
     provider = COMPONENT_DIRECTORY.join("Product/ProductStateProvider.client.tsx")
     selection_from_url = COMPONENT_DIRECTORY.join("Product/useSelectionFromUrl.client.ts")
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
-    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").read
+    product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
     interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
@@ -96,29 +100,33 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes provider.read, "React.useState(initialDiscountCode)"
     assert_includes interactions, "useProductState()"
     assert_not_includes interactions, "useSelectionFromUrl(product)"
-    assert_includes article_interactions, "setDiscountCode={setDiscountCode}"
+    assert_includes product_article, "<ProductPriceFromState"
+    assert_includes product_article, "<ProductBundleFromState"
+    assert_includes product_article, "<ProductPurchaseControlsFromState"
+    assert_includes product_article, "<ProductSecondaryActionsFromState"
     assert_includes product_page, "product={productProps.product}"
     assert_includes product_page, "initialDiscountCode={productProps.discount_code}"
     assert_includes product_page, "<ProductInteractions {...interactionProps} productArticle={productArticle} />"
   end
 
   test "passes the product article through the layout client boundary" do
-    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx")
+    product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx")
     interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
-    assert_predicate article_interactions, :file?
-    assert article_interactions.read.start_with?('"use client";')
+    assert_predicate product_article, :file?
+    assert_not product_article.read.start_with?('"use client";')
     assert_not_includes interactions, "InteractiveProduct"
     assert_includes interactions, "productArticle: React.ReactNode"
     assert_includes interactions, "{productArticle}"
-    assert_includes product_page, "<ProductArticleInteractions"
+    assert_includes product_page, "<ProductArticle"
     assert_includes product_page, "productArticle={productArticle}"
+    assert_not COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").exist?
   end
 
   test "isolates the browser-aware product edit control" do
     edit_button = COMPONENT_DIRECTORY.join("Product/ProductEditButton.client.tsx")
-    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").read
+    product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
     layout = COMPONENT_DIRECTORY.join("Product/Layout.tsx").read
     layout_controls = COMPONENT_DIRECTORY.join("Product/LayoutControls.tsx").read
 
@@ -126,8 +134,8 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert edit_button.read.start_with?('"use client";')
     assert_includes edit_button.read, "useAppDomain()"
     assert_includes edit_button.read, "<NavigationButton"
-    assert_includes article_interactions, "$app/components/Product/ProductEditButton.client"
-    assert_includes article_interactions, "<ProductEditButton product={product} />"
+    assert_includes product_article, "$app/components/Product/ProductEditButton.client"
+    assert_includes product_article, "<ProductEditButton product={product} />"
     assert_includes layout, "$app/components/Product/ProductEditButton.client"
     assert_includes layout, "<ProductEditButton product={product} />"
     assert_not_includes layout_controls, "export const EditButton"
@@ -471,7 +479,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
         next unless visited.add?(path)
 
         source = path.read
-        imports = source.scan(/(?:import|export)\b.*?\bfrom\s+["']([^"']+)["']/m).flatten
+        imports = source.scan(/(?:^|\n)\s*(?:import|export)\s+(?!type\b).*?\bfrom\s+["']([^"']+)["']/m).flatten
         imports.concat(source.scan(/import\s+["']([^"']+)["']/).flatten)
         pending.concat(imports.filter_map { resolve_javascript_import(path.dirname, _1) })
       end
