@@ -4,7 +4,9 @@ import * as React from "react";
 
 import type { Discount } from "$app/parsers/checkout";
 import { type BuyerLocalCurrencyContext, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
+import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
+import { Button } from "$app/components/Button";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import {
   applySelection,
@@ -18,9 +20,44 @@ import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
-import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
+
+const importSubscriptionChoiceModal = () =>
+  import("$app/components/Product/SubscriptionChoiceModal").then(({ SubscriptionChoiceModal }) => ({
+    default: SubscriptionChoiceModal,
+  }));
+const SubscriptionChoiceModal = React.lazy(() => fetchWithOneRetry(importSubscriptionChoiceModal));
+
+class SubscriptionChoiceModalBoundary extends React.Component<
+  { children: React.ReactNode; onClose: () => void },
+  { failed: boolean }
+> {
+  constructor(props: { children: React.ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  override render() {
+    if (!this.state.failed) return this.props.children;
+
+    return (
+      <Alert role="alert" variant="danger">
+        <div className="grid gap-4">
+          Purchase options could not be loaded.
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={this.props.onClose}>Cancel</Button>
+            <Button onClick={() => window.location.reload()}>Reload and try again</Button>
+          </div>
+        </div>
+      </Alert>
+    );
+  }
+}
 
 export const formatDiscountAmount = (discount: Discount, buyerLocalContext: BuyerLocalCurrencyContext) => {
   if (discount.type === "percent") {
@@ -208,12 +245,25 @@ export const ProductPurchaseControls = ({
           }
         }}
       />
-      {purchase && (purchase.membership || purchase.subscription_has_lapsed) && product.is_recurring_billing ? (
-        <SubscriptionChoiceModal
-          purchase={purchase}
-          checkoutUrl={checkoutUrlForModal ?? ""}
-          onClose={() => setCheckoutUrlForModal(null)}
-        />
+      {checkoutUrlForModal &&
+      purchase &&
+      (purchase.membership || purchase.subscription_has_lapsed) &&
+      product.is_recurring_billing ? (
+        <SubscriptionChoiceModalBoundary onClose={() => setCheckoutUrlForModal(null)}>
+          <React.Suspense
+            fallback={
+              <span className="sr-only" role="status">
+                Loading purchase options…
+              </span>
+            }
+          >
+            <SubscriptionChoiceModal
+              purchase={purchase}
+              checkoutUrl={checkoutUrlForModal}
+              onClose={() => setCheckoutUrlForModal(null)}
+            />
+          </React.Suspense>
+        </SubscriptionChoiceModalBoundary>
       ) : null}
     </>
   );
