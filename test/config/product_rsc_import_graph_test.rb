@@ -12,6 +12,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductAnalytics.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
+    Product/ProductReceiptActions.client.tsx
     Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     PublicPages/PageShell.client.tsx
@@ -84,6 +85,18 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes interactive_product, "serverContent.bundleItems[bundleProduct.id]"
     assert_includes product_page, "<ProductBundleItemContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product/ProductContent.tsx")
+  end
+
+  test "renders the receipt shell outside the product client island" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_includes interactive_product, "serverContent.receipt"
+    assert_not_includes interactive_product, "ExistingPurchaseCard"
+    assert_no_match(%r{import\s+(?!type\b).*from "\$app/components/ReviewForm"}, interactive_product)
+    assert_includes product_content, "<ProductReceiptReviewAction"
+    assert_includes product_page, "<ProductReceiptContent"
   end
 
   test "keeps the description editor behind an asynchronous client boundary" do

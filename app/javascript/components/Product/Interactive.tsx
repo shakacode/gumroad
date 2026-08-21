@@ -1,5 +1,5 @@
 import { Star } from "@boxicons/react";
-import { differenceInYears, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import * as React from "react";
 
 import { getReviews, type Review } from "$app/data/product_reviews";
@@ -28,9 +28,8 @@ import { formatDate } from "$app/utils/date";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
 import { assertResponseError } from "$app/utils/request";
 
-import { Button, NavigationButton } from "$app/components/Button";
+import { NavigationButton } from "$app/components/Button";
 import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
-import { CopyToClipboard } from "$app/components/CopyToClipboard";
 import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
@@ -64,7 +63,7 @@ import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import { Review as ReviewComponent } from "$app/components/Review";
-import { Review as FormReview, ReviewForm } from "$app/components/ReviewForm";
+import type { Review as FormReview } from "$app/components/ReviewForm";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
@@ -252,6 +251,7 @@ export type ServerContent = {
   bundleItems: Record<string, React.ReactNode>;
   description: React.ReactNode;
   membershipNotices: React.ReactNode;
+  receipt: React.ReactNode;
   streamingNotice: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
@@ -395,13 +395,7 @@ export const InteractiveProduct = ({
           {serverContent.sellerAndRatings}
         </section>
         {purchase !== null ? (
-          <ExistingPurchaseCard
-            purchase={purchase}
-            permalink={product.permalink}
-            isPreorder={product.preorder !== null}
-            isBundle={isBundle}
-            customViewContentButtonText={product.custom_view_content_button_text}
-          />
+          serverContent.receipt
         ) : product.is_licensed && !product.can_edit ? (
           <LicenseKeyLookupPrompt />
         ) : null}
@@ -623,111 +617,6 @@ const Covers = ({
     />
   );
 };
-
-const ExistingPurchaseCard = ({
-  permalink,
-  isPreorder,
-  isBundle,
-  customViewContentButtonText,
-  purchase,
-}: {
-  permalink: string;
-  isPreorder: boolean;
-  isBundle: boolean;
-  customViewContentButtonText: string | null;
-  purchase: Purchase;
-}) => {
-  const handleViewClick = () =>
-    void trackUserProductAction({
-      name: "product_information_view_product",
-      permalink,
-    }).catch(assertResponseError);
-
-  const viewContentButton = purchase.show_view_content_button_on_product_page ? (
-    <NavigationButton color="primary" href={purchase.content_url ?? ""} target="_blank" onClick={handleViewClick}>
-      {customViewContentButtonText ?? "View content"}
-    </NavigationButton>
-  ) : null;
-
-  const allowRating = differenceInYears(new Date(), parseISO(purchase.created_at)) < 1;
-
-  if (!purchase.should_show_receipt) return null;
-
-  return (
-    <section className="border-t border-border p-6">
-      <Card>
-        {purchase.membership ? (
-          <>
-            <CardContent>
-              <h5 className="grow font-bold">{purchase.membership.tier_name}</h5>
-              {purchase.total_price_including_tax_and_shipping}
-            </CardContent>
-            <CardContent>
-              <NavigationButton
-                href={purchase.membership.manage_url}
-                target="_blank"
-                onClick={() =>
-                  void trackUserProductAction({
-                    name: "product_information_manage_membership",
-                    permalink,
-                  }).catch(assertResponseError)
-                }
-                className="grow basis-0"
-              >
-                {purchase.subscription_has_lapsed ? "Restart membership" : "Manage membership"}
-              </NavigationButton>
-              {viewContentButton}
-            </CardContent>
-          </>
-        ) : (
-          <CardContent asChild>
-            <li>
-              <h3 className="grow">
-                {isBundle
-                  ? purchase.is_gift_receiver_purchase
-                    ? "You've received this bundle as a gift"
-                    : purchase.was_paid
-                      ? "You've purchased this bundle"
-                      : "You already own this bundle"
-                  : purchase.is_gift_receiver_purchase
-                    ? "You've received this product as a gift"
-                    : purchase.was_paid
-                      ? "You've purchased this product"
-                      : "You already own this product"}
-              </h3>
-              {viewContentButton}
-            </li>
-          </CardContent>
-        )}
-        {purchase.license_key ? <LicenseKeyRow licenseKey={purchase.license_key} /> : null}
-        {!isPreorder && allowRating ? (
-          <ReviewForm
-            permalink={permalink}
-            purchaseId={purchase.id}
-            review={purchase.review}
-            purchaseEmailDigest={purchase.email_digest}
-            className="flex flex-wrap items-center justify-between gap-4 p-4"
-          />
-        ) : null}
-      </Card>
-    </section>
-  );
-};
-
-// Shows the buyer's license key inline in the "you already own this" card so a returning
-// buyer does not have to open the content page (or email the seller) to find it. Only
-// rendered when the backend included the key, which it does only for identified visitors.
-const LicenseKeyRow = ({ licenseKey }: { licenseKey: string }) => (
-  <CardContent>
-    <div className="grid grow gap-1">
-      <h5 className="font-bold">License key</h5>
-      <div className="break-all">{licenseKey}</div>
-    </div>
-    <CopyToClipboard text={licenseKey}>
-      <Button>Copy</Button>
-    </CopyToClipboard>
-  </CardContent>
-);
 
 // For a licensed product where we could not identify the visitor as a past buyer, point
 // them at the existing self-serve lookup page instead of leaving them to contact the

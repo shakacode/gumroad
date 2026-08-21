@@ -12,6 +12,7 @@ import {
   ProductDescriptionContent,
   ProductDetails,
   ProductMembershipNotices,
+  ProductReceiptContent,
   ProductSellerAndRatings,
   ProductSellerReputation,
   ProductStreamingNotice,
@@ -44,17 +45,26 @@ export default function ProductPage({
 }: ProductPageProps) {
   const toServerContent = (
     content: ProductContentProps,
-    bundleProducts: ProductInteractionsProps["product"]["bundle_products"],
+    { product, purchase }: Pick<ProductInteractionsProps, "product" | "purchase">,
   ): ServerContent => ({
     availabilityNotice: <ProductAvailabilityNotice content={content} />,
     bundleItems: Object.fromEntries(
-      bundleProducts.map((bundleProduct) => [
+      product.bundle_products.map((bundleProduct) => [
         bundleProduct.id,
         <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
       ]),
     ),
     description: <ProductDescriptionContent content={content} />,
     membershipNotices: <ProductMembershipNotices content={content} />,
+    receipt: purchase ? (
+      <ProductReceiptContent
+        customViewContentButtonText={product.custom_view_content_button_text}
+        isBundle={product.bundle_products.length > 0}
+        isPreorder={product.preorder !== null}
+        permalink={product.permalink}
+        purchase={purchase}
+      />
+    ) : null,
     title: <ProductTitle content={content} />,
     sellerAndRatings: <ProductSellerAndRatings content={content} />,
     details: <ProductDetails content={content} />,
@@ -65,12 +75,12 @@ export default function ProductPage({
     ...productProps,
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
     hasHero: productProps.page_layout === "discover",
-    serverContent: toServerContent(rscProductContent, productProps.product.bundle_products),
+    serverContent: toServerContent(rscProductContent, productProps),
     featuredProductServerContent: Object.fromEntries(
       Object.entries(rscFeaturedProductContent).flatMap(([sectionId, content]) => {
         const section = productProps.sections.find(({ id }) => id === sectionId);
         return section?.type === "SellerProfileFeaturedProductSection" && section.props
-          ? [[sectionId, toServerContent(content, section.props.product.bundle_products)]]
+          ? [[sectionId, toServerContent(content, section.props)]]
           : [];
       }),
     ),

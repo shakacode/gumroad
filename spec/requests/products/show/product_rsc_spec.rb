@@ -133,4 +133,17 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   ensure
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
+
+  it "server-renders the receipt shell without client JavaScript" do
+    buyer = create(:user)
+    create(:purchase, link: product, purchaser: buyer, email: buyer.email)
+    login_as buyer
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_text("You've purchased this product")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
 end

@@ -8,6 +8,7 @@ import {
   ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
+  ProductReceiptContent,
   ProductSellerReputation,
   ProductStreamingNotice,
   type ProductContentProps,
@@ -58,6 +59,76 @@ describe("ProductBundleItemContent", () => {
     expect(screen.getByLabelText("Rating").textContent).toContain("4.8 (8)");
     expect(screen.getByText("Qty: 2")).toBeTruthy();
     expect(screen.getByText("Version:").parentElement?.textContent).toBe("Version: Extended edition");
+  });
+});
+
+describe("ProductReceiptContent", () => {
+  it("renders purchased bundle ownership copy as server content", () => {
+    render(
+      <ProductReceiptContent
+        customViewContentButtonText="Read bundle"
+        isBundle
+        isPreorder={false}
+        permalink="bundle"
+        purchase={{
+          id: "purchase-id",
+          email_digest: "digest",
+          created_at: "2020-01-01T00:00:00Z",
+          review: null,
+          should_show_receipt: true,
+          was_paid: true,
+          is_gift_receiver_purchase: false,
+          content_url: "https://example.com/content",
+          show_view_content_button_on_product_page: true,
+          total_price_including_tax_and_shipping: "$10",
+          subscription_has_lapsed: false,
+          membership: null,
+          license_key: "LICENSE-KEY",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "You've purchased this bundle" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Read bundle" }).getAttribute("href")).toBe("https://example.com/content");
+    expect(screen.getByRole("heading", { name: "License key" })).toBeTruthy();
+    expect(screen.getByText("LICENSE-KEY")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+  });
+
+  it("renders membership receipt details with its client management action", () => {
+    render(
+      <ProductReceiptContent
+        customViewContentButtonText={null}
+        isBundle={false}
+        isPreorder={false}
+        permalink="membership"
+        purchase={{
+          id: "purchase-id",
+          email_digest: "digest",
+          created_at: "2020-01-01T00:00:00Z",
+          review: null,
+          should_show_receipt: true,
+          was_paid: true,
+          is_gift_receiver_purchase: false,
+          content_url: null,
+          show_view_content_button_on_product_page: false,
+          total_price_including_tax_and_shipping: "$10",
+          subscription_has_lapsed: true,
+          membership: {
+            tier_name: "Supporter",
+            tier_description: null,
+            manage_url: "https://example.com/manage",
+          },
+          license_key: null,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Supporter" })).toBeTruthy();
+    expect(screen.getByText("$10")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Restart membership" }).getAttribute("href")).toBe(
+      "https://example.com/manage",
+    );
   });
 });
 

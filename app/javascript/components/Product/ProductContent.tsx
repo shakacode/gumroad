@@ -1,4 +1,5 @@
 import { Star } from "@boxicons/react";
+import { differenceInYears, parseISO } from "date-fns";
 import * as React from "react";
 
 import { COMMISSION_DEPOSIT_PROPORTION, type FreeTrial, type ProductNativeType } from "$app/parsers/product";
@@ -7,7 +8,14 @@ import { classNames } from "$app/utils/classNames";
 import { variantLabel } from "$app/utils/labels";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
+import type { Purchase } from "$app/components/Product/Interactive";
 import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
+import {
+  ProductReceiptCopyLicenseKeyAction,
+  ProductReceiptMembershipAction,
+  ProductReceiptReviewAction,
+  ProductReceiptViewContentAction,
+} from "$app/components/Product/ProductReceiptActions.client";
 import { RatingStars } from "$app/components/RatingStars";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
@@ -68,6 +76,89 @@ export const ProductBundleItemContent = ({ product }: { product: BundleProduct }
     ) : null}
   </>
 );
+
+type ProductReceiptContentProps = {
+  customViewContentButtonText: string | null;
+  isBundle: boolean;
+  isPreorder: boolean;
+  permalink: string;
+  purchase: Purchase;
+};
+
+export const ProductReceiptContent = ({
+  customViewContentButtonText,
+  isBundle,
+  isPreorder,
+  permalink,
+  purchase,
+}: ProductReceiptContentProps) => {
+  if (!purchase.should_show_receipt) return null;
+
+  const ownershipCopy = isBundle
+    ? purchase.is_gift_receiver_purchase
+      ? "You've received this bundle as a gift"
+      : purchase.was_paid
+        ? "You've purchased this bundle"
+        : "You already own this bundle"
+    : purchase.is_gift_receiver_purchase
+      ? "You've received this product as a gift"
+      : purchase.was_paid
+        ? "You've purchased this product"
+        : "You already own this product";
+  const viewContentAction = purchase.show_view_content_button_on_product_page ? (
+    <ProductReceiptViewContentAction href={purchase.content_url ?? ""} permalink={permalink}>
+      {customViewContentButtonText ?? "View content"}
+    </ProductReceiptViewContentAction>
+  ) : null;
+
+  return (
+    <section className="border-t border-border p-6">
+      <Card>
+        {purchase.membership ? (
+          <>
+            <CardContent>
+              <h5 className="grow font-bold">{purchase.membership.tier_name}</h5>
+              {purchase.total_price_including_tax_and_shipping}
+            </CardContent>
+            <CardContent>
+              <ProductReceiptMembershipAction
+                href={purchase.membership.manage_url}
+                permalink={permalink}
+                subscriptionHasLapsed={purchase.subscription_has_lapsed}
+              />
+              {viewContentAction}
+            </CardContent>
+          </>
+        ) : (
+          <CardContent asChild>
+            <li>
+              <h3 className="grow">{ownershipCopy}</h3>
+              {viewContentAction}
+            </li>
+          </CardContent>
+        )}
+        {purchase.license_key ? (
+          <CardContent>
+            <div className="grid grow gap-1">
+              <h5 className="font-bold">License key</h5>
+              <div className="break-all">{purchase.license_key}</div>
+            </div>
+            <ProductReceiptCopyLicenseKeyAction licenseKey={purchase.license_key} />
+          </CardContent>
+        ) : null}
+        {!isPreorder && differenceInYears(new Date(), parseISO(purchase.created_at)) < 1 ? (
+          <ProductReceiptReviewAction
+            permalink={permalink}
+            purchaseId={purchase.id}
+            review={purchase.review}
+            purchaseEmailDigest={purchase.email_digest}
+            className="flex flex-wrap items-center justify-between gap-4 p-4"
+          />
+        ) : null}
+      </Card>
+    </section>
+  );
+};
 
 export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
   <h1 itemProp="name" dir="auto">

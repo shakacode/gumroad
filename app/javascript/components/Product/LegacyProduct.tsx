@@ -11,6 +11,7 @@ import {
   ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
+  ProductReceiptContent,
   ProductSellerReputation,
   ProductStreamingNotice,
 } from "$app/components/Product/ProductContent";
@@ -20,9 +21,10 @@ type Props = Omit<React.ComponentProps<typeof InteractiveProduct>, "serverConten
 
 export const legacyProductContent = ({
   product,
+  purchase,
   discountCode,
   selection,
-}: Pick<Props, "product" | "discountCode" | "selection">): ServerContent => {
+}: Pick<Props, "product" | "purchase" | "discountCode" | "selection">): ServerContent => {
   let { basePriceCents } = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   if (product.bundle_products.length > 0) basePriceCents = getStandalonePrice(product);
   const showPrice =
@@ -49,6 +51,15 @@ export const legacyProductContent = ({
     ),
     description: <ProductDescriptionContent content={{ ...product, show_price: showPrice }} />,
     membershipNotices: <ProductMembershipNotices content={{ ...product, show_price: showPrice }} />,
+    receipt: purchase ? (
+      <ProductReceiptContent
+        customViewContentButtonText={product.custom_view_content_button_text}
+        isBundle={product.bundle_products.length > 0}
+        isPreorder={product.preorder !== null}
+        permalink={product.permalink}
+        purchase={purchase}
+      />
+    ) : null,
     title: (
       <h1 itemProp="name" dir="auto">
         {product.name}
