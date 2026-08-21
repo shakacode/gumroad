@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
+    Profile/ProfileFeaturedProduct.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
@@ -188,7 +189,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes sections, "postsContent"
     assert_not_includes sections, "formatPostDate"
     assert_not_includes sections, "useUserAgentInfo"
-    assert_includes product_interactions, "serverProfileSections[section.id] ??"
+    assert_includes product_interactions, "serverProfileSections[section.id]"
     assert_not_includes product_interactions, "postsContent={profilePostsServerContent[section.id]}"
     assert_includes product_page, "serverProfileSections: Object.fromEntries"
     assert_includes product_page, "<ProfileSectionFrame"
@@ -235,6 +236,20 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, 'section.type === "SellerProfileProductsSection"'
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileProducts"
+  end
+
+  test "renders featured product frames outside the product client island" do
+    featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.client.tsx")
+    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_predicate featured_product, :file?
+    assert featured_product.read.start_with?('"use client";')
+    assert_includes product_interactions, 'import type { PageProps as SectionsProps }'
+    assert_not_includes product_interactions, "<Section "
+    assert_not_includes product_interactions, "renderFeaturedProduct"
+    assert_includes product_page, "<ProfileSectionFrame"
+    assert_includes product_page, "<ProfileFeaturedProduct"
   end
 
   private

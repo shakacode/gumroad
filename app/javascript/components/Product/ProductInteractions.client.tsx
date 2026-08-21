@@ -14,15 +14,10 @@ import {
 } from "$app/components/Product/Interactive";
 import { CtaBar, EditButton } from "$app/components/Product/LayoutControls";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
-import {
-  Section,
-  type FeaturedProductRenderer,
-  type PageProps as SectionsProps,
-} from "$app/components/Profile/Sections";
+import type { PageProps as SectionsProps } from "$app/components/Profile/Sections";
 
 export type ProductInteractionsProps = ProductProps & {
   cart?: boolean;
-  featuredProductServerContent: Record<string, ServerContent>;
   hasHero?: boolean;
   main_section_index: number;
   page_layout: "discover" | "profile" | null;
@@ -39,7 +34,6 @@ export default function ProductInteractions({
   wishlists,
   main_section_index: mainSectionIndex,
   serverContent,
-  featuredProductServerContent,
   serverProfileSections,
   page_layout: pageLayout,
   ...sectionProps
@@ -80,23 +74,6 @@ export default function ProductInteractions({
     </section>
   );
 
-  const renderFeaturedProduct: FeaturedProductRenderer = ({ sectionId, props, selection, setSelection }) => {
-    const featuredServerContent = featuredProductServerContent[sectionId];
-    if (!featuredServerContent) return null;
-
-    return (
-      <InteractiveProduct
-        product={props.product}
-        purchase={props.purchase}
-        discountCode={props.discount_code}
-        wishlists={props.wishlists}
-        selection={selection}
-        setSelection={setSelection}
-        serverContent={featuredServerContent}
-      />
-    );
-  };
-
   const content = (
     <>
       <CtaBar
@@ -113,9 +90,7 @@ export default function ProductInteractions({
         ? sectionProps.sections.map((section, index) => (
             <React.Fragment key={section.id}>
               {index === mainSectionIndex ? mainSection : null}
-              {serverProfileSections[section.id] ?? (
-                <Section section={section} {...sectionProps} renderFeaturedProduct={renderFeaturedProduct} />
-              )}
+              {serverProfileSections[section.id]}
               {mainSectionIndex >= sectionProps.sections.length && index === sectionProps.sections.length - 1
                 ? mainSection
                 : null}

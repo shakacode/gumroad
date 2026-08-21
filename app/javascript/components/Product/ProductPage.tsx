@@ -21,6 +21,7 @@ import {
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
+import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
 import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
@@ -31,10 +32,7 @@ import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.clien
 import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
-export type ProductPageProps = Omit<
-  ProductInteractionsProps,
-  "featuredProductServerContent" | "serverContent" | "serverProfileSections"
-> & {
+export type ProductPageProps = Omit<ProductInteractionsProps, "serverContent" | "serverProfileSections"> & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
   rsc_product_content: ProductContentProps;
@@ -96,14 +94,6 @@ export default function ProductPage({
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
     hasHero: productProps.page_layout === "discover",
     serverContent: toServerContent(rscProductContent, productProps),
-    featuredProductServerContent: Object.fromEntries(
-      Object.entries(rscFeaturedProductContent).flatMap(([sectionId, content]) => {
-        const section = productProps.sections.find(({ id }) => id === sectionId);
-        return section?.type === "SellerProfileFeaturedProductSection" && section.props
-          ? [[sectionId, toServerContent(content, section.props)]]
-          : [];
-      }),
-    ),
     serverProfileSections: Object.fromEntries(
       productProps.sections.flatMap((section) => {
         if (section.type === "SellerProfileProductsSection") {
@@ -165,7 +155,20 @@ export default function ProductPage({
             ],
           ];
         }
-        return [];
+        const content = rscFeaturedProductContent[section.id];
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              {section.props ? (
+                <ProfileFeaturedProduct
+                  props={section.props}
+                  serverContent={content ? toServerContent(content, section.props) : null}
+                />
+              ) : null}
+            </ProfileSectionFrame>,
+          ],
+        ];
       }),
     ),
   } satisfies ProductInteractionsProps;
