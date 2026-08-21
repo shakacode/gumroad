@@ -76,6 +76,16 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "description: <ProductDescriptionContent content={content} />"
   end
 
+  test "passes static bundle item text through the client pricing loop" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+
+    assert_includes interactive_product, "serverContent.bundleItems[bundleProduct.id]"
+    assert_includes product_page, "<ProductBundleItemContent"
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product/ProductContent.tsx")
+  end
+
   test "keeps the description editor behind an asynchronous client boundary" do
     description = COMPONENT_DIRECTORY.join("Product/ProductDescription.client.tsx").read
 

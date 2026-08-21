@@ -8,6 +8,7 @@ import type { ServerContent } from "$app/components/Product/Interactive";
 import {
   type ProductContentProps,
   ProductAvailabilityNotice,
+  ProductBundleItemContent,
   ProductDescriptionContent,
   ProductDetails,
   ProductMembershipNotices,
@@ -41,8 +42,17 @@ export default function ProductPage({
   taxonomies_for_nav: taxonomiesForNav,
   ...productProps
 }: ProductPageProps) {
-  const toServerContent = (content: ProductContentProps): ServerContent => ({
+  const toServerContent = (
+    content: ProductContentProps,
+    bundleProducts: ProductInteractionsProps["product"]["bundle_products"],
+  ): ServerContent => ({
     availabilityNotice: <ProductAvailabilityNotice content={content} />,
+    bundleItems: Object.fromEntries(
+      bundleProducts.map((bundleProduct) => [
+        bundleProduct.id,
+        <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
+      ]),
+    ),
     description: <ProductDescriptionContent content={content} />,
     membershipNotices: <ProductMembershipNotices content={content} />,
     title: <ProductTitle content={content} />,
@@ -55,9 +65,14 @@ export default function ProductPage({
     ...productProps,
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
     hasHero: productProps.page_layout === "discover",
-    serverContent: toServerContent(rscProductContent),
+    serverContent: toServerContent(rscProductContent, productProps.product.bundle_products),
     featuredProductServerContent: Object.fromEntries(
-      Object.entries(rscFeaturedProductContent).map(([sectionId, content]) => [sectionId, toServerContent(content)]),
+      Object.entries(rscFeaturedProductContent).flatMap(([sectionId, content]) => {
+        const section = productProps.sections.find(({ id }) => id === sectionId);
+        return section?.type === "SellerProfileFeaturedProductSection" && section.props
+          ? [[sectionId, toServerContent(content, section.props.product.bundle_products)]]
+          : [];
+      }),
     ),
     profileRichTextServerContent: Object.fromEntries(
       productProps.sections.flatMap((section) =>

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ProductAvailabilityNotice,
+  ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
   ProductSellerReputation,
@@ -37,6 +38,28 @@ const content = {
 } satisfies ProductContentProps;
 
 afterEach(cleanup);
+
+describe("ProductBundleItemContent", () => {
+  it("renders bundle item text as server content", () => {
+    render(
+      <ProductBundleItemContent
+        product={{
+          name: "Bundle guide",
+          native_type: "digital",
+          quantity: 2,
+          ratings: { average: 4.75, count: 8 },
+          url: "https://example.com/bundle-guide",
+          variant: "Extended edition",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Bundle guide" })).toBeTruthy();
+    expect(screen.getByLabelText("Rating").textContent).toContain("4.8 (8)");
+    expect(screen.getByText("Qty: 2")).toBeTruthy();
+    expect(screen.getByText("Version:").parentElement?.textContent).toBe("Version: Extended edition");
+  });
+});
 
 describe("ProductAvailabilityNotice", () => {
   it("renders an unavailable product warning as server content", () => {

@@ -26,19 +26,10 @@ import {
 } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
-import { variantLabel } from "$app/utils/labels";
 import { assertResponseError } from "$app/utils/request";
 
 import { Button, NavigationButton } from "$app/components/Button";
-import {
-  CartItem,
-  CartItemEnd,
-  CartItemFooter,
-  CartItemList,
-  CartItemMain,
-  CartItemMedia,
-  CartItemTitle,
-} from "$app/components/CartItemList";
+import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
 import { CopyToClipboard } from "$app/components/CopyToClipboard";
 import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
@@ -258,6 +249,7 @@ export type Props = {
 
 export type ServerContent = {
   availabilityNotice: React.ReactNode;
+  bundleItems: Record<string, React.ReactNode>;
   description: React.ReactNode;
   membershipNotices: React.ReactNode;
   streamingNotice: React.ReactNode;
@@ -434,27 +426,7 @@ export const InteractiveProduct = ({
                     <CartItemMedia className="h-28 w-28">
                       <Thumbnail url={bundleProduct.thumbnail_url} nativeType={bundleProduct.native_type} />
                     </CartItemMedia>
-                    <CartItemMain className="h-28">
-                      <CartItemTitle asChild>
-                        <a href={bundleProduct.url}>
-                          <h4 className="font-bold">{bundleProduct.name}</h4>
-                        </a>
-                      </CartItemTitle>
-                      {bundleProduct.ratings ? (
-                        <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
-                          <Star pack="filled" className="size-5" />
-                          {`${bundleProduct.ratings.average.toFixed(1)} (${bundleProduct.ratings.count})`}
-                        </div>
-                      ) : null}
-                      <span className="sr-only">Qty: {bundleProduct.quantity}</span>
-                      {bundleProduct.variant ? (
-                        <CartItemFooter>
-                          <span className="line-clamp-1">
-                            <strong>{variantLabel(bundleProduct.native_type)}:</strong> {bundleProduct.variant}
-                          </span>
-                        </CartItemFooter>
-                      ) : null}
-                    </CartItemMain>
+                    <CartItemMain className="h-28">{serverContent.bundleItems[bundleProduct.id]}</CartItemMain>
                     <CartItemEnd className="flex-row items-start gap-4 p-4">
                       <span className="current-price" aria-label="Price">
                         {comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents ? (

@@ -119,4 +119,18 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   ensure
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
+
+  it "server-renders bundle item text without client JavaScript" do
+    bundle = create(:product, :bundle, user: seller, name: "Server-rendered bundle")
+    bundled_product = create(:product, user: seller, name: "Server-visible bundled guide")
+    create(:bundle_product, bundle:, product: bundled_product, quantity: 2)
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit bundle.long_url
+
+    expect(page).to have_link("Server-visible bundled guide")
+    expect(page).to have_css(".sr-only", text: "Qty: 2", visible: :all)
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
 end

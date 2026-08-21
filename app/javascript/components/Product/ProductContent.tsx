@@ -1,8 +1,10 @@
+import { Star } from "@boxicons/react";
 import * as React from "react";
 
 import { COMMISSION_DEPOSIT_PROPORTION, type FreeTrial, type ProductNativeType } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
+import { variantLabel } from "$app/utils/labels";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
 import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
@@ -35,6 +37,37 @@ export type ProductContentProps = {
   show_price: boolean;
   streamable: boolean;
 };
+
+type BundleProduct = {
+  name: string;
+  native_type: ProductNativeType;
+  quantity: number;
+  ratings: { average: number; count: number } | null;
+  url: string;
+  variant: string | null;
+};
+
+export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (
+  <>
+    <a className="line-clamp-2 text-base font-medium no-underline sm:text-lg" href={product.url}>
+      <h4 className="font-bold">{product.name}</h4>
+    </a>
+    {product.ratings ? (
+      <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
+        <Star pack="filled" className="size-5" />
+        {`${product.ratings.average.toFixed(1)} (${product.ratings.count})`}
+      </div>
+    ) : null}
+    <span className="sr-only">Qty: {product.quantity}</span>
+    {product.variant ? (
+      <footer className="mt-auto flex flex-col gap-x-4 gap-y-1 text-sm sm:flex-wrap">
+        <span className="line-clamp-1">
+          <strong>{variantLabel(product.native_type)}:</strong> {product.variant}
+        </span>
+      </footer>
+    ) : null}
+  </>
+);
 
 export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
   <h1 itemProp="name" dir="auto">

@@ -8,6 +8,7 @@ import { InteractiveProduct, RatingsSummary, type ServerContent } from "$app/com
 import { getStandalonePrice } from "$app/components/Product/pricing";
 import {
   ProductAvailabilityNotice,
+  ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
   ProductSellerReputation,
@@ -40,6 +41,12 @@ export const legacyProductContent = ({
 
   return {
     availabilityNotice: <ProductAvailabilityNotice content={{ ...product, show_price: showPrice }} />,
+    bundleItems: Object.fromEntries(
+      product.bundle_products.map((bundleProduct) => [
+        bundleProduct.id,
+        <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
+      ]),
+    ),
     description: <ProductDescriptionContent content={{ ...product, show_price: showPrice }} />,
     membershipNotices: <ProductMembershipNotices content={{ ...product, show_price: showPrice }} />,
     title: (
