@@ -134,11 +134,22 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
     page.visit product.long_url(layout: Product::Layout::PROFILE)
 
+    expect(page).to have_link(seller.name)
     expect(page).to have_button("Subscribe")
     expect(page).to have_link("Add to cart")
     expect(page).to have_no_field("Search products")
+    payload = Nokogiri::HTML(page.html).css('script[data-react-on-rails-rsc-payload="true"]').map(&:text).join
+    expect(payload).to include("Profile/ProfileHeaderActions.client")
+    expect(payload).to include("Profile/FollowForm")
   ensure
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
+
+  it "hydrates the profile header without duplicating its server shell" do
+    page.visit product.long_url(layout: Product::Layout::PROFILE)
+
+    expect(page).to have_selector("header a", text: seller.name, count: 1)
+    expect(page).to have_button("Subscribe", count: 1)
   end
 
   it "server-renders a featured product without client JavaScript" do

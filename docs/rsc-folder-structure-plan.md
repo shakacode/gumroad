@@ -60,6 +60,10 @@ DiscoverPage                         Server root
 ProductPage                          Server root
 ├── PageShell.client                 Thin provider/compatibility boundary
 └── ProductStateProvider.client      Passes server-owned children
+    ├── ProductProfileLayout          Server shell for profile-layout pages
+    │   ├── creator identity         Server content
+    │   └── follow, edit, cart,
+    │       impersonation             Focused client leaves
     ├── ProductStickyCta.client      Focused client behavior
     ├── ProductArticle               Server composition
     │   ├── title, seller, ratings,
@@ -72,6 +76,8 @@ ProductPage                          Server root
 ```
 
 `ProductPage` owns the layout branch and section ordering. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. Purchasing and browser behavior stay in focused client leaves.
+
+`ProductProfileLayout` remains separate from the legacy client `Profile/Layout`; sharing the module would add the server shell to the client manifest and destabilize hydration IDs.
 
 This plan preserves the current profile composition; it does not introduce a profile redesign or a third product layout abstraction.
 

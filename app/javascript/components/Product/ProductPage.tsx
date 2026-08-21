@@ -30,7 +30,7 @@ import {
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
-import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
+import { ProductProfileLayout } from "$app/components/Profile/ProductProfileLayout";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
@@ -242,13 +242,13 @@ export default function ProductPage({
   );
   const productContent =
     productProps.page_layout === "profile" ? (
-      <ProfileLayout
+      <ProductProfileLayout
         creatorProfile={productProps.creator_profile}
         currencySelector
         shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
       >
         {pageSections}
-      </ProfileLayout>
+      </ProductProfileLayout>
     ) : (
       <>
         {pageSections}

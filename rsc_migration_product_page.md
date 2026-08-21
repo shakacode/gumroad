@@ -9,6 +9,9 @@ ProductPage [S]
 ├─ Header [S]
 │  ├─ logo, auth links, categories [S]
 │  └─ search autocomplete [C]
+├─ Profile header [S; profile layout]
+│  ├─ creator identity and reputation [S]
+│  └─ follow, edit, cart, impersonation [C]
 ├─ ProductStateProvider [C; passes server children]
 │  ├─ Sticky CTA [C]
 │  └─ ProductArticle [S]
@@ -31,13 +34,13 @@ Client providers may receive server-composed children; they must not import serv
 
 ## Biggest wins for the least code
 
-| Rank | Change                                                                              | Typical scope                                        | Main win                                                        |
-| ---: | ----------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
-|    1 | Add an exact RSC import-graph test.                                                 | Tests only                                           | Prevents Inertia and client/server leaks.                       |
-|    2 | Render title, seller, ratings, summary, and attributes on the server.               | Rails projector + one server component + root wiring | Meaningful raw HTML and FCP.                                    |
-|    3 | Make the header shell server-owned; keep autocomplete as its existing client child. | One server shell + one slot                          | Streams the largest visible shared UI without rewriting search. |
-|    4 | Move analytics effects into a seven-prop null client island.                        | One client file + one call site                      | Removes effects and browser imports from the article.           |
-|    5 | Move notices, seller reputation, posts, and rich text to server leaves.             | Small presentation components                        | More server HTML with little behavior risk.                     |
+| Rank | Change                                                                                            | Typical scope                                        | Main win                                                        |
+| ---: | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- |
+|    1 | Add an exact RSC import-graph test.                                                               | Tests only                                           | Prevents Inertia and client/server leaks.                       |
+|    2 | Render title, seller, ratings, summary, and attributes on the server.                             | Rails projector + one server component + root wiring | Meaningful raw HTML and FCP.                                    |
+|    3 | Make the header shell server-owned; keep autocomplete as its existing client child.               | One server shell + one slot                          | Streams the largest visible shared UI without rewriting search. |
+|    4 | Move analytics effects into a seven-prop null client island.                                      | One client file + one call site                      | Removes effects and browser imports from the article.           |
+|    5 | Move notices, seller reputation, posts, rich text, and the profile header shell to server leaves. | Small presentation components                        | More server HTML with little behavior risk.                     |
 
 ## Smallest recommended branch
 

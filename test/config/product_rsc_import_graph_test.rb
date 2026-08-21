@@ -30,7 +30,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductStickyCta.client.tsx
     Product/Thumbnail.tsx
     Product/useSelectionFromUrl.client.ts
+    Profile/FollowForm.tsx
     Profile/Layout.tsx
+    Profile/ProfileHeaderActions.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
@@ -51,6 +53,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductSingleCover.tsx
     Profile/ProfileFeaturedProduct.tsx
     Profile/ProfilePostsContent.tsx
+    Profile/ProductProfileLayout.tsx
     Profile/ProfileRichText.ts
     Profile/ProfileRichTextContent.tsx
     Profile/ProfileSectionFrame.tsx
@@ -143,26 +146,53 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").exist?
   end
 
-  test "selects page-specific client layouts on the server" do
+  test "selects page-specific layouts on the server" do
     footer = COMPONENT_DIRECTORY.join("PoweredByFooter.tsx")
     sticky_cta_path = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")
     sticky_cta = sticky_cta_path.read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
-    profile_layout = COMPONENT_DIRECTORY.join("Profile/Layout.tsx")
+    legacy_profile_layout = COMPONENT_DIRECTORY.join("Profile/Layout.tsx")
+    product_profile_layout = COMPONENT_DIRECTORY.join("Profile/ProductProfileLayout.tsx")
     sticky_cta_graph = transitive_javascript_imports([sticky_cta_path])
 
     assert footer.read.start_with?('"use client";')
-    assert profile_layout.read.start_with?('"use client";')
+    assert legacy_profile_layout.read.start_with?('"use client";')
+    assert_not product_profile_layout.read.start_with?('"use client";')
     assert_not_includes sticky_cta, "$app/components/PoweredByFooter"
     assert_not_includes sticky_cta, "$app/components/Profile/Layout"
+    assert_not_includes sticky_cta, "$app/components/Profile/ProductProfileLayout"
     assert_not_includes sticky_cta, "$app/components/Product/ProductPage.types"
     assert_not_includes sticky_cta_graph, footer
-    assert_not_includes sticky_cta_graph, profile_layout
+    assert_not_includes sticky_cta_graph, legacy_profile_layout
+    assert_not_includes sticky_cta_graph, product_profile_layout
     assert_includes product_page, "$app/components/Product/ProductPage.types"
+    assert_includes product_page, "$app/components/Profile/ProductProfileLayout"
     assert_includes product_page, 'productProps.page_layout === "profile"'
     assert_includes product_page, 'productProps.page_layout !== "discover"'
-    assert_includes product_page, "<ProfileLayout"
+    assert_includes product_page, "<ProductProfileLayout"
     assert_includes product_page, "<PoweredByFooter"
+  end
+
+  test "keeps profile identity in the server layout shell" do
+    layout_path = COMPONENT_DIRECTORY.join("Profile/ProductProfileLayout.tsx")
+    layout = layout_path.read
+    actions = COMPONENT_DIRECTORY.join("Profile/ProfileHeaderActions.client.tsx")
+    follow_form = COMPONENT_DIRECTORY.join("Profile/FollowForm.tsx")
+    client_graph = transitive_javascript_imports(CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) })
+
+    assert_not layout.start_with?('"use client";')
+    assert_not_includes client_graph, layout_path
+    assert_predicate actions, :file?
+    assert actions.read.start_with?('"use client";')
+    assert follow_form.read.start_with?('"use client";')
+    assert_includes layout, "$app/components/Profile/ProfileHeaderActions.client"
+    assert_includes layout, "<ProfileImpersonateButton"
+    assert_includes layout, "<ProfileHeaderButtons"
+    assert_includes layout, "<FollowForm"
+    assert_not_includes layout, "useAppDomain"
+    assert_not_includes layout, "useCartItemsCount"
+    assert_not_includes layout, "useIsAboveBreakpoint"
+    assert_not_includes layout, "useLoggedInUser"
   end
 
   test "isolates the browser-aware product edit control" do
