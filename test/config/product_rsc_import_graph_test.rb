@@ -15,6 +15,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductInteractions.client.tsx
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
+    Product/ProductPurchaseControls.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
@@ -172,6 +173,23 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
                     "<ProductPrice product={product} selection={selection} discountCode={discountCode} />"
     assert_not_includes interactive_product, 'import { PriceTag }'
     assert_not_includes interactive_product, "buyerLocalPriceCentsForSelection("
+  end
+
+  test "isolates product configuration and purchase behavior" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    purchase_controls = COMPONENT_DIRECTORY.join("Product/ProductPurchaseControls.client.tsx")
+
+    assert_predicate purchase_controls, :file?
+    assert purchase_controls.read.start_with?('"use client";')
+    assert_includes purchase_controls.read, "<ConfigurationSelector"
+    assert_includes purchase_controls.read, "<CtaButton"
+    assert_includes purchase_controls.read, "<DiscountExpirationCountdown"
+    assert_includes purchase_controls.read, "<SubscriptionChoiceModal"
+    assert_includes interactive_product, "<ProductPurchaseControls"
+    assert_not_includes interactive_product, 'import { CtaButton }'
+    assert_not_includes interactive_product, 'import { DiscountExpirationCountdown }'
+    assert_not_includes interactive_product, 'import { SubscriptionChoiceModal }'
+    assert_not_includes interactive_product, "useLoggedInUser"
   end
 
   test "renders the receipt shell outside the product client island" do

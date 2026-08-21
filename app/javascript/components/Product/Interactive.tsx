@@ -16,23 +16,15 @@ import {
 } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
-import {
-  BuyerLocalCurrencyContext,
-  CurrencyCode,
-  formatBuyerLocalOrSetPrice,
-  formatPriceCentsWithCurrencySymbol,
-} from "$app/utils/currency";
+import { CurrencyCode, formatBuyerLocalOrSetPrice, formatPriceCentsWithCurrencySymbol } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
 
 import { NavigationButton } from "$app/components/Button";
 import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
 import { useDomains } from "$app/components/DomainSettings";
-import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
 import {
   applySelection,
-  buyerLocalContextFor,
-  ConfigurationSelector,
   ConfigurationSelectorHandle,
   getMaxQuantity,
   Option,
@@ -40,24 +32,20 @@ import {
   PurchasingPowerParityDetails,
   Recurrences,
   Rental,
-  withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
-import { CtaButton } from "$app/components/Product/CtaButton";
-import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
+import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
-import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import type { Review as FormReview } from "$app/components/ReviewForm";
-import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
@@ -73,6 +61,7 @@ type RefundPolicy = {
 };
 
 export type { PublicFile } from "$app/components/Product/ProductDescription.client";
+export { formatDiscountAmount } from "$app/components/Product/ProductPurchaseControls.client";
 
 export type ProductData = {
   id: string;
@@ -180,20 +169,6 @@ export type WishlistForProduct = Wishlist & {
   selections_in_wishlist: { variant_id: string | null; recurrence: string | null; rent: boolean; quantity: number }[];
 };
 
-export const formatDiscountAmount = (discount: Discount, buyerLocalContext: BuyerLocalCurrencyContext) => {
-  if (discount.type === "percent") {
-    return discount.tiered && discount.min_percents !== undefined && discount.max_percents !== undefined
-      ? discount.min_percents === discount.max_percents
-        ? `${discount.max_percents}%`
-        : `${discount.min_percents}%–${discount.max_percents}%`
-      : `${discount.percents}%`;
-  }
-
-  return formatBuyerLocalOrSetPrice(discount.once_per_cart_amount_cents ?? discount.cents, buyerLocalContext, {
-    symbolFormat: "long",
-  });
-};
-
 export const useSelectionFromUrl = (product: ProductData) => {
   const { searchParams } = new URL(useOriginalLocation());
   return React.useState<PriceSelection>(() => {
@@ -281,9 +256,6 @@ export const InteractiveProduct = ({
   disableAnalytics?: boolean;
   serverContent: ServerContent;
 }) => {
-  const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
-  const loggedInUser = useLoggedInUser();
-
   const [localDiscountCode, setLocalDiscountCode] = React.useState(initialDiscountCode);
   const discountCode = setDiscountCode ? initialDiscountCode : localDiscountCode;
 
@@ -293,11 +265,7 @@ export const InteractiveProduct = ({
 
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
-  const { priceCents, discountedPriceCents, pppDiscounted, isPWYW, maxQuantity, selectedOption } = selectionAttributes;
-  React.useEffect(() => {
-    if (maxQuantity !== null && selection.quantity > maxQuantity)
-      setSelection?.({ ...selection, quantity: maxQuantity });
-  }, [maxQuantity, selection.quantity]);
+  const { discountedPriceCents, selectedOption } = selectionAttributes;
   const isBundle = product.bundle_products.length > 0;
   if (isBundle) basePriceCents = getStandalonePrice(product);
   // What the price tag and the contents list below strike through as the
@@ -306,35 +274,6 @@ export const InteractiveProduct = ({
   // and nothing is struck through. Kept separate from basePriceCents, which
   // also drives whether the price tag renders at all.
   const comparisonPriceCents = isBundle ? getBundleComparisonPriceCents(product, selectedOption) : basePriceCents;
-
-  const validate = () => {
-    if (isPWYW && (selection.price.value === null || selection.price.value < discountedPriceCents)) {
-      setSelection?.({ ...selection, price: { ...selection.price, error: true } });
-      if (selection.price.value === null) {
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert("You must input an amount", "warning");
-      } else if (selection.price.value < discountedPriceCents) {
-        const formattedMinPrice = formatBuyerLocalOrSetPrice(
-          discountedPriceCents,
-          {
-            currencyCode: product.currency_code,
-            buyerCurrency: product.buyer_currency,
-            buyerLocalCurrencyRate: product.buyer_local_currency_rate,
-            buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
-          },
-          { symbolFormat: "short" },
-        );
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert(`Minimum price for this product is ${formattedMinPrice}.`, "error");
-      }
-      return false;
-    }
-    if (product.native_type === "call" && !selection.callStartTime) {
-      showAlert("You must select a date and time for the call", "warning");
-      return false;
-    }
-    return true;
-  };
 
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
@@ -419,116 +358,21 @@ export const InteractiveProduct = ({
       </section>
       <section>
         <section className="grid gap-4 p-6 not-first:border-t">
-          {serverContent.availabilityNotice}
-          {discountCode ? (
-            discountCode.valid ? (
-              (discountedPriceCents < priceCents ||
-                discountCode.discount.minimum_quantity ||
-                (discountCode.discount.type === "fixed" && discountCode.discount.once_per_cart)) &&
-              !pppDiscounted ? (
-                <Alert role="status" variant="success">
-                  <div className="flex flex-col gap-4">
-                    {discountCode.discount.minimum_quantity
-                      ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
-                      : `${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
-                    {discountCode.discount.duration_in_billing_cycles && product.is_recurring_billing ? (
-                      <div>This discount will only apply to the first payment of your subscription.</div>
-                    ) : null}
-                    {discountCode.discount.minimum_amount_cents ? (
-                      <div>
-                        {(discountCode.discount.product_ids?.length ?? 0) === 1
-                          ? `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
-                              discountCode.discount.minimum_amount_cents,
-                              buyerLocalContextFor(product),
-                              { symbolFormat: "short" },
-                            )} or more.`
-                          : `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
-                              discountCode.discount.minimum_amount_cents,
-                              buyerLocalContextFor(product),
-                              { symbolFormat: "short" },
-                            )} or more in ${
-                              !discountCode.discount.product_ids && product.seller
-                                ? `${product.seller.name}'s`
-                                : "selected"
-                            } products.`}
-                      </div>
-                    ) : null}
-                    {discountCode.discount.expires_at ? (
-                      <DiscountExpirationCountdown
-                        expiresAt={new Date(discountCode.discount.expires_at)}
-                        onExpiration={() => {
-                          const inactiveDiscount = { valid: false, error_code: "inactive" } as const;
-                          if (setDiscountCode) setDiscountCode(inactiveDiscount);
-                          else setLocalDiscountCode(inactiveDiscount);
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                </Alert>
-              ) : null
-            ) : (
-              <Alert role="status" variant="danger">
-                {discountCode.error_code === "sold_out"
-                  ? "Sorry, the discount code you wish to use has reached its usage limit."
-                  : discountCode.error_code === "invalid_offer"
-                    ? "Sorry, the discount code you wish to use is invalid."
-                    : discountCode.error_code === "not_existing_customer"
-                      ? "Sorry, this discount code is only for existing customers."
-                      : "Sorry, the discount code you wish to use is inactive."}
-              </Alert>
-            )
-          ) : null}
-          <ConfigurationSelector
-            product={product}
-            selection={selection}
-            setSelection={setSelection}
-            discount={discountCode?.valid ? withConfiguredOncePerCartAmount(discountCode.discount) : null}
-            ref={configurationSelectorRef}
-          />
-          {product.ppp_details && pppDiscounted ? (
-            <Alert role="status" variant="info">
-              This product supports purchasing power parity. Because you're located in{" "}
-              <b>{product.ppp_details.country}</b>, the price has been discounted by{" "}
-              <b>
-                {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(undefined, {
-                  style: "percent",
-                })}
-              </b>{" "}
-              to{" "}
-              <b>
-                {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContextFor(product), {
-                  symbolFormat: "long",
-                })}
-              </b>
-              .
-              {discountCode?.valid
-                ? " This discount will be applied because it is greater than the offer code discount."
-                : null}
-            </Alert>
-          ) : null}
-          {serverContent.membershipNotices}
-          <CtaButton
-            ref={ctaButtonRef}
+          <ProductPurchaseControls
             product={product}
             purchase={purchase}
-            discountCode={discountCode ?? null}
+            discountCode={discountCode}
             selection={selection}
-            label={ctaLabel}
-            showInstallmentPlanNotes
-            onClick={(e) => {
-              if (!validate()) {
-                e.preventDefault();
-                return;
-              }
-              if (
-                loggedInUser &&
-                purchase &&
-                (purchase.membership || purchase.subscription_has_lapsed) &&
-                product.is_recurring_billing
-              ) {
-                e.preventDefault();
-                setCheckoutUrlForModal(e.currentTarget.href);
-              }
+            setSelection={setSelection}
+            ctaButtonRef={ctaButtonRef}
+            configurationSelectorRef={configurationSelectorRef}
+            ctaLabel={ctaLabel}
+            availabilityNotice={serverContent.availabilityNotice}
+            membershipNotices={serverContent.membershipNotices}
+            onDiscountExpiration={() => {
+              const inactiveDiscount = { valid: false, error_code: "inactive" } as const;
+              if (setDiscountCode) setDiscountCode(inactiveDiscount);
+              else setLocalDiscountCode(inactiveDiscount);
             }}
           />
           {product.sales_count !== null ? (
@@ -561,13 +405,6 @@ export const InteractiveProduct = ({
         ) : null}
         {serverContent.sellerReputation}
       </section>
-      {purchase && (purchase.membership || purchase.subscription_has_lapsed) && product.is_recurring_billing ? (
-        <SubscriptionChoiceModal
-          purchase={purchase}
-          checkoutUrl={checkoutUrlForModal ?? ""}
-          onClose={() => setCheckoutUrlForModal(null)}
-        />
-      ) : null}
     </article>
   );
 };
