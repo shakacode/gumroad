@@ -1,31 +1,32 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
-import { UserAgentProvider } from "$app/components/UserAgent";
 
-const mocks = vi.hoisted(() => ({ trackUserProductAction: vi.fn() }));
-
-vi.mock("$app/data/user_action_event", () => ({ trackUserProductAction: mocks.trackUserProductAction }));
+vi.mock("$app/components/Product/ProductRefundPolicyModal", () => ({
+  default: ({ refundPolicy, onClose }: { refundPolicy: { fine_print: string }; onClose: () => void }) => (
+    <div role="dialog">
+      {refundPolicy.fine_print}
+      <button onClick={onClose}>Close</button>
+    </div>
+  ),
+}));
 
 const renderPolicy = (finePrint: string | null) =>
   render(
-    <UserAgentProvider value={{ isMobile: false, locale: "en-US" }}>
-      <ProductRefundPolicy
-        refundPolicy={{
-          title: "30-day money back guarantee",
-          fine_print: finePrint,
-          updated_at: "2024-01-02T00:00:00Z",
-        }}
-        permalink="demo-product"
-      />
-    </UserAgentProvider>,
+    <ProductRefundPolicy
+      refundPolicy={{
+        title: "30-day money back guarantee",
+        fine_print: finePrint,
+        updated_at: "2024-01-02T00:00:00Z",
+      }}
+      permalink="demo-product"
+    />,
   );
 
 beforeEach(() => {
-  mocks.trackUserProductAction.mockReset();
   window.history.replaceState({}, "", "/products/demo");
 });
 
@@ -39,23 +40,25 @@ describe("ProductRefundPolicy", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  it("opens and tracks the fine print dialog", async () => {
+  it("loads the fine print dialog on demand", async () => {
     renderPolicy("Refund requests are reviewed within two business days.");
 
     fireEvent.click(screen.getByRole("link", { name: "30-day money back guarantee" }));
 
-    expect(screen.getByRole("dialog").textContent).toContain("Refund requests are reviewed within two business days.");
-    expect(screen.getByText("Last updated Jan 2, 2024")).toBeTruthy();
-    await waitFor(() =>
-      expect(mocks.trackUserProductAction).toHaveBeenCalledWith({
-        name: "product_refund_policy_fine_print_view",
-        permalink: "demo-product",
-        isModal: true,
-      }),
+    expect((await screen.findByRole("dialog")).textContent).toContain(
+      "Refund requests are reviewed within two business days.",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(window.location.hash).toBe("");
+  });
+
+  it("loads the fine print dialog for a refund-policy deep link", async () => {
+    window.history.replaceState({}, "", "/products/demo#refund-policy");
+
+    renderPolicy("Refund requests are reviewed within two business days.");
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 });

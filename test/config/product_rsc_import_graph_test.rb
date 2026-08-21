@@ -270,13 +270,21 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
     refund_policy = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicy.client.tsx")
+    refund_policy_modal = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicyModal.tsx")
     secondary_actions = COMPONENT_DIRECTORY.join("Product/ProductSecondaryActions.client.tsx")
 
     assert_predicate refund_policy, :file?
     assert refund_policy.read.start_with?('"use client";')
-    assert_includes refund_policy.read, "<Modal"
-    assert_includes refund_policy.read, "useUserAgentInfo()"
-    assert_includes refund_policy.read, "trackUserProductAction"
+    assert_includes refund_policy.read, 'import("$app/components/Product/ProductRefundPolicyModal")'
+    assert_includes refund_policy.read, "React.lazy"
+    assert_includes refund_policy.read, "fetchWithOneRetry"
+    assert_not_includes refund_policy.read, 'from "$app/components/Modal"'
+    assert_not_includes refund_policy.read, "useUserAgentInfo"
+    assert_not_includes refund_policy.read, "trackUserProductAction"
+    assert_predicate refund_policy_modal, :file?
+    assert_includes refund_policy_modal.read, "<Modal"
+    assert_includes refund_policy_modal.read, "useUserAgentInfo()"
+    assert_includes refund_policy_modal.read, "trackUserProductAction"
     assert_predicate secondary_actions, :file?
     assert secondary_actions.read.start_with?('"use client";')
     assert_includes secondary_actions.read, "<ShareSection"

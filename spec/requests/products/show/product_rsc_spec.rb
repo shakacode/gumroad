@@ -120,6 +120,24 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
+  it "loads refund policy fine print on demand" do
+    refund_policy = create(
+      :product_refund_policy,
+      product:,
+      seller:,
+      fine_print: "Refund requests are reviewed within two business days."
+    )
+    seller.update!(refund_policy_enabled: false)
+    product.update!(product_refund_policy_enabled: true)
+
+    page.visit product.long_url
+    page.click_on(refund_policy.title)
+
+    within_modal refund_policy.title do
+      expect(page).to have_text("Refund requests are reviewed within two business days.")
+    end
+  end
+
   it "hydrates the server-rendered first image cover without duplication" do
     create_local_image_cover
 
