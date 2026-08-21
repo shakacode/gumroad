@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/CoffeeProduct.tsx
     Product/ProductAnalytics.client.tsx
     Product/ProductBundle.client.tsx
+    Product/ProductCardAnalytics.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductEditButton.client.tsx
     Product/ProductLicenseKeyLookup.client.tsx
@@ -41,6 +42,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
     Discover/DiscoverPage.tsx
+    Product/Card.tsx
     Product/ProductArticle.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
@@ -190,6 +192,20 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes interactive_product, "$app/data/view_event"
     assert_not_includes interactive_product, "$app/utils/user_analytics"
     assert_not_includes interactive_product, "$app/components/useAddThirdPartyAnalytics"
+  end
+
+  test "isolates product card analytics in a null client island" do
+    analytics = COMPONENT_DIRECTORY.join("Product/ProductCardAnalytics.client.tsx")
+    card = COMPONENT_DIRECTORY.join("Product/Card.tsx").read
+
+    assert_predicate analytics, :file?
+    assert analytics.read.start_with?('"use client";')
+    assert_match(/return null;/, analytics.read)
+    assert_includes analytics.read, "trackBuyerCurrencyDisplayView"
+    assert_includes analytics.read, "useRunOnce"
+    assert_includes card, "<ProductCardAnalytics"
+    assert_not_includes card, "trackBuyerCurrencyDisplayView"
+    assert_not_includes card, "useRunOnce"
   end
 
   test "passes server-rendered description content through the client island" do
