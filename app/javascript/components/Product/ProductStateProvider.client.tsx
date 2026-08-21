@@ -3,7 +3,8 @@
 import * as React from "react";
 
 import type { ConfigurationSelectorHandle, PriceSelection } from "$app/components/Product/ConfigurationSelector";
-import { type ProductData, type ProductDiscount, useSelectionFromUrl } from "$app/components/Product/Interactive";
+import type { ProductData, ProductDiscount } from "$app/components/Product/Interactive";
+import { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client";
 
 type ProductState = {
   selection: PriceSelection;

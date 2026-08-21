@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProductData, ProductDiscount } from "$app/components/Product/Interactive";
 import { ProductStateProvider, useProductState } from "$app/components/Product/ProductStateProvider.client";
 
-vi.mock("$app/components/Product/Interactive", () => ({
+vi.mock("$app/components/Product/useSelectionFromUrl.client", () => ({
   useSelectionFromUrl: () => [{ price: { error: false, value: null }, quantity: 1 }, vi.fn()],
 }));
 

@@ -23,6 +23,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
+    Product/useSelectionFromUrl.client.ts
     Profile/ProfileFeaturedProduct.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
@@ -75,13 +76,21 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "composes product state around server-owned children" do
     provider = COMPONENT_DIRECTORY.join("Product/ProductStateProvider.client.tsx")
+    selection_from_url = COMPONENT_DIRECTORY.join("Product/useSelectionFromUrl.client.ts")
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").read
     interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
     assert_predicate provider, :file?
+    assert_predicate selection_from_url, :file?
+    assert selection_from_url.read.start_with?('"use client";')
     assert_includes provider.read, "children: React.ReactNode"
     assert_includes provider.read, "useSelectionFromUrl(product)"
+    assert_includes provider.read, "$app/components/Product/useSelectionFromUrl.client"
+    assert_not_includes provider.read, "useSelectionFromUrl } from \"$app/components/Product/Interactive\""
+    assert_includes interactive_product, 'export { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client"'
+    assert_not_includes interactive_product, "export const useSelectionFromUrl"
     assert_includes provider.read, "React.useState(initialDiscountCode)"
     assert_includes interactions, "useProductState()"
     assert_not_includes interactions, "useSelectionFromUrl(product)"
