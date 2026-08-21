@@ -43,13 +43,13 @@ import {
   Rental,
   withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
-import { Covers as CoversComponent } from "$app/components/Product/Covers";
 import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
+import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
@@ -61,7 +61,6 @@ import type { Review as FormReview } from "$app/components/ReviewForm";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
-import { useOnChange } from "$app/components/useOnChange";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useUserAgentInfo } from "$app/components/UserAgent";
 import { useRunOnce } from "$app/components/useRunOnce";
@@ -355,7 +354,7 @@ export const InteractiveProduct = ({
         productName={product.name}
         sellerId={product.seller?.id}
       />
-      <Covers
+      <ProductMedia
         covers={product.covers}
         initialCover={serverContent.initialCover}
         mainCoverId={product.main_cover_id}
@@ -602,34 +601,6 @@ export const InteractiveProduct = ({
         />
       ) : null}
     </article>
-  );
-};
-
-const Covers = ({
-  covers,
-  initialCover,
-  mainCoverId,
-  productName,
-}: {
-  covers: AssetPreview[];
-  initialCover: ServerContent["initialCover"];
-  mainCoverId: string | null;
-  productName: string;
-}) => {
-  const [activeCoverId, setActiveCoverId] = React.useState(mainCoverId);
-  useOnChange(() => setActiveCoverId(mainCoverId), [mainCoverId]);
-
-  if (covers.length === 0) return null;
-
-  return (
-    <CoversComponent
-      covers={covers}
-      activeCoverId={activeCoverId}
-      setActiveCoverId={setActiveCoverId}
-      initialCover={initialCover}
-      productName={productName}
-      className={activeCoverId ? "" : "pb-[25%]"}
-    />
   );
 };
 

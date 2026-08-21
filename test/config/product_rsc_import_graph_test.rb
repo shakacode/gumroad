@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductArticleInteractions.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
+    Product/ProductMedia.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
@@ -123,11 +124,17 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   test "passes the server-rendered initial cover through the client carousel" do
     covers = COMPONENT_DIRECTORY.join("Product/Covers/index.tsx").read
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_media = COMPONENT_DIRECTORY.join("Product/ProductMedia.client.tsx")
     product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
+    assert_predicate product_media, :file?
+    assert product_media.read.start_with?('"use client";')
     assert_includes covers, "initialContent={initialCover?.id === cover.id ? initialCover.content : null}"
-    assert_includes interactive_product, "initialCover={serverContent.initialCover}"
+    assert_includes interactive_product, "<ProductMedia"
+    assert_includes product_media.read, "initialCover={initialCover}"
+    assert_includes product_media.read, "useOnChange(() => setActiveCoverId(mainCoverId), [mainCoverId])"
+    assert_not_includes interactive_product, "useOnChange"
     assert_includes product_content, "export const ProductCoverImage"
     assert_includes product_page, "content: <ProductCoverImage"
   end
