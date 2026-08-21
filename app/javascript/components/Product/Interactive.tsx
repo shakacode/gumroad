@@ -1,4 +1,3 @@
-import { parseISO } from "date-fns";
 import * as React from "react";
 
 import { Wishlist } from "$app/data/wishlists";
@@ -16,7 +15,6 @@ import {
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 import { CurrencyCode } from "$app/utils/currency";
-import { formatDate } from "$app/utils/date";
 
 import {
   ConfigurationSelectorHandle,
@@ -32,15 +30,14 @@ import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
+import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
-import { Ribbon } from "$app/components/Product/Ribbon";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import type { Review as FormReview } from "$app/components/ReviewForm";
-import { Alert } from "$app/components/ui/Alert";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 
 export type Seller = { id: string; name: string; avatar_url: string; profile_url: string; is_verified: boolean };
@@ -211,8 +208,10 @@ export type ServerContent = {
   descriptionNeedsClientEnhancement: boolean;
   initialCover: { id: string; content: React.ReactNode } | null;
   membershipNotices: React.ReactNode;
+  quantityRemaining: React.ReactNode;
   receipt: React.ReactNode;
   reviews: React.ReactNode;
+  salesNotice: React.ReactNode;
   streamingNotice: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
@@ -271,7 +270,7 @@ export const InteractiveProduct = ({
         mainCoverId={product.main_cover_id}
         productName={product.name}
       />
-      {product.quantity_remaining !== null ? <Ribbon>{product.quantity_remaining} left</Ribbon> : null}
+      {serverContent.quantityRemaining}
       <section className="lg:border-r">
         <header className="grid gap-4 p-6 not-first:border-t">
           {/* dir="auto" lets an RTL product name (Hebrew, Arabic) render right-to-left
@@ -323,24 +322,8 @@ export const InteractiveProduct = ({
               else setLocalDiscountCode(inactiveDiscount);
             }}
           />
-          {product.sales_count !== null ? (
-            <Alert role="status" variant="info">
-              <strong>{product.sales_count.toLocaleString()}</strong>{" "}
-              {product.recurrences
-                ? "member"
-                : product.preorder
-                  ? "pre-order"
-                  : product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)
-                    ? "sale"
-                    : "download"}
-              {product.sales_count === 1 ? "" : "s"}
-            </Alert>
-          ) : null}
-          {product.preorder ? (
-            <Alert role="status" variant="info">
-              Available on {formatDate(parseISO(product.preorder.release_date))}
-            </Alert>
-          ) : null}
+          {serverContent.salesNotice}
+          <ProductPreorderNotice releaseDate={product.preorder?.release_date ?? null} />
           {serverContent.streamingNotice}
           {serverContent.details}
           <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />

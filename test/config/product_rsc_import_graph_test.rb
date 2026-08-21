@@ -17,6 +17,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductLicenseKeyLookup.client.tsx
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
+    Product/ProductPreorderNotice.client.tsx
     Product/ProductPurchaseControls.client.tsx
     Product/ProductSecondaryActions.client.tsx
     Product/ProductReceiptActions.client.tsx
@@ -239,6 +240,29 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes interactive_product, "<ProductLicenseKeyLookup"
     assert_not_includes interactive_product, "LicenseKeyLookupPrompt"
     assert_not_includes interactive_product, "useDomains"
+  end
+
+  test "renders deterministic product notices on the server and formats preorder dates on the client" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    preorder_notice = COMPONENT_DIRECTORY.join("Product/ProductPreorderNotice.client.tsx")
+
+    assert_includes product_content, "export const ProductQuantityRemaining"
+    assert_includes product_content, "export const ProductSalesNotice"
+    assert_includes product_page, "quantityRemaining: <ProductQuantityRemaining"
+    assert_includes product_page, "<ProductSalesNotice"
+    assert_includes product_page, "locale={global.locale}"
+    assert_includes interactive_product, "serverContent.quantityRemaining"
+    assert_includes interactive_product, "serverContent.salesNotice"
+    assert_predicate preorder_notice, :file?
+    assert preorder_notice.read.start_with?('"use client";')
+    assert_includes preorder_notice.read, "formatDate(parseISO(releaseDate))"
+    assert_includes interactive_product, "<ProductPreorderNotice"
+    assert_not_includes interactive_product, "parseISO"
+    assert_not_includes interactive_product, "formatDate"
+    assert_not_includes interactive_product, "<Ribbon"
+    assert_not_includes interactive_product, "<Alert"
   end
 
   test "keeps the description editor behind an asynchronous client boundary" do

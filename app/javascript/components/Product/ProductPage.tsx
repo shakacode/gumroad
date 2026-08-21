@@ -14,10 +14,12 @@ import {
   ProductDescriptionContent,
   ProductDetails,
   ProductMembershipNotices,
+  ProductQuantityRemaining,
   ProductReceiptContent,
   ProductReviewsContent,
   ProductSellerAndRatings,
   ProductSellerReputation,
+  ProductSalesNotice,
   ProductStreamingNotice,
   ProductTitle,
   productDescriptionNeedsClientEnhancement,
@@ -77,6 +79,7 @@ export default function ProductPage({
           }
         : null,
       membershipNotices: <ProductMembershipNotices content={content} />,
+      quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,
       receipt: purchase ? (
         <ProductReceiptContent
           customViewContentButtonText={product.custom_view_content_button_text}
@@ -88,6 +91,15 @@ export default function ProductPage({
       ) : null,
       reviews:
         product.ratings && product.ratings.count > 0 ? <ProductReviewsContent ratings={product.ratings} /> : null,
+      salesNotice: (
+        <ProductSalesNotice
+          salesCount={product.sales_count}
+          isMembership={product.recurrences !== null}
+          isPreorder={product.preorder !== null}
+          hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
+          locale={global.locale}
+        />
+      ),
       title: <ProductTitle content={content} />,
       sellerAndRatings: <ProductSellerAndRatings content={content} />,
       details: <ProductDetails content={content} />,

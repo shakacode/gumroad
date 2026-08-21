@@ -9,9 +9,11 @@ import {
   ProductCoverImage,
   ProductDescriptionContent,
   ProductMembershipNotices,
+  ProductQuantityRemaining,
   ProductReceiptContent,
   ProductReviewsContent,
   ProductSellerReputation,
+  ProductSalesNotice,
   ProductStreamingNotice,
   type ProductContentProps,
   productDescriptionNeedsClientEnhancement,
@@ -110,6 +112,20 @@ describe("ProductCoverImage", () => {
     );
 
     expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("product notices", () => {
+  it("renders remaining quantity as server content", () => {
+    render(<ProductQuantityRemaining quantityRemaining={2} />);
+
+    expect(screen.getByText("2 left")).toBeTruthy();
+  });
+
+  it("renders the sales count and product-specific noun as server content", () => {
+    render(<ProductSalesNotice salesCount={1000} isMembership isPreorder={false} hasPaidPrice locale="de-DE" />);
+
+    expect(screen.getByRole("status").textContent).toBe("1.000 members");
   });
 });
 

@@ -23,6 +23,7 @@ import {
   ProductReceiptReviewAction,
   ProductReceiptViewContentAction,
 } from "$app/components/Product/ProductReceiptActions.client";
+import { Ribbon } from "$app/components/Product/Ribbon";
 import { RatingStars } from "$app/components/RatingStars";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
@@ -65,6 +66,30 @@ type BundleProduct = {
 export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview; productName: string }) =>
   cover.type === "image" && cover.native_width && cover.native_height ? (
     <img className="max-h-full w-full object-contain" src={cover.url} alt={productName} itemProp="image" />
+  ) : null;
+
+export const ProductQuantityRemaining = ({ quantityRemaining }: { quantityRemaining: number | null }) =>
+  quantityRemaining !== null ? <Ribbon>{quantityRemaining} left</Ribbon> : null;
+
+export const ProductSalesNotice = ({
+  salesCount,
+  isMembership,
+  isPreorder,
+  hasPaidPrice,
+  locale,
+}: {
+  salesCount: number | null;
+  isMembership: boolean;
+  isPreorder: boolean;
+  hasPaidPrice: boolean;
+  locale?: string | undefined;
+}) =>
+  salesCount !== null ? (
+    <Alert role="status" variant="info">
+      <strong>{salesCount.toLocaleString(locale)}</strong>{" "}
+      {isMembership ? "member" : isPreorder ? "pre-order" : hasPaidPrice ? "sale" : "download"}
+      {salesCount === 1 ? "" : "s"}
+    </Alert>
   ) : null;
 
 export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (

@@ -11,9 +11,11 @@ import {
   ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
+  ProductQuantityRemaining,
   ProductReceiptContent,
   ProductReviewsContent,
   ProductSellerReputation,
+  ProductSalesNotice,
   ProductStreamingNotice,
 } from "$app/components/Product/ProductContent";
 import { Card, CardContent } from "$app/components/ui/Card";
@@ -54,6 +56,7 @@ export const legacyProductContent = ({
     descriptionNeedsClientEnhancement: true,
     initialCover: null,
     membershipNotices: <ProductMembershipNotices content={{ ...product, show_price: showPrice }} />,
+    quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,
     receipt: purchase ? (
       <ProductReceiptContent
         customViewContentButtonText={product.custom_view_content_button_text}
@@ -64,6 +67,14 @@ export const legacyProductContent = ({
       />
     ) : null,
     reviews: product.ratings && product.ratings.count > 0 ? <ProductReviewsContent ratings={product.ratings} /> : null,
+    salesNotice: (
+      <ProductSalesNotice
+        salesCount={product.sales_count}
+        isMembership={product.recurrences !== null}
+        isPreorder={product.preorder !== null}
+        hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
+      />
+    ),
     title: (
       <h1 itemProp="name" dir="auto">
         {product.name}
