@@ -9,8 +9,6 @@ import type { PriceSelection } from "$app/components/Product/ConfigurationSelect
 
 import { CtaBar } from "./Layout";
 
-const mocks = vi.hoisted(() => ({ isDesktop: true }));
-
 vi.mock("$app/components/Product", () => ({
   Product: () => null,
   RatingsSummary: () => null,
@@ -31,10 +29,6 @@ vi.mock("$app/components/Product/ConfigurationSelector", () => ({
 vi.mock("$app/components/Product/CtaButton", () => ({ CtaButton: () => <a href="#checkout">Buy</a> }));
 vi.mock("$app/components/Product/PriceTag", () => ({ PriceTag: () => null }));
 vi.mock("$app/components/Product/pricing", () => ({ getBundleComparisonPriceCents: () => null }));
-vi.mock("$app/components/useIsAboveBreakpoint", () => ({
-  useIsAboveBreakpoint: () => mocks.isDesktop,
-}));
-
 let intersectionCallback: IntersectionObserverCallback;
 
 class FakeIntersectionObserver {
@@ -78,31 +72,35 @@ const renderCtaBar = () =>
 
 describe("CtaBar", () => {
   beforeEach(() => {
-    mocks.isDesktop = true;
     vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
   });
 
   afterEach(cleanup);
 
-  it("moves the desktop bar without changing its layout dimensions", () => {
+  it("uses responsive CSS to position the hidden bar before hydration", () => {
     renderCtaBar();
     const bar = screen.getByRole("region", { name: "Product information bar" });
 
-    expect(bar.style.transform).toBe("translateY(-100%)");
+    for (const className of ["bottom-0", "translate-y-full", "lg:top-0", "lg:bottom-auto", "lg:-translate-y-full"])
+      expect(bar.classList.contains(className)).toBe(true);
+    expect(bar.style.transform).toBe("");
+    expect(bar.style.top).toBe("");
+    expect(bar.style.bottom).toBe("");
     expect(bar.style.height).toBe("");
 
     act(() =>
       intersectionCallback([{ isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver),
     );
 
-    expect(bar.style.transform).toBe("translateY(0)");
+    expect(bar.style.translate).toBe("0 0");
     expect(bar.style.height).toBe("");
   });
 
   it("hides the mobile bar below the viewport", () => {
-    mocks.isDesktop = false;
     renderCtaBar();
 
-    expect(screen.getByRole("region", { name: "Product information bar" }).style.transform).toBe("translateY(100%)");
+    const bar = screen.getByRole("region", { name: "Product information bar" });
+    expect(bar.classList.contains("translate-y-full")).toBe(true);
+    expect(bar.style.transform).toBe("");
   });
 });

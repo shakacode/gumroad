@@ -12,7 +12,6 @@ import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents } from "$app/components/Product/pricing";
 import { ProductRatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 import { showAlert } from "$app/components/server-components/Alert";
-import { useIsAboveBreakpoint } from "$app/components/useIsAboveBreakpoint";
 
 export const CtaBar = ({
   product,
@@ -45,7 +44,6 @@ export const CtaBar = ({
   } = selectionAttributes;
 
   const [visible, setVisible] = React.useState(false);
-  const isDesktop = useIsAboveBreakpoint("lg");
 
   React.useEffect(() => {
     if (!ctaButtonRef.current) return;
@@ -67,22 +65,16 @@ export const CtaBar = ({
   return (
     <section
       aria-label="Product information bar"
-      className="border-0 bg-background"
+      className="fixed inset-x-0 bottom-0 order-1 translate-y-full border-0 bg-background lg:top-0 lg:bottom-auto lg:order-none lg:-translate-y-full"
       style={{
         padding: 0,
-        // IntersectionObserver can update after rich content loads; transforms keep that reveal out of layout.
-        transform: `translateY(${visible ? 0 : isDesktop ? "-100%" : "100%"})`,
-        transition: "transform var(--transition-duration)",
+        // CSS owns the hidden side so SSR cannot choose a mobile position for a desktop viewport from the user agent.
+        translate: visible ? "0 0" : undefined,
+        transition: "translate var(--transition-duration)",
         flexShrink: 0,
-        order: isDesktop ? undefined : 1,
         boxShadow: visible
           ? "0 var(--border-width) rgb(var(--color)), 0 calc(-1 * var(--border-width)) rgb(var(--color))"
           : undefined,
-        position: "fixed",
-        top: isDesktop ? 0 : undefined,
-        bottom: isDesktop ? undefined : 0,
-        left: 0,
-        right: 0,
         zIndex: "var(--z-index-menubar)",
         marginTop: hasHero ? "var(--border-width)" : undefined,
       }}
