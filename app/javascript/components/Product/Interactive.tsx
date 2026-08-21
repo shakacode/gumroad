@@ -15,14 +15,12 @@ import {
 } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
-import { CurrencyCode, formatBuyerLocalOrSetPrice, formatPriceCentsWithCurrencySymbol } from "$app/utils/currency";
+import { CurrencyCode } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
 
 import { NavigationButton } from "$app/components/Button";
-import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
 import { useDomains } from "$app/components/DomainSettings";
 import {
-  applySelection,
   ConfigurationSelectorHandle,
   getMaxQuantity,
   Option,
@@ -31,8 +29,8 @@ import {
   Recurrences,
   Rental,
 } from "$app/components/Product/ConfigurationSelector";
-import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
+import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
@@ -40,7 +38,6 @@ import { ProductPurchaseControls } from "$app/components/Product/ProductPurchase
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
-import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import type { Review as FormReview } from "$app/components/ReviewForm";
@@ -259,18 +256,6 @@ export const InteractiveProduct = ({
     if (!setDiscountCode) setLocalDiscountCode(initialDiscountCode);
   }, [initialDiscountCode, setDiscountCode]);
 
-  const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
-  let { basePriceCents } = selectionAttributes;
-  const { discountedPriceCents, selectedOption } = selectionAttributes;
-  const isBundle = product.bundle_products.length > 0;
-  if (isBundle) basePriceCents = getStandalonePrice(product);
-  // What the price tag and the contents list below strike through as the
-  // "original price". Usually the same standalone sum, but on a bundle tier
-  // that costs extra there is no honest comparison to draw, so this is null
-  // and nothing is struck through. Kept separate from basePriceCents, which
-  // also drives whether the price tag renders at all.
-  const comparisonPriceCents = isBundle ? getBundleComparisonPriceCents(product, selectedOption) : basePriceCents;
-
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
       <ProductAnalytics
@@ -306,43 +291,12 @@ export const InteractiveProduct = ({
         ) : product.is_licensed && !product.can_edit ? (
           <LicenseKeyLookupPrompt />
         ) : null}
-        {isBundle ? (
-          <section className="grid gap-4 border-t border-border p-6">
-            <h2>This bundle contains...</h2>
-            <CartItemList>
-              {product.bundle_products.map((bundleProduct) => {
-                const price =
-                  bundleProduct.currency_code === product.currency_code
-                    ? formatBuyerLocalOrSetPrice(bundleProduct.price, {
-                        currencyCode: product.currency_code,
-                        buyerCurrency: product.buyer_currency,
-                        buyerLocalCurrencyRate: product.buyer_local_currency_rate,
-                        buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
-                      })
-                    : formatPriceCentsWithCurrencySymbol(bundleProduct.currency_code, bundleProduct.price, {
-                        symbolFormat: "long",
-                      });
-                return (
-                  <CartItem key={bundleProduct.id} isBundleItem>
-                    <CartItemMedia className="h-28 w-28">
-                      <Thumbnail url={bundleProduct.thumbnail_url} nativeType={bundleProduct.native_type} />
-                    </CartItemMedia>
-                    <CartItemMain className="h-28">{serverContent.bundleItems[bundleProduct.id]}</CartItemMain>
-                    <CartItemEnd className="flex-row items-start gap-4 p-4">
-                      <span className="current-price" aria-label="Price">
-                        {comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents ? (
-                          <s>{price}</s>
-                        ) : (
-                          price
-                        )}
-                      </span>
-                    </CartItemEnd>
-                  </CartItem>
-                );
-              })}
-            </CartItemList>
-          </section>
-        ) : null}
+        <ProductBundle
+          product={product}
+          selection={selection}
+          discountCode={discountCode}
+          bundleItems={serverContent.bundleItems}
+        />
         <section className="border-t border-border p-6">
           <ProductDescription
             descriptionHtml={product.description_html}

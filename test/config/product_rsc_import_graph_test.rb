@@ -11,6 +11,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/Search.client.tsx
     Product/ProductAnalytics.client.tsx
     Product/ProductArticleInteractions.client.tsx
+    Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductMedia.client.tsx
@@ -155,10 +156,17 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "passes static bundle item text through the client pricing loop" do
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_bundle = COMPONENT_DIRECTORY.join("Product/ProductBundle.client.tsx")
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
 
-    assert_includes interactive_product, "serverContent.bundleItems[bundleProduct.id]"
+    assert_predicate product_bundle, :file?
+    assert product_bundle.read.start_with?('"use client";')
+    assert_includes product_bundle.read, "bundleItems[bundleProduct.id]"
+    assert_includes product_bundle.read, "getBundleComparisonPriceCents"
+    assert_includes interactive_product, "<ProductBundle"
+    assert_not_includes interactive_product, "<CartItemList>"
+    assert_not_includes interactive_product, "getBundleComparisonPriceCents"
     assert_includes product_page, "<ProductBundleItemContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product/ProductContent.tsx")
   end
