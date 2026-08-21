@@ -13,6 +13,7 @@ import { ProductPurchaseControlsFromState } from "$app/components/Product/Produc
 import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActionsFromState } from "$app/components/Product/ProductSecondaryActions.client";
+import { ProductSingleCover, singleStaticImageCover } from "$app/components/Product/ProductSingleCover";
 
 type ProductArticleProps = Pick<ProductProps, "product" | "purchase" | "wishlists"> & {
   ctaLabel?: string | undefined;
@@ -20,6 +21,8 @@ type ProductArticleProps = Pick<ProductProps, "product" | "purchase" | "wishlist
 };
 
 export default function ProductArticle({ product, purchase, wishlists, ctaLabel, serverContent }: ProductArticleProps) {
+  const staticCover = singleStaticImageCover(product.covers);
+
   return (
     <>
       <ProductEditButton product={product} />
@@ -32,12 +35,16 @@ export default function ProductArticle({ product, purchase, wishlists, ctaLabel,
           productName={product.name}
           sellerId={product.seller?.id}
         />
-        <ProductMedia
-          covers={product.covers}
-          initialCover={serverContent.initialCover}
-          mainCoverId={product.main_cover_id}
-          productName={product.name}
-        />
+        {staticCover && serverContent.initialCover?.id === staticCover.id ? (
+          <ProductSingleCover cover={staticCover} productName={product.name} />
+        ) : (
+          <ProductMedia
+            covers={product.covers}
+            initialCover={serverContent.initialCover}
+            mainCoverId={product.main_cover_id}
+            productName={product.name}
+          />
+        )}
         {serverContent.quantityRemaining}
         <section className="lg:border-r">
           <header className="grid gap-4 p-6 not-first:border-t">

@@ -42,6 +42,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductContent.tsx
     Product/ProductPage.tsx
     Product/ProductRatingsSummary.tsx
+    Product/ProductSingleCover.tsx
     Profile/ProfilePostsContent.tsx
     Profile/ProfileRichText.ts
     Profile/ProfileRichTextContent.tsx
@@ -165,17 +166,27 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "description: <ProductDescriptionContent content={content} />"
   end
 
-  test "passes the server-rendered initial cover through the client carousel" do
+  test "renders a single static image cover without the client carousel" do
     covers = COMPONENT_DIRECTORY.join("Product/Covers/index.tsx").read
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
     product_media = COMPONENT_DIRECTORY.join("Product/ProductMedia.client.tsx")
     product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    single_cover = COMPONENT_DIRECTORY.join("Product/ProductSingleCover.tsx")
 
     assert_predicate product_media, :file?
     assert product_media.read.start_with?('"use client";')
+    assert_predicate single_cover, :file?
+    assert_not single_cover.read.start_with?('"use client";')
+    assert_includes single_cover.read, 'cover?.type === "image"'
+    assert_includes single_cover.read, "aspectRatio"
+    assert_includes single_cover.read, "MAX_PORTRAIT_FRAME_HEIGHT"
     assert_includes covers, "initialContent={initialCover?.id === cover.id ? initialCover.content : null}"
     assert_includes interactive_product, "<ProductMedia"
+    assert_includes product_article, "singleStaticImageCover(product.covers)"
+    assert_includes product_article, "<ProductSingleCover cover={staticCover} productName={product.name} />"
+    assert_includes product_article, "<ProductMedia"
     assert_includes product_media.read, "initialCover={initialCover}"
     assert_includes product_media.read, "useOnChange(() => setActiveCoverId(mainCoverId), [mainCoverId])"
     assert_not_includes interactive_product, "useOnChange"

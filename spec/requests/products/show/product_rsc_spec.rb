@@ -140,10 +140,17 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
   it "hydrates the server-rendered first image cover without duplication" do
     create_local_image_cover
+    product.update!(sections: [], main_section_index: 0)
 
     page.visit product.long_url
 
     expect(page).to have_selector("[aria-label='Product preview'] img", count: 1)
+    payload = page.evaluate_script(<<~JS)
+      [...document.querySelectorAll('script[data-react-on-rails-rsc-payload="true"]')]
+        .map((script) => script.textContent)
+        .join('')
+    JS
+    expect(payload).not_to include("ProductMedia.client")
   end
 
   it "server-renders the first image cover without client JavaScript" do
