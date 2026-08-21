@@ -8,6 +8,7 @@ import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from
 import { applySelection, type PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { ProductData, ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import { getBundleComparisonPriceCents } from "$app/components/Product/pricing";
+import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 
 export const ProductBundle = ({
@@ -67,5 +68,19 @@ export const ProductBundle = ({
         })}
       </CartItemList>
     </section>
+  );
+};
+
+export const ProductBundleFromState = ({
+  product,
+  bundleItems,
+}: {
+  product: ProductData;
+  bundleItems: ServerContent["bundleItems"];
+}) => {
+  const { selection, discountCode } = useProductState();
+
+  return (
+    <ProductBundle product={product} selection={selection} discountCode={discountCode} bundleItems={bundleItems} />
   );
 };

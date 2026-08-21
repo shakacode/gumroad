@@ -175,6 +175,10 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert product_bundle.read.start_with?('"use client";')
     assert_includes product_bundle.read, "bundleItems[bundleProduct.id]"
     assert_includes product_bundle.read, "getBundleComparisonPriceCents"
+    assert_includes product_bundle.read, "export const ProductBundleFromState"
+    assert_includes product_bundle.read, "const { selection, discountCode } = useProductState()"
+    assert_includes product_bundle.read,
+                    "<ProductBundle product={product} selection={selection} discountCode={discountCode} bundleItems={bundleItems} />"
     assert_includes interactive_product, "<ProductBundle"
     assert_not_includes interactive_product, "<CartItemList>"
     assert_not_includes interactive_product, "getBundleComparisonPriceCents"
