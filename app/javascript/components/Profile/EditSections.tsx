@@ -58,7 +58,8 @@ import { Switch } from "$app/components/ui/Switch";
 import { useOnChange } from "$app/components/useOnChange";
 import { useRefToLatest } from "$app/components/useRefToLatest";
 
-import { PageProps as BasePageProps, FeaturedProductView, Post, PostsView, SubscribeView } from "./Sections";
+import { PostsView } from "./ProfilePosts.client";
+import { PageProps as BasePageProps, FeaturedProductView, Post, SubscribeView } from "./Sections";
 
 type ProductsSection = SavedProductsSection & { search_results: SearchResults };
 type EditProduct = { id: string; name: string };

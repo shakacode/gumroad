@@ -16,6 +16,7 @@ import {
   ReducerContext as SectionReducerContext,
   useSectionImageUploadSettings,
 } from "$app/components/Profile/EditSections";
+import { PostsView } from "$app/components/Profile/ProfilePosts.client";
 import { Section, SectionLayout, PageProps as SectionsProps } from "$app/components/Profile/Sections";
 import { ImageUploadSettingsContext } from "$app/components/RichTextEditor";
 import { showAlert } from "$app/components/server-components/Alert";
@@ -197,7 +198,12 @@ export const Layout = (
         props.sections.map((section, i) => (
           <React.Fragment key={section.id}>
             {i === main_section_index ? mainSection : null}
-            <Section section={section} {...props} renderFeaturedProduct={renderFeaturedProduct} />
+            <Section
+              section={section}
+              {...props}
+              renderFeaturedProduct={renderFeaturedProduct}
+              postsContent={section.type === "SellerProfilePostsSection" ? <PostsView posts={section.posts} /> : null}
+            />
             {main_section_index >= props.sections.length && i === props.sections.length - 1 ? mainSection : null}
           </React.Fragment>
         ))

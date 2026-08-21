@@ -19,12 +19,13 @@ import {
   ProductTitle,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
+import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
 export type ProductPageProps = Omit<
   ProductInteractionsProps,
-  "featuredProductServerContent" | "profileRichTextServerContent" | "serverContent"
+  "featuredProductServerContent" | "profilePostsServerContent" | "profileRichTextServerContent" | "serverContent"
 > & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
@@ -83,6 +84,13 @@ export default function ProductPage({
           ? [[sectionId, toServerContent(content, section.props)]]
           : [];
       }),
+    ),
+    profilePostsServerContent: Object.fromEntries(
+      productProps.sections.flatMap((section) =>
+        section.type === "SellerProfilePostsSection"
+          ? [[section.id, <ProfilePostsContent key={section.id} posts={section.posts} locale={global.locale} />]]
+          : [],
+      ),
     ),
     profileRichTextServerContent: Object.fromEntries(
       productProps.sections.flatMap((section) =>

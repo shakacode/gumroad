@@ -23,6 +23,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverPage.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
+    Profile/ProfilePostsContent.tsx
     Profile/ProfileRichTextContent.tsx
   ].freeze
 
@@ -139,6 +140,25 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("RichTextEditor.tsx")
     assert_includes rich_text, "@tiptap/react"
     assert_includes rich_text, "$app/components/RichTextEditor"
+  end
+
+  test "passes profile posts through the product client island" do
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    posts_content = COMPONENT_DIRECTORY.join("Profile/ProfilePostsContent.tsx")
+    legacy_product_layout = COMPONENT_DIRECTORY.join("Product/Layout.tsx").read
+    legacy_profile = COMPONENT_DIRECTORY.join("Profile/index.tsx").read
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+
+    assert_includes sections, "postsContent"
+    assert_not_includes sections, "formatPostDate"
+    assert_not_includes sections, "useUserAgentInfo"
+    assert_includes product_interactions, "postsContent={profilePostsServerContent[section.id]}"
+    assert_includes product_page, "<ProfilePostsContent"
+    assert_not_includes client_graph, posts_content
+    assert_includes legacy_product_layout, "<PostsView posts={section.posts} />"
+    assert_includes legacy_profile, "<PostsView posts={section.posts} />"
   end
 
   private

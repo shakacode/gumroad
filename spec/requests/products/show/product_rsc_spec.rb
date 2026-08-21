@@ -120,6 +120,33 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
+  it "server-renders profile posts without client JavaScript" do
+    post = create(
+      :audience_installment,
+      seller:,
+      name: "Server-visible product update",
+      published_at: Time.utc(2026, 1, 2),
+      shown_on_profile: true
+    )
+    posts_section = create(
+      :seller_profile_posts_section,
+      seller:,
+      product:,
+      header: "Product updates",
+      shown_posts: [post.id]
+    )
+    product.update!(sections: [posts_section.id], main_section_index: 1)
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_section("Product updates", section_element: :section)
+    expect(page).to have_link("Server-visible product update", href: "/p/#{post.slug}")
+    expect(page).to have_text("January 2, 2026")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
+
   it "server-renders bundle item text without client JavaScript" do
     bundle = create(:product, :bundle, user: seller, name: "Server-rendered bundle")
     bundled_product = create(:product, user: seller, name: "Server-visible bundled guide")

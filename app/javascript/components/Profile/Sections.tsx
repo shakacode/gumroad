@@ -1,4 +1,4 @@
-import { Archive, ArrowUpRight } from "@boxicons/react";
+import { Archive } from "@boxicons/react";
 import classNames from "classnames";
 import * as React from "react";
 
@@ -13,7 +13,6 @@ import {
 import { SearchResults } from "$app/data/search";
 import { CreatorProfile } from "$app/parsers/profile";
 import { CurrencyCode } from "$app/utils/currency";
-import { formatPostDate } from "$app/utils/date";
 import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
@@ -23,7 +22,6 @@ import type { Props as ProductProps } from "$app/components/Product/Interactive"
 import { FollowForm } from "$app/components/Profile/FollowForm";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
-import { useUserAgentInfo } from "$app/components/UserAgent";
 import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
 
 const importProfileRichText = () => import("$app/components/Profile/ProfileRichText.client");
@@ -101,27 +99,6 @@ export type Section =
   | SubscribeSection
   | FeaturedProductSection
   | WishlistsSection;
-
-export const PostsView = ({ posts }: { posts: Post[] }) => {
-  const userAgentInfo = useUserAgentInfo();
-  return (
-    <>
-      {posts.map((post) => (
-        <a
-          key={post.slug}
-          href={Routes.custom_domain_view_post_path(post.slug)}
-          className="flex justify-between gap-4 border-b border-border py-8 no-underline first:pt-0 last:border-b-0 last:pb-0"
-        >
-          <div>
-            <h2>{post.name}</h2>
-            <time>{formatPostDate(post.published_at, userAgentInfo.locale)}</time>
-          </div>
-          <ArrowUpRight className="size-5 text-lg" />
-        </a>
-      ))}
-    </>
-  );
-};
 
 export const SubscribeView = ({
   creatorProfile,
@@ -253,8 +230,6 @@ const FeaturedProductSectionView = ({
     <FeaturedProductView sectionId={section.id} props={section.props} renderProduct={renderFeaturedProduct} />
   ) : null;
 
-const PostsSectionView = ({ section }: { section: PostsSection }) => <PostsView posts={section.posts} />;
-
 const SubscribeSectionView = ({
   section,
   creatorProfile,
@@ -284,10 +259,12 @@ export const Section = ({
   creator_profile,
   currency_code,
   renderFeaturedProduct,
+  postsContent,
   richTextServerContent,
 }: {
   section: Section;
   renderFeaturedProduct: FeaturedProductRenderer;
+  postsContent?: React.ReactNode;
   richTextServerContent?: React.ReactNode;
 } & PageProps) => (
   <SectionLayout id={section.id}>
@@ -295,7 +272,7 @@ export const Section = ({
     {section.type === "SellerProfileProductsSection" ? (
       <ProductsSectionView section={section} creatorProfile={creator_profile} currencyCode={currency_code} />
     ) : section.type === "SellerProfilePostsSection" ? (
-      <PostsSectionView section={section} />
+      postsContent
     ) : section.type === "SellerProfileRichTextSection" ? (
       <ProfileRichTextSectionView section={section} serverContent={richTextServerContent} />
     ) : section.type === "SellerProfileSubscribeSection" ? (

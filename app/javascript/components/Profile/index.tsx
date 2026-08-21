@@ -8,6 +8,7 @@ import AutoLink from "$app/components/AutoLink";
 import { Product } from "$app/components/Product";
 import { FollowUserFormBlock } from "$app/components/Profile/FollowUserForm";
 import { Layout } from "$app/components/Profile/Layout";
+import { PostsView } from "$app/components/Profile/ProfilePosts.client";
 import { PageProps as SectionsProps, Section, SectionLayout } from "$app/components/Profile/Sections";
 import { Tabs as UITabs, Tab as UITab } from "$app/components/ui/Tabs";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
@@ -152,7 +153,13 @@ const PublicProfile = (props: Props) => {
       ) : null}
       {sections?.length ? (
         sections.map((section) => (
-          <Section key={section.id} section={section} {...props} renderFeaturedProduct={renderFeaturedProduct} />
+          <Section
+            key={section.id}
+            section={section}
+            {...props}
+            renderFeaturedProduct={renderFeaturedProduct}
+            postsContent={section.type === "SellerProfilePostsSection" ? <PostsView posts={section.posts} /> : null}
+          />
         ))
       ) : (
         <SectionLayout className="grid flex-1">
