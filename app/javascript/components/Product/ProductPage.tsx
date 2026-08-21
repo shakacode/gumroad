@@ -26,7 +26,7 @@ import {
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
-import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct.client";
+import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
 import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";

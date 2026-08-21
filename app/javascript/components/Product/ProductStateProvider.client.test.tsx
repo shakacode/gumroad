@@ -5,7 +5,11 @@ import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProductData, ProductDiscount } from "$app/components/Product/Interactive";
-import { ProductStateProvider, useProductState } from "$app/components/Product/ProductStateProvider.client";
+import {
+  FeaturedProductStateProvider,
+  ProductStateProvider,
+  useProductState,
+} from "$app/components/Product/ProductStateProvider.client";
 
 vi.mock("$app/components/Product/useSelectionFromUrl.client", () => ({
   useSelectionFromUrl: () => [{ price: { error: false, value: null }, quantity: 1 }, vi.fn()],
@@ -23,6 +27,12 @@ const DiscountConsumer = () => {
       {discountCode?.valid === false ? discountCode.error_code : "valid"}
     </button>
   );
+};
+
+const SelectionConsumer = () => {
+  const { selection } = useProductState();
+
+  return <div>{`${selection.recurrence}:${selection.quantity}:${selection.optionId ?? "none"}`}</div>;
 };
 
 afterEach(cleanup);
@@ -45,5 +55,19 @@ describe("ProductStateProvider", () => {
     );
 
     await waitFor(() => expect(screen.getByRole("button").textContent).toBe("not_existing_customer"));
+  });
+
+  it("initializes featured products from their own defaults", () => {
+    const featuredProduct = {
+      recurrences: { default: "monthly" },
+    } as ProductData;
+
+    render(
+      <FeaturedProductStateProvider product={featuredProduct} initialDiscountCode={null}>
+        <SelectionConsumer />
+      </FeaturedProductStateProvider>,
+    );
+
+    expect(screen.getByText("monthly:1:none")).toBeTruthy();
   });
 });

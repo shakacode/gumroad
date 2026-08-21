@@ -5,6 +5,7 @@ require "spec_helper"
 describe "Product React on Rails rendering", :product_rsc_renderer, type: :system, js: true do
   let(:seller) { create(:named_user, name: "RSC product seller") }
   let(:product) { create(:product, user: seller, name: "Product React on Rails smoke product", price_cents: 1200) }
+  let(:featured_product) { create(:product, user: seller, name: "Server-rendered featured product") }
   let(:large_taxonomy_navigation) do
     Array.new(250) do |index|
       {
@@ -33,7 +34,6 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
 
   before do
     allow_any_instance_of(LinksController).to receive(:taxonomies_for_nav).and_return(large_taxonomy_navigation)
-    featured_product = create(:product, user: seller, name: "Server-rendered featured product")
     featured_section = create(
       :seller_profile_featured_product_section,
       seller:,
@@ -70,6 +70,12 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_text("Format")
     expect(page).to have_text("PDF")
     expect(page).to have_section("Server-rendered featured product", section_element: :article)
+    featured_article = page.find("article", text: featured_product.name)
+    featured_checkout_url = URI.parse(featured_article.find_link("I want this!")[:href])
+    expect(Rack::Utils.parse_query(featured_checkout_url.query)).to include(
+      "product" => featured_product.unique_permalink,
+      "quantity" => "1"
+    )
     expect(page).to have_text("$12")
     expect(page).to have_link("Add to cart")
     expect(page).to have_css(
@@ -83,11 +89,14 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
         return {
           bytes: scripts.reduce((sum, script) => sum + new TextEncoder().encode(script.textContent).length, 0),
           allNonced: scripts.every((script) => script.nonce.length > 0),
+          text: scripts.map((script) => script.textContent).join(''),
         };
       })()
     JS
     expect(payload_scripts.fetch("bytes")).to be > 10_000
     expect(payload_scripts.fetch("allNonced")).to be(true)
+    expect(payload_scripts.fetch("text")).not_to include("ProfileFeaturedProduct.client")
+    expect(payload_scripts.fetch("text")).not_to include("Product/Interactive")
     expect(page.evaluate_script(<<~JS)).to be(true)
       [...document.head.querySelectorAll("style")].some((style) => style.textContent.includes("--body-bg: #123456"))
     JS
@@ -105,6 +114,16 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_link("I want this!")
     expect(page).to have_no_field("Search products")
     expect(page).to have_no_selector("[role=menubar]")
+  end
+
+  it "server-renders a featured product without client JavaScript" do
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_section("Server-rendered featured product", section_element: :article)
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
   it "server-renders a refund policy without fine print" do

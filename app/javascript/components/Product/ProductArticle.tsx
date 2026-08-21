@@ -18,14 +18,22 @@ import { ProductSingleCover, singleStaticImageCover } from "$app/components/Prod
 type ProductArticleProps = Pick<ProductProps, "product" | "purchase" | "wishlists"> & {
   ctaLabel?: string | undefined;
   serverContent: ServerContent;
+  showEditButton?: boolean | undefined;
 };
 
-export default function ProductArticle({ product, purchase, wishlists, ctaLabel, serverContent }: ProductArticleProps) {
+export default function ProductArticle({
+  product,
+  purchase,
+  wishlists,
+  ctaLabel,
+  serverContent,
+  showEditButton = true,
+}: ProductArticleProps) {
   const staticCover = singleStaticImageCover(product.covers);
 
   return (
     <>
-      <ProductEditButton product={product} />
+      {showEditButton ? <ProductEditButton product={product} /> : null}
       <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
         <ProductAnalytics
           analytics={product.analytics}

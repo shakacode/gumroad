@@ -9,6 +9,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
+    Product/CoffeeProduct.tsx
     Product/ProductAnalytics.client.tsx
     Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
@@ -25,7 +26,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
     Product/useSelectionFromUrl.client.ts
-    Profile/ProfileFeaturedProduct.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
@@ -43,6 +43,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductPage.tsx
     Product/ProductRatingsSummary.tsx
     Product/ProductSingleCover.tsx
+    Profile/ProfileFeaturedProduct.tsx
     Profile/ProfilePostsContent.tsx
     Profile/ProfileRichText.ts
     Profile/ProfileRichTextContent.tsx
@@ -491,13 +492,23 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "<ProfileProducts"
   end
 
-  test "renders featured product frames outside the product client island" do
-    featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.client.tsx")
+  test "composes featured products on the server without the legacy product tree" do
+    featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.tsx")
+    legacy_featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.client.tsx")
+    legacy_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx")
     product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    product_page_clients = CLIENT_COMPONENTS - ["Profile/ProfileRscCompatibilityPage.client.tsx"]
+    client_graph = transitive_javascript_imports(product_page_clients.map { COMPONENT_DIRECTORY.join(_1) })
 
     assert_predicate featured_product, :file?
-    assert featured_product.read.start_with?('"use client";')
+    assert_not featured_product.read.start_with?('"use client";')
+    assert_not_predicate legacy_featured_product, :exist?
+    assert_includes featured_product.read, "<FeaturedProductStateProvider"
+    assert_includes featured_product.read, "<ProductArticle"
+    assert_includes featured_product.read, "<CoffeeProduct"
+    assert_not_includes featured_product.read, "InteractiveProduct"
+    assert_not_includes client_graph, legacy_product
     assert_includes product_interactions, 'import type { PageProps as SectionsProps }'
     assert_not_includes product_interactions, "<Section "
     assert_not_includes product_interactions, "renderFeaturedProduct"
