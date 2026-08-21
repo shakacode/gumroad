@@ -16,6 +16,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
+    Profile/ProfileSubscribe.client.tsx
     PublicPages/PageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
@@ -170,6 +171,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, posts_content
     assert_includes legacy_product_layout, "<PostsView posts={section.posts} />"
     assert_includes legacy_profile, "<PostsView posts={section.posts} />"
+  end
+
+  test "renders profile subscribe frames outside the product client island" do
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    subscribe = COMPONENT_DIRECTORY.join("Profile/ProfileSubscribe.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_not_includes sections, "$app/components/Profile/FollowForm"
+    assert_includes sections, "<ProfileSubscribe"
+    assert_includes subscribe, "$app/components/Profile/FollowForm"
+    assert_includes product_page, 'section.type === "SellerProfileSubscribeSection"'
+    assert_includes product_page, "<ProfileSectionFrame"
+    assert_includes product_page, "<ProfileSubscribe"
   end
 
   private

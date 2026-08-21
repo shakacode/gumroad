@@ -17,9 +17,9 @@ import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { Props as ProductProps } from "$app/components/Product/Interactive";
-import { FollowForm } from "$app/components/Profile/FollowForm";
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
+import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
 import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
@@ -57,18 +57,6 @@ export type Section =
   | SubscribeSection
   | FeaturedProductSection
   | WishlistsSection;
-
-export const SubscribeView = ({
-  creatorProfile,
-  buttonLabel,
-}: {
-  creatorProfile: CreatorProfile;
-  buttonLabel: string;
-}) => (
-  <div style={{ maxWidth: "500px" }}>
-    <FollowForm creatorProfile={creatorProfile} buttonLabel={buttonLabel} buttonColor="primary" />
-  </div>
-);
 
 const ProductsSectionView = ({
   section,
@@ -188,14 +176,6 @@ const FeaturedProductSectionView = ({
     <FeaturedProductView sectionId={section.id} props={section.props} renderProduct={renderFeaturedProduct} />
   ) : null;
 
-const SubscribeSectionView = ({
-  section,
-  creatorProfile,
-}: {
-  section: SubscribeSection;
-  creatorProfile: CreatorProfile;
-}) => <SubscribeView creatorProfile={creatorProfile} buttonLabel={section.button_label} />;
-
 export type PageProps = {
   currency_code: CurrencyCode;
   creator_profile: CreatorProfile;
@@ -223,7 +203,7 @@ export const Section = ({
     ) : section.type === "SellerProfileRichTextSection" ? (
       <ProfileRichTextSectionView section={section} />
     ) : section.type === "SellerProfileSubscribeSection" ? (
-      <SubscribeSectionView key={section.id} section={section} creatorProfile={creator_profile} />
+      <ProfileSubscribe creatorProfile={creator_profile} buttonLabel={section.button_label} />
     ) : section.type === "SellerProfileFeaturedProductSection" ? (
       <FeaturedProductSectionView key={section.id} section={section} renderFeaturedProduct={renderFeaturedProduct} />
     ) : (
