@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import type { MetaTag } from "$app/layouts/components/MetaTags";
+import { classNames } from "$app/utils/classNames";
 import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
@@ -25,9 +26,9 @@ import {
   ProductTitle,
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
-import ProductInteractions from "$app/components/Product/ProductInteractions.client";
-import type { ProductInteractionPageProps, ProductInteractionsProps } from "$app/components/Product/ProductPage.types";
+import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
+import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
@@ -122,92 +123,119 @@ export default function ProductPage({
       serverContent={serverContent}
     />
   );
-  const interactionProps = {
-    product: productProps.product,
-    purchase: productProps.purchase,
-    cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
-    hasHero: productProps.page_layout === "discover",
-    main_section_index: productProps.main_section_index,
-    sections: productProps.sections,
-    serverProfileSections: Object.fromEntries(
-      productProps.sections.flatMap((section) => {
-        if (section.type === "SellerProfileProductsSection") {
-          return [
-            [
-              section.id,
-              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                <ProfileProducts
-                  section={section}
-                  creatorProfile={productProps.creator_profile}
-                  currencyCode={productProps.currency_code}
-                />
-              </ProfileSectionFrame>,
-            ],
-          ];
-        }
-        if (section.type === "SellerProfilePostsSection") {
-          return [
-            [
-              section.id,
-              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                <ProfilePostsContent posts={section.posts} locale={global.locale} />
-              </ProfileSectionFrame>,
-            ],
-          ];
-        }
-        if (section.type === "SellerProfileRichTextSection") {
-          const serverContent = <ProfileRichTextContent content={section.text} />;
-          return [
-            [
-              section.id,
-              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                {profileRichTextNeedsClientEnhancement(section.text) ? (
-                  <ProfileRichTextEnhancement content={section.text} fallback={serverContent} />
-                ) : (
-                  serverContent
-                )}
-              </ProfileSectionFrame>,
-            ],
-          ];
-        }
-        if (section.type === "SellerProfileSubscribeSection") {
-          return [
-            [
-              section.id,
-              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                <ProfileSubscribe creatorProfile={productProps.creator_profile} buttonLabel={section.button_label} />
-              </ProfileSectionFrame>,
-            ],
-          ];
-        }
-        if (section.type === "SellerProfileWishlistsSection") {
-          return [
-            [
-              section.id,
-              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                <ProfileWishlists wishlists={section.wishlists} />
-              </ProfileSectionFrame>,
-            ],
-          ];
-        }
-        const content = rscFeaturedProductContent[section.id];
+  const serverProfileSections = Object.fromEntries(
+    productProps.sections.flatMap((section) => {
+      if (section.type === "SellerProfileProductsSection") {
         return [
           [
             section.id,
             <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-              {section.props ? (
-                <ProfileFeaturedProduct
-                  props={section.props}
-                  serverContent={content ? toServerContent(content, section.props) : null}
-                />
-              ) : null}
+              <ProfileProducts
+                section={section}
+                creatorProfile={productProps.creator_profile}
+                currencyCode={productProps.currency_code}
+              />
             </ProfileSectionFrame>,
           ],
         ];
-      }),
-    ),
-  } satisfies Omit<ProductInteractionsProps, "productArticle">;
-  const interactions = <ProductInteractions {...interactionProps} productArticle={productArticle} />;
+      }
+      if (section.type === "SellerProfilePostsSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfilePostsContent posts={section.posts} locale={global.locale} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileRichTextSection") {
+        const serverContent = <ProfileRichTextContent content={section.text} />;
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              {profileRichTextNeedsClientEnhancement(section.text) ? (
+                <ProfileRichTextEnhancement content={section.text} fallback={serverContent} />
+              ) : (
+                serverContent
+              )}
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileSubscribeSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfileSubscribe creatorProfile={productProps.creator_profile} buttonLabel={section.button_label} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileWishlistsSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfileWishlists wishlists={section.wishlists} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      const content = rscFeaturedProductContent[section.id];
+      return [
+        [
+          section.id,
+          <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+            {section.props ? (
+              <ProfileFeaturedProduct
+                props={section.props}
+                serverContent={content ? toServerContent(content, section.props) : null}
+              />
+            ) : null}
+          </ProfileSectionFrame>,
+        ],
+      ];
+    }),
+  );
+  const mainSection = (
+    <section className="border-b border-border">
+      <div
+        className={classNames(
+          "mx-auto w-full max-w-product-page lg:py-16",
+          productProps.sections.length > 0 ? "px-4 py-8" : "p-4 lg:px-8",
+        )}
+      >
+        {productArticle}
+      </div>
+    </section>
+  );
+  const productSections =
+    productProps.sections.length > 0
+      ? productProps.sections.map((section, index) => (
+          <React.Fragment key={section.id}>
+            {index === productProps.main_section_index ? mainSection : null}
+            {serverProfileSections[section.id]}
+            {productProps.main_section_index >= productProps.sections.length &&
+            index === productProps.sections.length - 1
+              ? mainSection
+              : null}
+          </React.Fragment>
+        ))
+      : mainSection;
+  const pageSections = (
+    <>
+      <ProductStickyCta
+        product={productProps.product}
+        purchase={productProps.purchase}
+        cart={productProps.page_layout === "discover" || productProps.page_layout === "profile"}
+        hasHero={productProps.page_layout === "discover"}
+      />
+      {productSections}
+    </>
+  );
   const productContent =
     productProps.page_layout === "profile" ? (
       <ProfileLayout
@@ -215,11 +243,11 @@ export default function ProductPage({
         currencySelector
         shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
       >
-        {interactions}
+        {pageSections}
       </ProfileLayout>
     ) : (
       <>
-        {interactions}
+        {pageSections}
         {productProps.page_layout !== "discover" ? (
           <PoweredByFooter
             currencySelector

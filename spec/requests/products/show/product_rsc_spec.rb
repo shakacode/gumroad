@@ -97,6 +97,8 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(payload_scripts.fetch("allNonced")).to be(true)
     expect(payload_scripts.fetch("text")).not_to include("ProfileFeaturedProduct.client")
     expect(payload_scripts.fetch("text")).not_to include("Profile/Layout")
+    expect(payload_scripts.fetch("text")).not_to include("ProductInteractions.client")
+    expect(payload_scripts.fetch("text")).to include("ProductStickyCta.client")
     expect(payload_scripts.fetch("text")).not_to include("Product/Interactive")
     expect(page.evaluate_script(<<~JS)).to be(true)
       [...document.head.querySelectorAll("style")].some((style) => style.textContent.includes("--body-bg: #123456"))
@@ -145,6 +147,9 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     page.visit product.long_url
 
     expect(page).to have_section("Server-rendered featured product", section_element: :article)
+    articles = page.all("article")
+    expect(articles.first).to have_text(featured_product.name)
+    expect(articles.last).to have_text(product.name)
   ensure
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end

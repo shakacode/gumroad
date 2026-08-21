@@ -59,25 +59,18 @@ DiscoverPage                         Server root
 ```text
 ProductPage                          Server root
 ├── PageShell.client                 Thin provider/compatibility boundary
-├── default composition              No named StandardProductLayout
-│   └── ProductInteractions.client
-├── profile composition              Preserve current profile behavior
-│   └── ProductInteractions.client
-└── Discover composition
-    └── DiscoverLayout               Shared server layout/header
-        └── ProductInteractions.client
-            ├── title                Server ReactNode
-            ├── seller               Server ReactNode
-            ├── ratings              Server ReactNode
-            ├── summary              Server ReactNode
-            ├── attributes           Server ReactNode
-            └── variants, price,
-                CTA, checkout,
-                reviews, sharing,
-                and media state      Client behavior
+└── ProductStateProvider.client      Passes server-owned children
+    ├── ProductStickyCta.client      Focused client behavior
+    ├── ProductArticle               Server composition
+    │   ├── title, seller, ratings,
+    │   │   summary, attributes      Server content
+    │   └── variants, price,
+    │       checkout, reviews,
+    │       sharing, media           Focused client leaves
+    └── profile sections             Server-owned ordering and frames
 ```
 
-`ProductPage` owns the layout branch. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. `ProductInteractions.client` owns purchasing and other browser behavior.
+`ProductPage` owns the layout branch and section ordering. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. Purchasing and browser behavior stay in focused client leaves.
 
 This plan preserves the current profile composition; it does not introduce a profile redesign or a third product layout abstraction.
 
@@ -99,7 +92,7 @@ app/javascript/
 │   ├── Product/
 │   │   ├── ProductPage.tsx
 │   │   ├── ProductContent.tsx
-│   │   ├── ProductInteractions.client.tsx
+│   │   ├── ProductStickyCta.client.tsx
 │   │   └── existing product interaction modules...
 │   └── Profile/
 │       └── ProfileRscCompatibilityPage.client.tsx
@@ -136,15 +129,15 @@ They are not destinations for new RSC application code and must not enter the RS
 
 ## Current-to-target file map
 
-| Current file                               | Target                                                      | Notes                                                                                                                     |
-| ------------------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `product_rsc/ProductRscPage.tsx`               | `components/Product/ProductPage.tsx`                        | Rename when the server root and client interaction boundary are separated.                                                |
-| `product_rsc/DiscoverPage.tsx`                 | `components/Discover/DiscoverPage.tsx`                      | Rename when it no longer imports the complete Inertia Discover page.                                                      |
+| Current file                                  | Target                                                      | Notes                                                                                                                     |
+| --------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `product_rsc/ProductRscPage.tsx`              | `components/Product/ProductPage.tsx`                        | Rename when the server root and client interaction boundary are separated.                                                |
+| `product_rsc/DiscoverPage.tsx`                | `components/Discover/DiscoverPage.tsx`                      | Rename when it no longer imports the complete Inertia Discover page.                                                      |
 | `product_rsc/ProfileRscCompatibilityPage.tsx` | `components/Profile/ProfileRscCompatibilityPage.client.tsx` | Behavior-free move only; Profile migration is outside this plan. Keeping the current name temporarily is also acceptable. |
-| `product_rsc/PageShell.tsx`                    | `components/PublicPages/PageShell.client.tsx`               | Keep the compatibility boundary thin and explicit.                                                                        |
-| `product_rsc/client_entry.tsx`             | `entrypoints/public_rsc/client.tsx`                         | Registration/build infrastructure may retain `rsc` in its path.                                                           |
-| `product_rsc/server_entry.tsx`             | `entrypoints/public_rsc/server.tsx`                         | Update server imports and registrations with the feature moves.                                                           |
-| `product_rsc/asset_fingerprinting.test.ts` | `entrypoints/public_rsc/asset_fingerprinting.test.ts`       | Keep adjacent to the entrypoints it verifies unless the repository has a stronger test convention.                        |
+| `product_rsc/PageShell.tsx`                   | `components/PublicPages/PageShell.client.tsx`               | Keep the compatibility boundary thin and explicit.                                                                        |
+| `product_rsc/client_entry.tsx`                | `entrypoints/public_rsc/client.tsx`                         | Registration/build infrastructure may retain `rsc` in its path.                                                           |
+| `product_rsc/server_entry.tsx`                | `entrypoints/public_rsc/server.tsx`                         | Update server imports and registrations with the feature moves.                                                           |
+| `product_rsc/asset_fingerprinting.test.ts`    | `entrypoints/public_rsc/asset_fingerprinting.test.ts`       | Keep adjacent to the entrypoints it verifies unless the repository has a stronger test convention.                        |
 
 This map is a destination guide, not a requirement to perform every rename at once. A temporary compatibility filename is preferable to a misleading domain name while a module still wraps a legacy page.
 
@@ -195,7 +188,7 @@ Use behavior-oriented names with `.client.tsx`:
 - `Cart.client.tsx`
 - `MobileMenu.client.tsx`
 - `DiscoverResults.client.tsx`
-- `ProductInteractions.client.tsx`
+- `ProductStickyCta.client.tsx`
 - `PageShell.client.tsx`
 
 Each boundary begins with:
@@ -206,7 +199,7 @@ Each boundary begins with:
 
 Only boundary modules need the directive and suffix. Their transitive client-only imports do not all need `.client.tsx`.
 
-Prefer `ProductInteractions.client` to a broad name such as `ProductLayout.client` or `Interactive`. The name should describe the browser behavior it owns, not the page region it wraps.
+Prefer focused names such as `ProductStickyCta.client` to broad names such as `ProductLayout.client` or `Interactive`. The name should describe the browser behavior it owns, not the page region it wraps.
 
 ### Compatibility and legacy names
 
@@ -216,41 +209,21 @@ Use an explicit compatibility name for the Profile wrapper if it is moved before
 
 ## Server and client composition rules
 
-The server root owns page composition and passes server-rendered content through `children` or named `ReactNode` props. Client components do not import Server Components directly.
-
-For Product, the client contract should require server-owned display slots:
+The server root owns page composition and passes server-rendered content through `children` or named `ReactNode` props. Client components do not import Server Components directly. For Product, the state provider accepts server-owned children while the sticky CTA receives only the serializable data it needs:
 
 ```tsx
-type ProductInteractionsProps = {
-  title: React.ReactNode;
-  seller: React.ReactNode;
-  ratings: React.ReactNode;
-  summary: React.ReactNode;
-  attributes: React.ReactNode;
-  // Existing serializable purchasing and interaction props.
-};
-```
-
-The server root composes those slots:
-
-```tsx
-export default function ProductPage({ product, content, ...interactionProps }: ProductPageProps) {
+export default function ProductPage({ product, purchase, discountCode, productArticle, serverProfileSections }) {
   return (
-    <PageShell>
-      <ProductInteractions
-        {...interactionProps}
-        title={<ProductTitle product={product} />}
-        seller={<ProductSeller product={product} />}
-        ratings={<ProductRatings product={product} />}
-        summary={<ProductSummary content={content} />}
-        attributes={<ProductAttributes product={product} />}
-      />
-    </PageShell>
+    <ProductStateProvider product={product} initialDiscountCode={discountCode}>
+      <ProductStickyCta product={product} purchase={purchase} cart={false} hasHero={false} />
+      {productArticle}
+      {serverProfileSections}
+    </ProductStateProvider>
   );
 }
 ```
 
-The actual root may place `ProductInteractions` inside the profile or Discover composition. The example intentionally shows the default composition without inventing `StandardProductLayout`.
+The actual root places this composition inside the profile or Discover layout without introducing a client wrapper around the article and sections.
 
 Avoid a display fallback inside the RSC tree:
 
@@ -323,7 +296,8 @@ Tests should verify that:
 
 - `ProductPage` does not import a legacy product display composition.
 - `DiscoverPage` does not import `pages/Discover/Index` after the server root extraction is complete.
-- `ProductInteractions.client` receives display content as server-owned React nodes and does not contain a legacy display fallback.
+- `ProductStateProvider.client` accepts server-owned children without importing their implementations.
+- `ProductStickyCta.client` does not receive the article or profile sections.
 - Server components do not import browser-only modules.
 - Client boundaries are explicit.
 - Every registered root name is present in Rails, client, and server registration paths.
@@ -336,7 +310,7 @@ Bundle measurement should record the cost of `PageShell.client` and retained Ine
 ## Reviewable move sequence
 
 1. Inventory imports beneath each `product_rsc` root and record every remaining legacy page or `usePage` dependency.
-2. Split server-owned display content from browser interactions in place. Introduce `ProductContent` and `ProductInteractions.client` without changing product behavior.
+2. Split server-owned display content from browser interactions in place. Introduce `ProductContent`, a client state provider that accepts server children, and focused interaction leaves without changing product behavior.
 3. Extract the static Discover header and layout as `DiscoverHeader` and `DiscoverLayout`, with search, cart, menu, and results as focused client boundaries.
 4. Rename and move the product root to `components/Product/ProductPage.tsx`; preserve the default, profile, and Discover branches exactly.
 5. Rename and move the Discover root to `components/Discover/DiscoverPage.tsx` once it no longer imports the full Inertia Discover page.

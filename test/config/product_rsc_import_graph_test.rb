@@ -15,7 +15,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductEditButton.client.tsx
-    Product/ProductInteractions.client.tsx
     Product/ProductLicenseKeyLookup.client.tsx
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
@@ -27,6 +26,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductReviews.client.tsx
     Product/ProductShare.client.tsx
     Product/ProductStateProvider.client.tsx
+    Product/ProductStickyCta.client.tsx
     Product/useSelectionFromUrl.client.ts
     Profile/Layout.tsx
     Profile/ProfileProducts.client.tsx
@@ -91,7 +91,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     selection_from_url = COMPONENT_DIRECTORY.join("Product/useSelectionFromUrl.client.ts")
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
-    interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
     assert_predicate provider, :file?
@@ -104,48 +104,57 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes interactive_product, 'export { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client"'
     assert_not_includes interactive_product, "export const useSelectionFromUrl"
     assert_includes provider.read, "React.useState(initialDiscountCode)"
-    assert_includes interactions, "useProductState()"
-    assert_not_includes interactions, "useSelectionFromUrl(product)"
+    assert_includes sticky_cta, "useProductState()"
+    assert_not_includes sticky_cta, "useSelectionFromUrl(product)"
     assert_includes product_article, "<ProductPriceFromState"
     assert_includes product_article, "<ProductBundleFromState"
     assert_includes product_article, "<ProductPurchaseControlsFromState"
     assert_includes product_article, "<ProductSecondaryActionsFromState"
     assert_includes product_page, "product={productProps.product}"
     assert_includes product_page, "initialDiscountCode={productProps.discount_code}"
-    assert_includes product_page, "<ProductInteractions {...interactionProps} productArticle={productArticle} />"
+    assert_includes product_page, "<ProductStickyCta"
   end
 
-  test "passes the product article through the layout client boundary" do
+  test "composes product sections on the server around a sticky CTA client leaf" do
     product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx")
-    interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     product_page_types = COMPONENT_DIRECTORY.join("Product/ProductPage.types.ts").read
 
     assert_predicate product_article, :file?
     assert_not product_article.read.start_with?('"use client";')
-    assert_not_includes interactions, "InteractiveProduct"
-    assert_includes product_page_types, "productArticle: ReactNode"
-    assert_includes interactions, "{productArticle}"
+    assert_predicate sticky_cta, :file?
+    assert sticky_cta.read.start_with?('"use client";')
+    assert_not_predicate interactions, :exist?
+    assert_includes product_page, "const mainSection ="
+    assert_includes product_page, "productProps.sections.map((section, index)"
+    assert_includes product_page, "serverProfileSections[section.id]"
     assert_includes product_page, "<ProductArticle"
-    assert_includes product_page, "productArticle={productArticle}"
+    assert_includes product_page, "<ProductStickyCta"
+    assert_not_includes sticky_cta.read, "main_section_index"
+    assert_not_includes sticky_cta.read, "sections"
+    assert_not_includes sticky_cta.read, "productArticle"
+    assert_not_includes sticky_cta.read, "serverProfileSections"
+    assert_not_includes product_page_types, "ProductInteractionsProps"
     assert_not COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").exist?
   end
 
   test "selects page-specific client layouts on the server" do
     footer = COMPONENT_DIRECTORY.join("PoweredByFooter.tsx")
-    interactions_path = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")
-    interactions = interactions_path.read
+    sticky_cta_path = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")
+    sticky_cta = sticky_cta_path.read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     profile_layout = COMPONENT_DIRECTORY.join("Profile/Layout.tsx")
-    interaction_graph = transitive_javascript_imports([interactions_path])
+    sticky_cta_graph = transitive_javascript_imports([sticky_cta_path])
 
     assert footer.read.start_with?('"use client";')
     assert profile_layout.read.start_with?('"use client";')
-    assert_not_includes interactions, "$app/components/PoweredByFooter"
-    assert_not_includes interactions, "$app/components/Profile/Layout"
-    assert_includes interactions, 'import type { ProductInteractionsProps } from "$app/components/Product/ProductPage.types"'
-    assert_not_includes interaction_graph, footer
-    assert_not_includes interaction_graph, profile_layout
+    assert_not_includes sticky_cta, "$app/components/PoweredByFooter"
+    assert_not_includes sticky_cta, "$app/components/Profile/Layout"
+    assert_not_includes sticky_cta, "$app/components/Product/ProductPage.types"
+    assert_not_includes sticky_cta_graph, footer
+    assert_not_includes sticky_cta_graph, profile_layout
     assert_includes product_page, "$app/components/Product/ProductPage.types"
     assert_includes product_page, 'productProps.page_layout === "profile"'
     assert_includes product_page, 'productProps.page_layout !== "discover"'
@@ -236,7 +245,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_bundle = COMPONENT_DIRECTORY.join("Product/ProductBundle.client.tsx")
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
-    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")])
 
     assert_predicate product_bundle, :file?
     assert product_bundle.read.start_with?('"use client";')
@@ -432,7 +441,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
-    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")])
 
     assert_predicate reviews_boundary, :file?
     assert_predicate reviews, :file?
@@ -454,9 +463,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
     enhancement = COMPONENT_DIRECTORY.join("Profile/ProfileRichTextEnhancement.client.tsx").read
     rich_text = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx").read
-    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
-    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")])
 
     assert_not_includes sections, "@tiptap/react"
     assert_not_includes sections, "$app/components/RichTextEditor"
@@ -465,7 +474,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes sections, "<ProfileRichTextEnhancement"
     assert_includes enhancement, 'import("$app/components/Profile/ProfileRichText.client")'
     assert_includes enhancement, "fetchWithOneRetry(importProfileRichText)"
-    assert_not_includes product_interactions, "profileRichTextServerContent"
+    assert_not_includes sticky_cta, "profileRichTextServerContent"
     assert_includes product_page, "profileRichTextNeedsClientEnhancement(section.text)"
     assert_includes product_page, "<ProfileRichTextEnhancement"
     assert_includes product_page, "<ProfileSectionFrame"
@@ -479,19 +488,20 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "renders profile post frames outside the product client island" do
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
-    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     posts_content = COMPONENT_DIRECTORY.join("Profile/ProfilePostsContent.tsx")
     legacy_product_layout = COMPONENT_DIRECTORY.join("Product/Layout.tsx").read
     legacy_profile = COMPONENT_DIRECTORY.join("Profile/index.tsx").read
-    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx")])
 
     assert_includes sections, "postsContent"
     assert_not_includes sections, "formatPostDate"
     assert_not_includes sections, "useUserAgentInfo"
-    assert_includes product_interactions, "serverProfileSections[section.id]"
-    assert_not_includes product_interactions, "postsContent={profilePostsServerContent[section.id]}"
-    assert_includes product_page, "serverProfileSections: Object.fromEntries"
+    assert_not_includes sticky_cta, "serverProfileSections"
+    assert_not_includes sticky_cta, "postsContent={profilePostsServerContent[section.id]}"
+    assert_includes product_page, "const serverProfileSections = Object.fromEntries"
+    assert_includes product_page, "serverProfileSections[section.id]"
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfilePostsContent"
     assert_not_includes client_graph, posts_content
@@ -542,7 +552,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.tsx")
     legacy_featured_product = COMPONENT_DIRECTORY.join("Profile/ProfileFeaturedProduct.client.tsx")
     legacy_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx")
-    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     product_page_types = COMPONENT_DIRECTORY.join("Product/ProductPage.types.ts").read
     product_page_clients = CLIENT_COMPONENTS - ["Profile/ProfileRscCompatibilityPage.client.tsx"]
@@ -557,9 +567,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes featured_product.read, "InteractiveProduct"
     assert_not_includes client_graph, legacy_product
     assert_includes product_page_types, 'import type { PageProps as SectionsProps }'
-    assert_not_includes product_interactions, "$app/components/Profile/Sections"
-    assert_not_includes product_interactions, "<Section "
-    assert_not_includes product_interactions, "renderFeaturedProduct"
+    assert_not_includes sticky_cta, "$app/components/Profile/Sections"
+    assert_not_includes sticky_cta, "<Section "
+    assert_not_includes sticky_cta, "renderFeaturedProduct"
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileFeaturedProduct"
   end
