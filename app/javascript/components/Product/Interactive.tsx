@@ -1,7 +1,6 @@
 import { parseISO } from "date-fns";
 import * as React from "react";
 
-import { trackUserProductAction } from "$app/data/user_action_event";
 import { Wishlist } from "$app/data/wishlists";
 import { Discount } from "$app/parsers/checkout";
 import {
@@ -22,7 +21,6 @@ import { formatDate } from "$app/utils/date";
 import { NavigationButton } from "$app/components/Button";
 import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
 import { useDomains } from "$app/components/DomainSettings";
-import { Modal } from "$app/components/Modal";
 import {
   applySelection,
   ConfigurationSelectorHandle,
@@ -40,8 +38,8 @@ import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
+import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
-import { ShareSection } from "$app/components/Product/ShareSection";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
@@ -49,12 +47,10 @@ import type { Review as FormReview } from "$app/components/ReviewForm";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
-import { useUserAgentInfo } from "$app/components/UserAgent";
-import { useRunOnce } from "$app/components/useRunOnce";
 
 export type Seller = { id: string; name: string; avatar_url: string; profile_url: string; is_verified: boolean };
 
-type RefundPolicy = {
+export type RefundPolicy = {
   title: string;
   fine_print: string | null;
   updated_at: string;
@@ -395,10 +391,7 @@ export const InteractiveProduct = ({
           ) : null}
           {serverContent.streamingNotice}
           {serverContent.details}
-          <ShareSection product={product} selection={selection} wishlists={wishlists} />
-          {product.refund_policy ? (
-            <RefundPolicyInfo refundPolicy={product.refund_policy} permalink={product.permalink} />
-          ) : null}
+          <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />
         </section>
         {product.ratings && product.ratings.count > 0 ? (
           <ProductReviews initialContent={serverContent.reviews} productId={product.id} seller={product.seller} />
@@ -442,61 +435,3 @@ export const RatingsSummary = ({ ratings, className }: { ratings: Ratings; class
     </span>
   </div>
 );
-
-const RefundPolicyInfo = ({ refundPolicy, permalink }: { refundPolicy: RefundPolicy; permalink: string }) => {
-  const HASH = "#refund-policy";
-  const [viewingRefundPolicy, setViewingRefundPolicy] = React.useState(false);
-  const userAgentInfo = useUserAgentInfo();
-
-  useRunOnce(() => {
-    setViewingRefundPolicy(window.location.hash === HASH);
-  });
-
-  React.useEffect(() => {
-    if (viewingRefundPolicy) {
-      void trackUserProductAction({
-        name: "product_refund_policy_fine_print_view",
-        permalink,
-        isModal: true,
-      });
-    }
-  }, [viewingRefundPolicy]);
-
-  const formattedDate = parseISO(refundPolicy.updated_at).toLocaleString(userAgentInfo.locale, { dateStyle: "medium" });
-  const lastUpdated = `Last updated ${formattedDate}`;
-
-  const handleCloseModal = () => {
-    setViewingRefundPolicy(false);
-    window.history.replaceState(window.history.state, "", window.location.href.split("#")[0]);
-  };
-  return (
-    <>
-      <div className="text-center">
-        {refundPolicy.fine_print ? (
-          <a href={HASH} onClick={() => setViewingRefundPolicy(true)}>
-            {refundPolicy.title}
-          </a>
-        ) : (
-          refundPolicy.title
-        )}
-      </div>
-      {refundPolicy.fine_print ? (
-        <Modal
-          open={viewingRefundPolicy}
-          onClose={handleCloseModal}
-          title={refundPolicy.title}
-          footer={<p>{lastUpdated}</p>}
-        >
-          <div className="flex flex-col gap-4">
-            <div
-              dangerouslySetInnerHTML={{
-                __html: refundPolicy.fine_print,
-              }}
-              style={{ display: "contents" }}
-            ></div>
-          </div>
-        </Modal>
-      ) : null}
-    </>
-  );
-};

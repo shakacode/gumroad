@@ -16,6 +16,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
     Product/ProductPurchaseControls.client.tsx
+    Product/ProductSecondaryActions.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
     Product/ProductStateProvider.client.tsx
@@ -190,6 +191,20 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes interactive_product, 'import { DiscountExpirationCountdown }'
     assert_not_includes interactive_product, 'import { SubscriptionChoiceModal }'
     assert_not_includes interactive_product, "useLoggedInUser"
+  end
+
+  test "isolates share and refund actions from the article composition" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    secondary_actions = COMPONENT_DIRECTORY.join("Product/ProductSecondaryActions.client.tsx")
+
+    assert_predicate secondary_actions, :file?
+    assert secondary_actions.read.start_with?('"use client";')
+    assert_includes secondary_actions.read, "<ShareSection"
+    assert_includes secondary_actions.read, "<Modal"
+    assert_includes interactive_product, "<ProductSecondaryActions"
+    assert_not_includes interactive_product, 'import { ShareSection }'
+    assert_not_includes interactive_product, "RefundPolicyInfo"
+    assert_not_includes interactive_product, "useUserAgentInfo"
   end
 
   test "renders the receipt shell outside the product client island" do
