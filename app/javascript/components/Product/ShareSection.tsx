@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FileDetail, Link, Plus, Share } from "@boxicons/react";
+import { Check, ChevronDown, FileDetail, Plus } from "@boxicons/react";
 import * as React from "react";
 
 import { Wishlist, addToWishlist, createWishlist } from "$app/data/wishlists";
@@ -7,15 +7,12 @@ import { assertResponseError } from "$app/utils/request";
 
 import { Button } from "$app/components/Button";
 import { ComboBox } from "$app/components/ComboBox";
-import { CopyToClipboard } from "$app/components/CopyToClipboard";
 import { useAppDomain } from "$app/components/DomainSettings";
-import { FacebookShareButton } from "$app/components/FacebookShareButton";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "$app/components/Popover";
 import { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { ProductData, WishlistForProduct } from "$app/components/Product/Interactive";
+import { ProductShare } from "$app/components/Product/ProductShare.client";
 import { showAlert } from "$app/components/server-components/Alert";
-import { TwitterShareButton } from "$app/components/TwitterShareButton";
 import { Alert } from "$app/components/ui/Alert";
 import { Input } from "$app/components/ui/Input";
 
@@ -179,26 +176,7 @@ export const ShareSection = ({
           }}
         />
 
-        <Popover>
-          <PopoverAnchor>
-            <PopoverTrigger aria-label="Share" asChild>
-              <Button size="icon">
-                <Share className="size-5" />
-              </Button>
-            </PopoverTrigger>
-          </PopoverAnchor>
-          <PopoverContent sideOffset={4} onFocusOutside={(e) => e.preventDefault()}>
-            <div className="grid grid-cols-1 gap-4">
-              <TwitterShareButton url={product.long_url} text={`Buy ${product.name} on @Gumroad`} />
-              <FacebookShareButton url={product.long_url} text={product.name} />
-              <CopyToClipboard text={product.long_url} copyTooltip="Copy product URL">
-                <Button aria-label="Copy product URL">
-                  <Link className="size-5" /> Copy link
-                </Button>
-              </CopyToClipboard>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <ProductShare url={product.long_url} name={product.name} />
       </div>
       {saveState.type === "success" ? (
         <Alert variant="success">

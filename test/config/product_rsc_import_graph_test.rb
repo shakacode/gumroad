@@ -24,6 +24,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductSecondaryActions.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
+    Product/ProductShare.client.tsx
     Product/ProductStateProvider.client.tsx
     Product/useSelectionFromUrl.client.ts
     Profile/ProfileProducts.client.tsx
@@ -283,9 +284,27 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   test "isolates share and refund actions from the article composition" do
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx").read
+    product_share = COMPONENT_DIRECTORY.join("Product/ProductShare.client.tsx")
+    product_share_menu = COMPONENT_DIRECTORY.join("Product/ProductShareMenu.tsx")
     refund_policy = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicy.client.tsx")
     refund_policy_modal = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicyModal.tsx")
     secondary_actions = COMPONENT_DIRECTORY.join("Product/ProductSecondaryActions.client.tsx")
+    share_section = COMPONENT_DIRECTORY.join("Product/ShareSection.tsx").read
+
+    assert_predicate product_share, :file?
+    assert product_share.read.start_with?('"use client";')
+    assert_includes product_share.read, 'import("$app/components/Product/ProductShareMenu")'
+    assert_not_includes product_share.read, "TwitterShareButton"
+    assert_not_includes product_share.read, "FacebookShareButton"
+    assert_not_includes product_share.read, "CopyToClipboard"
+    assert_predicate product_share_menu, :file?
+    assert_includes product_share_menu.read, "TwitterShareButton"
+    assert_includes product_share_menu.read, "FacebookShareButton"
+    assert_includes product_share_menu.read, "CopyToClipboard"
+    assert_includes share_section, "<ProductShare"
+    assert_not_includes share_section, "<Popover"
+    assert_not_includes share_section, "TwitterShareButton"
+    assert_not_includes share_section, "FacebookShareButton"
 
     assert_predicate refund_policy, :file?
     assert refund_policy.read.start_with?('"use client";')
