@@ -28,6 +28,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductShare.client.tsx
     Product/ProductStateProvider.client.tsx
     Product/ProductStickyCta.client.tsx
+    Product/Thumbnail.tsx
     Product/useSelectionFromUrl.client.ts
     Profile/Layout.tsx
     Profile/ProfileProducts.client.tsx
@@ -553,6 +554,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "renders profile product frames outside the product client island" do
     products = COMPONENT_DIRECTORY.join("Profile/ProfileProducts.client.tsx")
+    card_grid = COMPONENT_DIRECTORY.join("Product/CardGrid.tsx").read
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
@@ -562,6 +564,14 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, 'section.type === "SellerProfileProductsSection"'
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileProducts"
+    assert_includes product_page, 'import { Card } from "$app/components/Product/Card"'
+    assert_includes product_page, "initialCards={section.search_results.products.map"
+    assert_includes products.read, "initialCards?: React.ReactNode"
+    assert_includes products.read, "initialProducts.every"
+    assert_includes products.read, "initialCardCount={hasInitialCards ? initialProducts.length : undefined}"
+    assert_includes card_grid, "initialCards?: React.ReactNode"
+    assert_includes card_grid, "initialCardCount?: number"
+    assert_includes card_grid, ".slice(serverCardCount)"
   end
 
   test "composes featured products on the server without the legacy product tree" do

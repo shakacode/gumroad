@@ -6,6 +6,7 @@ import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import { PoweredByFooter } from "$app/components/PoweredByFooter";
+import { Card } from "$app/components/Product/Card";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import ProductArticle from "$app/components/Product/ProductArticle";
 import {
@@ -134,6 +135,9 @@ export default function ProductPage({
                 section={section}
                 creatorProfile={productProps.creator_profile}
                 currencyCode={productProps.currency_code}
+                initialCards={section.search_results.products.map((result, index) => (
+                  <Card key={result.permalink} product={result} eager={index < 4} />
+                ))}
               />
             </ProfileSectionFrame>,
           ],

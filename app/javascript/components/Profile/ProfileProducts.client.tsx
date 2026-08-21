@@ -21,10 +21,12 @@ export const ProfileProducts = ({
   section,
   creatorProfile,
   currencyCode,
+  initialCards,
 }: {
   section: ProfileProductsSection;
   creatorProfile: CreatorProfile;
   currencyCode: CurrencyCode;
+  initialCards?: React.ReactNode;
 }) => {
   const defaultParams = {
     sort: section.default_product_sort,
@@ -36,12 +38,19 @@ export const ProfileProducts = ({
     results: section.search_results,
   });
   const [enteredQuery, setEnteredQuery] = React.useState("");
+  const initialProducts = section.search_results.products;
+  const hasInitialCards =
+    initialCards !== undefined &&
+    state.results !== null &&
+    initialProducts.every((product, index) => state.results?.products[index]?.permalink === product.permalink);
 
   return (
     <CardGrid
       hideFilters={!section.show_filters}
       state={state}
       dispatchAction={dispatch}
+      initialCards={hasInitialCards ? initialCards : undefined}
+      initialCardCount={hasInitialCards ? initialProducts.length : undefined}
       title={
         state.results
           ? state.results.total > 0

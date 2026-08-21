@@ -68,6 +68,7 @@ ProductPage                          Server root
     │       checkout, reviews,
     │       sharing, media           Focused client leaves
     └── profile sections             Server-owned ordering and frames
+        └── initial product cards    Server nodes through the client search island
 ```
 
 `ProductPage` owns the layout branch and section ordering. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. Purchasing and browser behavior stay in focused client leaves.

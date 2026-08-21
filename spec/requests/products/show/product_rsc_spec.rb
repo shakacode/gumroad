@@ -260,6 +260,35 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
+  it "server-renders profile product cards without client JavaScript", :elasticsearch_wait_for_refresh do
+    related_product = create(:product, user: seller, name: "Server-visible related product")
+    products_section = create(
+      :seller_profile_products_section,
+      seller:,
+      product:,
+      header: "More products",
+      shown_products: [related_product.id],
+      add_new_products: false
+    )
+    product.update!(sections: [products_section.id], main_section_index: 1)
+    Link.import(force: true, refresh: true)
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_section("More products", section_element: :section)
+    expect(page).to have_selector(
+      "a[href*='/l/#{related_product.unique_permalink}']",
+      text: "Server-visible related product"
+    )
+
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+    page.visit product.long_url
+    expect(page).to have_selector("article", text: "Server-visible related product", count: 1)
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
+
   it "server-renders bundle item text without client JavaScript" do
     bundle = create(:product, :bundle, user: seller, name: "Server-rendered bundle")
     bundled_product = create(:product, user: seller, name: "Server-visible bundled guide")

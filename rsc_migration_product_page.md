@@ -23,7 +23,8 @@ ProductPage [S]
 │     └─ seller reputation [S]
 └─ ProfileSections [S]
    ├─ section frames, posts, rich text [S]
-   └─ products, subscribe, wishlist, coffee [C]
+   ├─ products: initial cards [S] + search/filter/pagination [C]
+   └─ subscribe, wishlist, coffee [C]
 ```
 
 Client providers may receive server-composed children; they must not import server components.
