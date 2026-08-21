@@ -7,9 +7,11 @@ import {
   COMMISSION_DEPOSIT_PROPORTION,
   type FreeTrial,
   type ProductNativeType,
+  type RatingsWithPercentages,
 } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
+import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
 import { variantLabel } from "$app/utils/labels";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
@@ -199,6 +201,39 @@ export const ProductAvailabilityNotice = ({ content }: { content: ProductContent
 
 export const ProductDescriptionContent = ({ content }: { content: ProductContentProps }) => (
   <div className="rich-text" dir="auto" dangerouslySetInnerHTML={{ __html: content.description_html ?? "" }} />
+);
+
+export const ProductReviewsContent = ({ ratings }: { ratings: RatingsWithPercentages }) => (
+  <>
+    <header className="flex items-center justify-between">
+      <h3>Ratings</h3>
+      <div className="flex shrink-0 items-center gap-1">
+        <Star pack="filled" className="size-5" />
+        <div className="rating-average">{ratings.average}</div>(
+        {`${formatOrderOfMagnitude(ratings.count, 1)} ${ratings.count === 1 ? "rating" : "ratings"}`})
+      </div>
+    </header>
+    {/* Rating markup lives in the page's JSON-LD (Product::StructuredData), where the
+        AggregateRating nests under the Product. This section has no Product itemscope ancestor. */}
+    <section className="grid grid-cols-[auto_1fr_auto] gap-3" aria-label="Ratings histogram">
+      {([4, 3, 2, 1, 0] as const).map((rating) => {
+        const label = `${rating + 1} ${rating === 0 ? "star" : "stars"}`;
+        const percentage = ratings.percentages[rating];
+
+        return (
+          <React.Fragment key={rating}>
+            <div>{label}</div>
+            <meter
+              aria-label={label}
+              value={percentage / 100}
+              className="h-[1lh] w-full appearance-none rounded border border-border bg-none [&::-moz-meter-bar]:rounded [&::-moz-meter-bar]:[background:var(--color-accent)] [&::-webkit-meter-bar]:contents [&::-webkit-meter-inner-element]:contents [&::-webkit-meter-optimum-value]:rounded [&::-webkit-meter-optimum-value]:[background:var(--color-accent)]"
+            />
+            <div>{`${percentage}%`}</div>
+          </React.Fragment>
+        );
+      })}
+    </section>
+  </>
 );
 
 export const productDescriptionNeedsClientEnhancement = (descriptionHtml: string | null) => {

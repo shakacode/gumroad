@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
+    Product/ProductReviews.client.tsx
     Profile/ProfileFeaturedProduct.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
@@ -143,11 +144,26 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes enhancement, "$app/components/RichTextEditor"
   end
 
-  test "defers the initial written reviews request until browser idle time" do
+  test "streams the ratings summary before loading written reviews on browser idle" do
+    reviews = COMPONENT_DIRECTORY.join("Product/ProductReviews.client.tsx")
+    enhancement = COMPONENT_DIRECTORY.join("Product/ProductReviewsEnhancement.tsx")
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
 
-    assert_includes interactive_product, "scheduleProductReviewsLoad"
+    assert_predicate reviews, :file?
+    assert_predicate enhancement, :file?
+    assert_includes interactive_product, "initialContent={serverContent.reviews}"
+    assert_not_includes interactive_product, "scheduleProductReviewsLoad"
+    assert_not_includes interactive_product, "$app/data/product_reviews"
     assert_not_includes interactive_product, "useRunOnce(() => void loadNextPage())"
+    assert_includes product_content, "export const ProductReviewsContent"
+    assert_includes product_page, "<ProductReviewsContent ratings={product.ratings} />"
+    assert_includes reviews.read, 'import("$app/components/Product/ProductReviewsEnhancement")'
+    assert_includes reviews.read, "scheduleProductReviewsLoad"
+    assert_not_includes reviews.read, "$app/data/product_reviews"
+    assert_not_includes client_graph, enhancement
   end
 
   test "keeps profile rich text rendering behind an asynchronous client boundary" do

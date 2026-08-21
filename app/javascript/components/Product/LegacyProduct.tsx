@@ -12,6 +12,7 @@ import {
   ProductDescriptionContent,
   ProductMembershipNotices,
   ProductReceiptContent,
+  ProductReviewsContent,
   ProductSellerReputation,
   ProductStreamingNotice,
 } from "$app/components/Product/ProductContent";
@@ -62,6 +63,7 @@ export const legacyProductContent = ({
         purchase={purchase}
       />
     ) : null,
+    reviews: product.ratings && product.ratings.count > 0 ? <ProductReviewsContent ratings={product.ratings} /> : null,
     title: (
       <h1 itemProp="name" dir="auto">
         {product.name}

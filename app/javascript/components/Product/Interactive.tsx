@@ -1,8 +1,6 @@
-import { Star } from "@boxicons/react";
 import { parseISO } from "date-fns";
 import * as React from "react";
 
-import { getReviews, type Review } from "$app/data/product_reviews";
 import { trackUserProductAction } from "$app/data/user_action_event";
 import { Wishlist } from "$app/data/wishlists";
 import { Discount } from "$app/parsers/checkout";
@@ -25,15 +23,12 @@ import {
   formatPriceCentsWithCurrencySymbol,
 } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
-import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
-import { assertResponseError } from "$app/utils/request";
 
 import { NavigationButton } from "$app/components/Button";
 import { CartItem, CartItemEnd, CartItemList, CartItemMain, CartItemMedia } from "$app/components/CartItemList";
 import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
-import { PaginationProps } from "$app/components/Pagination";
 import {
   applySelection,
   buyerLocalPriceCentsForSelection,
@@ -55,14 +50,13 @@ import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
+import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
-import { scheduleProductReviewsLoad } from "$app/components/Product/scheduleProductReviewsLoad";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
-import { Review as ReviewComponent } from "$app/components/Review";
 import type { Review as FormReview } from "$app/components/ReviewForm";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
@@ -254,6 +248,7 @@ export type ServerContent = {
   initialCover: { id: string; content: React.ReactNode } | null;
   membershipNotices: React.ReactNode;
   receipt: React.ReactNode;
+  reviews: React.ReactNode;
   streamingNotice: React.ReactNode;
   title: React.ReactNode;
   sellerAndRatings: React.ReactNode;
@@ -587,7 +582,9 @@ export const InteractiveProduct = ({
             <RefundPolicyInfo refundPolicy={product.refund_policy} permalink={product.permalink} />
           ) : null}
         </section>
-        {product.ratings ? <Reviews ratings={product.ratings} productId={product.id} seller={product.seller} /> : null}
+        {product.ratings && product.ratings.count > 0 ? (
+          <ProductReviews initialContent={serverContent.reviews} productId={product.id} seller={product.seller} />
+        ) : null}
         {serverContent.sellerReputation}
       </section>
       {purchase && (purchase.membership || purchase.subscription_has_lapsed) && product.is_recurring_billing ? (
@@ -653,119 +650,6 @@ const LicenseKeyLookupPrompt = () => {
     </section>
   );
 };
-
-export const RatingsHistogramRow = ({ rating, percentage }: { rating: number; percentage: number }) => {
-  const formattedPercentage = `${percentage}%`;
-  const label = `${rating} ${rating === 1 ? "star" : "stars"}`;
-  return (
-    <>
-      <div>{label}</div>
-      <meter
-        aria-label={label}
-        value={percentage / 100}
-        className="h-[1lh] w-full appearance-none rounded border border-border bg-none [&::-moz-meter-bar]:rounded [&::-moz-meter-bar]:[background:var(--color-accent)] [&::-webkit-meter-bar]:contents [&::-webkit-meter-inner-element]:contents [&::-webkit-meter-optimum-value]:rounded [&::-webkit-meter-optimum-value]:[background:var(--color-accent)]"
-      />
-      <div>{formattedPercentage}</div>
-    </>
-  );
-};
-
-const Reviews = ({
-  productId,
-  ratings,
-  seller,
-}: {
-  productId: string;
-  ratings: RatingsWithPercentages;
-  seller: Seller | null;
-}) => {
-  const loggedInUser = useLoggedInUser();
-  const [state, setState] = React.useState<{ reviews: Review[]; pagination: PaginationProps }>({
-    reviews: [],
-    pagination: { page: 0, pages: 1 },
-  });
-  const [isLoading, setIsLoading] = React.useState(false);
-  const loadPage = React.useCallback(
-    async (page: number) => {
-      if (ratings.count === 0) return;
-      setIsLoading(true);
-      try {
-        const { reviews, pagination } = await getReviews(productId, page);
-        setState(({ reviews: prevReviews }) => ({ pagination, reviews: [...prevReviews, ...reviews] }));
-      } catch (e) {
-        assertResponseError(e);
-        showAlert(e.message, "error");
-      }
-      setIsLoading(false);
-    },
-    [productId, ratings.count],
-  );
-  const loadNextPage = () => void loadPage(state.pagination.page + 1);
-  React.useEffect(() => {
-    if (ratings.count === 0) return;
-    return scheduleProductReviewsLoad(() => void loadPage(1));
-  }, [loadPage, ratings.count]);
-
-  if (ratings.count === 0) return null;
-
-  return (
-    <section className="grid gap-4 p-6 not-first:border-t">
-      <header className="flex items-center justify-between">
-        <h3>Ratings</h3>
-        <div className="flex shrink-0 items-center gap-1">
-          <Star pack="filled" className="size-5" />
-          <div className="rating-average">{ratings.average}</div>(
-          {`${formatOrderOfMagnitude(ratings.count, 1)} ${ratings.count === 1 ? "rating" : "ratings"}`})
-        </div>
-      </header>
-      {/* Rating markup lives in the page's JSON-LD (Product::StructuredData), where the
-          AggregateRating nests under the Product. Do not re-add microdata here: this section
-          has no itemscope Product ancestor, so an itemscope block becomes a standalone
-          top-level AggregateRating that Google's Rich Results Test flags as
-          "Missing field itemReviewed" (gumroad-private#1875). */}
-      <section className="grid grid-cols-[auto_1fr_auto] gap-3" aria-label="Ratings histogram">
-        {([4, 3, 2, 1, 0] as const).map((rating) => (
-          <RatingsHistogramRow rating={rating + 1} percentage={ratings.percentages[rating]} key={rating} />
-        ))}
-      </section>
-      {state.reviews.length ? (
-        <section className="flex flex-col gap-4" style={{ marginTop: "var(--spacer-2)" }}>
-          {state.reviews.map((review, idx) => (
-            <Review
-              key={review.id}
-              review={review}
-              seller={seller}
-              isLast={idx === state.reviews.length - 1}
-              canRespond={seller?.id === loggedInUser?.id}
-            />
-          ))}
-          {state.pagination.page < state.pagination.pages ? (
-            <button className="cursor-pointer underline all-unset" onClick={loadNextPage} disabled={isLoading}>
-              Load more
-            </button>
-          ) : null}
-        </section>
-      ) : null}
-    </section>
-  );
-};
-
-const Review = ({
-  review,
-  seller,
-  isLast,
-  canRespond,
-}: {
-  review: Review;
-  seller: Seller | null;
-  isLast: boolean;
-  canRespond: boolean;
-}) => (
-  <>
-    <ReviewComponent review={review} seller={seller} canRespond={canRespond} />
-    {isLast ? null : <hr />}
-  </>
-);
 
 export const RatingsSummary = ({ ratings, className }: { ratings: Ratings; className?: string }) => (
   <div className={classNames("flex shrink-0 items-center", className)}>

@@ -10,6 +10,7 @@ import {
   ProductDescriptionContent,
   ProductMembershipNotices,
   ProductReceiptContent,
+  ProductReviewsContent,
   ProductSellerReputation,
   ProductStreamingNotice,
   type ProductContentProps,
@@ -250,6 +251,16 @@ describe("ProductDescriptionContent", () => {
     );
 
     expect(screen.getByText("description").tagName).toBe("STRONG");
+  });
+});
+
+describe("ProductReviewsContent", () => {
+  it("renders the ratings summary and histogram as server content", () => {
+    render(<ProductReviewsContent ratings={{ average: 4.8, count: 238, percentages: [0, 1, 3, 11, 85] }} />);
+
+    expect(screen.getByRole("heading", { name: "Ratings" })).toBeTruthy();
+    expect(screen.getByText("4.8").parentElement?.textContent).toContain("238 ratings");
+    expect(screen.getByRole("meter", { name: "5 stars" }).getAttribute("value")).toBe("0.85");
   });
 });
 

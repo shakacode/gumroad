@@ -14,6 +14,7 @@ import {
   ProductDetails,
   ProductMembershipNotices,
   ProductReceiptContent,
+  ProductReviewsContent,
   ProductSellerAndRatings,
   ProductSellerReputation,
   ProductStreamingNotice,
@@ -82,6 +83,8 @@ export default function ProductPage({
           purchase={purchase}
         />
       ) : null,
+      reviews:
+        product.ratings && product.ratings.count > 0 ? <ProductReviewsContent ratings={product.ratings} /> : null,
       title: <ProductTitle content={content} />,
       sellerAndRatings: <ProductSellerAndRatings content={content} />,
       details: <ProductDetails content={content} />,
