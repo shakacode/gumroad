@@ -5,6 +5,7 @@ import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
+import ProductArticleInteractions from "$app/components/Product/ProductArticleInteractions.client";
 import {
   type ProductContentProps,
   ProductAvailabilityNotice,
@@ -34,7 +35,7 @@ import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.clien
 import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
-export type ProductPageProps = Omit<ProductInteractionsProps, "serverContent" | "serverProfileSections"> & {
+export type ProductPageProps = Omit<ProductInteractionsProps, "productArticle" | "serverProfileSections"> & {
   _inertia_meta?: MetaTag[];
   discount_code: ProductDiscount;
   global: GlobalProps;
@@ -94,11 +95,22 @@ export default function ProductPage({
       streamingNotice: <ProductStreamingNotice content={content} />,
     };
   };
+  const serverContent = toServerContent(rscProductContent, productProps);
+  const ctaLabel =
+    productProps.page_layout === "discover" || productProps.page_layout === "profile" ? "Add to cart" : undefined;
+  const productArticle = (
+    <ProductArticleInteractions
+      product={productProps.product}
+      purchase={productProps.purchase}
+      wishlists={productProps.wishlists}
+      ctaLabel={ctaLabel}
+      serverContent={serverContent}
+    />
+  );
   const interactionProps = {
     ...productProps,
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
     hasHero: productProps.page_layout === "discover",
-    serverContent: toServerContent(rscProductContent, productProps),
     serverProfileSections: Object.fromEntries(
       productProps.sections.flatMap((section) => {
         if (section.type === "SellerProfileProductsSection") {
@@ -176,10 +188,10 @@ export default function ProductPage({
         ];
       }),
     ),
-  } satisfies ProductInteractionsProps;
+  } satisfies Omit<ProductInteractionsProps, "productArticle">;
   const product = (
     <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
-      <ProductInteractions {...interactionProps} />
+      <ProductInteractions {...interactionProps} productArticle={productArticle} />
     </ProductStateProvider>
   );
 

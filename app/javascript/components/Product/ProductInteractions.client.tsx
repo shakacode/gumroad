@@ -5,12 +5,8 @@ import * as React from "react";
 import { classNames } from "$app/utils/classNames";
 
 import { PoweredByFooter } from "$app/components/PoweredByFooter";
-import {
-  InteractiveProduct,
-  type Props as ProductProps,
-  type ServerContent,
-} from "$app/components/Product/Interactive";
-import { CtaBar, EditButton } from "$app/components/Product/LayoutControls";
+import type { Props as ProductProps } from "$app/components/Product/Interactive";
+import { CtaBar } from "$app/components/Product/LayoutControls";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 import type { PageProps as SectionsProps } from "$app/components/Profile/Sections";
@@ -20,8 +16,8 @@ export type ProductInteractionsProps = Omit<ProductProps, "discount_code"> & {
   hasHero?: boolean;
   main_section_index: number;
   page_layout: "discover" | "profile" | null;
+  productArticle: React.ReactNode;
   serverProfileSections: Record<string, React.ReactNode>;
-  serverContent: ServerContent;
 } & SectionsProps;
 
 export default function ProductInteractions({
@@ -29,35 +25,14 @@ export default function ProductInteractions({
   purchase,
   cart,
   hasHero,
-  wishlists,
   main_section_index: mainSectionIndex,
-  serverContent,
+  productArticle,
   serverProfileSections,
   page_layout: pageLayout,
   ...sectionProps
 }: ProductInteractionsProps) {
-  const { selection, setSelection, ctaButtonRef, configurationSelectorRef, discountCode, setDiscountCode } =
-    useProductState();
+  const { selection, ctaButtonRef, configurationSelectorRef, discountCode } = useProductState();
   const ctaLabel = cart ? "Add to cart" : undefined;
-
-  const productView = (
-    <>
-      <EditButton product={product} />
-      <InteractiveProduct
-        product={product}
-        purchase={purchase}
-        discountCode={discountCode}
-        setDiscountCode={setDiscountCode}
-        ctaLabel={ctaLabel}
-        selection={selection}
-        setSelection={setSelection}
-        ctaButtonRef={ctaButtonRef}
-        configurationSelectorRef={configurationSelectorRef}
-        wishlists={wishlists}
-        serverContent={serverContent}
-      />
-    </>
-  );
 
   const mainSection = (
     <section className="border-b border-border">
@@ -67,7 +42,7 @@ export default function ProductInteractions({
           sectionProps.sections.length > 0 ? "px-4 py-8" : "p-4 lg:px-8",
         )}
       >
-        {productView}
+        {productArticle}
       </div>
     </section>
   );

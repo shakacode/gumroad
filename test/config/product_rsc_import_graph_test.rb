@@ -10,6 +10,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
     Product/ProductAnalytics.client.tsx
+    Product/ProductArticleInteractions.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
@@ -67,6 +68,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "composes product state around server-owned children" do
     provider = COMPONENT_DIRECTORY.join("Product/ProductStateProvider.client.tsx")
+    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").read
     interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
 
@@ -76,10 +78,24 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes provider.read, "React.useState(initialDiscountCode)"
     assert_includes interactions, "useProductState()"
     assert_not_includes interactions, "useSelectionFromUrl(product)"
-    assert_includes interactions, "setDiscountCode={setDiscountCode}"
+    assert_includes article_interactions, "setDiscountCode={setDiscountCode}"
     assert_includes product_page, "product={productProps.product}"
     assert_includes product_page, "initialDiscountCode={productProps.discount_code}"
-    assert_includes product_page, "<ProductInteractions {...interactionProps} />"
+    assert_includes product_page, "<ProductInteractions {...interactionProps} productArticle={productArticle} />"
+  end
+
+  test "passes the product article through the layout client boundary" do
+    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx")
+    interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_predicate article_interactions, :file?
+    assert article_interactions.read.start_with?('"use client";')
+    assert_not_includes interactions, "InteractiveProduct"
+    assert_includes interactions, "productArticle: React.ReactNode"
+    assert_includes interactions, "{productArticle}"
+    assert_includes product_page, "<ProductArticleInteractions"
+    assert_includes product_page, "productArticle={productArticle}"
   end
 
   test "isolates product view analytics in a null client island" do
