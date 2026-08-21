@@ -1,8 +1,5 @@
-import { Pencil } from "@boxicons/react";
 import * as React from "react";
 
-import { NavigationButton } from "$app/components/Button";
-import { useAppDomain } from "$app/components/DomainSettings";
 import {
   applySelection,
   buyerLocalPriceCentsForSelection,
@@ -150,22 +147,5 @@ export const CtaBar = ({
         </div>
       </div>
     </section>
-  );
-};
-
-export const EditButton = ({ product }: { product: ProductData }) => {
-  const appDomain = useAppDomain();
-
-  if (!product.can_edit) return null;
-
-  return (
-    <NavigationButton
-      className="mb-4"
-      color="filled"
-      href={Routes.edit_link_url({ id: product.permalink }, { host: appDomain })}
-    >
-      <Pencil className="size-5" aria-hidden="true" />
-      Edit product
-    </NavigationButton>
   );
 };

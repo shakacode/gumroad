@@ -6,7 +6,8 @@ import { assertResponseError, request, ResponseError } from "$app/utils/request"
 
 import { Product, useSelectionFromUrl, Props as ProductProps } from "$app/components/Product";
 import { ConfigurationSelectorHandle } from "$app/components/Product/ConfigurationSelector";
-import { CtaBar, EditButton } from "$app/components/Product/LayoutControls";
+import { CtaBar } from "$app/components/Product/LayoutControls";
+import { ProductEditButton } from "$app/components/Product/ProductEditButton.client";
 import {
   Action,
   AddSectionButton,
@@ -150,7 +151,7 @@ export const Layout = (
 
   const productView = (
     <>
-      <EditButton product={product} />
+      <ProductEditButton product={product} />
       <Product
         product={product}
         purchase={purchase}

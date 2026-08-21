@@ -4,7 +4,7 @@ import * as React from "react";
 
 import type { Props as ProductProps, ServerContent } from "$app/components/Product/Interactive";
 import { InteractiveProduct } from "$app/components/Product/Interactive";
-import { EditButton } from "$app/components/Product/LayoutControls";
+import { ProductEditButton } from "$app/components/Product/ProductEditButton.client";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 
 type ProductArticleInteractionsProps = Pick<ProductProps, "product" | "purchase" | "wishlists"> & {
@@ -24,7 +24,7 @@ export default function ProductArticleInteractions({
 
   return (
     <>
-      <EditButton product={product} />
+      <ProductEditButton product={product} />
       <InteractiveProduct
         product={product}
         purchase={purchase}

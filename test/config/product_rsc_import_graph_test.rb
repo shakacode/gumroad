@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductArticleInteractions.client.tsx
     Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
+    Product/ProductEditButton.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductLicenseKeyLookup.client.tsx
     Product/ProductMedia.client.tsx
@@ -112,6 +113,24 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes interactions, "{productArticle}"
     assert_includes product_page, "<ProductArticleInteractions"
     assert_includes product_page, "productArticle={productArticle}"
+  end
+
+  test "isolates the browser-aware product edit control" do
+    edit_button = COMPONENT_DIRECTORY.join("Product/ProductEditButton.client.tsx")
+    article_interactions = COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").read
+    layout = COMPONENT_DIRECTORY.join("Product/Layout.tsx").read
+    layout_controls = COMPONENT_DIRECTORY.join("Product/LayoutControls.tsx").read
+
+    assert_predicate edit_button, :file?
+    assert edit_button.read.start_with?('"use client";')
+    assert_includes edit_button.read, "useAppDomain()"
+    assert_includes edit_button.read, "<NavigationButton"
+    assert_includes article_interactions, "$app/components/Product/ProductEditButton.client"
+    assert_includes article_interactions, "<ProductEditButton product={product} />"
+    assert_includes layout, "$app/components/Product/ProductEditButton.client"
+    assert_includes layout, "<ProductEditButton product={product} />"
+    assert_not_includes layout_controls, "export const EditButton"
+    assert_not_includes layout_controls, "useAppDomain"
   end
 
   test "isolates product view analytics in a null client island" do
