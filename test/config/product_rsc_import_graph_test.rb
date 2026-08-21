@@ -230,6 +230,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert secondary_actions.read.start_with?('"use client";')
     assert_includes secondary_actions.read, "<ShareSection"
     assert_includes secondary_actions.read, "<Modal"
+    assert_includes secondary_actions.read, "export const ProductSecondaryActionsFromState"
+    assert_includes secondary_actions.read, "const { selection } = useProductState()"
+    assert_includes secondary_actions.read, "<ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />"
     assert_includes interactive_product, "<ProductSecondaryActions"
     assert_not_includes interactive_product, 'import { ShareSection }'
     assert_not_includes interactive_product, "RefundPolicyInfo"

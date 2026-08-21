@@ -8,6 +8,7 @@ import { trackUserProductAction } from "$app/data/user_action_event";
 import { Modal } from "$app/components/Modal";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { ProductData, RefundPolicy, WishlistForProduct } from "$app/components/Product/Interactive";
+import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { useUserAgentInfo } from "$app/components/UserAgent";
 import { useRunOnce } from "$app/components/useRunOnce";
@@ -28,6 +29,18 @@ export const ProductSecondaryActions = ({
     ) : null}
   </>
 );
+
+export const ProductSecondaryActionsFromState = ({
+  product,
+  wishlists,
+}: {
+  product: ProductData;
+  wishlists: WishlistForProduct[];
+}) => {
+  const { selection } = useProductState();
+
+  return <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />;
+};
 
 const RefundPolicyInfo = ({ refundPolicy, permalink }: { refundPolicy: RefundPolicy; permalink: string }) => {
   const HASH = "#refund-policy";
