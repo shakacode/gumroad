@@ -21,11 +21,12 @@ import {
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
+import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
 export type ProductPageProps = Omit<
   ProductInteractionsProps,
-  "featuredProductServerContent" | "profilePostsServerContent" | "profileRichTextServerContent" | "serverContent"
+  "featuredProductServerContent" | "profileRichTextServerContent" | "serverContent" | "serverProfileSections"
 > & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
@@ -85,10 +86,17 @@ export default function ProductPage({
           : [];
       }),
     ),
-    profilePostsServerContent: Object.fromEntries(
+    serverProfileSections: Object.fromEntries(
       productProps.sections.flatMap((section) =>
         section.type === "SellerProfilePostsSection"
-          ? [[section.id, <ProfilePostsContent key={section.id} posts={section.posts} locale={global.locale} />]]
+          ? [
+              [
+                section.id,
+                <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+                  <ProfilePostsContent posts={section.posts} locale={global.locale} />
+                </ProfileSectionFrame>,
+              ],
+            ]
           : [],
       ),
     ),

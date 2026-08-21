@@ -1,5 +1,4 @@
 import { Archive } from "@boxicons/react";
-import classNames from "classnames";
 import * as React from "react";
 
 import {
@@ -20,6 +19,7 @@ import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { Props as ProductProps } from "$app/components/Product/Interactive";
 import { FollowForm } from "$app/components/Profile/FollowForm";
+import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
 import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
@@ -244,15 +244,7 @@ export type PageProps = {
   sections: Section[];
 };
 
-export const SectionLayout = ({
-  children,
-  className,
-  ...props
-}: { children: React.ReactNode } & React.ComponentProps<"section">) => (
-  <section className={classNames("relative border-b border-border px-4 py-8 lg:py-16", className)} {...props}>
-    <div className="mx-auto grid w-full max-w-6xl gap-6">{children}</div>
-  </section>
-);
+export { ProfileSectionLayout as SectionLayout } from "$app/components/Profile/ProfileSectionFrame";
 
 export const Section = ({
   section,
@@ -267,8 +259,7 @@ export const Section = ({
   postsContent?: React.ReactNode;
   richTextServerContent?: React.ReactNode;
 } & PageProps) => (
-  <SectionLayout id={section.id}>
-    {section.header ? <h2>{section.header}</h2> : null}
+  <ProfileSectionFrame id={section.id} header={section.header}>
     {section.type === "SellerProfileProductsSection" ? (
       <ProductsSectionView section={section} creatorProfile={creator_profile} currencyCode={currency_code} />
     ) : section.type === "SellerProfilePostsSection" ? (
@@ -282,5 +273,5 @@ export const Section = ({
     ) : (
       <WishlistsSectionView key={section.id} section={section} />
     )}
-  </SectionLayout>
+  </ProfileSectionFrame>
 );

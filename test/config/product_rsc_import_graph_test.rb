@@ -25,6 +25,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductPage.tsx
     Profile/ProfilePostsContent.tsx
     Profile/ProfileRichTextContent.tsx
+    Profile/ProfileSectionFrame.tsx
   ].freeze
 
   test "keeps public RSC root boundaries explicit" do
@@ -142,7 +143,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes rich_text, "$app/components/RichTextEditor"
   end
 
-  test "passes profile posts through the product client island" do
+  test "renders profile post frames outside the product client island" do
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
     product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
@@ -154,7 +155,10 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes sections, "postsContent"
     assert_not_includes sections, "formatPostDate"
     assert_not_includes sections, "useUserAgentInfo"
-    assert_includes product_interactions, "postsContent={profilePostsServerContent[section.id]}"
+    assert_includes product_interactions, "serverProfileSections[section.id] ??"
+    assert_not_includes product_interactions, "postsContent={profilePostsServerContent[section.id]}"
+    assert_includes product_page, "serverProfileSections: Object.fromEntries"
+    assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfilePostsContent"
     assert_not_includes client_graph, posts_content
     assert_includes legacy_product_layout, "<PostsView posts={section.posts} />"
