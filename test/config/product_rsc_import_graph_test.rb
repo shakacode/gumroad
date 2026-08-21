@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
+    Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
@@ -221,6 +222,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, 'section.type === "SellerProfileWishlistsSection"'
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileWishlists"
+  end
+
+  test "renders profile product frames outside the product client island" do
+    products = COMPONENT_DIRECTORY.join("Profile/ProfileProducts.client.tsx")
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_predicate products, :file?
+    assert products.read.start_with?('"use client";')
+    assert_includes sections, "<ProfileProducts"
+    assert_includes product_page, 'section.type === "SellerProfileProductsSection"'
+    assert_includes product_page, "<ProfileSectionFrame"
+    assert_includes product_page, "<ProfileProducts"
   end
 
   private

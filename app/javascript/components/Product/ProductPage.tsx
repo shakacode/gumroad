@@ -22,6 +22,7 @@ import {
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
+import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
 import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
@@ -105,6 +106,20 @@ export default function ProductPage({
     ),
     serverProfileSections: Object.fromEntries(
       productProps.sections.flatMap((section) => {
+        if (section.type === "SellerProfileProductsSection") {
+          return [
+            [
+              section.id,
+              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+                <ProfileProducts
+                  section={section}
+                  creatorProfile={productProps.creator_profile}
+                  currencyCode={productProps.currency_code}
+                />
+              </ProfileSectionFrame>,
+            ],
+          ];
+        }
         if (section.type === "SellerProfilePostsSection") {
           return [
             [
