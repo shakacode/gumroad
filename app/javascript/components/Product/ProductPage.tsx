@@ -9,6 +9,7 @@ import {
   type ProductContentProps,
   ProductAvailabilityNotice,
   ProductBundleItemContent,
+  ProductCoverImage,
   ProductDescriptionContent,
   ProductDetails,
   ProductMembershipNotices,
@@ -52,31 +53,41 @@ export default function ProductPage({
   const toServerContent = (
     content: ProductContentProps,
     { product, purchase }: Pick<ProductInteractionsProps, "product" | "purchase">,
-  ): ServerContent => ({
-    availabilityNotice: <ProductAvailabilityNotice content={content} />,
-    bundleItems: Object.fromEntries(
-      product.bundle_products.map((bundleProduct) => [
-        bundleProduct.id,
-        <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
-      ]),
-    ),
-    description: <ProductDescriptionContent content={content} />,
-    membershipNotices: <ProductMembershipNotices content={content} />,
-    receipt: purchase ? (
-      <ProductReceiptContent
-        customViewContentButtonText={product.custom_view_content_button_text}
-        isBundle={product.bundle_products.length > 0}
-        isPreorder={product.preorder !== null}
-        permalink={product.permalink}
-        purchase={purchase}
-      />
-    ) : null,
-    title: <ProductTitle content={content} />,
-    sellerAndRatings: <ProductSellerAndRatings content={content} />,
-    details: <ProductDetails content={content} />,
-    sellerReputation: <ProductSellerReputation content={content} />,
-    streamingNotice: <ProductStreamingNotice content={content} />,
-  });
+  ): ServerContent => {
+    const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
+
+    return {
+      availabilityNotice: <ProductAvailabilityNotice content={content} />,
+      bundleItems: Object.fromEntries(
+        product.bundle_products.map((bundleProduct) => [
+          bundleProduct.id,
+          <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
+        ]),
+      ),
+      description: <ProductDescriptionContent content={content} />,
+      initialCover: initialCover
+        ? {
+            id: initialCover.id,
+            content: <ProductCoverImage cover={initialCover} productName={product.name} />,
+          }
+        : null,
+      membershipNotices: <ProductMembershipNotices content={content} />,
+      receipt: purchase ? (
+        <ProductReceiptContent
+          customViewContentButtonText={product.custom_view_content_button_text}
+          isBundle={product.bundle_products.length > 0}
+          isPreorder={product.preorder !== null}
+          permalink={product.permalink}
+          purchase={purchase}
+        />
+      ) : null,
+      title: <ProductTitle content={content} />,
+      sellerAndRatings: <ProductSellerAndRatings content={content} />,
+      details: <ProductDetails content={content} />,
+      sellerReputation: <ProductSellerReputation content={content} />,
+      streamingNotice: <ProductStreamingNotice content={content} />,
+    };
+  };
   const interactionProps = {
     ...productProps,
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",

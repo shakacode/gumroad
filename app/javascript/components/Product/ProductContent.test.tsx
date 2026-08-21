@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   ProductAvailabilityNotice,
   ProductBundleItemContent,
+  ProductCoverImage,
   ProductDescriptionContent,
   ProductMembershipNotices,
   ProductReceiptContent,
@@ -59,6 +60,54 @@ describe("ProductBundleItemContent", () => {
     expect(screen.getByLabelText("Rating").textContent).toContain("4.8 (8)");
     expect(screen.getByText("Qty: 2")).toBeTruthy();
     expect(screen.getByText("Version:").parentElement?.textContent).toBe("Version: Extended edition");
+  });
+});
+
+describe("ProductCoverImage", () => {
+  it("renders the initial image cover as server content", () => {
+    const { container } = render(
+      <ProductCoverImage
+        cover={{
+          type: "image",
+          filetype: "png",
+          id: "cover-1",
+          url: "https://example.com/cover.png",
+          original_url: "https://example.com/cover-original.png",
+          thumbnail: null,
+          width: 1005,
+          height: 565,
+          native_width: 1920,
+          native_height: 1080,
+        }}
+        productName="A guide"
+      />,
+    );
+
+    const image = container.querySelector("img");
+    expect(image?.getAttribute("src")).toBe("https://example.com/cover.png");
+    expect(image?.getAttribute("alt")).toBe("A guide");
+  });
+
+  it("leaves video covers to the client player", () => {
+    const { container } = render(
+      <ProductCoverImage
+        cover={{
+          type: "video",
+          filetype: "mp4",
+          id: "cover-1",
+          url: "https://example.com/cover.mp4",
+          original_url: "https://example.com/cover-original.mp4",
+          thumbnail: null,
+          width: 1005,
+          height: 565,
+          native_width: 1920,
+          native_height: 1080,
+        }}
+        productName="A guide"
+      />,
+    );
+
+    expect(container.innerHTML).toBe("");
   });
 });
 

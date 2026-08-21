@@ -250,6 +250,7 @@ export type ServerContent = {
   availabilityNotice: React.ReactNode;
   bundleItems: Record<string, React.ReactNode>;
   description: React.ReactNode;
+  initialCover: { id: string; content: React.ReactNode } | null;
   membershipNotices: React.ReactNode;
   receipt: React.ReactNode;
   streamingNotice: React.ReactNode;
@@ -355,7 +356,12 @@ export const InteractiveProduct = ({
         productName={product.name}
         sellerId={product.seller?.id}
       />
-      <Covers covers={product.covers} mainCoverId={product.main_cover_id} productName={product.name} />
+      <Covers
+        covers={product.covers}
+        initialCover={serverContent.initialCover}
+        mainCoverId={product.main_cover_id}
+        productName={product.name}
+      />
       {product.quantity_remaining !== null ? <Ribbon>{product.quantity_remaining} left</Ribbon> : null}
       <section className="lg:border-r">
         <header className="grid gap-4 p-6 not-first:border-t">
@@ -595,10 +601,12 @@ export const InteractiveProduct = ({
 
 const Covers = ({
   covers,
+  initialCover,
   mainCoverId,
   productName,
 }: {
   covers: AssetPreview[];
+  initialCover: ServerContent["initialCover"];
   mainCoverId: string | null;
   productName: string;
 }) => {
@@ -612,6 +620,7 @@ const Covers = ({
       covers={covers}
       activeCoverId={activeCoverId}
       setActiveCoverId={setActiveCoverId}
+      initialCover={initialCover}
       productName={productName}
       className={activeCoverId ? "" : "pb-[25%]"}
     />

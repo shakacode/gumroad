@@ -2,7 +2,12 @@ import { Star } from "@boxicons/react";
 import { differenceInYears, parseISO } from "date-fns";
 import * as React from "react";
 
-import { COMMISSION_DEPOSIT_PROPORTION, type FreeTrial, type ProductNativeType } from "$app/parsers/product";
+import {
+  type AssetPreview,
+  COMMISSION_DEPOSIT_PROPORTION,
+  type FreeTrial,
+  type ProductNativeType,
+} from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
 import { variantLabel } from "$app/utils/labels";
@@ -54,6 +59,11 @@ type BundleProduct = {
   url: string;
   variant: string | null;
 };
+
+export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview; productName: string }) =>
+  cover.type === "image" && cover.native_width && cover.native_height ? (
+    <img className="max-h-full w-full object-contain" src={cover.url} alt={productName} itemProp="image" />
+  ) : null;
 
 export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (
   <>

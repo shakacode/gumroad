@@ -16,6 +16,14 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     end
   end
 
+  def create_local_image_cover
+    create(:asset_preview, link: product)
+    cover_url = "/native-product-page-fixture/residential-guide-thumbnail.jpg"
+    allow_any_instance_of(AssetPreview).to receive(:as_json).and_wrap_original do |method, *args|
+      method.call(*args).merge("url" => cover_url, "original_url" => cover_url)
+    end
+  end
+
   around do |example|
     JSErrorReporter.enabled = true
     example.run
@@ -97,6 +105,26 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_link("I want this!")
     expect(page).to have_no_field("Search products")
     expect(page).to have_no_selector("[role=menubar]")
+  end
+
+  it "hydrates the server-rendered first image cover without duplication" do
+    create_local_image_cover
+
+    page.visit product.long_url
+
+    expect(page).to have_selector("[aria-label='Product preview'] img", count: 1)
+  end
+
+  it "server-renders the first image cover without client JavaScript" do
+    create_local_image_cover
+
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_selector("[aria-label='Product preview'] img", count: 1)
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
   it "server-renders profile rich text without client JavaScript" do

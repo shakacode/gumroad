@@ -83,6 +83,18 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "description: <ProductDescriptionContent content={content} />"
   end
 
+  test "passes the server-rendered initial cover through the client carousel" do
+    covers = COMPONENT_DIRECTORY.join("Product/Covers/index.tsx").read
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_includes covers, "initialContent={initialCover?.id === cover.id ? initialCover.content : null}"
+    assert_includes interactive_product, "initialCover={serverContent.initialCover}"
+    assert_includes product_content, "export const ProductCoverImage"
+    assert_includes product_page, "content: <ProductCoverImage"
+  end
+
   test "passes static bundle item text through the client pricing loop" do
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
