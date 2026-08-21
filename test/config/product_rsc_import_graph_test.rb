@@ -7,6 +7,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   CLIENT_COMPONENTS = %w[
     Discover/Cart.client.tsx
     Discover/DiscoverResults.client.tsx
+    Discover/DiscoverResultsCore.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
     PoweredByFooter.tsx
@@ -45,6 +46,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     PublicPages/ProductPageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
+    Discover/BlackFridayHero.tsx
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
     Discover/DiscoverPage.tsx
@@ -80,8 +82,28 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     discover_clients = CLIENT_COMPONENTS.grep(%r{\ADiscover/})
     client_graph = transitive_javascript_imports(discover_clients.map { COMPONENT_DIRECTORY.join(_1) })
 
+    assert_not_includes client_graph, Rails.root.join("app/javascript/components/Discover/Index.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Discover/Layout.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Discover/Nav.tsx")
+  end
+
+  test "composes the conditional Black Friday hero on the Discover server" do
+    discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx")
+    hero = COMPONENT_DIRECTORY.join("Discover/BlackFridayHero.tsx")
+
+    assert_predicate hero, :file?
+    assert_not hero.read.start_with?('"use client";')
+    assert_includes hero.read, "black_friday.svg"
+    assert_includes discover_page, "<BlackFridayHero"
+    assert_includes discover_page, "blackFridayHero={blackFridayHero}"
+    assert_includes results, "blackFridayHero: React.ReactNode"
+    assert_predicate results_core, :file?
+    assert results_core.read.start_with?('"use client";')
+    assert_not_includes results_core.read, "black_friday.svg"
+    assert_not_includes results_core.read, "illustrations/sale.svg"
+    assert_not_includes results_core.read, "formatPriceCentsWithCurrencySymbol"
   end
 
   test "keeps the legacy product composition out of the RSC client graph" do

@@ -1,0 +1,460 @@
+"use client";
+
+import { ArrowLeft, ArrowRight, X } from "@boxicons/react";
+import { Deferred, router, usePage } from "@inertiajs/react";
+import { range } from "lodash-es";
+import * as React from "react";
+import typia from "typia";
+
+import { SearchRequest, SearchResults } from "$app/data/search";
+import { useScrollToElement } from "$app/hooks/useScrollToElement";
+import { CardProduct } from "$app/parsers/product";
+import { last } from "$app/utils/array";
+import { CurrencyCode } from "$app/utils/currency";
+import { discoverTitleGenerator, Taxonomy } from "$app/utils/discover";
+
+import { RecentlyViewed, RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed";
+import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
+import { HomeFooter } from "$app/components/Home/Shared/Footer";
+import { HorizontalCard } from "$app/components/Product/Card";
+import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
+import { RatingStars } from "$app/components/RatingStars";
+import { Skeleton } from "$app/components/Skeleton";
+import { CardContent } from "$app/components/ui/Card";
+import { Details, DetailsToggle } from "$app/components/ui/Details";
+import { Fieldset } from "$app/components/ui/Fieldset";
+import { Label } from "$app/components/ui/Label";
+import { Radio } from "$app/components/ui/Radio";
+import { Tab, Tabs } from "$app/components/ui/Tabs";
+import { useOriginalLocation } from "$app/components/useOriginalLocation";
+import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
+import { CardWishlist } from "$app/components/Wishlist/Card";
+
+type Props = {
+  currency_code: CurrencyCode;
+  search_results: SearchResults;
+  taxonomies_for_nav: Taxonomy[];
+  recommended_products?: CardProduct[];
+  recommended_wishlists?: CardWishlist[];
+  recently_viewed?: RecentlyViewedProps | null;
+  curated_product_ids: string[];
+  black_friday_offer_code: string;
+};
+
+const sortTitles = {
+  curated: "Curated for you",
+  trending: "On the market",
+  hot_and_new: "Hot and new products",
+  best_sellers: "Best selling products",
+};
+
+const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title: string }) => {
+  const [active, setActive] = React.useState(0);
+  const { itemsRef, handleScroll } = useScrollableCarousel(active, setActive);
+  const [dragStart, setDragStart] = React.useState<number | null>(null);
+
+  return (
+    <section className="grid gap-4">
+      <header className="flex items-center justify-between">
+        <h2>{title}</h2>
+        <div className="flex items-center gap-2">
+          <button
+            className="cursor-pointer all-unset"
+            onClick={() => setActive((active + products.length - 1) % products.length)}
+          >
+            <ArrowLeft className="size-6" />
+          </button>
+          {active + 1} / {products.length}
+          <button
+            className="cursor-pointer all-unset"
+            onClick={() => setActive((active + products.length + 1) % products.length)}
+          >
+            <ArrowRight className="size-6" />
+          </button>
+        </div>
+      </header>
+      <div className="relative">
+        <div
+          className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden"
+          ref={itemsRef}
+          style={{ scrollSnapType: dragStart != null ? "none" : undefined }}
+          onScroll={handleScroll}
+          onMouseDown={(e) => setDragStart(e.clientX)}
+          onMouseMove={(e) => {
+            if (dragStart == null || !itemsRef.current) return;
+            itemsRef.current.scrollLeft -= e.movementX;
+          }}
+          onClick={(e) => {
+            if (dragStart != null && Math.abs(e.clientX - dragStart) > 30) e.preventDefault();
+            setDragStart(null);
+          }}
+          onMouseOut={() => setDragStart(null)}
+        >
+          {products.map((product, idx) => (
+            // Only the first 3 cards are visible, so we can set eager loading for them
+            <HorizontalCard key={product.id} product={product} big eager={idx < 3} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const ProductsCarouselSkeleton = () => (
+  <section className="grid gap-4">
+    <header>
+      <h2>Featured products</h2>
+    </header>
+    <div className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden">
+      {Array.from({ length: 3 }, (_, index) => (
+        <Skeleton key={index} className="h-96" />
+      ))}
+    </div>
+  </section>
+);
+
+// Featured products and search results overlap when there are no filters, so we skip over the featured products in the search request
+// See DiscoverController::RECOMMENDED_PRODUCTS_COUNT
+const recommendedProductsCount = 8;
+const addInitialOffset = (params: SearchRequest) =>
+  Object.entries(params).every(([key, value]) => !value || ["taxonomy", "curated_product_ids"].includes(key))
+    ? { ...params, from: recommendedProductsCount + 1 }
+    : params;
+
+const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOrder: string | undefined) => {
+  const url = new URL(href);
+  const parsedParams: SearchRequest = {
+    taxonomy: url.pathname === Routes.discover_path() ? undefined : url.pathname.replace("/", ""),
+    curated_product_ids: curatedProductIds.slice(
+      url.pathname === Routes.discover_path() ? recommendedProductsCount : 0,
+    ),
+  };
+
+  function parseParams<T extends keyof SearchRequest>(keys: T[], transform: (value: string) => SearchRequest[T]) {
+    for (const key of keys) {
+      const value = url.searchParams.get(key);
+      parsedParams[key] = value ? transform(value) : undefined;
+    }
+  }
+
+  const sortWasExplicit = url.searchParams.has("sort");
+  parseParams(["sort", "query", "offer_code"], (value) => value);
+  parseParams(["min_price", "max_price", "rating"], (value) => Number(value));
+  parseParams(["filetypes", "tags", "taxonomy_attribute_filters"], (value) => value.split(","));
+  if (!parsedParams.sort) parsedParams.sort = defaultSortOrder;
+  return { params: parsedParams, sortWasExplicit };
+};
+
+export type DiscoverPageLayoutProps = {
+  onTaxonomyChange: (newTaxonomyPath?: string) => void;
+  query?: string | undefined;
+  setQuery: (query: string) => void;
+  showTaxonomy: boolean;
+  taxonomiesForNav: Taxonomy[];
+  taxonomyPath?: string | undefined;
+};
+
+export function DiscoverResultsCore({
+  blackFridayHero,
+  renderLayout,
+}: {
+  blackFridayHero: React.ReactNode;
+  renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
+}) {
+  const props = typia.assert<Props>(usePage().props);
+  const originalLocation = useOriginalLocation();
+  const defaultSortOrder = props.curated_product_ids.length > 0 ? "curated" : undefined;
+
+  const initialParsed = parseUrlParams(originalLocation, props.curated_product_ids, defaultSortOrder);
+  // Whether the CURRENT sort came from an explicit `?sort=` param (URL nav, popstate) vs. only
+  // the implicit curated default — used to keep the SEO title suffix off a page the user
+  // explicitly navigated to with `?sort=curated`, even though that equals the default value.
+  const sortWasExplicitRef = React.useRef(initialParsed.sortWasExplicit);
+
+  const [state, dispatch] = useSearchReducer({
+    params: addInitialOffset(initialParsed.params),
+    results: props.search_results,
+  });
+
+  const isBlackFridayPage = state.params.offer_code === props.black_friday_offer_code;
+  const showBlackFridayHero = blackFridayHero != null;
+
+  const resultsRef = useScrollToElement(isBlackFridayPage && showBlackFridayHero, undefined, [state.params]);
+
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    if (state.params.taxonomy) {
+      url.pathname = state.params.taxonomy;
+    } else if (url.pathname !== Routes.discover_path()) {
+      url.pathname = Routes.discover_path();
+    }
+
+    const serializeParams = <T extends keyof SearchRequest>(
+      keys: T[],
+      transform: (value: NonNullable<SearchRequest[T]>) => string,
+    ) => {
+      for (const key of keys) {
+        const value = state.params[key];
+        if (value && (!Array.isArray(value) || value.length)) url.searchParams.set(key, transform(value));
+        else url.searchParams.delete(key);
+      }
+    };
+    serializeParams(["sort", "query", "offer_code"], (value) => value);
+    serializeParams(["min_price", "max_price", "rating"], (value) => value.toString());
+    serializeParams(["filetypes", "tags", "taxonomy_attribute_filters"], (value) => value.join(","));
+
+    const urlString = url.pathname + url.search;
+    const currentUrlString = window.location.pathname + window.location.search;
+    if (urlString !== currentUrlString) {
+      const currentParams = parseUrlParams(window.location.href, props.curated_product_ids, defaultSortOrder).params;
+      const offerCodeChanged = state.params.offer_code !== currentParams.offer_code;
+      const shouldFetchRecommendations = url.pathname !== new URL(window.location.href).pathname;
+
+      if (offerCodeChanged) {
+        window.location.assign(url.toString());
+      } else if (shouldFetchRecommendations) {
+        router.get(
+          url.toString(),
+          {},
+          {
+            preserveState: true,
+            preserveScroll: true,
+          },
+        );
+      } else {
+        router.get(
+          url.toString(),
+          {},
+          {
+            preserveState: true,
+            preserveScroll: true,
+            only: ["search_results"],
+          },
+        );
+      }
+    }
+
+    document.title = discoverTitleGenerator(
+      state.params,
+      props.taxonomies_for_nav,
+      url.search,
+      sortWasExplicitRef.current ? undefined : defaultSortOrder,
+    );
+  }, [state.params, props.taxonomies_for_nav, defaultSortOrder, props.curated_product_ids]);
+
+  React.useEffect(() => {
+    const handlePopstate = () => {
+      const { params: newParams, sortWasExplicit } = parseUrlParams(
+        window.location.href,
+        props.curated_product_ids,
+        defaultSortOrder,
+      );
+      sortWasExplicitRef.current = sortWasExplicit;
+      dispatch({
+        type: "set-params",
+        params: addInitialOffset(newParams),
+      });
+    };
+    window.addEventListener("popstate", handlePopstate);
+    return () => window.removeEventListener("popstate", handlePopstate);
+  }, [defaultSortOrder, props.curated_product_ids]);
+
+  const taxonomyPath = state.params.taxonomy;
+
+  const updateParams = (newParams: Partial<SearchRequest>) => {
+    if ("sort" in newParams) sortWasExplicitRef.current = true;
+    dispatch({ type: "set-params", params: { ...state.params, from: undefined, ...newParams } });
+  };
+
+  const hasOfferCode = !!state.params.offer_code;
+
+  const recommendedProducts = props.recommended_products ?? [];
+  const isCuratedProducts = (() => {
+    try {
+      if (!recommendedProducts.length || !recommendedProducts[0]?.url) return false;
+      const u = new URL(recommendedProducts[0].url, originalLocation);
+      return u.searchParams.get("recommended_by") === "products_for_you";
+    } catch {
+      return false;
+    }
+  })();
+
+  const showRecommendationSections = !state.params.query && !hasOfferCode;
+  const recommendedWishlistsTitle = taxonomyPath
+    ? `Wishlists for ${props.taxonomies_for_nav.find((t) => t.slug === last(taxonomyPath.split("/")))?.label}`
+    : "Wishlists you might like";
+
+  const handleTaxonomyChange = (newTaxonomyPath: string | undefined) => {
+    const currentOfferCode = state.params.offer_code;
+    dispatch({
+      type: "set-params",
+      params: addInitialOffset({
+        taxonomy: newTaxonomyPath,
+        curated_product_ids: newTaxonomyPath ? [] : props.curated_product_ids.slice(recommendedProductsCount),
+        offer_code: newTaxonomyPath && currentOfferCode ? currentOfferCode : undefined,
+      }),
+    });
+  };
+
+  const content = (
+    <>
+      {blackFridayHero}
+      <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
+        {showRecommendationSections ? (
+          <Deferred data={["recommended_products"]} fallback={<ProductsCarouselSkeleton />}>
+            {recommendedProducts.length ? (
+              <ProductsCarousel
+                products={recommendedProducts}
+                title={isCuratedProducts ? "Recommended" : "Featured products"}
+              />
+            ) : null}
+          </Deferred>
+        ) : null}
+        {showRecommendationSections ? (
+          <Deferred data={["recently_viewed"]} fallback={null}>
+            <RecentlyViewed data={props.recently_viewed} />
+          </Deferred>
+        ) : null}
+        <section ref={resultsRef} className="flex flex-col gap-4">
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--spacer-2)", flexWrap: "wrap" }}>
+            <h2>
+              {state.params.query || hasOfferCode
+                ? state.results?.products.length
+                  ? `Showing 1-${state.results.products.length} of ${state.results.total} products`
+                  : null
+                : sortTitles[typia.is<keyof typeof sortTitles>(state.params.sort) ? state.params.sort : "trending"]}
+            </h2>
+            {state.params.query || hasOfferCode ? null : (
+              <Tabs>
+                {props.curated_product_ids.length > 0 ? (
+                  <Tab
+                    isSelected={state.params.sort === "curated"}
+                    onClick={() =>
+                      updateParams({
+                        sort: "curated",
+                        curated_product_ids: props.curated_product_ids.slice(recommendedProductsCount),
+                      })
+                    }
+                  >
+                    Curated
+                  </Tab>
+                ) : null}
+                <Tab
+                  isSelected={!state.params.sort || state.params.sort === "default"}
+                  onClick={() => updateParams({ sort: undefined })}
+                >
+                  Trending
+                </Tab>
+                {props.curated_product_ids.length === 0 ? (
+                  <Tab
+                    isSelected={state.params.sort === "best_sellers"}
+                    onClick={() => updateParams({ sort: "best_sellers" })}
+                  >
+                    Best Sellers
+                  </Tab>
+                ) : null}
+                <Tab
+                  isSelected={state.params.sort === "hot_and_new"}
+                  onClick={() => updateParams({ sort: "hot_and_new" })}
+                >
+                  Hot &amp; New
+                </Tab>
+              </Tabs>
+            )}
+          </div>
+          <CardGrid
+            state={state}
+            dispatchAction={dispatch}
+            currencyCode={props.currency_code}
+            hideSort={!state.params.query && !hasOfferCode}
+            defaults={{
+              taxonomy: state.params.taxonomy,
+              query: state.params.query,
+              sort: state.params.query || hasOfferCode ? "default" : state.params.sort,
+            }}
+            appendFilters={
+              <>
+                <CardContent asChild details>
+                  <Details>
+                    <DetailsToggle chevronPosition="right" className="grow">
+                      Rating
+                    </DetailsToggle>
+                    <Fieldset role="group">
+                      {range(4, 0).map((number) => (
+                        <Label key={number} className="w-full">
+                          <span className="flex shrink-0 items-center gap-1">
+                            <RatingStars rating={number} />
+                            and up
+                          </span>
+                          <Radio
+                            wrapperClassName="ml-auto"
+                            value={number}
+                            aria-label={`${number} ${number === 1 ? "star" : "stars"} and up`}
+                            checked={number === state.params.rating}
+                            readOnly
+                            onClick={() =>
+                              updateParams(state.params.rating === number ? { rating: undefined } : { rating: number })
+                            }
+                          />
+                        </Label>
+                      ))}
+                    </Fieldset>
+                  </Details>
+                </CardContent>
+                {hasOfferCode ? (
+                  <CardContent asChild details>
+                    <Details open>
+                      <DetailsToggle chevronPosition="right" className="grow">
+                        Offer code
+                      </DetailsToggle>
+                      <div className="flex items-center justify-between gap-2 py-1">
+                        <span>{props.black_friday_offer_code}</span>
+                        <button
+                          onClick={() => updateParams({ offer_code: undefined })}
+                          className="flex cursor-pointer items-center justify-center all-unset"
+                          aria-label="Remove offer code filter"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    </Details>
+                  </CardContent>
+                ) : null}
+              </>
+            }
+            pagination="button"
+          />
+        </section>
+        {showRecommendationSections ? (
+          <Deferred
+            data={["recommended_wishlists"]}
+            fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}
+          >
+            <RecommendedWishlists wishlists={props.recommended_wishlists ?? null} title={recommendedWishlistsTitle} />
+          </Deferred>
+        ) : null}
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {renderLayout
+        ? renderLayout(
+            {
+              taxonomyPath,
+              taxonomiesForNav: props.taxonomies_for_nav,
+              showTaxonomy: true,
+              onTaxonomyChange: handleTaxonomyChange,
+              query: state.params.query,
+              setQuery: (query) => dispatch({ type: "set-params", params: { query, taxonomy: taxonomyPath } }),
+            },
+            content,
+          )
+        : content}
+      <HomeFooter currencySelector />
+    </>
+  );
+}
+
+export default DiscoverResultsCore;
