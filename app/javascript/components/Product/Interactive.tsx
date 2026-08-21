@@ -18,8 +18,6 @@ import { classNames } from "$app/utils/classNames";
 import { CurrencyCode } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
 
-import { NavigationButton } from "$app/components/Button";
-import { useDomains } from "$app/components/DomainSettings";
 import {
   ConfigurationSelectorHandle,
   getMaxQuantity,
@@ -32,6 +30,7 @@ import {
 import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import ProductDescription, { type PublicFile } from "$app/components/Product/ProductDescription.client";
+import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
@@ -42,7 +41,6 @@ import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import type { Review as FormReview } from "$app/components/ReviewForm";
 import { Alert } from "$app/components/ui/Alert";
-import { Card, CardContent } from "$app/components/ui/Card";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 
 export type Seller = { id: string; name: string; avatar_url: string; profile_url: string; is_verified: boolean };
@@ -289,7 +287,7 @@ export const InteractiveProduct = ({
         {purchase !== null ? (
           serverContent.receipt
         ) : product.is_licensed && !product.can_edit ? (
-          <LicenseKeyLookupPrompt />
+          <ProductLicenseKeyLookup />
         ) : null}
         <ProductBundle
           product={product}
@@ -353,31 +351,6 @@ export const InteractiveProduct = ({
         {serverContent.sellerReputation}
       </section>
     </article>
-  );
-};
-
-// For a licensed product where we could not identify the visitor as a past buyer, point
-// them at the existing self-serve lookup page instead of leaving them to contact the
-// seller. The page emails their receipt (including the license key) to the purchase email.
-const LicenseKeyLookupPrompt = () => {
-  // Absolute root-domain URL, not a path: this section renders on the seller's subdomain
-  // and custom domain too, and /license-key-lookup is only drawn under
-  // GumroadDomainConstraint, so a relative href 404s there.
-  const { scheme, rootDomain } = useDomains();
-
-  return (
-    <section className="border-t border-border p-6">
-      <Card>
-        <CardContent asChild>
-          <li>
-            <h3 className="grow">Already bought this?</h3>
-            <NavigationButton href={Routes.license_key_lookup_url({ protocol: scheme, host: rootDomain })}>
-              View your information
-            </NavigationButton>
-          </li>
-        </CardContent>
-      </Card>
-    </section>
   );
 };
 

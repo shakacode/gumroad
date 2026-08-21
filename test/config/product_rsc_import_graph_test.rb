@@ -14,6 +14,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductBundle.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
+    Product/ProductLicenseKeyLookup.client.tsx
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
     Product/ProductPurchaseControls.client.tsx
@@ -225,6 +226,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_no_match(%r{import\s+(?!type\b).*from "\$app/components/ReviewForm"}, interactive_product)
     assert_includes product_content, "<ProductReceiptReviewAction"
     assert_includes product_page, "<ProductReceiptContent"
+  end
+
+  test "isolates the license-key lookup domain behavior" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    license_key_lookup = COMPONENT_DIRECTORY.join("Product/ProductLicenseKeyLookup.client.tsx")
+
+    assert_predicate license_key_lookup, :file?
+    assert license_key_lookup.read.start_with?('"use client";')
+    assert_includes license_key_lookup.read, "useDomains()"
+    assert_includes license_key_lookup.read, "Routes.license_key_lookup_url"
+    assert_includes interactive_product, "<ProductLicenseKeyLookup"
+    assert_not_includes interactive_product, "LicenseKeyLookupPrompt"
+    assert_not_includes interactive_product, "useDomains"
   end
 
   test "keeps the description editor behind an asynchronous client boundary" do
