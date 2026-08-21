@@ -95,6 +95,17 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, "content: <ProductCoverImage"
   end
 
+  test "only enhances interactive product descriptions on the client" do
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_includes interactive_product, "needsClientEnhancement={serverContent.descriptionNeedsClientEnhancement}"
+    assert_includes product_content, "export const productDescriptionNeedsClientEnhancement"
+    assert_includes product_page,
+                    "descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(content.description_html)"
+  end
+
   test "passes static bundle item text through the client pricing loop" do
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read

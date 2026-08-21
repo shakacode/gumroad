@@ -40,15 +40,19 @@ export type PublicFile = {
 const ProductDescription = ({
   descriptionHtml,
   initialContent,
+  needsClientEnhancement,
   publicFiles,
 }: {
   descriptionHtml: string | null;
   initialContent: React.ReactNode;
+  needsClientEnhancement: boolean;
   publicFiles: PublicFile[];
 }) => {
   const [pageLoaded, setPageLoaded] = React.useState(false);
 
   React.useEffect(() => {
+    if (!needsClientEnhancement) return;
+
     const enhance = () => setPageLoaded(true);
 
     if (typeof window.requestIdleCallback === "function") {
@@ -58,12 +62,12 @@ const ProductDescription = ({
 
     const timer = window.setTimeout(enhance, ENHANCEMENT_FALLBACK_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [needsClientEnhancement]);
 
   return (
     <CollapsibleDescription>
       {/* Mixed-language blocks derive their own direction through _rich_text.scss. */}
-      {pageLoaded ? (
+      {needsClientEnhancement && pageLoaded ? (
         <ProductDescriptionEnhancementBoundary fallback={initialContent}>
           <React.Suspense fallback={initialContent}>
             <ProductDescriptionEnhancement descriptionHtml={descriptionHtml} publicFiles={publicFiles} />

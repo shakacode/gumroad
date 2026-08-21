@@ -18,6 +18,7 @@ import {
   ProductSellerReputation,
   ProductStreamingNotice,
   ProductTitle,
+  productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
@@ -65,6 +66,7 @@ export default function ProductPage({
         ]),
       ),
       description: <ProductDescriptionContent content={content} />,
+      descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(content.description_html),
       initialCover: initialCover
         ? {
             id: initialCover.id,

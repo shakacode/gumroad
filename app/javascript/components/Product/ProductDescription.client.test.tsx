@@ -47,6 +47,7 @@ describe("ProductDescription", () => {
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
         initialContent={<div>Server description</div>}
+        needsClientEnhancement
         publicFiles={[]}
       />,
     );
@@ -66,6 +67,7 @@ describe("ProductDescription", () => {
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
         initialContent={<div>Server description</div>}
+        needsClientEnhancement
         publicFiles={[]}
       />,
     );
@@ -78,5 +80,19 @@ describe("ProductDescription", () => {
 
     expect(await screen.findByText("Enhanced description")).toBeTruthy();
     expect(screen.queryByText("Server description")).toBeNull();
+  });
+
+  it("does not schedule TipTap enhancement for static server HTML", () => {
+    render(
+      <ProductDescription
+        descriptionHtml="<p>Static description</p>"
+        initialContent={<div>Server description</div>}
+        needsClientEnhancement={false}
+        publicFiles={[]}
+      />,
+    );
+
+    expect(window.requestIdleCallback).not.toHaveBeenCalled();
+    expect(screen.getByText("Server description")).toBeTruthy();
   });
 });

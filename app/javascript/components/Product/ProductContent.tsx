@@ -201,6 +201,20 @@ export const ProductDescriptionContent = ({ content }: { content: ProductContent
   <div className="rich-text" dir="auto" dangerouslySetInnerHTML={{ __html: content.description_html ?? "" }} />
 );
 
+export const productDescriptionNeedsClientEnhancement = (descriptionHtml: string | null) => {
+  const html = descriptionHtml ?? "";
+
+  if (/<(?:pre|public-file-embed|review-card|upsell-card)(?=[\s/>])/iu.test(html)) return true;
+
+  return [...html.matchAll(/<a(?=[\s>])(?:(?:"[^"]*"|'[^']*'|[^'">])*)>/giu)].some(([tag]) => {
+    if (!/\btarget\s*=\s*(["'])_blank\1/iu.test(tag)) return true;
+
+    const rel = /\brel\s*=\s*(["'])([^"']*)\1/iu.exec(tag)?.[2];
+    const relValues = new Set(rel?.toLowerCase().split(/\s+/u));
+    return !["noopener", "noreferrer", "nofollow"].every((value) => relValues.has(value));
+  });
+};
+
 export const ProductMembershipNotices = ({ content }: { content: ProductContentProps }) => (
   <>
     {content.free_trial ? (
