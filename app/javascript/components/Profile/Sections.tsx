@@ -28,6 +28,13 @@ import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from
 
 const importProfileRichText = () => import("$app/components/Profile/ProfileRichText.client");
 const ProfileRichText = React.lazy(() => fetchWithOneRetry(importProfileRichText));
+const CLIENT_RICH_TEXT_NODES = new Set(["codeBlock", "raw", "reviewCard", "upsellCard"]);
+
+export const profileRichTextNeedsClientEnhancement = (node: unknown): boolean => {
+  if (typeof node !== "object" || node === null) return false;
+  if ("type" in node && typeof node.type === "string" && CLIENT_RICH_TEXT_NODES.has(node.type)) return true;
+  return "content" in node && Array.isArray(node.content) && node.content.some(profileRichTextNeedsClientEnhancement);
+};
 
 export class ProfileRichTextLoadBoundary extends React.Component<
   { children: React.ReactNode; fallback?: React.ReactNode },
@@ -46,6 +53,24 @@ export class ProfileRichTextLoadBoundary extends React.Component<
     return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
   }
 }
+
+const ProfileRichTextSectionView = ({
+  section,
+  serverContent,
+}: {
+  section: RichTextSection;
+  serverContent?: React.ReactNode;
+}) => {
+  if (serverContent != null && !profileRichTextNeedsClientEnhancement(section.text)) return serverContent;
+
+  return (
+    <ProfileRichTextLoadBoundary fallback={serverContent}>
+      <React.Suspense fallback={serverContent ?? null}>
+        <ProfileRichText section={section} fallback={serverContent ?? null} />
+      </React.Suspense>
+    </ProfileRichTextLoadBoundary>
+  );
+};
 
 type BaseSection = {
   id: string;
@@ -272,11 +297,7 @@ export const Section = ({
     ) : section.type === "SellerProfilePostsSection" ? (
       <PostsSectionView section={section} />
     ) : section.type === "SellerProfileRichTextSection" ? (
-      <ProfileRichTextLoadBoundary fallback={richTextServerContent}>
-        <React.Suspense fallback={richTextServerContent ?? null}>
-          <ProfileRichText section={section} fallback={richTextServerContent ?? null} />
-        </React.Suspense>
-      </ProfileRichTextLoadBoundary>
+      <ProfileRichTextSectionView section={section} serverContent={richTextServerContent} />
     ) : section.type === "SellerProfileSubscribeSection" ? (
       <SubscribeSectionView key={section.id} section={section} creatorProfile={creator_profile} />
     ) : section.type === "SellerProfileFeaturedProductSection" ? (

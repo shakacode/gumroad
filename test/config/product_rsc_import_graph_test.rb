@@ -107,7 +107,8 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes sections, "$app/components/RichTextEditor"
     assert_includes sections, 'import("$app/components/Profile/ProfileRichText.client")'
     assert_includes sections, "fetchWithOneRetry(importProfileRichText)"
-    assert_includes sections, "fallback={richTextServerContent}"
+    assert_includes sections, "!profileRichTextNeedsClientEnhancement(section.text)"
+    assert_includes sections, "fallback={serverContent}"
     assert_includes product_interactions, "richTextServerContent={profileRichTextServerContent[section.id]}"
     assert_includes product_page, "<ProfileRichTextContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx")

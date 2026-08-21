@@ -3,7 +3,7 @@ import { cleanup, render } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { ProfileRichTextLoadBoundary } from "$app/components/Profile/Sections";
+import { profileRichTextNeedsClientEnhancement, ProfileRichTextLoadBoundary } from "$app/components/Profile/Sections";
 
 afterEach(() => {
   cleanup();
@@ -38,4 +38,22 @@ it("keeps server rich text after a client loading failure", () => {
   );
 
   expect(getByText("Server-visible creator story")).toBeTruthy();
+});
+
+it("only enhances rich text with client-owned nodes", () => {
+  expect(
+    profileRichTextNeedsClientEnhancement({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "Server-visible creator story" }] }],
+    }),
+  ).toBe(false);
+
+  for (const type of ["codeBlock", "raw", "reviewCard", "upsellCard"]) {
+    expect(
+      profileRichTextNeedsClientEnhancement({
+        type: "doc",
+        content: [{ type: "blockquote", content: [{ type }] }],
+      }),
+    ).toBe(true);
+  }
 });
