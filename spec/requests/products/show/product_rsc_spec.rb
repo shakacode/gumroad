@@ -98,4 +98,25 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_no_field("Search products")
     expect(page).to have_no_selector("[role=menubar]")
   end
+
+  it "server-renders profile rich text without client JavaScript" do
+    rich_text_section = create(
+      :seller_profile_rich_text_section,
+      seller:,
+      product:,
+      header: "About the creator",
+      text: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "Server-visible creator story" }] }],
+      }
+    )
+    product.update!(sections: [rich_text_section.id], main_section_index: 1)
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url
+
+    expect(page).to have_text("Server-visible creator story")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
 end

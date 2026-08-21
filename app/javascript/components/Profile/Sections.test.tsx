@@ -24,3 +24,18 @@ it("contains profile rich text loading failures", () => {
 
   expect(container.innerHTML).toBe("");
 });
+
+it("keeps server rich text after a client loading failure", () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const BrokenRichText = () => {
+    throw new Error("chunk unavailable");
+  };
+
+  const { getByText } = render(
+    <ProfileRichTextLoadBoundary fallback={<p>Server-visible creator story</p>}>
+      <BrokenRichText />
+    </ProfileRichTextLoadBoundary>,
+  );
+
+  expect(getByText("Server-visible creator story")).toBeTruthy();
+});

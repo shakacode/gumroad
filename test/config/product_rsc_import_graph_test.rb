@@ -22,6 +22,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverPage.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
+    Profile/ProfileRichTextContent.tsx
   ].freeze
 
   test "keeps public RSC root boundaries explicit" do
@@ -98,13 +99,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   test "keeps profile rich text rendering behind an asynchronous client boundary" do
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
     rich_text = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx").read
+    product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
 
     assert_not_includes sections, "@tiptap/react"
     assert_not_includes sections, "$app/components/RichTextEditor"
     assert_includes sections, 'import("$app/components/Profile/ProfileRichText.client")'
     assert_includes sections, "fetchWithOneRetry(importProfileRichText)"
+    assert_includes sections, "fallback={richTextServerContent}"
+    assert_includes product_interactions, "richTextServerContent={profileRichTextServerContent[section.id]}"
+    assert_includes product_page, "<ProfileRichTextContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx")
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichTextContent.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("RichTextEditor.tsx")
     assert_includes rich_text, "@tiptap/react"
     assert_includes rich_text, "$app/components/RichTextEditor"
