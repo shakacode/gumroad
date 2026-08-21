@@ -336,15 +336,18 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   end
 
   test "streams the ratings summary before loading written reviews on browser idle" do
-    reviews = COMPONENT_DIRECTORY.join("Product/ProductReviews.client.tsx")
+    reviews_boundary = COMPONENT_DIRECTORY.join("Product/ProductReviews.client.tsx")
+    reviews = COMPONENT_DIRECTORY.join("Product/ProductReviews.tsx")
     enhancement = COMPONENT_DIRECTORY.join("Product/ProductReviewsEnhancement.tsx")
     interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
     product_content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
     client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
 
+    assert_predicate reviews_boundary, :file?
     assert_predicate reviews, :file?
     assert_predicate enhancement, :file?
+    assert_includes reviews_boundary.read, 'export { ProductReviews } from "$app/components/Product/ProductReviews"'
     assert_includes interactive_product, "initialContent={serverContent.reviews}"
     assert_not_includes interactive_product, "scheduleProductReviewsLoad"
     assert_not_includes interactive_product, "$app/data/product_reviews"
