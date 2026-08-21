@@ -1,4 +1,3 @@
-import { Archive } from "@boxicons/react";
 import * as React from "react";
 
 import {
@@ -20,9 +19,10 @@ import type { Props as ProductProps } from "$app/components/Product/Interactive"
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
+import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
-import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
+import type { CardWishlist } from "$app/components/Wishlist/Card";
 
 type BaseSection = {
   id: string;
@@ -145,26 +145,6 @@ export const FeaturedProductView = ({
   );
 };
 
-export const WishlistsView = ({ wishlists }: { wishlists: CardWishlist[] }) =>
-  wishlists.length > 0 ? (
-    <WishlistCardGrid>
-      {wishlists.map((wishlist) => (
-        <WishlistCard key={wishlist.id} wishlist={wishlist} hideSeller />
-      ))}
-    </WishlistCardGrid>
-  ) : (
-    <div className="flex h-full flex-col content-center gap-4 text-center">
-      <h1>
-        <Archive pack="filled" className="size-5" />
-      </h1>
-      No wishlists selected
-    </div>
-  );
-
-export const WishlistsSectionView = ({ section }: { section: WishlistsSection }) => (
-  <WishlistsView wishlists={section.wishlists} />
-);
-
 const FeaturedProductSectionView = ({
   section,
   renderFeaturedProduct,
@@ -207,7 +187,7 @@ export const Section = ({
     ) : section.type === "SellerProfileFeaturedProductSection" ? (
       <FeaturedProductSectionView key={section.id} section={section} renderFeaturedProduct={renderFeaturedProduct} />
     ) : (
-      <WishlistsSectionView key={section.id} section={section} />
+      <ProfileWishlists wishlists={section.wishlists} />
     )}
   </ProfileSectionFrame>
 );

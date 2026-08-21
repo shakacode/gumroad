@@ -25,6 +25,7 @@ import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextC
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
+import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
 export type ProductPageProps = Omit<
@@ -122,6 +123,16 @@ export default function ProductPage({
               section.id,
               <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
                 <ProfileSubscribe creatorProfile={productProps.creator_profile} buttonLabel={section.button_label} />
+              </ProfileSectionFrame>,
+            ],
+          ];
+        }
+        if (section.type === "SellerProfileWishlistsSection") {
+          return [
+            [
+              section.id,
+              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+                <ProfileWishlists wishlists={section.wishlists} />
               </ProfileSectionFrame>,
             ],
           ];

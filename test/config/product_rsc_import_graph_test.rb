@@ -17,6 +17,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     Profile/ProfileSubscribe.client.tsx
+    Profile/ProfileWishlists.client.tsx
     PublicPages/PageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
@@ -184,6 +185,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, 'section.type === "SellerProfileSubscribeSection"'
     assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileSubscribe"
+  end
+
+  test "renders profile wishlist frames outside the product client island" do
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    wishlists = COMPONENT_DIRECTORY.join("Profile/ProfileWishlists.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_not_includes sections, "<WishlistCardGrid>"
+    assert_includes sections, "<ProfileWishlists"
+    assert_includes wishlists, "<WishlistCardGrid>"
+    assert_includes product_page, 'section.type === "SellerProfileWishlistsSection"'
+    assert_includes product_page, "<ProfileSectionFrame"
+    assert_includes product_page, "<ProfileWishlists"
   end
 
   private
