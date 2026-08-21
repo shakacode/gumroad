@@ -189,6 +189,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_predicate product_price, :file?
     assert product_price.read.start_with?('"use client";')
     assert_includes product_price.read, "<PriceTag"
+    assert_includes product_price.read, "export const ProductPriceFromState"
+    assert_includes product_price.read, "const { selection, discountCode } = useProductState()"
+    assert_includes product_price.read, "<ProductPrice product={product} selection={selection} discountCode={discountCode} />"
     assert_includes interactive_product,
                     "<ProductPrice product={product} selection={selection} discountCode={discountCode} />"
     assert_not_includes interactive_product, 'import { PriceTag }'

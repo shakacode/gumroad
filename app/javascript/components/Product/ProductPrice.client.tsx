@@ -10,6 +10,7 @@ import {
 import type { ProductData, ProductDiscount } from "$app/components/Product/Interactive";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
+import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 
 export const ProductPrice = ({
   product,
@@ -60,4 +61,10 @@ export const ProductPrice = ({
       />
     </div>
   );
+};
+
+export const ProductPriceFromState = ({ product }: { product: ProductData }) => {
+  const { selection, discountCode } = useProductState();
+
+  return <ProductPrice product={product} selection={selection} discountCode={discountCode} />;
 };
