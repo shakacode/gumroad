@@ -212,6 +212,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes purchase_controls.read, "<CtaButton"
     assert_includes purchase_controls.read, "<DiscountExpirationCountdown"
     assert_includes purchase_controls.read, "<SubscriptionChoiceModal"
+    assert_includes purchase_controls.read, "export const ProductPurchaseControlsFromState"
+    assert_includes purchase_controls.read, "const productState = useProductState()"
+    assert_includes purchase_controls.read, 'setDiscountCode({ valid: false, error_code: "inactive" })'
     assert_includes interactive_product, "<ProductPurchaseControls"
     assert_not_includes interactive_product, 'import { CtaButton }'
     assert_not_includes interactive_product, 'import { DiscountExpirationCountdown }'

@@ -17,6 +17,7 @@ import {
 import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
+import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
@@ -215,5 +216,37 @@ export const ProductPurchaseControls = ({
         />
       ) : null}
     </>
+  );
+};
+
+export const ProductPurchaseControlsFromState = ({
+  product,
+  purchase,
+  ctaLabel,
+  availabilityNotice,
+  membershipNotices,
+}: {
+  product: ProductData;
+  purchase: Purchase | null;
+  ctaLabel?: string | undefined;
+  availabilityNotice: React.ReactNode;
+  membershipNotices: React.ReactNode;
+}) => {
+  const productState = useProductState();
+
+  return (
+    <ProductPurchaseControls
+      product={product}
+      purchase={purchase}
+      discountCode={productState.discountCode}
+      selection={productState.selection}
+      setSelection={productState.setSelection}
+      ctaButtonRef={productState.ctaButtonRef}
+      configurationSelectorRef={productState.configurationSelectorRef}
+      ctaLabel={ctaLabel}
+      availabilityNotice={availabilityNotice}
+      membershipNotices={membershipNotices}
+      onDiscountExpiration={() => productState.setDiscountCode({ valid: false, error_code: "inactive" })}
+    />
   );
 };
