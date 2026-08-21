@@ -14,6 +14,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
     Product/ProductReviews.client.tsx
+    Product/ProductStateProvider.client.tsx
     Profile/ProfileFeaturedProduct.client.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
@@ -62,6 +63,20 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/index.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/Layout.tsx")
     assert_not_includes client_graph, Rails.root.join("app/javascript/components/Product/LegacyProduct.tsx")
+  end
+
+  test "composes product state around server-owned children" do
+    provider = COMPONENT_DIRECTORY.join("Product/ProductStateProvider.client.tsx")
+    interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+
+    assert_predicate provider, :file?
+    assert_includes provider.read, "children: React.ReactNode"
+    assert_includes provider.read, "useSelectionFromUrl(product)"
+    assert_includes interactions, "useProductState()"
+    assert_not_includes interactions, "useSelectionFromUrl(product)"
+    assert_includes product_page, "<ProductStateProvider product={productProps.product}>"
+    assert_includes product_page, "<ProductInteractions {...interactionProps} />"
   end
 
   test "isolates product view analytics in a null client island" do

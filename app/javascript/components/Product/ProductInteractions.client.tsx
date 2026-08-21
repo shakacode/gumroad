@@ -5,14 +5,13 @@ import * as React from "react";
 import { classNames } from "$app/utils/classNames";
 
 import { PoweredByFooter } from "$app/components/PoweredByFooter";
-import type { ConfigurationSelectorHandle } from "$app/components/Product/ConfigurationSelector";
 import {
   InteractiveProduct,
-  useSelectionFromUrl,
   type Props as ProductProps,
   type ServerContent,
 } from "$app/components/Product/Interactive";
 import { CtaBar, EditButton } from "$app/components/Product/LayoutControls";
+import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 import type { PageProps as SectionsProps } from "$app/components/Profile/Sections";
 
@@ -38,9 +37,7 @@ export default function ProductInteractions({
   page_layout: pageLayout,
   ...sectionProps
 }: ProductInteractionsProps) {
-  const [selection, setSelection] = useSelectionFromUrl(product);
-  const ctaButtonRef = React.useRef<HTMLAnchorElement>(null);
-  const configurationSelectorRef = React.useRef<ConfigurationSelectorHandle>(null);
+  const { selection, setSelection, ctaButtonRef, configurationSelectorRef } = useProductState();
   const ctaLabel = cart ? "Add to cart" : undefined;
 
   const productView = (

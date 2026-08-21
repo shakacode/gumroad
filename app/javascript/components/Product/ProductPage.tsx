@@ -22,6 +22,7 @@ import {
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
+import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
@@ -175,7 +176,11 @@ export default function ProductPage({
       }),
     ),
   } satisfies ProductInteractionsProps;
-  const product = <ProductInteractions {...interactionProps} />;
+  const product = (
+    <ProductStateProvider product={productProps.product}>
+      <ProductInteractions {...interactionProps} />
+    </ProductStateProvider>
+  );
 
   return (
     <PageShell component="links/rsc_show" global={global} inertiaMeta={inertiaMeta} pageProps={productProps}>
