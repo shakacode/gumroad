@@ -3,8 +3,8 @@ import * as React from "react";
 
 import { CreatorProfile } from "$app/parsers/profile";
 
-import { PoweredByFooter } from "$app/components/PoweredByFooter";
 import { TopCreatorBadge } from "$app/components/Product/AuthorByline";
+import { ProductFooter } from "$app/components/Product/ProductFooter";
 import { FollowForm } from "$app/components/Profile/FollowForm";
 import { ProfileHeaderButtons, ProfileImpersonateButton } from "$app/components/Profile/ProfileHeaderActions.client";
 import { Avatar } from "$app/components/ui/Avatar";
@@ -13,12 +13,12 @@ import { WithTooltip } from "$app/components/WithTooltip";
 // Keep this separate from the legacy client Layout so the RSC build cannot classify this shell as a client module.
 export const ProductProfileLayout = ({
   creatorProfile,
-  currencySelector,
+  rootDomain,
   shownCurrency,
   children,
 }: {
   creatorProfile: CreatorProfile;
-  currencySelector?: boolean | undefined;
+  rootDomain: string;
   shownCurrency?: string | null | undefined;
   children?: React.ReactNode;
 }) => (
@@ -51,11 +51,7 @@ export const ProductProfileLayout = ({
     </header>
     <main className="flex flex-1 flex-col">
       {children}
-      <PoweredByFooter
-        className="mx-auto w-full max-w-6xl"
-        currencySelector={currencySelector}
-        shownCurrency={shownCurrency}
-      />
+      <ProductFooter className="mx-auto w-full max-w-6xl" rootDomain={rootDomain} shownCurrency={shownCurrency} />
     </main>
   </div>
 );

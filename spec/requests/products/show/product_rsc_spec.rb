@@ -95,6 +95,9 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     JS
     expect(payload_scripts.fetch("bytes")).to be > 10_000
     expect(payload_scripts.fetch("allNonced")).to be(true)
+    expect(payload_scripts.fetch("text")).to include("PublicPages/ProductPageShell.client")
+    expect(payload_scripts.fetch("text")).to include("PublicPages/ProductPageInertia.client")
+    expect(payload_scripts.fetch("text")).not_to include("PublicPages/PageShell.client")
     expect(payload_scripts.fetch("text")).not_to include("ProfileFeaturedProduct.client")
     expect(payload_scripts.fetch("text")).not_to include("Profile/Layout")
     expect(payload_scripts.fetch("text")).not_to include("ProductInteractions.client")
@@ -139,6 +142,10 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_link("Add to cart")
     expect(page).to have_no_field("Search products")
     payload = Nokogiri::HTML(page.html).css('script[data-react-on-rails-rsc-payload="true"]').map(&:text).join
+    expect(payload).to include("PublicPages/ProductPageShell.client")
+    expect(payload).not_to include("PublicPages/PageShell.client")
+    expect(payload).not_to include("PoweredByFooter")
+    expect(payload).to include("Product/ProductFooterCurrencySelector.client")
     expect(payload).to include("Profile/ProfileHeaderActions.client")
     expect(payload).to include("Profile/FollowForm")
   ensure

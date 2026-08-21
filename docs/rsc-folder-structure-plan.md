@@ -58,8 +58,9 @@ DiscoverPage                         Server root
 
 ```text
 ProductPage                          Server root
-├── PageShell.client                 Thin provider/compatibility boundary
-└── ProductStateProvider.client      Passes server-owned children
+├── ProductPageShell.client          Stable providers for every product layout
+├── ProductPageInertia.client        Nested on Discover only
+├── ProductStateProvider.client      Passes server-owned children
     ├── ProductProfileLayout          Server shell for profile-layout pages
     │   ├── creator identity         Server content
     │   └── follow, edit, cart,
@@ -73,9 +74,11 @@ ProductPage                          Server root
     │       sharing, media           Focused client leaves
     └── profile sections             Server-owned ordering and frames
         └── initial product cards    Server nodes through the client search island
+└── ProductFooter                    Server shell
+    └── currency selector            Focused client leaf
 ```
 
-`ProductPage` owns the layout branch and section ordering. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. Purchasing and browser behavior stay in focused client leaves.
+`ProductPage` owns the layout branch and section ordering. `ProductContent` owns server-rendered title, seller, ratings, summary, and attributes. Purchasing and browser behavior stay in focused client leaves. Keeping `ProductPageShell.client` stable across every layout preserves hydration IDs while `ProductPageInertia.client` limits Inertia to Discover.
 
 `ProductProfileLayout` remains separate from the legacy client `Profile/Layout`; sharing the module would add the server shell to the client manifest and destabilize hydration IDs.
 
@@ -87,7 +90,9 @@ This plan preserves the current profile composition; it does not introduce a pro
 app/javascript/
 ├── components/
 │   ├── PublicPages/
-│   │   └── PageShell.client.tsx
+│   │   ├── PageShell.client.tsx
+│   │   ├── ProductPageInertia.client.tsx
+│   │   └── ProductPageShell.client.tsx
 │   ├── Discover/
 │   │   ├── DiscoverPage.tsx
 │   │   ├── DiscoverLayout.tsx
@@ -312,7 +317,7 @@ Tests should verify that:
 - The RSC browser bundle excludes the legacy Product and Discover display graphs.
 - The RSC, SSR server, and browser bundles are still produced correctly after entrypoint moves.
 
-Bundle measurement should record the cost of `PageShell.client` and retained Inertia-compatible dependencies. The goal is to avoid unnecessary Inertia code inside the RSC browser bundle, not to remove Inertia globally.
+Bundle measurement should verify that standard and profile product payloads reference `ProductPageShell.client`, not `ProductPageInertia.client` or `PageShell.client`. Discover retains its nested Inertia context for search and router behavior; the goal is not to remove it globally.
 
 ## Reviewable move sequence
 

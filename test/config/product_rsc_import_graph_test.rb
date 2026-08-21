@@ -16,6 +16,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductCardAnalytics.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductEditButton.client.tsx
+    Product/ProductFooterCurrencySelector.client.tsx
     Product/ProductLicenseKeyLookup.client.tsx
     Product/ProductMedia.client.tsx
     Product/ProductPrice.client.tsx
@@ -40,6 +41,8 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Profile/ProfileSubscribe.client.tsx
     Profile/ProfileWishlists.client.tsx
     PublicPages/PageShell.client.tsx
+    PublicPages/ProductPageInertia.client.tsx
+    PublicPages/ProductPageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
     Discover/DiscoverHeader.tsx
@@ -49,6 +52,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductArticle.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
+    Product/ProductFooter.tsx
     Product/ProductRatingsSummary.tsx
     Product/ProductSingleCover.tsx
     Profile/ProfileFeaturedProduct.tsx
@@ -170,7 +174,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes product_page, 'productProps.page_layout === "profile"'
     assert_includes product_page, 'productProps.page_layout !== "discover"'
     assert_includes product_page, "<ProductProfileLayout"
-    assert_includes product_page, "<PoweredByFooter"
+    assert_includes product_page, "<ProductFooter"
   end
 
   test "keeps profile identity in the server layout shell" do
@@ -193,6 +197,31 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes layout, "useCartItemsCount"
     assert_not_includes layout, "useIsAboveBreakpoint"
     assert_not_includes layout, "useLoggedInUser"
+  end
+
+  test "keeps standard and profile product shells out of the Inertia graph" do
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    product_inertia = COMPONENT_DIRECTORY.join("PublicPages/ProductPageInertia.client.tsx")
+    product_shell = COMPONENT_DIRECTORY.join("PublicPages/ProductPageShell.client.tsx")
+    product_footer = COMPONENT_DIRECTORY.join("Product/ProductFooter.tsx")
+    footer_selector = COMPONENT_DIRECTORY.join("Product/ProductFooterCurrencySelector.client.tsx")
+
+    assert_predicate product_inertia, :file?
+    assert_predicate product_shell, :file?
+    assert_predicate product_footer, :file?
+    assert_predicate footer_selector, :file?
+    assert product_inertia.read.start_with?('"use client";')
+    assert product_shell.read.start_with?('"use client";')
+    assert footer_selector.read.start_with?('"use client";')
+    assert_not_includes product_shell.read, "@inertiajs/react"
+    assert_not product_footer.read.start_with?('"use client";')
+    assert_includes product_footer.read, "$app/components/Product/ProductFooterCurrencySelector.client"
+    assert_includes product_page, "$app/components/PublicPages/ProductPageShell.client"
+    assert_includes product_page, "$app/components/PublicPages/ProductPageInertia.client"
+    assert_includes product_page, "$app/components/Product/ProductFooter"
+    assert_not_includes product_page, "$app/components/PublicPages/PageShell.client"
+    assert_includes product_page, 'productProps.page_layout === "discover" && taxonomiesForNav'
+    assert_not_includes product_page, "$app/components/PoweredByFooter"
   end
 
   test "isolates the browser-aware product edit control" do

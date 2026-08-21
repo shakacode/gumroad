@@ -5,7 +5,6 @@ import { classNames } from "$app/utils/classNames";
 import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
-import { PoweredByFooter } from "$app/components/PoweredByFooter";
 import { Card } from "$app/components/Product/Card";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import ProductArticle from "$app/components/Product/ProductArticle";
@@ -27,6 +26,7 @@ import {
   ProductTitle,
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
+import { ProductFooter } from "$app/components/Product/ProductFooter";
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
@@ -40,12 +40,13 @@ import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichT
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
 import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
-import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
+import ProductPageInertia from "$app/components/PublicPages/ProductPageInertia.client";
+import ProductPageShell, { type ProductGlobalProps } from "$app/components/PublicPages/ProductPageShell.client";
 
 export type ProductPageProps = ProductInteractionPageProps & {
   _inertia_meta?: MetaTag[];
   discount_code: ProductDiscount;
-  global: GlobalProps;
+  global: ProductGlobalProps;
   rsc_product_content: ProductContentProps;
   rsc_featured_product_content: Record<string, ProductContentProps>;
   taxonomy_path?: string | null;
@@ -244,7 +245,7 @@ export default function ProductPage({
     productProps.page_layout === "profile" ? (
       <ProductProfileLayout
         creatorProfile={productProps.creator_profile}
-        currencySelector
+        rootDomain={global.domain_settings.root_domain}
         shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
       >
         {pageSections}
@@ -253,8 +254,8 @@ export default function ProductPage({
       <>
         {pageSections}
         {productProps.page_layout !== "discover" ? (
-          <PoweredByFooter
-            currencySelector
+          <ProductFooter
+            rootDomain={global.domain_settings.root_domain}
             shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
           />
         ) : null}
@@ -266,9 +267,9 @@ export default function ProductPage({
     </ProductStateProvider>
   );
 
-  return (
-    <PageShell component="links/rsc_show" global={global} inertiaMeta={inertiaMeta} pageProps={productProps}>
-      {productProps.page_layout === "discover" && taxonomiesForNav ? (
+  const page =
+    productProps.page_layout === "discover" && taxonomiesForNav ? (
+      <ProductPageInertia global={global} inertiaMeta={inertiaMeta} pageProps={productProps}>
         <DiscoverLayout
           currentSeller={global.current_seller}
           domainSettings={global.domain_settings}
@@ -278,9 +279,10 @@ export default function ProductPage({
         >
           {product}
         </DiscoverLayout>
-      ) : (
-        product
-      )}
-    </PageShell>
-  );
+      </ProductPageInertia>
+    ) : (
+      product
+    );
+
+  return <ProductPageShell global={global}>{page}</ProductPageShell>;
 }

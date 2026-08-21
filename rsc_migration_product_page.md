@@ -6,6 +6,8 @@
 
 ```text
 ProductPage [S]
+├─ ProductPageShell [C; stable providers for every layout]
+├─ ProductPageInertia [C; nested on Discover only]
 ├─ Header [S]
 │  ├─ logo, auth links, categories [S]
 │  └─ search autocomplete [C]
@@ -24,6 +26,8 @@ ProductPage [S]
 │     ├─ bundle text [S] + live prices [C]
 │     ├─ wishlist/share/refund/reviews/dialogs [C]
 │     └─ seller reputation [S]
+├─ Product footer [S]
+│  └─ currency selector [C]
 └─ ProfileSections [S]
    ├─ section frames, posts, rich text [S]
    ├─ products: initial cards [S] + search/filter/pagination [C]
@@ -41,6 +45,7 @@ Client providers may receive server-composed children; they must not import serv
 |    3 | Make the header shell server-owned; keep autocomplete as its existing client child.               | One server shell + one slot                          | Streams the largest visible shared UI without rewriting search. |
 |    4 | Move analytics effects into a seven-prop null client island.                                      | One client file + one call site                      | Removes effects and browser imports from the article.           |
 |    5 | Move notices, seller reputation, posts, rich text, and the profile header shell to server leaves. | Small presentation components                        | More server HTML with little behavior risk.                     |
+|    6 | Remove Inertia from standard/profile shells after all display slices are migrated.                | One provider shell + server footer                   | Cuts shared warm-load hydration and evaluation work.            |
 
 ## Smallest recommended branch
 
@@ -57,6 +62,8 @@ Stop there for a small review. Do not combine it with mutation or navigation wor
 - carousel/video, CTA/cart/checkout, modals, and browser history;
 - autocomplete, wishlist/follow/subscribe/review mutations;
 - analytics effects.
+
+Standard and profile product layouts do not need the Inertia app. Discover keeps it for search and router behavior.
 
 ## Avoid in the quick branch
 
