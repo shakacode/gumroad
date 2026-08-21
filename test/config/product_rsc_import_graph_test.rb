@@ -12,6 +12,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductAnalytics.client.tsx
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
+    Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     PublicPages/PageShell.client.tsx
   ].freeze
@@ -92,6 +93,21 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
     assert_includes interactive_product, "scheduleProductReviewsLoad"
     assert_not_includes interactive_product, "useRunOnce(() => void loadNextPage())"
+  end
+
+  test "keeps profile rich text rendering behind an asynchronous client boundary" do
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    rich_text = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx").read
+    client_graph = transitive_javascript_imports([COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")])
+
+    assert_not_includes sections, "@tiptap/react"
+    assert_not_includes sections, "$app/components/RichTextEditor"
+    assert_includes sections, 'import("$app/components/Profile/ProfileRichText.client")'
+    assert_includes sections, "fetchWithOneRetry(importProfileRichText)"
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx")
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("RichTextEditor.tsx")
+    assert_includes rich_text, "@tiptap/react"
+    assert_includes rich_text, "$app/components/RichTextEditor"
   end
 
   private

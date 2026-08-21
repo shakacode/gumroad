@@ -1,5 +1,4 @@
 import { Archive, ArrowUpRight } from "@boxicons/react";
-import { EditorContent } from "@tiptap/react";
 import classNames from "classnames";
 import * as React from "react";
 
@@ -15,17 +14,35 @@ import { SearchResults } from "$app/data/search";
 import { CreatorProfile } from "$app/parsers/profile";
 import { CurrencyCode } from "$app/utils/currency";
 import { formatPostDate } from "$app/utils/date";
+import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { Props as ProductProps } from "$app/components/Product/Interactive";
 import { FollowForm } from "$app/components/Profile/FollowForm";
-import { useRichTextEditor } from "$app/components/RichTextEditor";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
 import { useUserAgentInfo } from "$app/components/UserAgent";
 import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
+
+const importProfileRichText = () => import("$app/components/Profile/ProfileRichText.client");
+const ProfileRichText = React.lazy(() => fetchWithOneRetry(importProfileRichText));
+
+export class ProfileRichTextLoadBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  override render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 type BaseSection = {
   id: string;
@@ -41,7 +58,7 @@ type PostsSection = BaseSection & {
   posts: Post[];
 };
 
-type RichTextSection = BaseSection & Pick<SavedRichTextSection, "type" | "text">;
+export type RichTextSection = BaseSection & Pick<SavedRichTextSection, "type" | "text">;
 
 type SubscribeSection = BaseSection & Pick<SavedSubscribeSection, "type" | "button_label">;
 
@@ -210,11 +227,6 @@ const FeaturedProductSectionView = ({
 
 const PostsSectionView = ({ section }: { section: PostsSection }) => <PostsView posts={section.posts} />;
 
-const RichTextSectionView = ({ section }: { section: RichTextSection }) => {
-  const editor = useRichTextEditor({ initialValue: section.text, editable: false });
-  return <EditorContent editor={editor} className="rich-text -mb-4" />;
-};
-
 const SubscribeSectionView = ({
   section,
   creatorProfile,
@@ -252,7 +264,11 @@ export const Section = ({
     ) : section.type === "SellerProfilePostsSection" ? (
       <PostsSectionView section={section} />
     ) : section.type === "SellerProfileRichTextSection" ? (
-      <RichTextSectionView section={section} />
+      <ProfileRichTextLoadBoundary>
+        <React.Suspense fallback={null}>
+          <ProfileRichText section={section} />
+        </React.Suspense>
+      </ProfileRichTextLoadBoundary>
     ) : section.type === "SellerProfileSubscribeSection" ? (
       <SubscribeSectionView key={section.id} section={section} creatorProfile={creator_profile} />
     ) : section.type === "SellerProfileFeaturedProductSection" ? (
