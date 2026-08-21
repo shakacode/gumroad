@@ -4,6 +4,7 @@ import type { MetaTag } from "$app/layouts/components/MetaTags";
 import type { Taxonomy } from "$app/utils/discover";
 
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
+import { PoweredByFooter } from "$app/components/PoweredByFooter";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import ProductArticle from "$app/components/Product/ProductArticle";
 import {
@@ -24,8 +25,10 @@ import {
   ProductTitle,
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
-import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
+import ProductInteractions from "$app/components/Product/ProductInteractions.client";
+import type { ProductInteractionPageProps, ProductInteractionsProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
+import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
@@ -37,7 +40,7 @@ import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.clien
 import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
-export type ProductPageProps = Omit<ProductInteractionsProps, "productArticle" | "serverProfileSections"> & {
+export type ProductPageProps = ProductInteractionPageProps & {
   _inertia_meta?: MetaTag[];
   discount_code: ProductDiscount;
   global: GlobalProps;
@@ -58,7 +61,7 @@ export default function ProductPage({
 }: ProductPageProps) {
   const toServerContent = (
     content: ProductContentProps,
-    { product, purchase }: Pick<ProductInteractionsProps, "product" | "purchase">,
+    { product, purchase }: Pick<ProductInteractionPageProps, "product" | "purchase">,
   ): ServerContent => {
     const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
 
@@ -120,9 +123,12 @@ export default function ProductPage({
     />
   );
   const interactionProps = {
-    ...productProps,
+    product: productProps.product,
+    purchase: productProps.purchase,
     cart: productProps.page_layout === "discover" || productProps.page_layout === "profile",
     hasHero: productProps.page_layout === "discover",
+    main_section_index: productProps.main_section_index,
+    sections: productProps.sections,
     serverProfileSections: Object.fromEntries(
       productProps.sections.flatMap((section) => {
         if (section.type === "SellerProfileProductsSection") {
@@ -201,9 +207,30 @@ export default function ProductPage({
       }),
     ),
   } satisfies Omit<ProductInteractionsProps, "productArticle">;
+  const interactions = <ProductInteractions {...interactionProps} productArticle={productArticle} />;
+  const productContent =
+    productProps.page_layout === "profile" ? (
+      <ProfileLayout
+        creatorProfile={productProps.creator_profile}
+        currencySelector
+        shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
+      >
+        {interactions}
+      </ProfileLayout>
+    ) : (
+      <>
+        {interactions}
+        {productProps.page_layout !== "discover" ? (
+          <PoweredByFooter
+            currencySelector
+            shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
+          />
+        ) : null}
+      </>
+    );
   const product = (
     <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
-      <ProductInteractions {...interactionProps} productArticle={productArticle} />
+      {productContent}
     </ProductStateProvider>
   );
 

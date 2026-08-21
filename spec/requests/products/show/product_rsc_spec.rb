@@ -96,6 +96,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(payload_scripts.fetch("bytes")).to be > 10_000
     expect(payload_scripts.fetch("allNonced")).to be(true)
     expect(payload_scripts.fetch("text")).not_to include("ProfileFeaturedProduct.client")
+    expect(payload_scripts.fetch("text")).not_to include("Profile/Layout")
     expect(payload_scripts.fetch("text")).not_to include("Product/Interactive")
     expect(page.evaluate_script(<<~JS)).to be(true)
       [...document.head.querySelectorAll("style")].some((style) => style.textContent.includes("--body-bg: #123456"))
@@ -114,6 +115,28 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_link("I want this!")
     expect(page).to have_no_field("Search products")
     expect(page).to have_no_selector("[role=menubar]")
+  end
+
+  it "keeps the standard footer for unrecognized layout values without client JavaScript" do
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit "#{product.long_url}?layout=unknown"
+
+    expect(page).to have_text("Powered by")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
+  end
+
+  it "server-renders the profile layout without client JavaScript" do
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
+
+    page.visit product.long_url(layout: Product::Layout::PROFILE)
+
+    expect(page).to have_button("Subscribe")
+    expect(page).to have_link("Add to cart")
+    expect(page).to have_no_field("Search products")
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
 
   it "server-renders a featured product without client JavaScript" do

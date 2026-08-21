@@ -9,6 +9,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/Search.client.tsx
+    PoweredByFooter.tsx
     Product/CoffeeProduct.tsx
     Product/ProductAnalytics.client.tsx
     Product/ProductBundle.client.tsx
@@ -27,6 +28,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductShare.client.tsx
     Product/ProductStateProvider.client.tsx
     Product/useSelectionFromUrl.client.ts
+    Profile/Layout.tsx
     Profile/ProfileProducts.client.tsx
     Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
@@ -117,15 +119,38 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     product_article = COMPONENT_DIRECTORY.join("Product/ProductArticle.tsx")
     interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    product_page_types = COMPONENT_DIRECTORY.join("Product/ProductPage.types.ts").read
 
     assert_predicate product_article, :file?
     assert_not product_article.read.start_with?('"use client";')
     assert_not_includes interactions, "InteractiveProduct"
-    assert_includes interactions, "productArticle: React.ReactNode"
+    assert_includes product_page_types, "productArticle: ReactNode"
     assert_includes interactions, "{productArticle}"
     assert_includes product_page, "<ProductArticle"
     assert_includes product_page, "productArticle={productArticle}"
     assert_not COMPONENT_DIRECTORY.join("Product/ProductArticleInteractions.client.tsx").exist?
+  end
+
+  test "selects page-specific client layouts on the server" do
+    footer = COMPONENT_DIRECTORY.join("PoweredByFooter.tsx")
+    interactions_path = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx")
+    interactions = interactions_path.read
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    profile_layout = COMPONENT_DIRECTORY.join("Profile/Layout.tsx")
+    interaction_graph = transitive_javascript_imports([interactions_path])
+
+    assert footer.read.start_with?('"use client";')
+    assert profile_layout.read.start_with?('"use client";')
+    assert_not_includes interactions, "$app/components/PoweredByFooter"
+    assert_not_includes interactions, "$app/components/Profile/Layout"
+    assert_includes interactions, 'import type { ProductInteractionsProps } from "$app/components/Product/ProductPage.types"'
+    assert_not_includes interaction_graph, footer
+    assert_not_includes interaction_graph, profile_layout
+    assert_includes product_page, "$app/components/Product/ProductPage.types"
+    assert_includes product_page, 'productProps.page_layout === "profile"'
+    assert_includes product_page, 'productProps.page_layout !== "discover"'
+    assert_includes product_page, "<ProfileLayout"
+    assert_includes product_page, "<PoweredByFooter"
   end
 
   test "isolates the browser-aware product edit control" do
@@ -519,6 +544,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     legacy_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx")
     product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    product_page_types = COMPONENT_DIRECTORY.join("Product/ProductPage.types.ts").read
     product_page_clients = CLIENT_COMPONENTS - ["Profile/ProfileRscCompatibilityPage.client.tsx"]
     client_graph = transitive_javascript_imports(product_page_clients.map { COMPONENT_DIRECTORY.join(_1) })
 
@@ -530,7 +556,8 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes featured_product.read, "<CoffeeProduct"
     assert_not_includes featured_product.read, "InteractiveProduct"
     assert_not_includes client_graph, legacy_product
-    assert_includes product_interactions, 'import type { PageProps as SectionsProps }'
+    assert_includes product_page_types, 'import type { PageProps as SectionsProps }'
+    assert_not_includes product_interactions, "$app/components/Profile/Sections"
     assert_not_includes product_interactions, "<Section "
     assert_not_includes product_interactions, "renderFeaturedProduct"
     assert_includes product_page, "<ProfileSectionFrame"
