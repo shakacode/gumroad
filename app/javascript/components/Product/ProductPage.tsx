@@ -20,13 +20,15 @@ import {
 } from "$app/components/Product/ProductContent";
 import ProductInteractions, { type ProductInteractionsProps } from "$app/components/Product/ProductInteractions.client";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
+import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
+import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
 export type ProductPageProps = Omit<
   ProductInteractionsProps,
-  "featuredProductServerContent" | "profileRichTextServerContent" | "serverContent" | "serverProfileSections"
+  "featuredProductServerContent" | "serverContent" | "serverProfileSections"
 > & {
   _inertia_meta?: MetaTag[];
   global: GlobalProps;
@@ -87,25 +89,34 @@ export default function ProductPage({
       }),
     ),
     serverProfileSections: Object.fromEntries(
-      productProps.sections.flatMap((section) =>
-        section.type === "SellerProfilePostsSection"
-          ? [
-              [
-                section.id,
-                <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-                  <ProfilePostsContent posts={section.posts} locale={global.locale} />
-                </ProfileSectionFrame>,
-              ],
-            ]
-          : [],
-      ),
-    ),
-    profileRichTextServerContent: Object.fromEntries(
-      productProps.sections.flatMap((section) =>
-        section.type === "SellerProfileRichTextSection"
-          ? [[section.id, <ProfileRichTextContent key={section.id} content={section.text} />]]
-          : [],
-      ),
+      productProps.sections.flatMap((section) => {
+        if (section.type === "SellerProfilePostsSection") {
+          return [
+            [
+              section.id,
+              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+                <ProfilePostsContent posts={section.posts} locale={global.locale} />
+              </ProfileSectionFrame>,
+            ],
+          ];
+        }
+        if (section.type === "SellerProfileRichTextSection") {
+          const serverContent = <ProfileRichTextContent content={section.text} />;
+          return [
+            [
+              section.id,
+              <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+                {profileRichTextNeedsClientEnhancement(section.text) ? (
+                  <ProfileRichTextEnhancement content={section.text} fallback={serverContent} />
+                ) : (
+                  serverContent
+                )}
+              </ProfileSectionFrame>,
+            ],
+          ];
+        }
+        return [];
+      }),
     ),
   } satisfies ProductInteractionsProps;
   const product = <ProductInteractions {...interactionProps} />;

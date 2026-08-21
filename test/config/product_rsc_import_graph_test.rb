@@ -13,6 +13,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductDescription.client.tsx
     Product/ProductInteractions.client.tsx
     Product/ProductReceiptActions.client.tsx
+    Profile/ProfileRichTextEnhancement.client.tsx
     Profile/ProfileRichText.client.tsx
     Profile/ProfileRscCompatibilityPage.client.tsx
     PublicPages/PageShell.client.tsx
@@ -24,6 +25,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductContent.tsx
     Product/ProductPage.tsx
     Profile/ProfilePostsContent.tsx
+    Profile/ProfileRichText.ts
     Profile/ProfileRichTextContent.tsx
     Profile/ProfileSectionFrame.tsx
   ].freeze
@@ -123,6 +125,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
   test "keeps profile rich text rendering behind an asynchronous client boundary" do
     sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    enhancement = COMPONENT_DIRECTORY.join("Profile/ProfileRichTextEnhancement.client.tsx").read
     rich_text = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx").read
     product_interactions = COMPONENT_DIRECTORY.join("Product/ProductInteractions.client.tsx").read
     product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
@@ -130,11 +133,15 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
 
     assert_not_includes sections, "@tiptap/react"
     assert_not_includes sections, "$app/components/RichTextEditor"
-    assert_includes sections, 'import("$app/components/Profile/ProfileRichText.client")'
-    assert_includes sections, "fetchWithOneRetry(importProfileRichText)"
-    assert_includes sections, "!profileRichTextNeedsClientEnhancement(section.text)"
-    assert_includes sections, "fallback={serverContent}"
-    assert_includes product_interactions, "richTextServerContent={profileRichTextServerContent[section.id]}"
+    assert_not_includes sections, 'import("$app/components/Profile/ProfileRichText.client")'
+    assert_not_includes sections, "profileRichTextNeedsClientEnhancement"
+    assert_includes sections, "<ProfileRichTextEnhancement"
+    assert_includes enhancement, 'import("$app/components/Profile/ProfileRichText.client")'
+    assert_includes enhancement, "fetchWithOneRetry(importProfileRichText)"
+    assert_not_includes product_interactions, "profileRichTextServerContent"
+    assert_includes product_page, "profileRichTextNeedsClientEnhancement(section.text)"
+    assert_includes product_page, "<ProfileRichTextEnhancement"
+    assert_includes product_page, "<ProfileSectionFrame"
     assert_includes product_page, "<ProfileRichTextContent"
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Profile/ProfileRichTextContent.tsx")

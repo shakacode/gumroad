@@ -26,7 +26,6 @@ export type ProductInteractionsProps = ProductProps & {
   hasHero?: boolean;
   main_section_index: number;
   page_layout: "discover" | "profile" | null;
-  profileRichTextServerContent: Record<string, React.ReactNode>;
   serverProfileSections: Record<string, React.ReactNode>;
   serverContent: ServerContent;
 } & SectionsProps;
@@ -41,7 +40,6 @@ export default function ProductInteractions({
   main_section_index: mainSectionIndex,
   serverContent,
   featuredProductServerContent,
-  profileRichTextServerContent,
   serverProfileSections,
   page_layout: pageLayout,
   ...sectionProps
@@ -116,12 +114,7 @@ export default function ProductInteractions({
             <React.Fragment key={section.id}>
               {index === mainSectionIndex ? mainSection : null}
               {serverProfileSections[section.id] ?? (
-                <Section
-                  section={section}
-                  {...sectionProps}
-                  renderFeaturedProduct={renderFeaturedProduct}
-                  richTextServerContent={profileRichTextServerContent[section.id]}
-                />
+                <Section section={section} {...sectionProps} renderFeaturedProduct={renderFeaturedProduct} />
               )}
               {mainSectionIndex >= sectionProps.sections.length && index === sectionProps.sections.length - 1
                 ? mainSection

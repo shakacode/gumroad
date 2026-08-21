@@ -12,63 +12,17 @@ import {
 import { SearchResults } from "$app/data/search";
 import { CreatorProfile } from "$app/parsers/profile";
 import { CurrencyCode } from "$app/utils/currency";
-import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import type { Props as ProductProps } from "$app/components/Product/Interactive";
 import { FollowForm } from "$app/components/Profile/FollowForm";
+import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
 import { Card as WishlistCard, CardGrid as WishlistCardGrid, CardWishlist } from "$app/components/Wishlist/Card";
-
-const importProfileRichText = () => import("$app/components/Profile/ProfileRichText.client");
-const ProfileRichText = React.lazy(() => fetchWithOneRetry(importProfileRichText));
-const CLIENT_RICH_TEXT_NODES = new Set(["codeBlock", "raw", "reviewCard", "upsellCard"]);
-
-export const profileRichTextNeedsClientEnhancement = (node: unknown): boolean => {
-  if (typeof node !== "object" || node === null) return false;
-  if ("type" in node && typeof node.type === "string" && CLIENT_RICH_TEXT_NODES.has(node.type)) return true;
-  return "content" in node && Array.isArray(node.content) && node.content.some(profileRichTextNeedsClientEnhancement);
-};
-
-export class ProfileRichTextLoadBoundary extends React.Component<
-  { children: React.ReactNode; fallback?: React.ReactNode },
-  { failed: boolean }
-> {
-  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
-    super(props);
-    this.state = { failed: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  override render() {
-    return this.state.failed ? (this.props.fallback ?? null) : this.props.children;
-  }
-}
-
-const ProfileRichTextSectionView = ({
-  section,
-  serverContent,
-}: {
-  section: RichTextSection;
-  serverContent?: React.ReactNode;
-}) => {
-  if (serverContent != null && !profileRichTextNeedsClientEnhancement(section.text)) return serverContent;
-
-  return (
-    <ProfileRichTextLoadBoundary fallback={serverContent}>
-      <React.Suspense fallback={serverContent ?? null}>
-        <ProfileRichText section={section} fallback={serverContent ?? null} />
-      </React.Suspense>
-    </ProfileRichTextLoadBoundary>
-  );
-};
 
 type BaseSection = {
   id: string;
@@ -85,6 +39,10 @@ type PostsSection = BaseSection & {
 };
 
 export type RichTextSection = BaseSection & Pick<SavedRichTextSection, "type" | "text">;
+
+const ProfileRichTextSectionView = ({ section }: { section: RichTextSection }) => (
+  <ProfileRichTextEnhancement content={section.text} />
+);
 
 type SubscribeSection = BaseSection & Pick<SavedSubscribeSection, "type" | "button_label">;
 
@@ -252,12 +210,10 @@ export const Section = ({
   currency_code,
   renderFeaturedProduct,
   postsContent,
-  richTextServerContent,
 }: {
   section: Section;
   renderFeaturedProduct: FeaturedProductRenderer;
   postsContent?: React.ReactNode;
-  richTextServerContent?: React.ReactNode;
 } & PageProps) => (
   <ProfileSectionFrame id={section.id} header={section.header}>
     {section.type === "SellerProfileProductsSection" ? (
@@ -265,7 +221,7 @@ export const Section = ({
     ) : section.type === "SellerProfilePostsSection" ? (
       postsContent
     ) : section.type === "SellerProfileRichTextSection" ? (
-      <ProfileRichTextSectionView section={section} serverContent={richTextServerContent} />
+      <ProfileRichTextSectionView section={section} />
     ) : section.type === "SellerProfileSubscribeSection" ? (
       <SubscribeSectionView key={section.id} section={section} creatorProfile={creator_profile} />
     ) : section.type === "SellerProfileFeaturedProductSection" ? (

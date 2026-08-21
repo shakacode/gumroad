@@ -3,7 +3,8 @@ import { cleanup, render } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { profileRichTextNeedsClientEnhancement, ProfileRichTextLoadBoundary } from "$app/components/Profile/Sections";
+import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
+import { ProfileRichTextLoadBoundary } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 
 afterEach(() => {
   cleanup();
