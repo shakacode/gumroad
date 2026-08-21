@@ -13,7 +13,6 @@ import {
   RatingsWithPercentages,
 } from "$app/parsers/product";
 import type { SellerReputation } from "$app/parsers/profile";
-import { classNames } from "$app/utils/classNames";
 import { CurrencyCode } from "$app/utils/currency";
 
 import {
@@ -35,7 +34,6 @@ import { ProductPurchaseControls } from "$app/components/Product/ProductPurchase
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
-import { RatingStars } from "$app/components/RatingStars";
 import type { Review as FormReview } from "$app/components/ReviewForm";
 
 export type Seller = { id: string; name: string; avatar_url: string; profile_url: string; is_verified: boolean };
@@ -48,6 +46,7 @@ export type RefundPolicy = {
 
 export type { PublicFile } from "$app/components/Product/ProductDescription.client";
 export { formatDiscountAmount } from "$app/components/Product/ProductPurchaseControls.client";
+export { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 export { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client";
 
 export type ProductData = {
@@ -298,12 +297,3 @@ export const InteractiveProduct = ({
     </article>
   );
 };
-
-export const RatingsSummary = ({ ratings, className }: { ratings: Ratings; className?: string }) => (
-  <div className={classNames("flex shrink-0 items-center", className)}>
-    <RatingStars rating={ratings.average} />
-    <span className="rating-number ml-1">
-      {ratings.count} {ratings.count === 1 ? "rating" : "ratings"}
-    </span>
-  </div>
-);

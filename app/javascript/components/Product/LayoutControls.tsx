@@ -7,14 +7,10 @@ import {
   type PriceSelection,
 } from "$app/components/Product/ConfigurationSelector";
 import { CtaButton } from "$app/components/Product/CtaButton";
-import {
-  RatingsSummary,
-  type ProductData,
-  type ProductDiscount,
-  type Purchase,
-} from "$app/components/Product/Interactive";
+import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents } from "$app/components/Product/pricing";
+import { ProductRatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 import { showAlert } from "$app/components/server-components/Alert";
 import { useIsAboveBreakpoint } from "$app/components/useIsAboveBreakpoint";
 
@@ -120,7 +116,7 @@ export const CtaBar = ({
         />
         <h3 className="hidden flex-1 lg:block">{product.name}</h3>
         {product.ratings != null && product.ratings.count > 0 ? (
-          <RatingsSummary className="hidden lg:flex" ratings={product.ratings} />
+          <ProductRatingsSummary className="hidden lg:flex" ratings={product.ratings} />
         ) : null}
         <div className="flex items-center gap-2">
           <CtaButton

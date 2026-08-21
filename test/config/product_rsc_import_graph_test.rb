@@ -40,6 +40,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverPage.tsx
     Product/ProductContent.tsx
     Product/ProductPage.tsx
+    Product/ProductRatingsSummary.tsx
     Profile/ProfilePostsContent.tsx
     Profile/ProfileRichText.ts
     Profile/ProfileRichTextContent.tsx
@@ -219,6 +220,21 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
                     "<ProductPrice product={product} selection={selection} discountCode={discountCode} />"
     assert_not_includes interactive_product, 'import { PriceTag }'
     assert_not_includes interactive_product, "buyerLocalPriceCentsForSelection("
+  end
+
+  test "keeps the sticky ratings summary out of the legacy article module" do
+    ratings_summary = COMPONENT_DIRECTORY.join("Product/ProductRatingsSummary.tsx")
+    interactive_product = COMPONENT_DIRECTORY.join("Product/Interactive.tsx").read
+    layout_controls = COMPONENT_DIRECTORY.join("Product/LayoutControls.tsx").read
+
+    assert_predicate ratings_summary, :file?
+    assert_includes ratings_summary.read, "<RatingStars"
+    assert_includes layout_controls, "$app/components/Product/ProductRatingsSummary"
+    assert_includes layout_controls, "<ProductRatingsSummary"
+    assert_not_includes layout_controls, "RatingsSummary,"
+    assert_includes interactive_product,
+                    'export { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary"'
+    assert_not_includes interactive_product, "export const RatingsSummary"
   end
 
   test "isolates product configuration and purchase behavior" do
