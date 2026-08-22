@@ -5,6 +5,7 @@ import type { CardProduct } from "$app/parsers/product";
 import type { CurrencyCode } from "$app/utils/currency";
 import type { Taxonomy } from "$app/utils/discover";
 
+import AsyncRecentlyViewed from "$app/components/Discover/AsyncRecentlyViewed";
 import AsyncRecommendedProducts from "$app/components/Discover/AsyncRecommendedProducts";
 import AsyncRecommendedWishlists from "$app/components/Discover/AsyncRecommendedWishlists";
 import BlackFridayHero, {
@@ -14,6 +15,7 @@ import BlackFridayHero, {
 } from "$app/components/Discover/BlackFridayHero";
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import DiscoverResults from "$app/components/Discover/DiscoverResults.client";
+import type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
 import { RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
 import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
@@ -22,6 +24,7 @@ import type { CardWishlist } from "$app/components/Wishlist/Card";
 type AsyncDiscoverPageProps = {
   recommended_products: CardProduct[];
   recommended_wishlists: CardWishlist[];
+  recently_viewed: RecentlyViewedProps | null;
 };
 
 export type DiscoverPageProps = Record<string, unknown> & {
@@ -89,6 +92,11 @@ export default function DiscoverPage({
       />
     </React.Suspense>
   );
+  const recentlyViewed = (
+    <React.Suspense fallback={null}>
+      <AsyncRecentlyViewed recentlyViewedPromise={getReactOnRailsAsyncProp("recently_viewed")} />
+    </React.Suspense>
+  );
 
   return (
     <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={clientDiscoverProps}>
@@ -103,6 +111,7 @@ export default function DiscoverPage({
       >
         <DiscoverResults
           blackFridayHero={blackFridayHero}
+          recentlyViewed={recentlyViewed}
           recommendedProducts={recommendedProducts}
           recommendedWishlists={recommendedWishlists}
         />

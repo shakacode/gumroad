@@ -27,6 +27,7 @@ describe "Discover RSC routing", type: :request do
     rsc_async_props = nil
     recommendation_calls = 0
     wishlist_calls = 0
+    recently_viewed_calls = 0
     allow_any_instance_of(DiscoverController).to receive(:recommendations) do
       recommendation_calls += 1
       []
@@ -34,6 +35,10 @@ describe "Discover RSC routing", type: :request do
     allow_any_instance_of(DiscoverController).to receive(:recommended_wishlists_data) do
       wishlist_calls += 1
       []
+    end
+    allow_any_instance_of(DiscoverController).to receive(:recently_viewed_data) do
+      recently_viewed_calls += 1
+      nil
     end
     allow_any_instance_of(DiscoverRscController).to receive(:stream_view_containing_react_components) do |controller, **options|
       streamed_options = options
@@ -49,15 +54,18 @@ describe "Discover RSC routing", type: :request do
     expect(response.body).to eq("server-rendered Discover")
     expect(streamed_options).to include(template: "public_rsc/show", layout: "inertia")
     expect(rsc_component_name).to eq("DiscoverPage")
-    expect(rsc_props).to include(:search_results, :recently_viewed)
-    expect(rsc_props).not_to include(:recommended_products, :recommended_wishlists)
+    expect(rsc_props).to include(:search_results)
+    expect(rsc_props).not_to include(:recommended_products, :recommended_wishlists, :recently_viewed)
     expect(rsc_props.dig(:global, :href)).to eq("http://#{discover_host}/discover")
     expect(recommendation_calls).to eq(0)
     expect(wishlist_calls).to eq(0)
+    expect(recently_viewed_calls).to eq(0)
     expect(rsc_async_props.fetch(:recommended_products).call).to eq([])
     expect(rsc_async_props.fetch(:recommended_wishlists).call).to eq([])
+    expect(rsc_async_props.fetch(:recently_viewed).call).to be_nil
     expect(recommendation_calls).to eq(1)
     expect(wishlist_calls).to eq(1)
+    expect(recently_viewed_calls).to eq(1)
   end
 
   it "uses the dedicated RSC controller for an unflagged taxonomy page" do

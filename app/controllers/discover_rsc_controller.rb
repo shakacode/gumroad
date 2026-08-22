@@ -11,7 +11,6 @@ class DiscoverRscController < DiscoverController
         props: discover_props.merge(
           show_black_friday_hero: black_friday_feature_active,
           black_friday_stats: black_friday_feature_active ? BlackFridayStatsService.fetch_stats : nil,
-          recently_viewed: recently_viewed_data,
         ),
         root_id: "discover-rsc-root",
         async_props: {
@@ -20,6 +19,9 @@ class DiscoverRscController < DiscoverController
           },
           recommended_wishlists: -> {
             ActiveRecord::Base.connection_pool.with_connection { recommended_wishlists_data }
+          },
+          recently_viewed: -> {
+            ActiveRecord::Base.connection_pool.with_connection { recently_viewed_data }
           }
         }
       )

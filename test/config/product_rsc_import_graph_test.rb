@@ -8,6 +8,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/Cart.client.tsx
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
+    Discover/RecentlyViewed.tsx
     Discover/RecommendedProducts.client.tsx
     Discover/RecommendedWishlists.tsx
     Discover/Search.client.tsx
@@ -48,6 +49,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     PublicPages/ProductPageShell.client.tsx
   ].freeze
   SERVER_COMPONENTS = %w[
+    Discover/AsyncRecentlyViewed.tsx
     Discover/AsyncRecommendedProducts.tsx
     Discover/AsyncRecommendedWishlists.tsx
     Discover/BlackFridayHero.tsx
@@ -141,6 +143,23 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes discover_page, "recommendedWishlists={recommendedWishlists}"
     assert_includes results, "recommendedWishlists: React.ReactNode"
     assert_includes results_core, "showRecommendationSections && recommendedWishlistsSlot"
+  end
+
+  test "streams recently viewed products through a server-owned Suspense slot" do
+    discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+    async_recently_viewed = COMPONENT_DIRECTORY.join("Discover/AsyncRecentlyViewed.tsx")
+    recently_viewed = COMPONENT_DIRECTORY.join("Discover/RecentlyViewed.tsx")
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx").read
+
+    assert_predicate async_recently_viewed, :file?
+    assert_not async_recently_viewed.read.start_with?('"use client";')
+    assert recently_viewed.read.start_with?('"use client";')
+    assert_includes async_recently_viewed.read, "React.use(recentlyViewedPromise)"
+    assert_includes discover_page, 'getReactOnRailsAsyncProp("recently_viewed")'
+    assert_includes discover_page, "recentlyViewed={recentlyViewed}"
+    assert_includes results, "recentlyViewed: React.ReactNode"
+    assert_includes results_core, "showRecommendationSections && recentlyViewedSlot"
   end
 
   test "keeps the legacy product composition out of the RSC client graph" do

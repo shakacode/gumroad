@@ -11,7 +11,8 @@ import { last } from "$app/utils/array";
 import { CurrencyCode } from "$app/utils/currency";
 import { discoverTitleGenerator, Taxonomy } from "$app/utils/discover";
 
-import { RecentlyViewed, RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed";
+import { RecentlyViewed } from "$app/components/Discover/RecentlyViewed";
+import type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
 import { RecommendedProducts, RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
 import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import { HomeFooter } from "$app/components/Home/Shared/Footer";
@@ -87,11 +88,13 @@ export type DiscoverPageLayoutProps = {
 
 export function DiscoverResultsCore({
   blackFridayHero,
+  recentlyViewed: recentlyViewedSlot,
   recommendedProducts: recommendedProductsSlot,
   recommendedWishlists: recommendedWishlistsSlot,
   renderLayout,
 }: {
   blackFridayHero: React.ReactNode;
+  recentlyViewed?: React.ReactNode;
   recommendedProducts?: React.ReactNode;
   recommendedWishlists?: React.ReactNode;
   renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
@@ -247,7 +250,9 @@ export function DiscoverResultsCore({
             ) : null}
           </Deferred>
         ) : null}
-        {showRecommendationSections ? (
+        {showRecommendationSections && recentlyViewedSlot ? (
+          recentlyViewedSlot
+        ) : showRecommendationSections ? (
           <Deferred data={["recently_viewed"]} fallback={null}>
             <RecentlyViewed data={props.recently_viewed} />
           </Deferred>
