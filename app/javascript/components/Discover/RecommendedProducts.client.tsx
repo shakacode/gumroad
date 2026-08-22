@@ -7,6 +7,7 @@ import type { CardProduct } from "$app/parsers/product";
 
 import { HorizontalCard } from "$app/components/Product/Card";
 import { Skeleton } from "$app/components/Skeleton";
+import { ProductCard, ProductCardFigure } from "$app/components/ui/ProductCard";
 import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
 
 export const RecommendedProductsSkeleton = () => (
@@ -16,7 +17,16 @@ export const RecommendedProductsSkeleton = () => (
     </header>
     <div className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden">
       {Array.from({ length: 3 }, (_, index) => (
-        <Skeleton key={index} className="h-96" />
+        <ProductCard key={index} className="min-h-96 lg:h-96 lg:flex-row" aria-hidden="true">
+          <ProductCardFigure className="shrink-0 lg:h-full lg:rounded-l lg:rounded-tr-none lg:border-r lg:border-b-0">
+            {null}
+          </ProductCardFigure>
+          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="w-full" />
+            <Skeleton className="w-2/3" />
+          </div>
+        </ProductCard>
       ))}
     </div>
   </section>
