@@ -46,6 +46,11 @@ describe("public RSC structure", () => {
     expect(read("../../components/Profile/ProfileRscCompatibilityPage.client.tsx")).toContain("$app/pages/Users/Show");
   });
 
+  it("keeps the Discover results client directive at the server boundary", () => {
+    expect(read("../../components/Discover/DiscoverResults.client.tsx")).toMatch(/^"use client";/u);
+    expect(read("../../components/Discover/DiscoverResultsCore.client.tsx")).not.toMatch(/^"use client";/u);
+  });
+
   it("removes the temporary product_rsc application folder", () => {
     expect(existsSync(new URL("../../product_rsc", import.meta.url))).toBe(false);
   });

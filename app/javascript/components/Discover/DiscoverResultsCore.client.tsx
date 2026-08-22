@@ -1,5 +1,3 @@
-"use client";
-
 import { X } from "@boxicons/react";
 import { Deferred, router, usePage } from "@inertiajs/react";
 import { range } from "lodash-es";

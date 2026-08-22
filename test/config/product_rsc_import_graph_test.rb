@@ -7,7 +7,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   CLIENT_COMPONENTS = %w[
     Discover/Cart.client.tsx
     Discover/DiscoverResults.client.tsx
-    Discover/DiscoverResultsCore.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/RecommendedProducts.client.tsx
     Discover/Search.client.tsx
@@ -103,7 +102,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes discover_page, "blackFridayHero={blackFridayHero}"
     assert_includes results, "blackFridayHero: React.ReactNode"
     assert_predicate results_core, :file?
-    assert results_core.read.start_with?('"use client";')
+    assert_not results_core.read.start_with?('"use client";')
     assert_not_includes results_core.read, "black_friday.svg"
     assert_not_includes results_core.read, "illustrations/sale.svg"
     assert_not_includes results_core.read, "formatPriceCentsWithCurrencySymbol"
