@@ -11,6 +11,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/MobileMenu.client.tsx
     Discover/RecommendedProducts.client.tsx
     Discover/Search.client.tsx
+    Discover/TaxonomyMenu.client.tsx
     PoweredByFooter.tsx
     Product/CoffeeProduct.tsx
     Product/ProductAnalytics.client.tsx

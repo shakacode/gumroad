@@ -1,4 +1,4 @@
-import { BookmarkHeart, ChevronDown } from "@boxicons/react";
+import { BookmarkHeart } from "@boxicons/react";
 import * as React from "react";
 
 import { classNames } from "$app/utils/classNames";
@@ -7,6 +7,7 @@ import { getRootTaxonomy, getRootTaxonomyCss, type Taxonomy } from "$app/utils/d
 import Cart from "$app/components/Discover/Cart.client";
 import MobileMenu from "$app/components/Discover/MobileMenu.client";
 import Search from "$app/components/Discover/Search.client";
+import TaxonomyDropdown, { MobileTaxonomyLinks } from "$app/components/Discover/TaxonomyMenu.client";
 import { Logo } from "$app/components/Logo";
 import type { GlobalProps } from "$app/components/PublicPages/PageShell.client";
 import { Avatar } from "$app/components/ui/Avatar";
@@ -102,7 +103,7 @@ const TaxonomyLinks = ({
         aria-current={currentPath === path ? "page" : undefined}
         className={classNames(
           "block no-underline aria-[current=page]:bg-background aria-[current=page]:text-foreground",
-          mobile ? "border-b border-border px-4 py-3" : "rounded-full px-3 py-2 hover:bg-background",
+          "rounded-full px-3 py-2 hover:bg-background",
         )}
       >
         {taxonomy.label}
@@ -111,36 +112,16 @@ const TaxonomyLinks = ({
   };
 
   if (mobile) {
-    const renderBranch = (parentKey: string | null, depth = 0): React.ReactNode =>
-      childrenByParent.get(parentKey)?.map((taxonomy) => (
-        <li key={taxonomy.key}>
-          <div style={{ paddingLeft: `${depth}rem` }}>{link(taxonomy)}</div>
-          {renderBranch(taxonomy.key, depth + 1)}
-        </li>
-      ));
-
     return (
-      <ul className="list-none p-0">
-        <li>
-          <a
-            href={taxonomyHref({ discoverDomain, forceDomain, offerCode })}
-            className="block border-b border-border px-4 py-3 no-underline"
-          >
-            All
-          </a>
-        </li>
-        {renderBranch(null)}
-      </ul>
+      <MobileTaxonomyLinks
+        currentPath={currentPath}
+        discoverDomain={discoverDomain}
+        forceDomain={forceDomain}
+        offerCode={offerCode}
+        taxonomies={taxonomies}
+      />
     );
   }
-
-  const renderDesktopBranch = (parentKey: string, depth = 0): React.ReactNode =>
-    childrenByParent.get(parentKey)?.map((taxonomy) => (
-      <div key={taxonomy.key} style={{ paddingLeft: `${depth}rem` }}>
-        {link(taxonomy)}
-        {renderDesktopBranch(taxonomy.key, depth + 1)}
-      </div>
-    ));
 
   const rootTaxonomies = childrenByParent.get(null) ?? [];
   const visibleRootTaxonomies = rootTaxonomies.slice(0, 5);
@@ -149,16 +130,16 @@ const TaxonomyLinks = ({
   const rootLink = (taxonomy: Taxonomy) => {
     const children = childrenByParent.get(taxonomy.key) ?? [];
     return children.length ? (
-      <details key={taxonomy.key} className="group relative shrink-0">
-        <summary className="flex cursor-pointer list-none items-center rounded-full px-3 py-2 hover:bg-background">
-          {taxonomy.label}
-          <ChevronDown className="size-5" />
-        </summary>
-        <div className="absolute top-full left-0 z-30 mt-1 max-h-[min(70vh,40rem)] w-64 overflow-y-auto rounded border border-border bg-background p-2 shadow">
-          {link(taxonomy)}
-          {renderDesktopBranch(taxonomy.key, 1)}
-        </div>
-      </details>
+      <TaxonomyDropdown
+        key={taxonomy.key}
+        currentPath={currentPath}
+        discoverDomain={discoverDomain}
+        forceDomain={forceDomain}
+        label={taxonomy.label}
+        offerCode={offerCode}
+        rootTaxonomies={[taxonomy]}
+        taxonomies={taxonomies}
+      />
     ) : (
       <React.Fragment key={taxonomy.key}>{link(taxonomy)}</React.Fragment>
     );
@@ -175,20 +156,16 @@ const TaxonomyLinks = ({
       </a>
       {visibleRootTaxonomies.map(rootLink)}
       {overflowRootTaxonomies.length ? (
-        <details className="group relative shrink-0">
-          <summary className="flex cursor-pointer list-none items-center rounded-full px-3 py-2 hover:bg-background">
-            More Categories
-            <ChevronDown className="size-5" />
-          </summary>
-          <div className="absolute top-full right-0 z-30 mt-1 max-h-[min(70vh,40rem)] w-72 overflow-y-auto rounded border border-border bg-background p-2 shadow">
-            {overflowRootTaxonomies.map((taxonomy) => (
-              <div key={taxonomy.key}>
-                {link(taxonomy)}
-                {renderDesktopBranch(taxonomy.key, 1)}
-              </div>
-            ))}
-          </div>
-        </details>
+        <TaxonomyDropdown
+          align="right"
+          currentPath={currentPath}
+          discoverDomain={discoverDomain}
+          forceDomain={forceDomain}
+          label="More Categories"
+          offerCode={offerCode}
+          rootTaxonomies={overflowRootTaxonomies}
+          taxonomies={taxonomies}
+        />
       ) : null}
     </nav>
   );
