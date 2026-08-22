@@ -7,9 +7,17 @@ import DiscoverResultsCore from "$app/components/Discover/DiscoverResultsCore.cl
 export default function DiscoverResults({
   blackFridayHero,
   recommendedProducts,
+  recommendedWishlists,
 }: {
   blackFridayHero: React.ReactNode;
   recommendedProducts: React.ReactNode;
+  recommendedWishlists: React.ReactNode;
 }) {
-  return <DiscoverResultsCore blackFridayHero={blackFridayHero} recommendedProducts={recommendedProducts} />;
+  return (
+    <DiscoverResultsCore
+      blackFridayHero={blackFridayHero}
+      recommendedProducts={recommendedProducts}
+      recommendedWishlists={recommendedWishlists}
+    />
+  );
 }

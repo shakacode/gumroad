@@ -88,10 +88,12 @@ export type DiscoverPageLayoutProps = {
 export function DiscoverResultsCore({
   blackFridayHero,
   recommendedProducts: recommendedProductsSlot,
+  recommendedWishlists: recommendedWishlistsSlot,
   renderLayout,
 }: {
   blackFridayHero: React.ReactNode;
   recommendedProducts?: React.ReactNode;
+  recommendedWishlists?: React.ReactNode;
   renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
 }) {
   const props = typia.assert<Props>(usePage().props);
@@ -360,7 +362,9 @@ export function DiscoverResultsCore({
             pagination="button"
           />
         </section>
-        {showRecommendationSections ? (
+        {showRecommendationSections && recommendedWishlistsSlot ? (
+          recommendedWishlistsSlot
+        ) : showRecommendationSections ? (
           <Deferred
             data={["recommended_wishlists"]}
             fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}

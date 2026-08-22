@@ -6,6 +6,7 @@ import type { CurrencyCode } from "$app/utils/currency";
 import type { Taxonomy } from "$app/utils/discover";
 
 import AsyncRecommendedProducts from "$app/components/Discover/AsyncRecommendedProducts";
+import AsyncRecommendedWishlists from "$app/components/Discover/AsyncRecommendedWishlists";
 import BlackFridayHero, {
   BlackFridayButtonFrame,
   type BlackFridayStats,
@@ -14,10 +15,13 @@ import BlackFridayHero, {
 import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import DiscoverResults from "$app/components/Discover/DiscoverResults.client";
 import { RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
+import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
+import type { CardWishlist } from "$app/components/Wishlist/Card";
 
 type AsyncDiscoverPageProps = {
   recommended_products: CardProduct[];
+  recommended_wishlists: CardWishlist[];
 };
 
 export type DiscoverPageProps = Record<string, unknown> & {
@@ -74,6 +78,17 @@ export default function DiscoverPage({
       />
     </React.Suspense>
   );
+  const recommendedWishlistsTitle = taxonomyPath
+    ? `Wishlists for ${clientDiscoverProps.taxonomies_for_nav.find((taxonomy) => taxonomy.slug === taxonomyPath.split("/").at(-1))?.label}`
+    : "Wishlists you might like";
+  const recommendedWishlists = (
+    <React.Suspense fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}>
+      <AsyncRecommendedWishlists
+        title={recommendedWishlistsTitle}
+        wishlistsPromise={getReactOnRailsAsyncProp("recommended_wishlists")}
+      />
+    </React.Suspense>
+  );
 
   return (
     <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={clientDiscoverProps}>
@@ -86,7 +101,11 @@ export default function DiscoverPage({
         query={url.searchParams.get("query") ?? undefined}
         showTaxonomy
       >
-        <DiscoverResults blackFridayHero={blackFridayHero} recommendedProducts={recommendedProducts} />
+        <DiscoverResults
+          blackFridayHero={blackFridayHero}
+          recommendedProducts={recommendedProducts}
+          recommendedWishlists={recommendedWishlists}
+        />
       </DiscoverLayout>
     </PageShell>
   );

@@ -9,6 +9,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
     Discover/RecommendedProducts.client.tsx
+    Discover/RecommendedWishlists.tsx
     Discover/Search.client.tsx
     Discover/TaxonomyMenu.client.tsx
     PoweredByFooter.tsx
@@ -48,6 +49,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   ].freeze
   SERVER_COMPONENTS = %w[
     Discover/AsyncRecommendedProducts.tsx
+    Discover/AsyncRecommendedWishlists.tsx
     Discover/BlackFridayHero.tsx
     Discover/DiscoverHeader.tsx
     Discover/DiscoverLayout.tsx
@@ -122,6 +124,23 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes discover_page, "recommendedProducts={recommendedProducts}"
     assert_includes results, "recommendedProducts: React.ReactNode"
     assert_includes results_core, "showRecommendationSections && recommendedProductsSlot"
+  end
+
+  test "streams recommended wishlists through a server-owned Suspense slot" do
+    discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+    async_wishlists = COMPONENT_DIRECTORY.join("Discover/AsyncRecommendedWishlists.tsx")
+    wishlists = COMPONENT_DIRECTORY.join("Discover/RecommendedWishlists.tsx")
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx").read
+
+    assert_predicate async_wishlists, :file?
+    assert_not async_wishlists.read.start_with?('"use client";')
+    assert wishlists.read.start_with?('"use client";')
+    assert_includes async_wishlists.read, "React.use(wishlistsPromise)"
+    assert_includes discover_page, 'getReactOnRailsAsyncProp("recommended_wishlists")'
+    assert_includes discover_page, "recommendedWishlists={recommendedWishlists}"
+    assert_includes results, "recommendedWishlists: React.ReactNode"
+    assert_includes results_core, "showRecommendationSections && recommendedWishlistsSlot"
   end
 
   test "keeps the legacy product composition out of the RSC client graph" do
