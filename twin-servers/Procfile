@@ -1,5 +1,6 @@
 control-rails: shaka-perf servers run-overmind-command control "/shakaperf-twin/start-rails"
 experiment-rails: shaka-perf servers run-overmind-command experiment "/shakaperf-twin/start-rails"
+control-renderer: shaka-perf servers run-overmind-command control "/shakaperf-twin/start-renderer"
 experiment-renderer: shaka-perf servers run-overmind-command experiment "/shakaperf-twin/start-renderer"
 notify-control-server-started: ./twin-servers/wait-for-product control
 notify-experiment-server-started: ./twin-servers/wait-for-product experiment
