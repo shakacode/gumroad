@@ -128,6 +128,13 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes results_core, "showRecommendationSections && recommendedProductsSlot"
   end
 
+  test "preloads the Discover LCP placeholder from the server root" do
+    discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+
+    assert_includes discover_page,
+                    '<link rel="preload" as="image" href="/images/placeholders/product-cover.png" fetchPriority="high" />'
+  end
+
   test "streams recommended wishlists through a server-owned Suspense slot" do
     discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
     async_wishlists = COMPONENT_DIRECTORY.join("Discover/AsyncRecommendedWishlists.tsx")
