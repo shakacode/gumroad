@@ -7,16 +7,16 @@ import { prepareShakaPerfNavigation } from "./config/shakaperf/prepare-navigatio
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
 const projectDir = process.cwd();
-const PARALLELISM = Math.max(1, Math.floor(os.cpus().length / 2));
+const PARALLELISM = Math.max(1, Math.floor(os.cpus().length / 3));
 
 const LIGHTHOUSE_CONFIG = {
   throttling: {
-    rttMs: 150,
-    throughputKbps: 1638.4,
-    requestLatencyMs: 562.5,
-    downloadThroughputKbps: 1474.56,
-    uploadThroughputKbps: 675,
-    cpuSlowdownMultiplier: 4,
+    rttMs: 100,
+    throughputKbps: 2700,
+    requestLatencyMs: 200,
+    downloadThroughputKbps: 2700,
+    uploadThroughputKbps: 2700,
+    cpuSlowdownMultiplier: 3,
   },
   throttlingMethod: "devtools" as const,
   logLevel: "error" as const,
@@ -62,7 +62,7 @@ export default defineConfig({
 
   perf: {
     viewports: ["desktop", "phone"],
-    numberOfMeasurements: 12,
+    numberOfMeasurements: 20,
     regressionThreshold: 50,
     pValueThreshold: 0.05,
     regressionThresholdStat: "estimator",
