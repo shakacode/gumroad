@@ -54,19 +54,6 @@ RUN cd $APP_DIR && npm ci --legacy-peer-deps
 # Full source tree last: changes here only invalidate the layers below.
 COPY . $APP_DIR/
 
-RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
-  && rmdir /usr/local/share/geoip \
-  && cd $APP_DIR \
-  && NODE_ENV=production npm run build:public-rsc
-
-# TODO: look into solutions that prevent image bloating and/or avoids --squash
-RUN chmod -R 755 $BUNDLE_PATH \
-  && chmod -R 755 $APP_DIR \
-  && chmod -R 770 $APP_DIR/tmp \
-  && chmod -R 770 $APP_DIR/log \
-  && chown -R app:app $APP_DIR \
-  && chown -R root:app $BUNDLE_PATH
-
 ENV DATABASE_HOST="db" \
   DATABASE_NAME="gumroad_development" \
   DATABASE_PORT=3306 \
@@ -88,6 +75,19 @@ ENV DATABASE_HOST="db" \
   ELASTICSEARCH_HOST=http://elasticsearch:9200 \
   MEMCACHE_SERVERS=memcached \
   IN_DOCKER="true"
+
+RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
+  && rmdir /usr/local/share/geoip \
+  && cd $APP_DIR \
+  && NODE_ENV=production npm run build:public-rsc
+
+# TODO: look into solutions that prevent image bloating and/or avoids --squash
+RUN chmod -R 755 $BUNDLE_PATH \
+  && chmod -R 755 $APP_DIR \
+  && chmod -R 770 $APP_DIR/tmp \
+  && chmod -R 770 $APP_DIR/log \
+  && chown -R app:app $APP_DIR \
+  && chown -R root:app $BUNDLE_PATH
 
 WORKDIR $APP_DIR
 

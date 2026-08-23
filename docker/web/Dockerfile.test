@@ -44,22 +44,6 @@ RUN npm ci --legacy-peer-deps
 # duplicated all of $APP_DIR — including node_modules — into a new layer).
 COPY --chown=app:app . ./
 
-RUN RAILS_ENV=test NODE_ENV=test npm run build:public-rsc:test
-
-# Switch back so subsequent ImageMagick edits and the worker step's `su -c
-# ... app` pattern work correctly.
-USER root
-
-# Update ImageMagick configuration
-# Set memory limit to 1GiB
-RUN sed -r 's/(name="memory" value=")[^"]+"/\11GiB"/' -i /etc/ImageMagick-6/policy.xml \
-  # Set disk limit to 8GiB
-  && sed -r 's/(name="disk" value=")[^"]+"/\18GiB"/' -i /etc/ImageMagick-6/policy.xml \
-  # Change width limit from 10KP to 50KP
-  && sed -r 's/(name="width" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml \
-  # Change height limit from 10KP to 50KP
-  && sed -r 's/(name="height" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml
-
 ENV DATABASE_HOST=db_test \
     DATABASE_NAME=gumroad_test \
     DATABASE_PORT=3306 \
@@ -84,6 +68,22 @@ ENV DATABASE_HOST=db_test \
     MEMCACHE_SERVERS=memcached \
     RAILS_LOG_LEVEL=info \
     IN_DOCKER=true
+
+RUN RAILS_ENV=test NODE_ENV=test npm run build:public-rsc:test
+
+# Switch back so subsequent ImageMagick edits and the worker step's `su -c
+# ... app` pattern work correctly.
+USER root
+
+# Update ImageMagick configuration
+# Set memory limit to 1GiB
+RUN sed -r 's/(name="memory" value=")[^"]+"/\11GiB"/' -i /etc/ImageMagick-6/policy.xml \
+  # Set disk limit to 8GiB
+  && sed -r 's/(name="disk" value=")[^"]+"/\18GiB"/' -i /etc/ImageMagick-6/policy.xml \
+  # Change width limit from 10KP to 50KP
+  && sed -r 's/(name="width" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml \
+  # Change height limit from 10KP to 50KP
+  && sed -r 's/(name="height" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml
 
 WORKDIR $APP_DIR
 
