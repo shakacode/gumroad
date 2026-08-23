@@ -99,26 +99,23 @@ export default function DiscoverPage({
   );
 
   return (
-    <>
-      <link rel="preload" as="image" href="/images/placeholders/product-cover.png" fetchPriority="high" />
-      <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={clientDiscoverProps}>
-        <DiscoverLayout
-          currentSeller={global.current_seller}
-          domainSettings={global.domain_settings}
-          taxonomyPath={taxonomyPath}
-          taxonomiesForNav={clientDiscoverProps.taxonomies_for_nav}
-          offerCode={url.searchParams.get("offer_code") ?? undefined}
-          query={url.searchParams.get("query") ?? undefined}
-          showTaxonomy
-        >
-          <DiscoverResults
-            blackFridayHero={blackFridayHero}
-            recentlyViewed={recentlyViewed}
-            recommendedProducts={recommendedProducts}
-            recommendedWishlists={recommendedWishlists}
-          />
-        </DiscoverLayout>
-      </PageShell>
-    </>
+    <PageShell component="Discover/Index" global={global} inertiaMeta={inertiaMeta} pageProps={clientDiscoverProps}>
+      <DiscoverLayout
+        currentSeller={global.current_seller}
+        domainSettings={global.domain_settings}
+        taxonomyPath={taxonomyPath}
+        taxonomiesForNav={clientDiscoverProps.taxonomies_for_nav}
+        offerCode={url.searchParams.get("offer_code") ?? undefined}
+        query={url.searchParams.get("query") ?? undefined}
+        showTaxonomy
+      >
+        <DiscoverResults
+          blackFridayHero={blackFridayHero}
+          recentlyViewed={recentlyViewed}
+          recommendedProducts={recommendedProducts}
+          recommendedWishlists={recommendedWishlists}
+        />
+      </DiscoverLayout>
+    </PageShell>
   );
 }

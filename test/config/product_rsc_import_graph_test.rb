@@ -128,10 +128,10 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes results_core, "showRecommendationSections && recommendedProductsSlot"
   end
 
-  test "preloads the Discover LCP placeholder from the server root" do
+  test "does not preload the Discover placeholder ahead of render-blocking resources" do
     discover_page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
 
-    assert_includes discover_page,
+    refute_includes discover_page,
                     '<link rel="preload" as="image" href="/images/placeholders/product-cover.png" fetchPriority="high" />'
   end
 
