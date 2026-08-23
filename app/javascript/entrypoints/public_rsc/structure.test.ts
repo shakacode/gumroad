@@ -13,6 +13,7 @@ const roots = [
     name: "ProductPage",
     module: "$app/components/Product/ProductPage",
     component: "../../components/Product/ProductPage.tsx",
+    wrapper: "../../components/PublicPages/ror_components/ProductPage.tsx",
     rails: "../../../../app/views/links/rsc_show.html.erb",
     client: false,
   },
@@ -20,6 +21,7 @@ const roots = [
     name: "DiscoverPage",
     module: "$app/components/Discover/DiscoverPage",
     component: "../../components/Discover/DiscoverPage.tsx",
+    wrapper: "../../components/PublicPages/ror_components/DiscoverPage.tsx",
     rails: "../../../../app/controllers/discover_rsc_controller.rb",
     client: false,
   },
@@ -27,18 +29,35 @@ const roots = [
     name: "ProfileRscCompatibilityPage",
     module: "$app/components/Profile/ProfileRscCompatibilityPage.client",
     component: "../../components/Profile/ProfileRscCompatibilityPage.client.tsx",
+    wrapper: "../../components/PublicPages/ror_components/ProfileRscCompatibilityPage.tsx",
     rails: "../../../../app/controllers/profile_rsc_users_controller.rb",
     client: true,
   },
 ] as const;
 
 describe("public RSC structure", () => {
+  it.each(roots)("exposes $name through a server-classified autobundling wrapper", (root) => {
+    const wrapper = read(root.wrapper);
+
+    expect(wrapper).toBe(`export { default } from "${root.module}";\n`);
+    expect(wrapper).not.toMatch(/^"use client";/u);
+  });
+
   it.each(roots)("keeps $name aligned across Rails and React on Rails registration", (root) => {
-    expect(clientEntry).toContain(`registerServerComponent("${root.name}");`);
-    expect(serverEntry).toContain(`import ${root.name} from "${root.module}";`);
-    expect(serverEntry).toContain(root.name);
     expect(read(root.rails)).toContain(`"${root.name}"`);
     expect(read(root.component).startsWith('"use client";')).toBe(root.client);
+  });
+
+  it("leaves browser and server root registration to the generated packs", () => {
+    expect(clientEntry).not.toContain("registerServerComponent");
+    expect(serverEntry).not.toContain("registerServerComponent");
+    roots.forEach(({ name }) => {
+      expect(clientEntry).not.toContain(name);
+      expect(serverEntry).not.toContain(name);
+    });
+    expect(read("../../packs/public_rsc/public_rsc_bootstrap.tsx")).toBe(
+      'import "$app/entrypoints/public_rsc/client";\n',
+    );
   });
 
   it("keeps only the Profile legacy compatibility import", () => {

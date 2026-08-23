@@ -7,6 +7,7 @@ const sourcePath = path.join(rootPath, "app/javascript");
 const privateOutputPath = path.join(rootPath, "ssr-generated");
 const publicOutputPath = path.join(rootPath, "public/product-rsc");
 const publicRscEntrypointsDirectory = path.join(sourcePath, "entrypoints/public_rsc");
+const publicRscPacksDirectory = path.join(sourcePath, "packs/public_rsc");
 const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "development";
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
 
@@ -101,5 +102,6 @@ module.exports = {
   privateOutputPath,
   publicOutputPath,
   publicRscEntrypointsDirectory,
+  publicRscPacksDirectory,
   serverResolve,
 };

@@ -7,7 +7,7 @@ const {
   createScriptRules,
   mode,
   privateOutputPath,
-  publicRscEntrypointsDirectory,
+  publicRscPacksDirectory,
   serverResolve,
 } = require("./common.cjs");
 
@@ -15,7 +15,7 @@ module.exports = {
   name: "public-rsc-server",
   mode,
   devtool: "eval",
-  entry: { "server-bundle": path.join(publicRscEntrypointsDirectory, "server.tsx") },
+  entry: { "server-bundle": path.join(publicRscPacksDirectory, "server-bundle.ts") },
   resolve: serverResolve,
   target: "node",
   module: { rules: [assetRule, ...createScriptRules()] },
