@@ -9,6 +9,23 @@ const definitions = () =>
   );
 
 describe("seller profile page ShakaPerf definitions", () => {
+  it("registers a profile landing after ProductPage cache warmup", () => {
+    const definition = getRegisteredTests().find(
+      ({ name }) =>
+        name ===
+        "Seller profile landing performance after ProductPage cache warmup: Inertia control vs React on Rails RSC",
+    );
+
+    expect(definition).toMatchObject({
+      startingPath: "http://shakaperfprofile.localhost:3100/",
+      experimentPathOverride: "http://shakaperfprofile.localhost:3200/",
+      config: {
+        perf: { lighthouseConfig: { disableStorageReset: true } },
+        shared: { beforeNavigate: expect.any(Function) },
+      },
+    });
+  });
+
   it("registers cold and warm landing and bidirectional navigation scenarios", () => {
     expect(definitions().map(({ name }) => name)).toEqual([
       "Seller profile cold landing performance: Inertia control vs React on Rails RSC",
