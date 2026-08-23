@@ -1,0 +1,32 @@
+{
+  "contract": "stage-dependency-plan",
+  "version": 1,
+  "id": "gumroad-rsc-final-stack-20260823-v1",
+  "edges": [
+    { "id": "rsc-01-to-02", "from": "rsc-01-dependencies", "to": "rsc-02-runtime-build", "type": "edit" },
+    { "id": "rsc-02-to-03", "from": "rsc-02-runtime-build", "to": "rsc-03-streaming-core", "type": "edit" },
+    { "id": "rsc-03-to-04", "from": "rsc-03-streaming-core", "to": "rsc-04-product-data-contract", "type": "edit" },
+    { "id": "rsc-04-to-05", "from": "rsc-04-product-data-contract", "to": "rsc-05-product-description-reviews", "type": "edit" },
+    { "id": "rsc-05-to-06", "from": "rsc-05-product-description-reviews", "to": "rsc-06-product-state-pricing", "type": "edit" },
+    { "id": "rsc-06-to-07", "from": "rsc-06-product-state-pricing", "to": "rsc-07-product-purchase-controls", "type": "edit" },
+    { "id": "rsc-07-to-08", "from": "rsc-07-product-purchase-controls", "to": "rsc-08-product-media-dialogs", "type": "edit" },
+    { "id": "rsc-08-to-09", "from": "rsc-08-product-media-dialogs", "to": "rsc-09-product-visual-shell", "type": "edit" },
+    { "id": "rsc-09-to-10", "from": "rsc-09-product-visual-shell", "to": "rsc-10-product-composition", "type": "edit" },
+    { "id": "rsc-10-to-11", "from": "rsc-10-product-composition", "to": "rsc-11-product-cutover", "type": "edit" },
+    { "id": "rsc-11-to-12", "from": "rsc-11-product-cutover", "to": "rsc-12-profile-rich-text", "type": "edit" },
+    { "id": "rsc-12-to-13", "from": "rsc-12-profile-rich-text", "to": "rsc-13-profile-sections", "type": "edit" },
+    { "id": "rsc-13-to-14", "from": "rsc-13-profile-sections", "to": "rsc-14-profile-shell", "type": "edit" },
+    { "id": "rsc-14-to-15", "from": "rsc-14-profile-shell", "to": "rsc-15-profile-cutover", "type": "edit" },
+    { "id": "rsc-15-to-16", "from": "rsc-15-profile-cutover", "to": "rsc-16-discover-results", "type": "edit" },
+    { "id": "rsc-16-to-17", "from": "rsc-16-discover-results", "to": "rsc-17-discover-async", "type": "edit" },
+    { "id": "rsc-17-to-18", "from": "rsc-17-discover-async", "to": "rsc-18-discover-header-hero", "type": "edit" },
+    { "id": "rsc-18-to-19", "from": "rsc-18-discover-header-hero", "to": "rsc-19-discover-composition", "type": "edit" },
+    { "id": "rsc-19-to-20", "from": "rsc-19-discover-composition", "to": "rsc-20-discover-cutover", "type": "edit" },
+    { "id": "rsc-20-to-21", "from": "rsc-20-discover-cutover", "to": "rsc-21-benchmark-environment", "type": "edit" },
+    { "id": "rsc-21-to-22", "from": "rsc-21-benchmark-environment", "to": "rsc-22-benchmark-twins", "type": "edit" },
+    { "id": "rsc-22-to-23", "from": "rsc-22-benchmark-twins", "to": "rsc-23-benchmark-native-fixture", "type": "edit" },
+    { "id": "rsc-23-to-24", "from": "rsc-23-benchmark-native-fixture", "to": "rsc-24-benchmark-media-scenarios", "type": "edit" },
+    { "id": "rsc-24-to-25", "from": "rsc-24-benchmark-media-scenarios", "to": "rsc-25-benchmark-catalogs", "type": "edit" },
+    { "id": "rsc-25-to-26", "from": "rsc-25-benchmark-catalogs", "to": "rsc-26-shakaperf-scenarios", "type": "edit" }
+  ]
+}
