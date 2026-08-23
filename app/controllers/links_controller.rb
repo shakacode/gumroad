@@ -812,6 +812,18 @@ class LinksController < ApplicationController
       !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
     end
 
+    def product_rsc_document_props(product_props)
+      product_props.merge(
+        rsc_product_content: ProductPresenter::RscContentProps.new(product_props: product_props.fetch(:product)).props,
+        rsc_featured_product_content: product_props.fetch(:sections).filter_map do |section|
+          featured_product_props = section[:props]
+          next unless featured_product_props
+
+          [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
+        end.to_h
+      )
+    end
+
     def external_analytics_view_id(analytics_view_payload:)
       Digest::SHA256.hexdigest([@product.id, analytics_view_payload.fetch("event_id")].join("\0"))
     end
