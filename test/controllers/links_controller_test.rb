@@ -4943,17 +4943,22 @@ class LinksControllerShowTest < ActionController::TestCase
       render_options
     )
     rsc_template = Rails.root.join("app/views/links/rsc_show.html.erb").read
-    assert_includes rsc_template, "javascript_include_tag product_rsc_javascript_path, defer: true"
-    assert_not_includes rsc_template, "javascript_include_tag product_rsc_javascript_path, async: true"
+    assert_not_includes rsc_template, "product_rsc_javascript_path"
+    assert_not_includes rsc_template, "auto_load_bundle: false"
     assert_includes rsc_template, "stream_react_component("
     assert_includes rsc_template, '"ProductPage"'
     assert_no_match(/<%= react_component\(/, rsc_template)
+    inertia_layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
+    assert_includes inertia_layout, 'prepend_javascript_pack_tag "public_rsc_bootstrap"'
+    assert_includes inertia_layout, "javascript_pack_tag"
     rsc_client_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/client.tsx").read
     assert_includes rsc_client_entry, "installBrowserTranslationGuard();"
     assert_includes rsc_client_entry, "BasePage.initialize();"
-    assert_includes rsc_client_entry, 'registerServerComponent("ProductPage");'
+    assert_not_includes rsc_client_entry, "registerServerComponent"
     rsc_server_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/server.tsx").read
-    assert_includes rsc_server_entry, "registerServerComponent({ ProductPage"
+    assert_not_includes rsc_server_entry, "registerServerComponent"
+    product_wrapper = Rails.root.join("app/javascript/components/PublicPages/ror_components/ProductPage.tsx").read
+    assert_equal "export { default } from \"$app/components/Product/ProductPage\";\n", product_wrapper
     props = @controller.instance_variable_get(:@product_rsc_document_props)
     assert_equal link.name, props.dig(:product, :name)
     assert_equal Product::Layout::DISCOVER, props[:page_layout]

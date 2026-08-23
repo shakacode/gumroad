@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +14,11 @@ type RspackConfig = {
 };
 
 const configs: RspackConfig[] = createRequire(import.meta.url)("../../../../config/rspack/public_rsc.config.cjs");
+const packageJson: {
+  scripts: Record<string, string>;
+} = JSON.parse(readFileSync(new URL("../../../../package.json", import.meta.url), "utf8"));
+const productionDockerfile = readFileSync(new URL("../../../../docker/web/Dockerfile", import.meta.url), "utf8");
+const testDockerfile = readFileSync(new URL("../../../../docker/web/Dockerfile.test", import.meta.url), "utf8");
 
 describe("public RSC asset fingerprinting", () => {
   it("exports the client, server, and RSC bundles through the compatibility entry", () => {
@@ -46,5 +52,22 @@ describe("public RSC asset fingerprinting", () => {
 
     expect(pluginNames).toContain("WebpackManifestPlugin");
     expect(pluginNames).not.toContain("PublicRscAssetManifestPlugin");
+  });
+
+  it("generates React on Rails packs before every public RSC compilation path", () => {
+    expect(packageJson.scripts["generate:public-rsc-packs"]).toBe("bundle exec rake react_on_rails:generate_packs");
+    expect(packageJson.scripts["build:public-rsc"]).toBe(
+      "npm run generate:public-rsc-packs && rspack --config config/rspack/public_rsc.config.cjs",
+    );
+    expect(packageJson.scripts["build:public-rsc:test"]).toBe("RAILS_ENV=test NODE_ENV=test npm run build:public-rsc");
+    expect(packageJson.scripts["watch:public-rsc"]).toBe(
+      "npm run generate:public-rsc-packs && rspack --watch --config config/rspack/public_rsc.config.cjs",
+    );
+    expect(productionDockerfile.indexOf('ENV DATABASE_HOST="db"')).toBeLessThan(
+      productionDockerfile.indexOf("npm run build:public-rsc"),
+    );
+    expect(testDockerfile.indexOf("ENV DATABASE_HOST=db_test")).toBeLessThan(
+      testDockerfile.indexOf("npm run build:public-rsc:test"),
+    );
   });
 });
