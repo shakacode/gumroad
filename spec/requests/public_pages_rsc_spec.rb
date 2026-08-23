@@ -12,6 +12,7 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
 
   def expect_rsc_document(root_id:, component_name:)
     expect(page).to have_css("##{root_id}")
+    expect_public_rsc_assets(component_name)
     expect(page).to have_css(
       "script.js-react-on-rails-component[data-component-name='#{component_name}'][data-dom-id='#{root_id}']",
       visible: :all
