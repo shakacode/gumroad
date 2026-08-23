@@ -2,8 +2,8 @@
 # remains the application's browser-asset pipeline.
 default: &default
   source_path: app/javascript
-  source_entry_path: entrypoints/public_rsc
-  nested_entries: false
+  source_entry_path: packs/public_rsc
+  nested_entries: true
   public_root_path: public
   public_output_path: product-rsc
   private_output_path: ssr-generated
@@ -11,6 +11,7 @@ default: &default
   cache_manifest: false
   compile: false
   shakapacker_precompile: false
+  precompile_hook: rake react_on_rails:generate_packs
   assets_bundler: rspack
 
 development:

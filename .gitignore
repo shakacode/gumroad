@@ -39,6 +39,8 @@ app/javascript/json_schemas
 app/javascript/stylesheets/pages_tailwind.generated.html
 app/javascript/routes.*
 app/javascript/utils/routes.*
+app/javascript/packs/generated/
+app/javascript/packs/public_rsc/generated/
 docker/base/Gemfile*
 dump.rdb
 jhw*.html
