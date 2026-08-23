@@ -68,10 +68,10 @@ describe("public RSC structure", () => {
       expect(view).not.toContain("product_rsc_javascript_path");
       expect(view).not.toContain("auto_load_bundle: false");
     });
-    expect(inertiaLayout).toContain('prepend_javascript_pack_tag "public_rsc_bootstrap"');
+    expect(inertiaLayout).not.toContain('prepend_javascript_pack_tag "public_rsc_bootstrap"');
     expect(inertiaLayout).toContain("stylesheet_pack_tag");
     expect(inertiaLayout).toContain("javascript_pack_tag");
-    expect(inertiaLayout.match(/javascript_pack_tag/gu)).toHaveLength(2);
+    expect(inertiaLayout.match(/javascript_pack_tag/gu)).toHaveLength(1);
   });
 
   it("keeps only the Profile legacy compatibility import", () => {

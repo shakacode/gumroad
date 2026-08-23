@@ -24,10 +24,17 @@ describe("public RSC asset fingerprinting", () => {
   it("exports the client, server, and RSC bundles through the compatibility entry", () => {
     expect(configs.map(({ name }) => name)).toEqual(["public-rsc-client", "public-rsc-server", "public-rsc-rsc"]);
 
-    const clientEntries = Object.keys(configs[0]?.entry ?? {});
-    expect(clientEntries).toContain("public_rsc_bootstrap");
-    expect(clientEntries).not.toContain("product_rsc");
-    expect(clientEntries).not.toContain("server-bundle");
+    const clientEntries = configs[0]?.entry ?? {};
+    const generatedEntries = Object.entries(clientEntries).filter(([name]) => name.startsWith("generated/"));
+    expect(Object.keys(clientEntries)).not.toContain("public_rsc_bootstrap");
+    expect(generatedEntries.map(([name]) => name)).toContain("generated/DiscoverPage");
+    expect(
+      generatedEntries.every(([, entry]) =>
+        entry[0]?.endsWith("/app/javascript/packs/public_rsc/public_rsc_bootstrap.tsx"),
+      ),
+    ).toBe(true);
+    expect(Object.keys(clientEntries)).not.toContain("product_rsc");
+    expect(Object.keys(clientEntries)).not.toContain("server-bundle");
     expect(configs.slice(1).map(({ entry }) => Object.keys(entry ?? {}))).toEqual([["server-bundle"], ["rsc-bundle"]]);
 
     const serverEntrypoints = configs.slice(1).map(({ entry }) => Object.values(entry ?? {}).flat()[0]);

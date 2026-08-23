@@ -5,6 +5,12 @@ const { assetRule, baseResolve, createPlugins, createScriptRules, mode, publicOu
 const shakapackerConfig = generateRspackConfig();
 delete shakapackerConfig.entry["server-bundle"];
 
+const bootstrapEntry = shakapackerConfig.entry.public_rsc_bootstrap;
+delete shakapackerConfig.entry.public_rsc_bootstrap;
+for (const [name, entry] of Object.entries(shakapackerConfig.entry)) {
+  if (name.startsWith("generated/")) shakapackerConfig.entry[name] = [bootstrapEntry, entry];
+}
+
 const environmentPlugin = shakapackerConfig.plugins.find(({ constructor }) => constructor.name === "EnvironmentPlugin");
 if (environmentPlugin) {
   environmentPlugin.keys = environmentPlugin.keys.filter((key) => key !== "NODE_ENV");

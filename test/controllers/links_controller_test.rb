@@ -4949,7 +4949,7 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_includes rsc_template, '"ProductPage"'
     assert_no_match(/<%= react_component\(/, rsc_template)
     inertia_layout = Rails.root.join("app/views/layouts/inertia.html.erb").read
-    assert_includes inertia_layout, 'prepend_javascript_pack_tag "public_rsc_bootstrap"'
+    assert_not_includes inertia_layout, 'prepend_javascript_pack_tag "public_rsc_bootstrap"'
     assert_includes inertia_layout, "javascript_pack_tag"
     rsc_client_entry = Rails.root.join("app/javascript/entrypoints/public_rsc/client.tsx").read
     assert_includes rsc_client_entry, "installBrowserTranslationGuard();"
