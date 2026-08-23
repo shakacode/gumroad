@@ -5,16 +5,21 @@ import { prepareShakaPerfNavigation } from "../../config/shakaperf/prepare-navig
 const CATEGORY_NAME = "Programming";
 const CATEGORY_PATH = "/software-development/programming";
 const MARKETPLACE_SELECTOR = 'section:has(> div > [role="tablist"])';
+const SEEDED_DISCOVER_CARD_COUNT = 30;
+const SEEDED_CATEGORY_CARD_COUNT = 24;
 const NAVIGATION_START = "shakaperf-discover-category-start";
 const NAVIGATION_END = "shakaperf-discover-category-end";
 type Page = TestFnContext["page"];
 
-const waitForMarketplace = async (page: Page) => {
+const waitForMarketplace = async (page: Page, expectedCardCount = SEEDED_DISCOVER_CARD_COUNT) => {
   const marketplace = page.locator(MARKETPLACE_SELECTOR);
   await marketplace.getByRole("heading", { level: 2, name: "On the market", exact: true }).waitFor({
     state: "visible",
   });
-  await marketplace.locator("article").first().waitFor({ state: "visible" });
+  await page
+    .locator("article")
+    .nth(expectedCardCount - 1)
+    .waitFor({ state: "visible" });
   await waitUntilPageSettled(page);
 };
 
@@ -23,7 +28,7 @@ const waitForCategory = async (page: Page) => {
     .getByRole("link", { name: CATEGORY_NAME, exact: true })
     .and(page.locator('[aria-current="page"]'))
     .waitFor({ state: "visible" });
-  await waitForMarketplace(page);
+  await waitForMarketplace(page, SEEDED_CATEGORY_CARD_COUNT);
 };
 
 const warmCurrentPage =
