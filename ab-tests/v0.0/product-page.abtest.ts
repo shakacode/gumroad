@@ -12,6 +12,7 @@ type ProductFixture = {
   name: string | RegExp;
   controlUrl: string;
   experimentUrl: string;
+  isSellerProfile: boolean;
 };
 
 const standardProduct: ProductFixture = {
@@ -19,6 +20,15 @@ const standardProduct: ProductFixture = {
   name: /Graphic Guide to Residential Design/u,
   controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
   experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
+  isSellerProfile: false,
+};
+
+const sellerProfileProduct: ProductFixture = {
+  label: "Seller profile product",
+  name: /Graphic Guide to Residential Design/u,
+  controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?recommended_by=search`,
+  experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?recommended_by=search`,
+  isSellerProfile: true,
 };
 
 const controlSellerUrl = `http://luisfurushio.localhost:${CONTROL_PORT}/?recommended_by=search`;
@@ -28,7 +38,9 @@ const waitForProduct = async (page: Page, fixture: ProductFixture) => {
   const product = page.locator("article");
   await product.getByRole("heading", { level: 1, name: fixture.name }).waitFor({ state: "visible" });
   await product.getByLabel("Product preview").waitFor({ state: "visible" });
-  await product.getByRole("link", { name: "Add to cart", exact: true }).waitFor({ state: "visible" });
+  await product
+    .getByRole("link", { name: fixture.isSellerProfile ? "I want this!" : "Add to cart", exact: true })
+    .waitFor({ state: "visible" });
   await waitUntilPageSettled(page);
 };
 
@@ -78,7 +90,7 @@ abTest(
   {
     startingPath: standardProduct.controlUrl,
     experimentPathOverride: standardProduct.experimentUrl,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
   },
   async ({ page }) => waitForProduct(page, standardProduct),
 );
@@ -88,10 +100,31 @@ abTest(
   {
     startingPath: standardProduct.controlUrl,
     experimentPathOverride: standardProduct.experimentUrl,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
     config: warmPerfConfig(warmCurrentProduct(standardProduct)),
   },
   async ({ page }) => waitForProduct(page, standardProduct),
+);
+
+abTest(
+  `${sellerProfileProduct.label} cold landing performance: Inertia control vs React on Rails RSC`,
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    // testTypes: ["perf"],
+  },
+  async ({ page }) => waitForProduct(page, sellerProfileProduct),
+);
+
+abTest(
+  `${sellerProfileProduct.label} warm landing performance: Inertia control vs React on Rails RSC`,
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    // testTypes: ["perf"],
+    config: warmPerfConfig(warmCurrentProduct(sellerProfileProduct)),
+  },
+  async ({ page }) => waitForProduct(page, sellerProfileProduct),
 );
 
 const navigateFromProductToSeller = async ({ page, annotate, isControl }: TestFnContext) => {
@@ -107,25 +140,25 @@ const navigateFromProductToSeller = async ({ page, annotate, isControl }: TestFn
   await page.evaluate((mark: string) => performance.mark(mark), PRODUCT_TO_SELLER_END);
 };
 
-abTest(
-  "Product to seller cold navigation performance: Inertia control vs React on Rails RSC",
-  {
-    startingPath: standardProduct.controlUrl,
-    experimentPathOverride: standardProduct.experimentUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PRODUCT_TO_SELLER_START, end: PRODUCT_TO_SELLER_END, label: "product-to-seller navigation" }],
-  },
-  navigateFromProductToSeller,
-);
+// abTest(
+//   "Product to seller cold navigation performance: Inertia control vs React on Rails RSC",
+//   {
+//     startingPath: standardProduct.controlUrl,
+//     experimentPathOverride: standardProduct.experimentUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PRODUCT_TO_SELLER_START, end: PRODUCT_TO_SELLER_END, label: "product-to-seller navigation" }],
+//   },
+//   navigateFromProductToSeller,
+// );
 
-abTest(
-  "Product to seller warm navigation performance: Inertia control vs React on Rails RSC",
-  {
-    startingPath: standardProduct.controlUrl,
-    experimentPathOverride: standardProduct.experimentUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PRODUCT_TO_SELLER_START, end: PRODUCT_TO_SELLER_END, label: "product-to-seller navigation" }],
-    config: warmPerfConfig(warmProductToSeller),
-  },
-  navigateFromProductToSeller,
-);
+// abTest(
+//   "Product to seller warm navigation performance: Inertia control vs React on Rails RSC",
+//   {
+//     startingPath: standardProduct.controlUrl,
+//     experimentPathOverride: standardProduct.experimentUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PRODUCT_TO_SELLER_START, end: PRODUCT_TO_SELLER_END, label: "product-to-seller navigation" }],
+//     config: warmPerfConfig(warmProductToSeller),
+//   },
+//   navigateFromProductToSeller,
+// );

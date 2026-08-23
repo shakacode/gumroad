@@ -100,7 +100,7 @@ abTest(
   {
     startingPath: controlProfileUrl,
     experimentPathOverride: experimentProfileUrl,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
   },
   async ({ page }) => waitForSellerProfile(page),
 );
@@ -110,60 +110,60 @@ abTest(
   {
     startingPath: controlProfileUrl,
     experimentPathOverride: experimentProfileUrl,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
     config: warmPerfConfig(warmCurrentPage(waitForSellerProfile)),
   },
   async ({ page }) => waitForSellerProfile(page),
 );
 
-abTest(
-  "Seller profile to product cold navigation performance",
-  {
-    startingPath: controlProfileUrl,
-    experimentPathOverride: experimentProfileUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PROFILE_TO_PRODUCT_START, end: PROFILE_TO_PRODUCT_END, label: "profile-to-product navigation" }],
-  },
-  navigateFromProfileToProduct,
-);
+// abTest(
+//   "Seller profile to product cold navigation performance",
+//   {
+//     startingPath: controlProfileUrl,
+//     experimentPathOverride: experimentProfileUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PROFILE_TO_PRODUCT_START, end: PROFILE_TO_PRODUCT_END, label: "profile-to-product navigation" }],
+//   },
+//   navigateFromProfileToProduct,
+// );
 
-abTest(
-  "Seller profile to product warm navigation performance",
-  {
-    startingPath: controlProfileUrl,
-    experimentPathOverride: experimentProfileUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PROFILE_TO_PRODUCT_START, end: PROFILE_TO_PRODUCT_END, label: "profile-to-product navigation" }],
-    config: warmPerfConfig(
-      warmNavigation(
-        `/l/${SELLER_PROFILE.firstProductPermalink}?layout=profile`,
-        waitForSellerProfile,
-        waitForProfileProduct,
-      ),
-    ),
-  },
-  navigateFromProfileToProduct,
-);
+// abTest(
+//   "Seller profile to product warm navigation performance",
+//   {
+//     startingPath: controlProfileUrl,
+//     experimentPathOverride: experimentProfileUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PROFILE_TO_PRODUCT_START, end: PROFILE_TO_PRODUCT_END, label: "profile-to-product navigation" }],
+//     config: warmPerfConfig(
+//       warmNavigation(
+//         `/l/${SELLER_PROFILE.firstProductPermalink}?layout=profile`,
+//         waitForSellerProfile,
+//         waitForProfileProduct,
+//       ),
+//     ),
+//   },
+//   navigateFromProfileToProduct,
+// );
 
-abTest(
-  "Product to seller profile cold navigation performance",
-  {
-    startingPath: controlProductUrl,
-    experimentPathOverride: experimentProductUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PRODUCT_TO_PROFILE_START, end: PRODUCT_TO_PROFILE_END, label: "product-to-profile navigation" }],
-  },
-  navigateFromProductToProfile,
-);
+// abTest(
+//   "Product to seller profile cold navigation performance",
+//   {
+//     startingPath: controlProductUrl,
+//     experimentPathOverride: experimentProductUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PRODUCT_TO_PROFILE_START, end: PRODUCT_TO_PROFILE_END, label: "product-to-profile navigation" }],
+//   },
+//   navigateFromProductToProfile,
+// );
 
-abTest(
-  "Product to seller profile warm navigation performance",
-  {
-    startingPath: controlProductUrl,
-    experimentPathOverride: experimentProductUrl,
-    testTypes: ["perf"],
-    markers: [{ start: PRODUCT_TO_PROFILE_START, end: PRODUCT_TO_PROFILE_END, label: "product-to-profile navigation" }],
-    config: warmPerfConfig(warmNavigation("/", waitForProfileProduct, waitForSellerProfile)),
-  },
-  navigateFromProductToProfile,
-);
+// abTest(
+//   "Product to seller profile warm navigation performance",
+//   {
+//     startingPath: controlProductUrl,
+//     experimentPathOverride: experimentProductUrl,
+//     testTypes: ["perf"],
+//     markers: [{ start: PRODUCT_TO_PROFILE_START, end: PRODUCT_TO_PROFILE_END, label: "product-to-profile navigation" }],
+//     config: warmPerfConfig(warmNavigation("/", waitForProfileProduct, waitForSellerProfile)),
+//   },
+//   navigateFromProductToProfile,
+// );

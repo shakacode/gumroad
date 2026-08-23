@@ -22,3 +22,7 @@ db/migrate/
 
 # Schema is auto-generated
 db/schema.rb
+
+# generated abtest artifacts
+compare-results/
+compare-bisect-results/

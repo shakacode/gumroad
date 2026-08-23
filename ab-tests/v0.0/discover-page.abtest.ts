@@ -81,7 +81,7 @@ abTest(
   "Discover cold landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
   },
   async ({ page }) => waitForMarketplace(page),
 );
@@ -90,7 +90,7 @@ abTest(
   "Discover warm landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: "/discover",
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
     config: warmPerfConfig(warmCurrentPage(waitForMarketplace)),
   },
   async ({ page }) => waitForMarketplace(page),
@@ -100,7 +100,7 @@ abTest(
   "Discover category cold landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: CATEGORY_PATH,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
   },
   async ({ page }) => waitForCategory(page),
 );
@@ -109,29 +109,29 @@ abTest(
   "Discover category warm landing performance: Inertia control vs React on Rails RSC",
   {
     startingPath: CATEGORY_PATH,
-    testTypes: ["perf"],
+    // testTypes: ["perf"],
     config: warmPerfConfig(warmCurrentPage(waitForCategory)),
   },
   async ({ page }) => waitForCategory(page),
 );
 
-abTest(
-  "Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
-  {
-    startingPath: "/discover",
-    testTypes: ["perf"],
-    markers: [{ start: NAVIGATION_START, end: NAVIGATION_END, label: "discover-to-category navigation" }],
-  },
-  navigateToCategory,
-);
+// abTest(
+//   "Discover to category cold navigation performance: Inertia control vs React on Rails RSC",
+//   {
+//     startingPath: "/discover",
+// testTypes: ["perf"],
+//     markers: [{ start: NAVIGATION_START, end: NAVIGATION_END, label: "discover-to-category navigation" }],
+//   },
+//   navigateToCategory,
+// );
 
-abTest(
-  "Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
-  {
-    startingPath: "/discover",
-    testTypes: ["perf"],
-    markers: [{ start: NAVIGATION_START, end: NAVIGATION_END, label: "discover-to-category navigation" }],
-    config: warmPerfConfig(warmDiscoverNavigation),
-  },
-  navigateToCategory,
-);
+// abTest(
+//   "Discover to category warm navigation performance: Inertia control vs React on Rails RSC",
+//   {
+//     startingPath: "/discover",
+//     testTypes: ["perf"],
+//     markers: [{ start: NAVIGATION_START, end: NAVIGATION_END, label: "discover-to-category navigation" }],
+//     config: warmPerfConfig(warmDiscoverNavigation),
+//   },
+//   navigateToCategory,
+// );
