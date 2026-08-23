@@ -10,6 +10,10 @@ module PublicRscAssetHelpers
     expect(sources).not_to include(a_string_matching(%r{/product-rsc/public_rsc_bootstrap\.}))
     expect(sources.count { _1.include?("/product-rsc/generated/#{component_name}.") }).to eq(1)
     expect(sources).not_to include(a_string_matching(%r{/product-rsc/product_rsc\.}))
+    expect(page.evaluate_script(<<~JS)).to be(true)
+      [...document.querySelectorAll("script[src*='/product-rsc/generated/#{component_name}.']")]
+        .every((script) => script.async && !script.defer)
+    JS
     expect(page.evaluate_script(<<~JS)).to eq([])
       [...document.querySelectorAll("script[src*='/product-rsc/']")]
         .filter((script) =>
