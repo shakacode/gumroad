@@ -33,11 +33,14 @@
 /public/vite
 /public/vite-dev
 /public/vite-test
+/public/product-rsc
 /vendor/bundle
 app/javascript/json_schemas
 app/javascript/stylesheets/pages_tailwind.generated.html
 app/javascript/routes.*
 app/javascript/utils/routes.*
+app/javascript/packs/generated/
+app/javascript/packs/public_rsc/generated/
 docker/base/Gemfile*
 dump.rdb
 jhw*.html
@@ -56,6 +59,8 @@ public/stylesheets/*
 public/system
 revision
 tmp
+ssr-generated/
+.node-renderer-bundles/
 web_base_sha
 spoom_data/*
 spoom_report.html

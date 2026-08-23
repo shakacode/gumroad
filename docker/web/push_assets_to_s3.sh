@@ -12,6 +12,10 @@ logger "Uploading public/vite to S3"
 aws s3 sync /app/public/vite s3://${ASSETS_S3_BUCKET}/vite --acl public-read --cache-control max-age=31536000,immutable
 logger "Done uploading public/vite to S3"
 
+logger "Uploading public/product-rsc to S3"
+aws s3 sync /app/public/product-rsc s3://${ASSETS_S3_BUCKET}/assets/product-rsc --acl public-read --cache-control max-age=31536000,immutable
+logger "Done uploading public/product-rsc to S3"
+
 logger "Uploading public/js to S3"
 aws s3 sync /app/public/js s3://${ASSETS_S3_BUCKET}/js --acl public-read --cache-control max-age=300,public
 logger "Done uploading public/js to S3"
