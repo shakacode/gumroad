@@ -6,6 +6,8 @@ class LinksController < ApplicationController
           CreateDiscoverSearch, DiscoverCuratedProducts, FetchProductByUniquePermalink
 
   include PageMeta::Favicon, PageMeta::Product
+  include LiveActiveRecordConnectionCleanup
+  include LiveStreamingResponseHeaders
   include RequireAccountEmail
   include RendersCustomHtmlPages
   include MobileAppWebView
@@ -43,6 +45,8 @@ class LinksController < ApplicationController
   before_action :ensure_domain_belongs_to_seller, only: %i[show landing_iframe_content landing_version]
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
+  before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
+  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_document_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
@@ -804,6 +808,10 @@ class LinksController < ApplicationController
   end
 
   private
+    def product_rsc_document_request?
+      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+    end
+
     def external_analytics_view_id(analytics_view_payload:)
       Digest::SHA256.hexdigest([@product.id, analytics_view_payload.fetch("event_id")].join("\0"))
     end
