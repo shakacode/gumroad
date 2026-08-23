@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 type RspackConfig = {
@@ -11,6 +12,12 @@ type RspackConfig = {
     filename?: string;
   };
   plugins?: { constructor?: { name?: string } }[];
+};
+
+type RspackInjectionLoader = {
+  _chunkName: string;
+  _discoveredClientFiles: string[];
+  default: (this: { cacheable: (cacheable: boolean) => void }, source: string) => string;
 };
 
 const configs: RspackConfig[] = createRequire(import.meta.url)("../../../../config/rspack/public_rsc.config.cjs");
@@ -59,6 +66,26 @@ describe("public RSC asset fingerprinting", () => {
 
     expect(pluginNames).toContain("WebpackManifestPlugin");
     expect(pluginNames).not.toContain("PublicRscAssetManifestPlugin");
+  });
+
+  it("leaves discovered client chunks for Flight to load in the browser", () => {
+    const require = createRequire(import.meta.url);
+    const rspackPluginPath = require.resolve("react-on-rails-rsc/RspackPlugin");
+    const injectionLoader: RspackInjectionLoader = require(join(dirname(rspackPluginPath), "injection-loader.js"));
+    const originalClientFiles = injectionLoader._discoveredClientFiles;
+    const originalChunkName = injectionLoader._chunkName;
+
+    try {
+      injectionLoader._discoveredClientFiles = ["/virtual/DeferredClient.tsx"];
+      injectionLoader._chunkName = "client[index]";
+      const transformed = injectionLoader.default.call({ cacheable: () => undefined }, "export const runtime = true;");
+
+      expect(transformed).toContain('if (typeof window === "undefined") import(');
+      expect(transformed).not.toMatch(/^import\(/mu);
+    } finally {
+      injectionLoader._discoveredClientFiles = originalClientFiles;
+      injectionLoader._chunkName = originalChunkName;
+    }
   });
 
   it("generates React on Rails packs before every public RSC compilation path", () => {
