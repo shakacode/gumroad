@@ -7,7 +7,7 @@ export NODE_ENV=production
 
 if ! node -e 'process.exit(require("./package.json").scripts["build:public-rsc"] ? 0 : 1)'; then
   echo "Skipping renderer: this checkout does not build public RSC."
-  exit 0
+  exec tail -f /dev/null
 fi
 
 node_pids="$(pidof node 2>/dev/null || true)"

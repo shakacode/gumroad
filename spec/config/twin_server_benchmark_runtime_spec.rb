@@ -62,6 +62,20 @@ RSpec.describe "ShakaPerf benchmark runtime" do
     )
   end
 
+  it "starts renderers only for twins with public RSC builds" do
+    procfile = Rails.root.join("twin-servers/Procfile").read
+    expect(procfile).to include(
+      'control-renderer: shaka-perf servers run-overmind-command control "/shakaperf-twin/start-renderer"',
+      'experiment-renderer: shaka-perf servers run-overmind-command experiment "/shakaperf-twin/start-renderer"',
+    )
+
+    renderer = Rails.root.join("twin-servers/runtime/start-renderer").read
+    capability_check = 'require("./package.json").scripts["build:public-rsc"]'
+    expect(renderer).to include(capability_check)
+    expect(renderer.index(capability_check)).to be < renderer.index('node_pids="$(pidof node')
+    expect(renderer).to include("Skipping renderer:", "exec tail -f /dev/null")
+  end
+
   it "normally seeds and reindexes before loading the additional benchmark catalogs" do
     expected_mounts = [
       "../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro",
