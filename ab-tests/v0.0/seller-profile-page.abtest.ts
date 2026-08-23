@@ -45,6 +45,18 @@ const warmCurrentPage =
     }
   };
 
+const warmProductBeforeProfileLanding: BeforeNavigateHook = async (context) => {
+  await prepareShakaPerfNavigation(context);
+  const warmupPage = await context.context.newPage();
+  try {
+    const productUrl = context.isControl ? controlProductUrl : experimentProductUrl;
+    await warmupPage.goto(productUrl, { waitUntil: "domcontentloaded" });
+    await waitForProfileProduct(warmupPage);
+  } finally {
+    await warmupPage.close();
+  }
+};
+
 const warmNavigation =
   (
     destinationPath: string,
@@ -112,6 +124,17 @@ abTest(
     experimentPathOverride: experimentProfileUrl,
     // testTypes: ["perf"],
     config: warmPerfConfig(warmCurrentPage(waitForSellerProfile)),
+  },
+  async ({ page }) => waitForSellerProfile(page),
+);
+
+abTest(
+  "Seller profile landing performance after ProductPage cache warmup: Inertia control vs React on Rails RSC",
+  {
+    startingPath: controlProfileUrl,
+    experimentPathOverride: experimentProfileUrl,
+    // testTypes: ["perf"],
+    config: warmPerfConfig(warmProductBeforeProfileLanding),
   },
   async ({ page }) => waitForSellerProfile(page),
 );
