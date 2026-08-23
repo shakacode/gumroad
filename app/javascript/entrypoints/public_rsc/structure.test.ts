@@ -7,6 +7,9 @@ const clientEntry = read("./client.tsx");
 const serverEntry = read("./server.tsx");
 const rspackCommonConfig = read("../../../../config/rspack/public_rsc/common.cjs");
 const rspackCompatibilityConfig = read("../../../../config/rspack/public_rsc.config.cjs");
+const inertiaLayout = read("../../../../app/views/layouts/inertia.html.erb");
+const productView = read("../../../../app/views/links/rsc_show.html.erb");
+const publicView = read("../../../../app/views/public_rsc/show.html.erb");
 
 const roots = [
   {
@@ -58,6 +61,17 @@ describe("public RSC structure", () => {
     expect(read("../../packs/public_rsc/public_rsc_bootstrap.tsx")).toBe(
       'import "$app/entrypoints/public_rsc/client";\n',
     );
+  });
+
+  it("queues autobundled roots in the views and flushes their packs once from the layout", () => {
+    [productView, publicView].forEach((view) => {
+      expect(view).not.toContain("product_rsc_javascript_path");
+      expect(view).not.toContain("auto_load_bundle: false");
+    });
+    expect(inertiaLayout).toContain('prepend_javascript_pack_tag "public_rsc_bootstrap"');
+    expect(inertiaLayout).toContain("stylesheet_pack_tag");
+    expect(inertiaLayout).toContain("javascript_pack_tag");
+    expect(inertiaLayout.match(/javascript_pack_tag/gu)).toHaveLength(2);
   });
 
   it("keeps only the Profile legacy compatibility import", () => {

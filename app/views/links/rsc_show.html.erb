@@ -1,10 +1,6 @@
-<% content_for :script do %>
-  <%= javascript_include_tag product_rsc_javascript_path, defer: true, crossorigin: "anonymous" %>
-<% end %>
 <%= stream_react_component(
   "ProductPage",
   props: @product_rsc_document_props,
-  auto_load_bundle: false,
   replay_console: false,
   trace: false,
   id: "product-rsc-root"

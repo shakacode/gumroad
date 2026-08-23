@@ -1,9 +1,5 @@
-<% content_for :script do %>
-  <%= javascript_include_tag product_rsc_javascript_path, defer: true, crossorigin: "anonymous" %>
-<% end %>
 <% component_options = {
   props: @public_rsc_props,
-  auto_load_bundle: false,
   replay_console: false,
   trace: false,
   id: @public_rsc_root_id
