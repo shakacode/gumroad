@@ -31,6 +31,22 @@ const sellerProfileProduct: ProductFixture = {
   isSellerProfile: true,
 };
 
+const discoverWarmupProduct: ProductFixture = {
+  label: "Discover-layout warmup product",
+  name: /Microsoft 365 for IT Pros \(2027 Edition\)/u,
+  controlUrl: `http://o365itpros.localhost:${CONTROL_PORT}/l/O365IT?layout=discover&recommended_by=search`,
+  experimentUrl: `http://o365itpros.localhost:${EXPERIMENT_PORT}/l/O365IT?layout=discover&recommended_by=search`,
+  isSellerProfile: false,
+};
+
+const discoverDestinationProduct: ProductFixture = {
+  label: "Discover-layout destination product",
+  name: "Microsoft 365 Core Guide (2027 Edition)",
+  controlUrl: `http://o365itpros.localhost:${CONTROL_PORT}/l/M365Core?layout=discover&recommended_by=search`,
+  experimentUrl: `http://o365itpros.localhost:${EXPERIMENT_PORT}/l/M365Core?layout=discover&recommended_by=search`,
+  isSellerProfile: false,
+};
+
 const controlSellerUrl = `http://luisfurushio.localhost:${CONTROL_PORT}/?recommended_by=search`;
 const experimentSellerUrl = `http://luisfurushio.localhost:${EXPERIMENT_PORT}/?recommended_by=search`;
 
@@ -60,6 +76,20 @@ const warmCurrentProduct =
     const warmupPage = await context.context.newPage();
     try {
       await warmupPage.goto(context.url, { waitUntil: "domcontentloaded" });
+      await waitForProduct(warmupPage, fixture);
+    } finally {
+      await warmupPage.close();
+    }
+  };
+
+const warmProductBeforeLanding =
+  (fixture: ProductFixture): BeforeNavigateHook =>
+  async (context) => {
+    await prepareShakaPerfNavigation(context);
+    const warmupPage = await context.context.newPage();
+    try {
+      const warmupUrl = context.isControl ? fixture.controlUrl : fixture.experimentUrl;
+      await warmupPage.goto(warmupUrl, { waitUntil: "domcontentloaded" });
       await waitForProduct(warmupPage, fixture);
     } finally {
       await warmupPage.close();
@@ -125,6 +155,17 @@ abTest(
     config: warmPerfConfig(warmCurrentProduct(sellerProfileProduct)),
   },
   async ({ page }) => waitForProduct(page, sellerProfileProduct),
+);
+
+abTest(
+  "Product landing performance after a different discover-layout ProductPage cache warmup: Inertia control vs React on Rails RSC",
+  {
+    startingPath: discoverDestinationProduct.controlUrl,
+    experimentPathOverride: discoverDestinationProduct.experimentUrl,
+    // testTypes: ["perf"],
+    config: warmPerfConfig(warmProductBeforeLanding(discoverWarmupProduct)),
+  },
+  async ({ page }) => waitForProduct(page, discoverDestinationProduct),
 );
 
 const navigateFromProductToSeller = async ({ page, annotate, isControl }: TestFnContext) => {
