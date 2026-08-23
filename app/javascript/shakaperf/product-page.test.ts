@@ -9,6 +9,23 @@ const definitions = () =>
   );
 
 describe("product page ShakaPerf definitions", () => {
+  it("registers a discover-layout product landing after a different product cache warmup", () => {
+    const definition = getRegisteredTests().find(
+      ({ name }) =>
+        name ===
+        "Product landing performance after a different discover-layout ProductPage cache warmup: Inertia control vs React on Rails RSC",
+    );
+
+    expect(definition).toMatchObject({
+      startingPath: "http://o365itpros.localhost:3100/l/M365Core?layout=discover&recommended_by=search",
+      experimentPathOverride: "http://o365itpros.localhost:3200/l/M365Core?layout=discover&recommended_by=search",
+      config: {
+        perf: { lighthouseConfig: { disableStorageReset: true } },
+        shared: { beforeNavigate: expect.any(Function) },
+      },
+    });
+  });
+
   it("registers cold and warm standard and seller-navigation scenarios", () => {
     expect(definitions().map(({ name }) => name)).toEqual([
       "Standard product cold landing performance: Inertia control vs React on Rails RSC",
