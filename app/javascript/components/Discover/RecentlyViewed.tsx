@@ -1,17 +1,12 @@
+"use client";
+
 import * as React from "react";
 
-import { CardProduct } from "$app/parsers/product";
-
+import type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
+export type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Card } from "$app/components/Product/Card";
 import { ProductCardGrid } from "$app/components/ui/ProductCardGrid";
-
-export type RecentlyViewedProduct = CardProduct & { viewed_at: string };
-
-export type RecentlyViewedProps = {
-  products: RecentlyViewedProduct[];
-  anonymous_key?: string | null;
-};
 
 // The views live server-side (keyed by user or browser guid), so "Clear" only records a
 // client-side cutoff. Each product carries its own last-viewed timestamp so clearing hides

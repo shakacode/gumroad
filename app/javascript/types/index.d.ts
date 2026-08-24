@@ -24,6 +24,8 @@ declare namespace NodeJS {
 }
 
 declare namespace React {
+  function use<T>(usable: PromiseLike<T>): T;
+
   interface HTMLAttributes<T> extends AriaAttributes, DOMAttributes<T> {
     inert?: boolean | undefined;
     "scroll-region"?: string | undefined;
