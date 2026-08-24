@@ -4,10 +4,17 @@ require "test_helper"
 
 class ProductRscImportGraphTest < ActiveSupport::TestCase
   COMPONENT_DIRECTORY = Rails.root.join("app/javascript/components")
-  CLIENT_COMPONENTS = %w[
+  PRICING_CLIENT_COMPONENTS = %w[
+    Product/ProductBundle.client.tsx
+    Product/ProductFooterCurrencySelector.client.tsx
+    Product/ProductPrice.client.tsx
+    Product/ProductStateProvider.client.tsx
+    Product/useSelectionFromUrl.client.ts
+  ].freeze
+  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + %w[
     Product/ProductDescription.client.tsx
     Product/ProductReviews.client.tsx
-  ].freeze
+  ]).freeze
 
   test "keeps the product description and reviews as explicit client boundaries" do
     CLIENT_COMPONENTS.each do |path|
@@ -55,6 +62,40 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_predicate ratings_summary, :file?
     assert_not ratings_summary.read.start_with?('"use client";')
     assert_includes ratings_summary.read, "<RatingStars"
+  end
+
+  test "keeps product state, pricing, and bundle presentation in client boundaries" do
+    bundle = COMPONENT_DIRECTORY.join("Product/ProductBundle.client.tsx")
+    price = COMPONENT_DIRECTORY.join("Product/ProductPrice.client.tsx")
+    provider = COMPONENT_DIRECTORY.join("Product/ProductStateProvider.client.tsx")
+    selection_from_url = COMPONENT_DIRECTORY.join("Product/useSelectionFromUrl.client.ts")
+
+    assert_includes bundle.read, "bundleItems[bundleProduct.id]"
+    assert_includes bundle.read, "getBundleComparisonPriceCents"
+    assert_not_includes bundle.read, "bundleProduct.price * bundleProduct.quantity"
+    assert_includes price.read, "<PriceTag"
+    assert_includes price.read, "buyerLocalPriceCentsForSelection"
+    assert_includes provider.read, "children: React.ReactNode"
+    assert_includes provider.read, "useSelectionFromUrl(product)"
+    assert_includes selection_from_url.read, "searchParams.get(\"variant\")"
+    assert_includes selection_from_url.read, "searchParams.get(recurrence)"
+    assert_includes selection_from_url.read, "product.options.find(({ quantity_left }) => quantity_left !== 0)"
+    assert_includes selection_from_url.read, "getMaxQuantity(product, parsedOption ?? null)"
+  end
+
+  test "keeps all pricing client graphs out of product composition" do
+    pricing_boundaries = PRICING_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) }
+    client_graph = transitive_javascript_imports(pricing_boundaries)
+    product_barrel = COMPONENT_DIRECTORY.join("Product/index.tsx")
+    type_consumers = pricing_boundaries.reject { _1.basename.to_s == "ProductFooterCurrencySelector.client.tsx" }
+
+    type_consumers.each do |boundary|
+      assert_match %r{import type .*from "\$app/components/Product"}m, boundary.read
+    end
+    assert_not_includes client_graph, product_barrel
+    %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
+    end
   end
 
   private
