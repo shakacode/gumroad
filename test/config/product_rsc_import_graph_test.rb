@@ -36,9 +36,14 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS +
     VISUAL_CLIENT_COMPONENTS + COMPOSITION_CLIENT_COMPONENTS + %w[
       Product/ProductDescription.client.tsx
+      Product/ProductCardAnalytics.client.tsx
       Product/ProductReviews.client.tsx
+      Product/Thumbnail.tsx
+      Profile/ProfileProducts.client.tsx
       Profile/ProfileRichText.client.tsx
       Profile/ProfileRichTextEnhancement.client.tsx
+      Profile/ProfileSubscribe.client.tsx
+      Profile/ProfileWishlists.client.tsx
     ]).freeze
 
   test "keeps product client boundaries explicit" do
@@ -252,8 +257,11 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes page, "<ProductArticle"
     assert_includes page, "<ProductFooter"
     assert_includes page, "detectedCurrency={global.detected_buyer_currency}"
-    assert_includes page, 'hideSellerByline={productProps.page_layout === "profile"}'
-    %w[Discover ProductPageInertia Profile].each { assert_not_includes page, _1 }
+    assert_includes page, 'productProps.page_layout === "profile"'
+    assert_includes page, "sellerAndRatings: <ProductSellerAndRatings content={content} hideSellerByline={hideSellerByline} />"
+    %w[Discover ProductPageInertia ProductProfileLayout ProfileRscCompatibilityPage].each do |later_composition|
+      assert_not_includes page, later_composition
+    end
     assert_not_includes page, "$app/components/PublicPages/PageShell.client"
   end
 
@@ -279,6 +287,43 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not rich_text_content.read.start_with?('"use client";')
     assert_includes rich_text.read, "@tiptap/react"
     assert_includes rich_text.read, "$app/components/RichTextEditor"
+  end
+
+  test "keeps profile sections server-composed around explicit client leaves" do
+    card_grid = COMPONENT_DIRECTORY.join("Product/CardGrid.tsx").read
+    page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    products = COMPONENT_DIRECTORY.join("Profile/ProfileProducts.client.tsx").read
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    server_components = %w[
+      Product/Card.tsx
+      Profile/ProfileFeaturedProduct.tsx
+      Profile/ProfilePostsContent.tsx
+      Profile/ProfileSectionFrame.tsx
+    ]
+
+    server_components.each do |component|
+      assert_not COMPONENT_DIRECTORY.join(component).read.start_with?('"use client";')
+    end
+    assert_includes page, "const serverProfileSections = Object.fromEntries"
+    assert_includes page, "serverProfileSections[section.id]"
+    assert_includes page, 'section.type === "SellerProfileProductsSection"'
+    assert_includes page, "initialCards={section.search_results.products.map"
+    assert_includes page, "eager={index < 4}"
+    assert_includes page, "profileRichTextNeedsClientEnhancement(section.text)"
+    assert_includes page, "<ProfilePostsContent"
+    assert_includes page, "<ProfileFeaturedProduct"
+    assert_includes page, "<ProfileSubscribe"
+    assert_includes page, "<ProfileWishlists"
+    assert_includes page, "index === productProps.main_section_index ? mainSection : null"
+    assert_includes page, "productProps.main_section_index >= productProps.sections.length"
+    assert_includes products, "section.exclude_ids?.length"
+    assert_includes products, "initialProducts.every"
+    assert_includes products, "initialCardCount={hasInitialCards ? initialProducts.length : undefined}"
+    assert_includes card_grid, ".slice(serverCardCount)"
+    assert_includes sections, "postsContent ?? <PostsView"
+    assert_includes sections, "renderFeaturedProduct ?? renderLegacyFeaturedProduct"
+    assert_includes sections, "<ProfileSubscribe"
+    assert_not_includes sections, "hideFollowForm"
   end
 
   private

@@ -1,5 +1,8 @@
 import * as React from "react";
 
+import { classNames } from "$app/utils/classNames";
+
+import { Card } from "$app/components/Product/Card";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import ProductArticle from "$app/components/Product/ProductArticle";
 import {
@@ -24,85 +27,211 @@ import { ProductFooter } from "$app/components/Product/ProductFooter";
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
+import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
+import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
+import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
+import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
+import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
+import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
+import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
+import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
+import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import ProductPageShell, { type ProductGlobalProps } from "$app/components/PublicPages/ProductPageShell.client";
 
 export type ProductPageProps = ProductInteractionPageProps & {
   discount_code: ProductDiscount;
   global: ProductGlobalProps;
   rsc_product_content: ProductContentProps;
+  rsc_featured_product_content: Record<string, ProductContentProps>;
 };
 
 export default function ProductPage({
   global,
   rsc_product_content: rscProductContent,
+  rsc_featured_product_content: rscFeaturedProductContent,
   ...productProps
 }: ProductPageProps) {
-  const { product, purchase } = productProps;
-  const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
-  const serverContent: ServerContent = {
-    availabilityNotice: <ProductAvailabilityNotice content={rscProductContent} />,
-    bundleItems: Object.fromEntries(
-      product.bundle_products.map((bundleProduct) => [
-        bundleProduct.id,
-        <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
-      ]),
-    ),
-    description: <ProductDescriptionContent content={rscProductContent} />,
-    descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(rscProductContent.description_html),
-    initialCover: initialCover
-      ? {
-          id: initialCover.id,
-          content: <ProductCoverImage cover={initialCover} productName={product.name} />,
-        }
-      : null,
-    membershipNotices: <ProductMembershipNotices content={rscProductContent} />,
-    quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,
-    receipt: purchase ? (
-      <ProductReceiptContent
-        customViewContentButtonText={product.custom_view_content_button_text}
-        isBundle={product.bundle_products.length > 0}
-        isPreorder={product.preorder !== null}
-        permalink={product.permalink}
-        purchase={purchase}
-      />
-    ) : null,
-    reviews: product.ratings?.count ? <ProductReviewsContent ratings={product.ratings} /> : null,
-    salesNotice: (
-      <ProductSalesNotice
-        salesCount={product.sales_count}
-        isMembership={product.recurrences !== null}
-        isPreorder={product.preorder !== null}
-        hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
-        locale={global.locale}
-      />
-    ),
-    title: <ProductTitle content={rscProductContent} />,
-    sellerAndRatings: (
-      <ProductSellerAndRatings content={rscProductContent} hideSellerByline={productProps.page_layout === "profile"} />
-    ),
-    details: <ProductDetails content={rscProductContent} />,
-    sellerReputation: <ProductSellerReputation content={rscProductContent} />,
-    streamingNotice: <ProductStreamingNotice content={rscProductContent} />,
+  const toServerContent = (
+    content: ProductContentProps,
+    { product, purchase }: Pick<ProductInteractionPageProps, "product" | "purchase">,
+    hideSellerByline = false,
+  ): ServerContent => {
+    const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
+
+    return {
+      availabilityNotice: <ProductAvailabilityNotice content={content} />,
+      bundleItems: Object.fromEntries(
+        product.bundle_products.map((bundleProduct) => [
+          bundleProduct.id,
+          <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
+        ]),
+      ),
+      description: <ProductDescriptionContent content={content} />,
+      descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(content.description_html),
+      initialCover: initialCover
+        ? {
+            id: initialCover.id,
+            content: <ProductCoverImage cover={initialCover} productName={product.name} />,
+          }
+        : null,
+      membershipNotices: <ProductMembershipNotices content={content} />,
+      quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,
+      receipt: purchase ? (
+        <ProductReceiptContent
+          customViewContentButtonText={product.custom_view_content_button_text}
+          isBundle={product.bundle_products.length > 0}
+          isPreorder={product.preorder !== null}
+          permalink={product.permalink}
+          purchase={purchase}
+        />
+      ) : null,
+      reviews: product.ratings?.count ? <ProductReviewsContent ratings={product.ratings} /> : null,
+      salesNotice: (
+        <ProductSalesNotice
+          salesCount={product.sales_count}
+          isMembership={product.recurrences !== null}
+          isPreorder={product.preorder !== null}
+          hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
+          locale={global.locale}
+        />
+      ),
+      title: <ProductTitle content={content} />,
+      sellerAndRatings: <ProductSellerAndRatings content={content} hideSellerByline={hideSellerByline} />,
+      details: <ProductDetails content={content} />,
+      sellerReputation: <ProductSellerReputation content={content} />,
+      streamingNotice: <ProductStreamingNotice content={content} />,
+    };
   };
+  const serverContent = toServerContent(rscProductContent, productProps, productProps.page_layout === "profile");
+  const productArticle = (
+    <ProductArticle
+      product={productProps.product}
+      purchase={productProps.purchase}
+      wishlists={productProps.wishlists}
+      serverContent={serverContent}
+    />
+  );
+  const serverProfileSections = Object.fromEntries(
+    productProps.sections.flatMap((section) => {
+      if (section.type === "SellerProfileProductsSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfileProducts
+                section={section}
+                creatorProfile={productProps.creator_profile}
+                currencyCode={productProps.currency_code}
+                initialCards={section.search_results.products.map((result, index) => (
+                  <Card key={result.permalink} product={result} eager={index < 4} />
+                ))}
+              />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfilePostsSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfilePostsContent posts={section.posts} locale={global.locale} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileRichTextSection") {
+        const richTextContent = <ProfileRichTextContent content={section.text} />;
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              {profileRichTextNeedsClientEnhancement(section.text) ? (
+                <ProfileRichTextEnhancement content={section.text} fallback={richTextContent} />
+              ) : (
+                richTextContent
+              )}
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileSubscribeSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfileSubscribe creatorProfile={productProps.creator_profile} buttonLabel={section.button_label} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+      if (section.type === "SellerProfileWishlistsSection") {
+        return [
+          [
+            section.id,
+            <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+              <ProfileWishlists wishlists={section.wishlists} />
+            </ProfileSectionFrame>,
+          ],
+        ];
+      }
+
+      const content = rscFeaturedProductContent[section.id];
+      return [
+        [
+          section.id,
+          <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
+            {section.props ? (
+              <ProfileFeaturedProduct
+                props={section.props}
+                serverContent={content ? toServerContent(content, section.props) : null}
+              />
+            ) : null}
+          </ProfileSectionFrame>,
+        ],
+      ];
+    }),
+  );
+  const mainSection = (
+    <section className="border-b border-border">
+      <div
+        className={classNames(
+          "mx-auto w-full max-w-product-page lg:py-16",
+          productProps.sections.length > 0 ? "px-4 py-8" : "p-4 lg:px-8",
+        )}
+      >
+        {productArticle}
+      </div>
+    </section>
+  );
+  const productSections =
+    productProps.sections.length > 0
+      ? productProps.sections.map((section, index) => (
+          <React.Fragment key={section.id}>
+            {index === productProps.main_section_index ? mainSection : null}
+            {serverProfileSections[section.id]}
+            {productProps.main_section_index >= productProps.sections.length &&
+            index === productProps.sections.length - 1
+              ? mainSection
+              : null}
+          </React.Fragment>
+        ))
+      : mainSection;
 
   return (
     <ProductPageShell global={global}>
-      <ProductStateProvider product={product} initialDiscountCode={productProps.discount_code}>
-        <ProductStickyCta product={product} purchase={purchase} cart={false} hasHero={false} />
-        <section className="border-b border-border">
-          <div className="mx-auto w-full max-w-product-page p-4 lg:px-8 lg:py-16">
-            <ProductArticle
-              product={product}
-              purchase={purchase}
-              wishlists={productProps.wishlists}
-              serverContent={serverContent}
-            />
-          </div>
-        </section>
+      <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
+        <ProductStickyCta
+          product={productProps.product}
+          purchase={productProps.purchase}
+          cart={false}
+          hasHero={false}
+        />
+        {productSections}
         <ProductFooter
           detectedCurrency={global.detected_buyer_currency}
           rootDomain={global.domain_settings.root_domain}
-          shownCurrency={product.buyer_currency_display?.buyer_currency_shown}
+          shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
         />
       </ProductStateProvider>
     </ProductPageShell>
