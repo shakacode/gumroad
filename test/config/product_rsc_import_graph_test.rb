@@ -395,7 +395,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes client_graph, results_core
     assert_includes results_core.read, "Routes.discover_path()"
     assert_includes results_core.read, "$app/components/Product/CardGrid"
-    assert_not_includes results_core.read, "renderLayout"
+    assert_includes results_core.read, "renderLayout?: ((props: DiscoverPageLayoutProps"
     assert_not_includes client_graph, Rails.root.join("app/javascript/pages/Discover/Index.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Index.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Layout.tsx")
