@@ -385,7 +385,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
   end
 
   test "keeps Discover result state behind an explicit client boundary" do
-    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx")
     results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx")
     client_graph = transitive_javascript_imports(DISCOVER_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) })
 
@@ -394,9 +393,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes client_graph, results_core
     assert_includes results_core.read, "Routes.discover_path()"
     assert_includes results_core.read, "$app/components/Product/CardGrid"
-    assert_not_includes results.read, "blackFridayHero"
     assert_not_includes results_core.read, "renderLayout"
-    assert_not_includes results_core.read, "BlackFridayHero"
     assert_not_includes client_graph, Rails.root.join("app/javascript/pages/Discover/Index.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Index.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Layout.tsx")
@@ -431,6 +428,31 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes results_core, ": \"Wishlists you might like\""
     assert_includes react_types, "function use<T>(usable: PromiseLike<T>): T;"
     assert_includes recently_viewed, 'export type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types"'
+    assert_not_includes results_core, "$app/components/Discover/DiscoverPage"
+  end
+
+  test "keeps the Discover header and Black Friday hero server-owned" do
+    header = COMPONENT_DIRECTORY.join("Discover/DiscoverHeader.tsx")
+    hero = COMPONENT_DIRECTORY.join("Discover/BlackFridayHero.tsx")
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx").read
+
+    [header, hero].each do |component|
+      assert_predicate component, :file?
+      assert_not component.read.start_with?('"use client";')
+    end
+    assert_includes header.read, "forceDomain"
+    assert_includes header.read, "Routes.discover_path"
+    assert_includes header.read, "Routes.discover_url"
+    assert_includes hero.read, "black_friday.svg"
+    assert_includes results, "blackFridayHero: React.ReactNode"
+    assert_includes results_core, "useScrollToElement"
+    assert_includes results_core, "blackFridayHero != null"
+    assert_includes results_core, "{blackFridayHero}"
+    assert_includes results_core, "ref={resultsRef}"
+    assert_not_includes results_core, "black_friday.svg"
+    assert_not_includes results_core, "illustrations/sale.svg"
+    assert_not_includes results_core, "formatPriceCentsWithCurrencySymbol"
     assert_not_includes results_core, "$app/components/Discover/DiscoverPage"
   end
 
