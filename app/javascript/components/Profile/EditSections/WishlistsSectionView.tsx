@@ -7,7 +7,7 @@ import { fetchWishlists } from "$app/data/wishlists";
 import { assertResponseError } from "$app/utils/request";
 
 import { useReducer, EditorSubmenu, SectionLayout, ProductList } from "$app/components/Profile/EditSections";
-import { WishlistsView } from "$app/components/Profile/Sections";
+import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Checkbox } from "$app/components/ui/Checkbox";
 import { Label } from "$app/components/ui/Label";
@@ -111,7 +111,7 @@ export const WishlistsSectionView = ({
       {section.shown_wishlists.length > 0 && !loadedWishlists ? (
         <DummyCardGrid count={section.shown_wishlists.length} />
       ) : (
-        <WishlistsView
+        <ProfileWishlists
           wishlists={
             loadedWishlists ? sortBy(loadedWishlists, (wishlist) => visibleWishlistIds.indexOf(wishlist.id)) : []
           }
