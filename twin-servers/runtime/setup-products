@@ -13,3 +13,6 @@ export STRONGBOX_GENERAL
 export STRONGBOX_GENERAL_PASSWORD=""
 
 DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb
+DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_seller_profile.rb
+DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_discover.rb
+DISABLE_SPRING=1 bundle exec rails runner "DevTools.delete_all_indices_and_reindex_all"

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "digest/sha2"
 require "pathname"
 require "securerandom"
 require "yaml"
@@ -74,13 +75,14 @@ RSpec.describe "ShakaPerf benchmark twins" do
     expect(script.index("npm run build:public-rsc")).to be < script.index("bundle exec rails assets:precompile")
   end
 
-  it "keeps orchestration generic and defers benchmark catalogs" do
+  it "activates catalogs after normal database setup without adding measured scenarios" do
     config = root.join("abtests.config.ts").read
     readiness = root.join("twin-servers/wait-for-product").read
 
-    expect(config).to include('command: "/shakaperf-twin/setup-database"')
+    expect(config.index('command: "/shakaperf-twin/setup-database"')).to be <
+      config.index('command: "/shakaperf-twin/setup-products"')
     expect(config).to include('dockerfile: "twin-servers/Dockerfile"')
-    expect(config).not_to include("setup-products", "testPathPattern", "numberOfMeasurements")
+    expect(config).not_to include("testPathPattern", "numberOfMeasurements")
     expect(readiness).to include("/healthcheck", "Timed out waiting for")
     expect(readiness).not_to include("O365IT", "o365itpros", "/l/")
   end
@@ -95,10 +97,40 @@ RSpec.describe "ShakaPerf benchmark twins" do
     end
 
     expect(root.join("twin-servers/Dockerfile").read).to include("public/native-product-page-fixture")
-    product_commands = root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
-    expect(product_commands).to eq(
-      ["DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb"],
+  end
+
+  it "mounts and loads identical deterministic catalogs in both twins" do
+    expected_mounts = [
+      "../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro",
+      "../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro",
+    ]
+    twin_services.each do |service|
+      expect(services.dig(service, "volumes")).to include(*expected_mounts)
+    end
+
+    commands = root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
+    expect(commands).to eq(
+      [
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb",
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_seller_profile.rb",
+        "DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_shakaperf_discover.rb",
+        'DISABLE_SPRING=1 bundle exec rails runner "DevTools.delete_all_indices_and_reindex_all"',
+      ],
     )
+
+    fixture_hashes = {
+      "luis-furushio-profile.png" => "333b9bb2111cf173b9750c4d8d95886a516ba9b642d53a19fbb8fb02a5499862",
+      "microsoft-365.png" => "177a108a5e7b8325cd0fde58b01050fdf36c5c351d7b8ee8921606d1565cded7",
+      "powershell.png" => "0ac67901044b70b0af53c86f66ac833a6fe90444936e27387504b26e41415080",
+      "purview.png" => "7ef828b2fed501b3433d21ffc24f59053927d185fba89ffa1f129bca0a6ba8f9",
+      "power-platform.png" => "8462265584ef82df8986af552d36bca54f39200db98fd74f88cfb9e3765e7568",
+    }
+    fixture_hashes.each do |filename, expected|
+      expect(Digest::SHA256.file(root.join("public/native-product-page-fixture", filename)).hexdigest).to eq(expected)
+    end
+
+    normal_seeds = [root.join("db/seeds.rb"), *root.glob("db/seeds/**/*.rb")].map(&:read).join("\n")
+    expect(normal_seeds).not_to include("seed_native_product_page", "seed_shakaperf_seller_profile", "seed_shakaperf_discover")
   end
 
   it "keeps unsupported renderers alive without restart loops" do

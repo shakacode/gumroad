@@ -32,6 +32,10 @@ export default defineConfig({
         command: "/shakaperf-twin/setup-database",
         description: "Resetting and normally seeding isolated databases",
       },
+      {
+        command: "/shakaperf-twin/setup-products",
+        description: "Loading deterministic benchmark catalogs",
+      },
     ],
   },
 });
