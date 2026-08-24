@@ -101,7 +101,6 @@ ENV RAILS_ENV=benchmark \
     RACK_ATTACK_REDIS_HOST=127.0.0.1:6379/3 \
     MEMCACHE_SERVERS=127.0.0.1:11211 \
     ELASTICSEARCH_HOST=http://127.0.0.1:9200 \
-    CUSTOM_DOMAIN=localhost \
     BRANCH_DEPLOYMENT=false
 
 RUN export NODE_OPTIONS="--max-old-space-size=4096" && \

@@ -30,7 +30,7 @@ RSpec.describe "ShakaPerf benchmark twins" do
     expect(dockerfile).to include("ARG RUBY_VERSION=3.4.3", "ARG NODE_VERSION=#{node_version}")
     expect(dockerfile).to include("COPY --chown=${NON_ROOT_USER}:${NON_ROOT_USER} package.json package-lock.json .npmrc ./")
     expect(dockerfile).to match(/^RUN npm ci$/)
-    expect(dockerfile).not_to include("legacy-peer-deps", "native-product-page-fixture")
+    expect(dockerfile).not_to include("legacy-peer-deps", "native-product-page-fixture", "CUSTOM_DOMAIN=localhost")
   end
 
   it "builds public RSC assets only when the image supports them" do
@@ -47,6 +47,7 @@ RSpec.describe "ShakaPerf benchmark twins" do
       environment = services.dig(service, "environment")
       expect(environment).to include(benchmark_environment)
       expect(environment.fetch("BENCHMARK_CACHE_NAMESPACE")).to eq("shakaperf-#{service.delete_suffix("-server")}")
+      expect(environment.fetch("DEV_LANE_PORT")).to eq(service == "control-server" ? "${CONTROL_PORT}" : "${EXPERIMENT_PORT}")
       expect(services.dig(service, "volumes")).to include(match(%r{:/home/\$\{USER\}/app\z}))
     end
 
@@ -60,9 +61,9 @@ RSpec.describe "ShakaPerf benchmark twins" do
     script = root.join("twin-servers/runtime/setup-database").read
 
     expect(script).to include("TCPSocket.new(\"127.0.0.1\", 11211)")
-    expect(script.scan(/^\s*memcached -d$/).length).to eq(1)
-    expect(script.index("TCPSocket.new")).to be < script.index("memcached -d")
-    expect(script.index("memcached -d")).to be < script.index("bundle exec rails db:reset")
+    expect(script.scan(/^\s*memcached -d -l 127\.0\.0\.1$/).length).to eq(1)
+    expect(script.index("TCPSocket.new")).to be < script.index("memcached -d -l 127.0.0.1")
+    expect(script.index("memcached -d -l 127.0.0.1")).to be < script.index("bundle exec rails db:reset")
   end
 
   it "keeps orchestration generic and defers benchmark catalogs" do
@@ -70,6 +71,7 @@ RSpec.describe "ShakaPerf benchmark twins" do
     readiness = root.join("twin-servers/wait-for-product").read
 
     expect(config).to include('command: "/shakaperf-twin/setup-database"')
+    expect(config).to include('dockerfile: "twin-servers/Dockerfile"')
     expect(config).not_to include("setup-products", "testPathPattern", "numberOfMeasurements")
     expect(readiness).to include("/healthcheck", "Timed out waiting for")
     expect(readiness).not_to include("O365IT", "o365itpros", "/l/")

@@ -13,7 +13,7 @@ export STRONGBOX_GENERAL
 export STRONGBOX_GENERAL_PASSWORD=""
 
 if ! ruby -rsocket -e 'TCPSocket.new("127.0.0.1", 11211).close' 2>/dev/null; then
-  memcached -d
+  memcached -d -l 127.0.0.1
 fi
 
 DISABLE_SPRING=1 bundle exec rails db:reset

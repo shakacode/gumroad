@@ -23,7 +23,7 @@ export default defineConfig({
     controlDir: process.env.SHAKAPERF_CONTROL_DIR || join(projectDir, "..", `${basename(projectDir)}-control`),
     experimentDir: process.env.SHAKAPERF_EXPERIMENT_DIR || projectDir,
     dockerBuildDir: ".",
-    dockerfile: join(projectDir, "twin-servers/Dockerfile"),
+    dockerfile: "twin-servers/Dockerfile",
     procfile: "twin-servers/Procfile",
     composeFile: "twin-servers/docker-compose.yml",
     ports: { control: CONTROL_PORT, experiment: EXPERIMENT_PORT },
