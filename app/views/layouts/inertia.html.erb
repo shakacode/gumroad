@@ -4,7 +4,7 @@
   <% bclass = ["group/body"] %>
   <% bclass.push "mac" if request.headers["User-Agent"]&.include? "Macintosh" %>
   <% bclass.push(@body_class) if @body_class %>
-  <% custom_context = RenderingExtension.custom_context(self) %>
+  <% custom_context = @precomputed_rendering_context || RenderingExtension.custom_context(self) %>
   <body id="<%= @body_id %>" class="<%= bclass.join(" ") %>" style="<%= params[:as_embed] && "background: transparent" %>">
     <div id="design-settings" data-settings="<%= custom_context[:design_settings].to_json %>" style="display: none;"></div>
     <div id="user-agent-info" data-settings="<%= custom_context[:user_agent_info].to_json %>" style="display: none;"></div>
@@ -18,7 +18,11 @@
         </div>
       </footer>
     <% end %>
-    <% unless @hide_layouts %>
+    <% if @product_rsc_document_props || @public_rsc_props %>
+      <% prepend_javascript_pack_tag "public_rsc_bootstrap" %>
+      <%= stylesheet_pack_tag crossorigin: "anonymous" %>
+      <%= javascript_pack_tag crossorigin: "anonymous", nonce: SecureHeaders.content_security_policy_script_nonce(request) %>
+    <% elsif !@hide_layouts %>
       <%= vite_typescript_tag "base", skip_style_tags: true %>
     <% end %>
     <%= yield :script %>
