@@ -59,11 +59,16 @@ RSpec.describe "ShakaPerf benchmark twins" do
 
   it "starts Memcached idempotently before normal database setup" do
     script = root.join("twin-servers/runtime/setup-database").read
+    capability_check = 'require("./package.json").scripts["build:public-rsc"]'
 
     expect(script).to include("TCPSocket.new(\"127.0.0.1\", 11211)")
     expect(script.scan(/^\s*memcached -d -l 127\.0\.0\.1$/).length).to eq(1)
     expect(script.index("TCPSocket.new")).to be < script.index("memcached -d -l 127.0.0.1")
     expect(script.index("memcached -d -l 127.0.0.1")).to be < script.index("bundle exec rails db:reset")
+    expect(script.index("bundle exec rails db:reset")).to be < script.index("npm run setup")
+    expect(script.index("npm run setup")).to be < script.index(capability_check)
+    expect(script.index(capability_check)).to be < script.index("npm run build:public-rsc")
+    expect(script.index("npm run build:public-rsc")).to be < script.index("bundle exec rails assets:precompile")
   end
 
   it "keeps orchestration generic and defers benchmark catalogs" do

@@ -17,3 +17,10 @@ if ! ruby -rsocket -e 'TCPSocket.new("127.0.0.1", 11211).close' 2>/dev/null; the
 fi
 
 DISABLE_SPRING=1 bundle exec rails db:reset
+
+export NODE_OPTIONS="--max-old-space-size=4096"
+npm run setup
+if node -e 'process.exit(require("./package.json").scripts["build:public-rsc"] ? 0 : 1)'; then
+  npm run build:public-rsc
+fi
+bundle exec rails assets:precompile
