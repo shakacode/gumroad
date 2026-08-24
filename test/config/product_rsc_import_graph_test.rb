@@ -23,10 +23,15 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductRefundPolicy.client.tsx
     Product/ProductShare.client.tsx
   ].freeze
-  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS + %w[
-    Product/ProductDescription.client.tsx
-    Product/ProductReviews.client.tsx
-  ]).freeze
+  VISUAL_CLIENT_COMPONENTS = %w[
+    Product/ProductPreorderNotice.client.tsx
+    Product/ProductStickyCta.client.tsx
+  ].freeze
+  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS +
+    VISUAL_CLIENT_COMPONENTS + %w[
+      Product/ProductDescription.client.tsx
+      Product/ProductReviews.client.tsx
+    ]).freeze
 
   test "keeps product client boundaries explicit" do
     CLIENT_COMPONENTS.each do |path|
@@ -168,6 +173,43 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_match %r{import type .*Purchase.*from "\$app/components/Product"}m, subscription_modal
     media_boundaries.each { assert_not_includes _1.read, "$app/components/Product/Interactive" }
     %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
+    end
+  end
+
+  test "keeps the visual shell server-owned around explicit client leaves" do
+    visual_boundaries = VISUAL_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) }
+    client_graph = transitive_javascript_imports(visual_boundaries)
+    content = COMPONENT_DIRECTORY.join("Product/ProductContent.tsx")
+    covers = COMPONENT_DIRECTORY.join("Product/Covers/index.tsx").read
+    footer = COMPONENT_DIRECTORY.join("Product/ProductFooter.tsx")
+    layout = COMPONENT_DIRECTORY.join("Product/Layout.tsx").read
+    layout_controls = COMPONENT_DIRECTORY.join("Product/LayoutControls.tsx").read
+    preorder_notice = COMPONENT_DIRECTORY.join("Product/ProductPreorderNotice.client.tsx").read
+    single_cover = COMPONENT_DIRECTORY.join("Product/ProductSingleCover.tsx")
+    sticky_cta = COMPONENT_DIRECTORY.join("Product/ProductStickyCta.client.tsx").read
+
+    [content, footer, single_cover].each do |server_component|
+      assert_predicate server_component, :file?
+      assert_not server_component.read.start_with?('"use client";')
+      assert_not_includes client_graph, server_component
+    end
+    assert_includes content.read, "productDescriptionNeedsClientEnhancement"
+    assert_includes content.read, "<ProductReceiptReviewAction"
+    assert_includes content.read, "getNotForSaleMessage(content)"
+    assert_includes covers, "$app/components/Product/productCover"
+    assert_includes covers, "export { DEFAULT_IMAGE_WIDTH };"
+    assert_includes footer.read, "$app/components/Product/ProductFooterCurrencySelector.client"
+    assert_includes single_cover.read, "aspectRatio"
+    assert_includes preorder_notice, "formatDate(parseISO(releaseDate))"
+    assert_includes sticky_cta, "useProductState()"
+    assert_includes sticky_cta, "$app/components/Product/LayoutControls"
+    assert_includes layout, "hideSellerByline={props.hideSellerByline}"
+    [content.read, layout_controls, sticky_cta].each do |source|
+      assert_match %r{import type .*from "\$app/components/Product"}m, source
+      assert_not_includes source, "$app/components/Product/Interactive"
+    end
+    %w[ProductArticle.tsx ProductPage.tsx].each do |composition|
       assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
     end
   end
