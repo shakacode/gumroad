@@ -39,7 +39,11 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
       Product/ProductCardAnalytics.client.tsx
       Product/ProductReviews.client.tsx
       Product/Thumbnail.tsx
+      Profile/FollowForm.tsx
+      Profile/Layout.tsx
+      Profile/ProfileHeaderActions.client.tsx
       Profile/ProfileProducts.client.tsx
+      Profile/ProfileRscCompatibilityPage.client.tsx
       Profile/ProfileRichText.client.tsx
       Profile/ProfileRichTextEnhancement.client.tsx
       Profile/ProfileSubscribe.client.tsx
@@ -259,7 +263,7 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes page, "detectedCurrency={global.detected_buyer_currency}"
     assert_includes page, 'productProps.page_layout === "profile"'
     assert_includes page, "sellerAndRatings: <ProductSellerAndRatings content={content} hideSellerByline={hideSellerByline} />"
-    %w[Discover ProductPageInertia ProductProfileLayout ProfileRscCompatibilityPage].each do |later_composition|
+    %w[Discover ProductPageInertia ProfileRscCompatibilityPage].each do |later_composition|
       assert_not_includes page, later_composition
     end
     assert_not_includes page, "$app/components/PublicPages/PageShell.client"
@@ -324,6 +328,50 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes sections, "renderFeaturedProduct ?? renderLegacyFeaturedProduct"
     assert_includes sections, "<ProfileSubscribe"
     assert_not_includes sections, "hideFollowForm"
+  end
+
+  test "keeps the profile shell server-owned around explicit client boundaries" do
+    actions = COMPONENT_DIRECTORY.join("Profile/ProfileHeaderActions.client.tsx")
+    compatibility = COMPONENT_DIRECTORY.join("Profile/ProfileRscCompatibilityPage.client.tsx")
+    follow_form = COMPONENT_DIRECTORY.join("Profile/FollowForm.tsx")
+    layout_path = COMPONENT_DIRECTORY.join("Profile/ProductProfileLayout.tsx")
+    layout = layout_path.read
+    legacy_layout = COMPONENT_DIRECTORY.join("Profile/Layout.tsx")
+    legacy_profile = COMPONENT_DIRECTORY.join("Profile/index.tsx").read
+    page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    wrapper = COMPONENT_DIRECTORY.join("PublicPages/ror_components/ProfileRscCompatibilityPage.tsx").read
+    client_graph = transitive_javascript_imports(CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) })
+
+    [actions, compatibility, follow_form, legacy_layout].each do |boundary|
+      assert boundary.read.start_with?('"use client";'), "Expected #{boundary.basename} to be a client boundary"
+    end
+    assert_not layout.start_with?('"use client";')
+    assert_not_includes client_graph, layout_path
+    assert_includes layout, "$app/components/Profile/ProfileHeaderActions.client"
+    assert_includes layout, "<ProfileHeaderButtons"
+    assert_includes layout, "<FollowForm"
+    assert_includes layout, "!creatorProfile.hide_follow_form"
+    assert_includes layout, "detectedCurrency={detectedCurrency}"
+    assert_not_includes layout, "Impersonate"
+    assert_not_includes actions.read, "useLoggedInUser"
+    assert_not_includes actions.read, "admin_impersonate"
+    assert_includes legacy_layout.read, "hideFollowForm || Boolean(creatorProfile.hide_follow_form)"
+    assert_not_includes legacy_layout.read, "useLoggedInUser"
+    assert_includes page, "$app/components/Profile/ProductProfileLayout"
+    assert_includes page, 'productProps.page_layout === "profile"'
+    assert_includes page, "<ProductProfileLayout"
+    assert_equal 2, page.scan("detectedCurrency={global.detected_buyer_currency}").count
+    assert_includes page, 'const ctaLabel = productProps.page_layout === "profile" ? "Add to cart" : undefined'
+    assert_includes page, "ctaLabel={ctaLabel}"
+    assert_includes page, 'cart={productProps.page_layout === "profile"}'
+    assert_includes page, "hasHero={false}"
+    assert_includes page, "<ProfileSubscribe"
+    assert_includes compatibility.read, 'buildInertiaPage("Users/Show"'
+    assert_includes compatibility.read, "initialPage={initialPage}"
+    assert_includes wrapper, "$app/components/Profile/ProfileRscCompatibilityPage.client"
+    assert_includes legacy_profile, "renderFeaturedProduct={renderFeaturedProduct}"
+    assert_includes legacy_profile, "<PostsView posts={section.posts} />"
+    assert_not_includes page, "$app/components/Discover"
   end
 
   private
