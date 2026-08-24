@@ -17,3 +17,4 @@ ci_scripts/
 docker/tmp/
 .env
 .env.*.local
+compare-results*/
