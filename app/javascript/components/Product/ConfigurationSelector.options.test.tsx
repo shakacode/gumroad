@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, render, screen } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ConfigurationSelector,
@@ -9,7 +9,30 @@ import {
   type Product,
 } from "$app/components/Product/ConfigurationSelector";
 
-afterEach(cleanup);
+const { calendarModuleLoaded, calendarRenderFails } = vi.hoisted(() => ({
+  calendarModuleLoaded: vi.fn(),
+  calendarRenderFails: { value: false },
+}));
+
+vi.mock("$app/components/ui/Calendar", () => {
+  calendarModuleLoaded();
+  return {
+    Calendar: () => {
+      if (calendarRenderFails.value) throw new Error("Calendar failed");
+      return <div>Call calendar</div>;
+    },
+  };
+});
+
+vi.mock("$app/data/call_availabilities", () => ({
+  getRemainingCallAvailabilities: () => new Promise(() => undefined),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  calendarRenderFails.value = false;
+});
 
 const versionedProduct: Product = {
   permalink: "album",
@@ -59,6 +82,8 @@ const initialSelection: PriceSelection = {
   callStartTime: null,
   payInInstallments: false,
 };
+const callOption = versionedProduct.options[0];
+if (!callOption) throw new Error("expected a product option for the call tests");
 
 const renderSelector = () => {
   const Harness = () => {
@@ -91,5 +116,64 @@ describe("version selector accessibility", () => {
 
     const radio = screen.getByRole("radio", { name: "Collector's Edition" });
     expect(radio.getAttribute("aria-describedby")).toBeNull();
+  });
+});
+
+describe("call booking", () => {
+  it("does not load the calendar module for an ordinary digital product", () => {
+    renderSelector();
+
+    expect(calendarModuleLoaded).not.toHaveBeenCalled();
+  });
+
+  it("loads the calendar module when a call product needs appointment selection", async () => {
+    const callProduct: Product = {
+      ...versionedProduct,
+      native_type: "call",
+      options: [{ ...callOption, duration_in_minutes: 30 }],
+    };
+    const Harness = () => {
+      const [selection, setSelection] = React.useState(initialSelection);
+      return (
+        <ConfigurationSelector
+          product={callProduct}
+          selection={selection}
+          setSelection={setSelection}
+          discount={null}
+        />
+      );
+    };
+
+    render(<Harness />);
+
+    expect(screen.getByRole("status").textContent).toBe("Loading appointment times…");
+    expect(await screen.findByText("Call calendar")).toBeTruthy();
+    expect(calendarModuleLoaded).toHaveBeenCalledOnce();
+  });
+
+  it("offers a reload when the call calendar cannot render", async () => {
+    calendarRenderFails.value = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const callProduct: Product = {
+      ...versionedProduct,
+      native_type: "call",
+      options: [{ ...callOption, duration_in_minutes: 30 }],
+    };
+    const Harness = () => {
+      const [selection, setSelection] = React.useState(initialSelection);
+      return (
+        <ConfigurationSelector
+          product={callProduct}
+          selection={selection}
+          setSelection={setSelection}
+          discount={null}
+        />
+      );
+    };
+
+    render(<Harness />);
+
+    expect((await screen.findByRole("alert")).textContent).toContain("Appointment times could not be loaded.");
+    expect(screen.getByRole("button", { name: "Reload and try again" })).toBeTruthy();
   });
 });
