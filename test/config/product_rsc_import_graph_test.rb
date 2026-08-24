@@ -33,8 +33,15 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     PublicPages/PageShell.client.tsx
     PublicPages/ProductPageShell.client.tsx
   ].freeze
+  DISCOVER_CLIENT_COMPONENTS = %w[
+    Discover/Cart.client.tsx
+    Discover/DiscoverResults.client.tsx
+    Discover/MobileMenu.client.tsx
+    Discover/Search.client.tsx
+    Discover/TaxonomyMenu.client.tsx
+  ].freeze
   CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS +
-    VISUAL_CLIENT_COMPONENTS + COMPOSITION_CLIENT_COMPONENTS + %w[
+    VISUAL_CLIENT_COMPONENTS + COMPOSITION_CLIENT_COMPONENTS + DISCOVER_CLIENT_COMPONENTS + %w[
       Product/ProductDescription.client.tsx
       Product/ProductCardAnalytics.client.tsx
       Product/ProductReviews.client.tsx
@@ -372,6 +379,27 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes legacy_profile, "renderFeaturedProduct={renderFeaturedProduct}"
     assert_includes legacy_profile, "<PostsView posts={section.posts} />"
     assert_not_includes page, "$app/components/Discover"
+  end
+
+  test "keeps Discover result state behind an explicit client boundary" do
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx")
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx")
+    client_graph = transitive_javascript_imports(DISCOVER_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) })
+
+    assert_predicate results_core, :file?
+    assert_not results_core.read.start_with?('"use client";')
+    assert_includes client_graph, results_core
+    assert_includes results_core.read, "Routes.discover_path()"
+    assert_includes results_core.read, "$app/components/Product/CardGrid"
+    assert_not_includes results.read, "recommendedProducts"
+    assert_not_includes results.read, "recentlyViewed"
+    assert_not_includes results.read, "blackFridayHero"
+    assert_not_includes results_core.read, "renderLayout"
+    assert_not_includes results_core.read, "BlackFridayHero"
+    assert_not_includes client_graph, Rails.root.join("app/javascript/pages/Discover/Index.tsx")
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Index.tsx")
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Layout.tsx")
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Nav.tsx")
   end
 
   private
