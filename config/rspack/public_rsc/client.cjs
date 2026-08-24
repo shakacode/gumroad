@@ -14,6 +14,19 @@ shakapacker.publicPathWithoutCDN = publicAssetPath;
 const shakapackerConfig = generateRspackConfig();
 delete shakapackerConfig.entry["server-bundle"];
 
+const normalizeEntryImports = (name, entry) => {
+  if (typeof entry === "string") return [entry];
+  if (Array.isArray(entry)) return entry;
+  throw new TypeError(`Expected ${name} to be a string or array entry`);
+};
+const bootstrapImports = normalizeEntryImports("public_rsc_bootstrap", shakapackerConfig.entry.public_rsc_bootstrap);
+delete shakapackerConfig.entry.public_rsc_bootstrap;
+for (const [name, entry] of Object.entries(shakapackerConfig.entry)) {
+  if (name.startsWith("generated/")) {
+    shakapackerConfig.entry[name] = [...bootstrapImports, ...normalizeEntryImports(name, entry)];
+  }
+}
+
 const manifestPlugin = shakapackerConfig.plugins.find(
   ({ constructor }) => constructor.name === "WebpackManifestPlugin",
 );
