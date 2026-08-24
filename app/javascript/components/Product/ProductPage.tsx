@@ -1,7 +1,10 @@
 import * as React from "react";
 
+import type { MetaTag } from "$app/layouts/components/MetaTags";
 import { classNames } from "$app/utils/classNames";
+import type { Taxonomy } from "$app/utils/discover";
 
+import DiscoverLayout from "$app/components/Discover/DiscoverLayout";
 import { Card } from "$app/components/Product/Card";
 import type { ProductDiscount, ServerContent } from "$app/components/Product/Interactive";
 import ProductArticle from "$app/components/Product/ProductArticle";
@@ -37,19 +40,26 @@ import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichT
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
 import { ProfileSubscribe } from "$app/components/Profile/ProfileSubscribe.client";
 import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.client";
+import ProductPageInertia from "$app/components/PublicPages/ProductPageInertia.client";
 import ProductPageShell, { type ProductGlobalProps } from "$app/components/PublicPages/ProductPageShell.client";
 
 export type ProductPageProps = ProductInteractionPageProps & {
+  _inertia_meta?: MetaTag[];
   discount_code: ProductDiscount;
   global: ProductGlobalProps;
   rsc_product_content: ProductContentProps;
   rsc_featured_product_content: Record<string, ProductContentProps>;
+  taxonomy_path?: string | null;
+  taxonomies_for_nav?: Taxonomy[];
 };
 
 export default function ProductPage({
+  _inertia_meta: inertiaMeta,
   global,
   rsc_product_content: rscProductContent,
   rsc_featured_product_content: rscFeaturedProductContent,
+  taxonomy_path: taxonomyPath,
+  taxonomies_for_nav: taxonomiesForNav,
   ...productProps
 }: ProductPageProps) {
   const toServerContent = (
@@ -104,7 +114,8 @@ export default function ProductPage({
     };
   };
   const serverContent = toServerContent(rscProductContent, productProps, productProps.page_layout === "profile");
-  const ctaLabel = productProps.page_layout === "profile" ? "Add to cart" : undefined;
+  const ctaLabel =
+    productProps.page_layout === "discover" || productProps.page_layout === "profile" ? "Add to cart" : undefined;
   const productArticle = (
     <ProductArticle
       product={productProps.product}
@@ -225,8 +236,8 @@ export default function ProductPage({
       <ProductStickyCta
         product={productProps.product}
         purchase={productProps.purchase}
-        cart={productProps.page_layout === "profile"}
-        hasHero={false}
+        cart={productProps.page_layout === "discover" || productProps.page_layout === "profile"}
+        hasHero={productProps.page_layout === "discover"}
       />
       {productSections}
     </>
@@ -244,19 +255,36 @@ export default function ProductPage({
     ) : (
       <>
         {pageSections}
-        <ProductFooter
-          detectedCurrency={global.detected_buyer_currency}
-          rootDomain={global.domain_settings.root_domain}
-          shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
-        />
+        {productProps.page_layout !== "discover" ? (
+          <ProductFooter
+            detectedCurrency={global.detected_buyer_currency}
+            rootDomain={global.domain_settings.root_domain}
+            shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
+          />
+        ) : null}
       </>
     );
-
-  return (
-    <ProductPageShell global={global}>
-      <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
-        {productContent}
-      </ProductStateProvider>
-    </ProductPageShell>
+  const product = (
+    <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
+      {productContent}
+    </ProductStateProvider>
   );
+  const page =
+    productProps.page_layout === "discover" && taxonomiesForNav ? (
+      <ProductPageInertia global={global} inertiaMeta={inertiaMeta} pageProps={productProps}>
+        <DiscoverLayout
+          currentSeller={global.current_seller}
+          domainSettings={global.domain_settings}
+          taxonomyPath={taxonomyPath ?? undefined}
+          taxonomiesForNav={taxonomiesForNav}
+          forceDomain
+        >
+          {product}
+        </DiscoverLayout>
+      </ProductPageInertia>
+    ) : (
+      product
+    );
+
+  return <ProductPageShell global={global}>{page}</ProductPageShell>;
 }
