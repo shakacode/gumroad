@@ -31,7 +31,7 @@ RSpec.describe "ShakaPerf benchmark twins" do
     expect(dockerfile).to include("ARG RUBY_VERSION=3.4.3", "ARG NODE_VERSION=#{node_version}")
     expect(dockerfile).to include("COPY --chown=${NON_ROOT_USER}:${NON_ROOT_USER} package.json package-lock.json .npmrc ./")
     expect(dockerfile).to match(/^RUN npm ci$/)
-    expect(dockerfile).not_to include("legacy-peer-deps", "native-product-page-fixture", "CUSTOM_DOMAIN=localhost")
+    expect(dockerfile).not_to include("legacy-peer-deps", "CUSTOM_DOMAIN=localhost")
     expect(dockerignore).to include("public/public-rsc/", "public/vite/")
     expect(dockerignore).not_to include("public/product-rsc", "public/vite-*")
   end
@@ -83,6 +83,22 @@ RSpec.describe "ShakaPerf benchmark twins" do
     expect(config).not_to include("setup-products", "testPathPattern", "numberOfMeasurements")
     expect(readiness).to include("/healthcheck", "Timed out waiting for")
     expect(readiness).not_to include("O365IT", "o365itpros", "/l/")
+  end
+
+  it "provides the same native fixture inputs to both twins" do
+    expected_mounts = [
+      "../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro",
+      "../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro",
+    ]
+    twin_services.each do |service|
+      expect(services.dig(service, "volumes")).to include(*expected_mounts)
+    end
+
+    expect(root.join("twin-servers/Dockerfile").read).to include("public/native-product-page-fixture")
+    product_commands = root.join("twin-servers/runtime/setup-products").read.lines.grep(/bundle exec rails/).map(&:strip)
+    expect(product_commands).to eq(
+      ["DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb"],
+    )
   end
 
   it "keeps unsupported renderers alive without restart loops" do

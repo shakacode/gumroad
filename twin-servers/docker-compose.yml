@@ -29,6 +29,8 @@ services:
     volumes:
       - control_volume:/home/${USER}/app
       - ./runtime:/shakaperf-twin:ro
+      - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
     depends_on:
       mysql-control:
         condition: service_healthy
@@ -65,6 +67,8 @@ services:
     volumes:
       - experiment_volume:/home/${USER}/app
       - ./runtime:/shakaperf-twin:ro
+      - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
     depends_on:
       mysql-experiment:
         condition: service_healthy

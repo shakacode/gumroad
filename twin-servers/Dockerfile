@@ -110,7 +110,7 @@ RUN export NODE_OPTIONS="--max-old-space-size=4096" && \
     if node -e 'process.exit(require("./package.json").scripts["build:public-rsc"] ? 0 : 1)'; then npm run build:public-rsc; fi && \
     bundle exec rails assets:precompile
 
-RUN mkdir -p log tmp/pids tmp/cache storage
+RUN mkdir -p log tmp/pids tmp/cache storage public/native-product-page-fixture
 
 EXPOSE 3000
 

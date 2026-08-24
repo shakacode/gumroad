@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+export RAILS_ENV=benchmark
+export RACK_ENV=benchmark
+export NODE_ENV=production
+export VITE_RUBY_MODE=production
+export VITE_RUBY_ASSET_HOST=""
+export VITE_RUBY_AUTO_BUILD=false
+
+STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')"
+export STRONGBOX_GENERAL
+export STRONGBOX_GENERAL_PASSWORD=""
+
+DISABLE_SPRING=1 bundle exec rails runner /shakaperf-fixtures/seed_native_product_page.rb
