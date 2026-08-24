@@ -23,7 +23,15 @@ export const singleStaticImageCover = (covers: AssetPreview[]): StaticImageCover
   return isStaticImageCover(cover) ? cover : null;
 };
 
-export const ProductSingleCover = ({ cover, productName }: { cover: StaticImageCover; productName: string }) => {
+export const ProductSingleCover = ({
+  cover,
+  productName,
+  prioritize = true,
+}: {
+  cover: StaticImageCover;
+  productName: string;
+  prioritize?: boolean;
+}) => {
   const frameStyle: React.CSSProperties = {
     width: "100%",
     aspectRatio: `${cover.native_width} / ${cover.native_height}`,
@@ -55,6 +63,8 @@ export const ProductSingleCover = ({ cover, productName }: { cover: StaticImageC
             sizes={srcSet ? PRODUCT_COVER_SIZES : undefined}
             alt={productName}
             itemProp="image"
+            loading={prioritize ? "eager" : "lazy"}
+            fetchPriority={prioritize ? "high" : "low"}
           />
         </div>
       </div>

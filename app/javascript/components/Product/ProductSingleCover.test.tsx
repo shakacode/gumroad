@@ -48,6 +48,8 @@ describe("ProductSingleCover", () => {
       "https://example.com/cover.png 1005w, https://example.com/original.png 1920w",
     );
     expect(image.getAttribute("sizes")).toBe("(min-width: 75.25rem) 73.25rem, calc(100vw - 2rem)");
+    expect(image.getAttribute("loading")).toBe("eager");
+    expect(image.getAttribute("fetchpriority")).toBe("high");
   });
 
   it("caps a portrait image frame", () => {
@@ -58,5 +60,16 @@ describe("ProductSingleCover", () => {
 
     const frame = screen.getByRole("tabpanel").parentElement;
     expect(frame?.style.maxHeight).toBe(MAX_PORTRAIT_FRAME_HEIGHT);
+  });
+
+  it("does not prioritize a below-fold featured product", () => {
+    const staticCover = singleStaticImageCover([cover()]);
+    if (!staticCover) throw new Error("expected a static cover");
+
+    render(<ProductSingleCover cover={staticCover} productName="Featured product" prioritize={false} />);
+
+    const image = screen.getByRole("img", { name: "Featured product" });
+    expect(image.getAttribute("loading")).toBe("lazy");
+    expect(image.getAttribute("fetchpriority")).toBe("low");
   });
 });

@@ -47,8 +47,9 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     end
   end
 
-  def create_local_image_cover
-    create(:asset_preview, link: product)
+  def create_local_image_cover(*links)
+    links = [product] if links.empty?
+    links.each { create(:asset_preview, link: _1) }
     cover_url = "/native-product-page-fixture/residential-guide-thumbnail.jpg"
     allow_any_instance_of(AssetPreview).to receive(:as_json).and_wrap_original do |method, *args|
       method.call(*args).merge("url" => cover_url, "original_url" => cover_url)
@@ -191,6 +192,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   end
 
   it "server-renders a featured product without client JavaScript" do
+    create_local_image_cover(featured_product, product)
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
 
     page.visit product.long_url
@@ -199,6 +201,10 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     articles = page.all("article")
     expect(articles.first).to have_text(featured_product.name)
     expect(articles.last).to have_text(product.name)
+    expect(articles.first.find("img", visible: :all)["loading"]).to eq("eager")
+    expect(articles.first.find("img", visible: :all)["fetchpriority"]).to eq("high")
+    expect(articles.last.find("img", visible: :all)["loading"]).to eq("lazy")
+    expect(articles.last.find("img", visible: :all)["fetchpriority"]).to eq("low")
   ensure
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: false)
   end
