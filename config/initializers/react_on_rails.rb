@@ -5,5 +5,5 @@ ReactOnRails.configure do |config|
   config.enforce_private_server_bundles = true
   config.auto_load_bundle = true
   config.components_subdirectory = "ror_components"
-  config.generated_component_packs_loading_strategy = :async
+  config.generated_component_packs_loading_strategy = :defer
 end
