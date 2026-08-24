@@ -79,12 +79,12 @@ describe "RecommendationsScenario", type: :system, js: true do
   end
 
   it "records the correct recommendation info when a product is bought from a creator's profile which contains " \
-     "'recommended_by=discover' in the URL" do
+     "'recommended_by=discover' in the URL", :product_rsc_renderer do
     assert_buying_with_recommended_by_from_profile_page(recommended_by: "discover")
   end
 
   it "records the correct recommendation info when a product is bought from a creator's profile which contains " \
-     "'recommended_by=search' in the URL" do
+     "'recommended_by=search' in the URL", :product_rsc_renderer do
     assert_buying_with_recommended_by_from_profile_page(recommended_by: "search")
   end
 
