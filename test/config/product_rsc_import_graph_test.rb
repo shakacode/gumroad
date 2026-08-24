@@ -28,9 +28,11 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductStickyCta.client.tsx
   ].freeze
   COMPOSITION_CLIENT_COMPONENTS = %w[
+    PoweredByFooter.tsx
     Product/CoffeeProduct.tsx
     Product/ProductAnalytics.client.tsx
     PublicPages/PageShell.client.tsx
+    PublicPages/ProductPageInertia.client.tsx
     PublicPages/ProductPageShell.client.tsx
   ].freeze
   DISCOVER_CLIENT_COMPONENTS = %w[
@@ -273,9 +275,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes page, "detectedCurrency={global.detected_buyer_currency}"
     assert_includes page, 'productProps.page_layout === "profile"'
     assert_includes page, "sellerAndRatings: <ProductSellerAndRatings content={content} hideSellerByline={hideSellerByline} />"
-    %w[Discover ProductPageInertia ProfileRscCompatibilityPage].each do |later_composition|
-      assert_not_includes page, later_composition
-    end
+    assert_includes page, "$app/components/Discover/DiscoverLayout"
+    assert_includes page, "$app/components/PublicPages/ProductPageInertia.client"
+    assert_not_includes page, "ProfileRscCompatibilityPage"
     assert_not_includes page, "$app/components/PublicPages/PageShell.client"
   end
 
@@ -371,17 +373,17 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes page, 'productProps.page_layout === "profile"'
     assert_includes page, "<ProductProfileLayout"
     assert_equal 2, page.scan("detectedCurrency={global.detected_buyer_currency}").count
-    assert_includes page, 'const ctaLabel = productProps.page_layout === "profile" ? "Add to cart" : undefined'
+    assert_includes page, 'productProps.page_layout === "discover" || productProps.page_layout === "profile"'
     assert_includes page, "ctaLabel={ctaLabel}"
-    assert_includes page, 'cart={productProps.page_layout === "profile"}'
-    assert_includes page, "hasHero={false}"
+    assert_includes page, 'cart={productProps.page_layout === "discover" || productProps.page_layout === "profile"}'
+    assert_includes page, 'hasHero={productProps.page_layout === "discover"}'
     assert_includes page, "<ProfileSubscribe"
-    assert_includes compatibility.read, 'buildInertiaPage("Users/Show"'
-    assert_includes compatibility.read, "initialPage={initialPage}"
+    assert_includes compatibility.read, 'component="Users/Show"'
+    assert_includes compatibility.read, "pageProps={profileProps}"
     assert_includes wrapper, "$app/components/Profile/ProfileRscCompatibilityPage.client"
     assert_includes legacy_profile, "renderFeaturedProduct={renderFeaturedProduct}"
     assert_includes legacy_profile, "<PostsView posts={section.posts} />"
-    assert_not_includes page, "$app/components/Discover"
+    assert_includes page, "$app/components/Discover/DiscoverLayout"
   end
 
   test "keeps Discover result state behind an explicit client boundary" do
@@ -454,6 +456,57 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes results_core, "illustrations/sale.svg"
     assert_not_includes results_core, "formatPriceCentsWithCurrencySymbol"
     assert_not_includes results_core, "$app/components/Discover/DiscoverPage"
+  end
+
+  test "streams Discover async props through the server composition" do
+    page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx").read
+
+    %w[recommended_products recommended_wishlists recently_viewed].each do |prop|
+      assert_includes page, %(getReactOnRailsAsyncProp("#{prop}"))
+    end
+    assert_equal 3, page.scan("<React.Suspense").count
+    assert_includes page, "<AsyncRecentlyViewed"
+    assert_includes page, "<AsyncRecommendedProducts"
+    assert_includes page, "<AsyncRecommendedWishlists"
+    assert_includes page, "recentlyViewed={recentlyViewed}"
+    assert_includes page, "recommendedProducts={recommendedProducts}"
+    assert_includes page, "recommendedWishlists={recommendedWishlists}"
+  end
+
+  test "composes the Discover hero and public roots without legacy client edges" do
+    layout = COMPONENT_DIRECTORY.join("Discover/DiscoverLayout.tsx")
+    page = COMPONENT_DIRECTORY.join("Discover/DiscoverPage.tsx")
+    powered_by_footer = COMPONENT_DIRECTORY.join("PoweredByFooter.tsx")
+    product_inertia = COMPONENT_DIRECTORY.join("PublicPages/ProductPageInertia.client.tsx")
+    product_page = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx").read
+    profile_compatibility = COMPONENT_DIRECTORY.join("Profile/ProfileRscCompatibilityPage.client.tsx").read
+    page_shell = COMPONENT_DIRECTORY.join("PublicPages/PageShell.client.tsx").read
+    wrapper = COMPONENT_DIRECTORY.join("PublicPages/ror_components/DiscoverPage.tsx").read
+    client_graph = transitive_javascript_imports(CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) })
+
+    [layout, page].each do |component|
+      assert_predicate component, :file?
+      assert_not component.read.start_with?('"use client";')
+    end
+    [powered_by_footer, product_inertia].each do |component|
+      assert component.read.start_with?('"use client";')
+    end
+    assert_includes page.read, "<BlackFridayHero"
+    assert_includes page.read, "blackFridayHero={blackFridayHero}"
+    assert_includes page.read, "<PageShell"
+    assert_includes page_shell, "component: string"
+    assert_includes page_shell, "<Alert initial={global.flash ?? null} />"
+    assert_not_includes page_shell, "export const buildInertiaPage"
+    assert_includes profile_compatibility, 'component="Users/Show"'
+    assert_includes product_page, 'productProps.page_layout === "discover" && taxonomiesForNav'
+    assert_includes product_page, "<ProductPageInertia"
+    assert_includes product_page, "<DiscoverLayout"
+    assert_includes product_page, "forceDomain"
+    assert_includes wrapper, "$app/components/Discover/DiscoverPage"
+    %w[Discover/Index.tsx Discover/Layout.tsx Discover/Nav.tsx].each do |legacy|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join(legacy)
+    end
+    assert_not_includes client_graph, Rails.root.join("app/javascript/pages/Discover/Index.tsx")
   end
 
   private
