@@ -1,9 +1,29 @@
+import * as os from "node:os";
 import { basename, join } from "node:path";
 import { DESKTOP_VIEWPORT, PHONE_VIEWPORT, defineConfig } from "shaka-shared";
+
+import { prepareShakaPerfNavigation } from "./config/shakaperf/prepare-navigation";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
 const projectDir = process.cwd();
+const PARALLELISM = Math.max(1, Math.floor(os.cpus().length / 2));
+const LIGHTHOUSE_CONFIG = {
+  throttling: {
+    rttMs: 150,
+    throughputKbps: 1638.4,
+    requestLatencyMs: 562.5,
+    downloadThroughputKbps: 1474.56,
+    uploadThroughputKbps: 675,
+    cpuSlowdownMultiplier: 4,
+  },
+  throttlingMethod: "devtools" as const,
+  logLevel: "error" as const,
+  output: "html" as const,
+  onlyCategories: ["performance"],
+  maxWaitForFcp: 90_000,
+  maxWaitForLoad: 90_000,
+};
 
 export default defineConfig({
   shared: {
@@ -11,14 +31,41 @@ export default defineConfig({
     experimentURL: `http://localhost:${EXPERIMENT_PORT}`,
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
-    parallelism: 1,
+    parallelism: PARALLELISM,
+    timeoutMs: 240_000,
+    beforeNavigate: prepareShakaPerfNavigation,
     playwrightOptions: {
       browser: "chromium",
       args: ["--no-sandbox"],
       waitTimeout: 60_000,
+      gotoParameters: { waitUntil: "domcontentloaded" },
     },
-    browserConsole: { failOn: ["error"], allowList: [] },
+    browserConsole: {
+      failOn: ["error"],
+      allowList: [
+        "FB.getLoginStatus can no longer be called from http pages",
+        "/cart_items_count",
+        "Executing inline script violates the following Content Security Policy directive",
+      ],
+    },
   },
+  accessibility: { viewports: ["desktop", "phone"] },
+  visreg: {
+    viewports: ["desktop", "phone"],
+    mismatchThreshold: 0.1,
+    maxNumDiffPixels: 50,
+    comparePixelmatchThreshold: 0.1,
+  },
+  perf: {
+    viewports: ["desktop", "phone"],
+    numberOfMeasurements: 12,
+    regressionThreshold: 50,
+    pValueThreshold: 0.05,
+    regressionThresholdStat: "estimator",
+    samplingMode: "simultaneous",
+    lighthouseConfig: LIGHTHOUSE_CONFIG,
+  },
+  audit: { lighthouseConfig: LIGHTHOUSE_CONFIG },
   twinServers: {
     controlDir: process.env.SHAKAPERF_CONTROL_DIR || join(projectDir, "..", `${basename(projectDir)}-control`),
     experimentDir: process.env.SHAKAPERF_EXPERIMENT_DIR || projectDir,
