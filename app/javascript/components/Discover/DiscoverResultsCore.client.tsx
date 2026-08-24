@@ -76,16 +76,27 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
   return { params: parsedParams, sortWasExplicit };
 };
 
+export type DiscoverPageLayoutProps = {
+  onTaxonomyChange: (newTaxonomyPath?: string) => void;
+  query?: string | undefined;
+  setQuery: (query: string) => void;
+  showTaxonomy: boolean;
+  taxonomiesForNav: Taxonomy[];
+  taxonomyPath?: string | undefined;
+};
+
 export function DiscoverResultsCore({
   blackFridayHero,
   recentlyViewed: recentlyViewedSlot,
   recommendedProducts: recommendedProductsSlot,
   recommendedWishlists: recommendedWishlistsSlot,
+  renderLayout,
 }: {
   blackFridayHero: React.ReactNode;
   recentlyViewed?: React.ReactNode;
   recommendedProducts?: React.ReactNode;
   recommendedWishlists?: React.ReactNode;
+  renderLayout?: ((props: DiscoverPageLayoutProps, children: React.ReactNode) => React.ReactNode) | undefined;
 }) {
   const props = typia.assert<Props>(usePage().props);
   const originalLocation = useOriginalLocation();
@@ -196,7 +207,19 @@ export function DiscoverResultsCore({
     ? `Wishlists for ${wishlistTaxonomy.label}`
     : "Wishlists you might like";
 
-  return (
+  const handleTaxonomyChange = (newTaxonomyPath: string | undefined) => {
+    const currentOfferCode = state.params.offer_code;
+    dispatch({
+      type: "set-params",
+      params: addInitialOffset({
+        taxonomy: newTaxonomyPath,
+        curated_product_ids: newTaxonomyPath ? [] : props.curated_product_ids.slice(recommendedProductsCount),
+        offer_code: newTaxonomyPath && currentOfferCode ? currentOfferCode : undefined,
+      }),
+    });
+  };
+
+  const content = (
     <>
       {blackFridayHero}
       <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
@@ -340,6 +363,24 @@ export function DiscoverResultsCore({
           </Deferred>
         ) : null}
       </div>
+    </>
+  );
+
+  return (
+    <>
+      {renderLayout
+        ? renderLayout(
+            {
+              taxonomyPath,
+              taxonomiesForNav: props.taxonomies_for_nav,
+              showTaxonomy: true,
+              onTaxonomyChange: handleTaxonomyChange,
+              query: state.params.query,
+              setQuery: (query) => dispatch({ type: "set-params", params: { query, taxonomy: taxonomyPath } }),
+            },
+            content,
+          )
+        : content}
       <HomeFooter currencySelector />
     </>
   );

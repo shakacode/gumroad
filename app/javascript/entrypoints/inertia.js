@@ -122,6 +122,11 @@ const pages = import.meta.glob("../pages/**/*.tsx");
 const jsxPages = import.meta.glob("../pages/**/*.jsx");
 
 async function resolvePageComponent(name) {
+  if (name === "Discover/Index") {
+    const module = await import("../components/Discover/InertiaIndex");
+    return assignLayout(module.default);
+  }
+
   const tsxPath = `../pages/${name}.tsx`;
   const jsxPath = `../pages/${name}.jsx`;
 
