@@ -7,8 +7,8 @@ node_modules
 log/*
 tmp/*
 storage/*
-public/product-rsc
-public/vite-*
+public/public-rsc/
+public/vite/
 ssr-generated
 audit-results
 compare-results*

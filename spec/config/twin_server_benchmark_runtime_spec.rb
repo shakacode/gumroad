@@ -24,6 +24,7 @@ RSpec.describe "ShakaPerf benchmark twins" do
 
   it "uses the repository toolchain and npm policy for both clean images" do
     dockerfile = root.join("twin-servers/Dockerfile").read
+    dockerignore = root.join("twin-servers/Dockerfile.dockerignore").read.lines(chomp: true)
     node_version = root.join(".node-version").read.strip
 
     expect(node_version).to eq("22.22.2")
@@ -31,6 +32,8 @@ RSpec.describe "ShakaPerf benchmark twins" do
     expect(dockerfile).to include("COPY --chown=${NON_ROOT_USER}:${NON_ROOT_USER} package.json package-lock.json .npmrc ./")
     expect(dockerfile).to match(/^RUN npm ci$/)
     expect(dockerfile).not_to include("legacy-peer-deps", "native-product-page-fixture", "CUSTOM_DOMAIN=localhost")
+    expect(dockerignore).to include("public/public-rsc/", "public/vite/")
+    expect(dockerignore).not_to include("public/product-rsc", "public/vite-*")
   end
 
   it "builds public RSC assets only when the image supports them" do
