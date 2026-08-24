@@ -9,35 +9,35 @@ type ProductFixture = {
   name: string | RegExp;
   controlUrl: string;
   experimentUrl: string;
-  purchaseLabel: "Add to cart" | "I want this!";
+  layout: "discover" | "profile";
 };
 
 const standardProduct: ProductFixture = {
   name: /Graphic Guide to Residential Design/u,
   controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
   experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
-  purchaseLabel: "Add to cart",
+  layout: "discover",
 };
 
 const sellerProfileProduct: ProductFixture = {
   name: /Graphic Guide to Residential Design/u,
-  controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?recommended_by=search`,
-  experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?recommended_by=search`,
-  purchaseLabel: "I want this!",
+  controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
+  experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
+  layout: "profile",
 };
 
 const discoverWarmupProduct: ProductFixture = {
   name: /Microsoft 365 for IT Pros \(2027 Edition\)/u,
   controlUrl: `http://o365itpros.localhost:${CONTROL_PORT}/l/O365IT?layout=discover&recommended_by=search`,
   experimentUrl: `http://o365itpros.localhost:${EXPERIMENT_PORT}/l/O365IT?layout=discover&recommended_by=search`,
-  purchaseLabel: "Add to cart",
+  layout: "discover",
 };
 
 const discoverDestinationProduct: ProductFixture = {
   name: "Microsoft 365 Core Guide (2027 Edition)",
   controlUrl: `http://o365itpros.localhost:${CONTROL_PORT}/l/M365Core?layout=discover&recommended_by=search`,
   experimentUrl: `http://o365itpros.localhost:${EXPERIMENT_PORT}/l/M365Core?layout=discover&recommended_by=search`,
-  purchaseLabel: "Add to cart",
+  layout: "discover",
 };
 
 const waitForStableSize = async (page: Page, selector: string) => {
@@ -59,7 +59,11 @@ const waitForProduct = async (page: Page, fixture: ProductFixture) => {
   const product = page.locator("article");
   await product.getByRole("heading", { level: 1, name: fixture.name }).waitFor({ state: "visible" });
   await product.getByLabel("Product preview").waitFor({ state: "visible" });
-  await product.getByRole("link", { name: fixture.purchaseLabel, exact: true }).waitFor({ state: "visible" });
+  await product.getByRole("link", { name: "Add to cart", exact: true }).waitFor({ state: "visible" });
+  if (fixture.layout === "profile") {
+    await page.getByRole("link", { name: "Luis Furushio", exact: true }).first().waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Subscribe", exact: true }).waitFor({ state: "visible" });
+  }
   await waitUntilPageSettled(page);
   await waitForStableSize(page, "article");
 };
