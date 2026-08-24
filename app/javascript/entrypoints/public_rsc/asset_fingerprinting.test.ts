@@ -8,16 +8,21 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 const configPath = require.resolve("../../../../config/rspack/public_rsc.config.cjs");
 const clientNodeRuntime = require.resolve("react-on-rails-rsc/client.node");
-const loadConfigs = (environment: string): Configuration[] => {
-  const previousEnvironment = process.env.NODE_ENV;
-  process.env.NODE_ENV = environment;
+const loadConfigs = (railsEnvironment: string, nodeEnvironment = railsEnvironment): Configuration[] => {
+  const previousNodeEnvironment = process.env.NODE_ENV;
+  const hadRailsEnvironment = Object.prototype.hasOwnProperty.call(process.env, "RAILS_ENV");
+  const previousRailsEnvironment = String(Reflect.get(process.env, "RAILS_ENV") ?? "");
+  process.env.NODE_ENV = nodeEnvironment;
+  Reflect.set(process.env, "RAILS_ENV", railsEnvironment);
   try {
     for (const path of Object.keys(require.cache))
       if (String(path).includes("/config/rspack/public_rsc")) Reflect.deleteProperty(require.cache, path);
     const loaded: Configuration[] = require(configPath);
     return loaded;
   } finally {
-    process.env.NODE_ENV = previousEnvironment;
+    process.env.NODE_ENV = previousNodeEnvironment;
+    if (hadRailsEnvironment) Reflect.set(process.env, "RAILS_ENV", previousRailsEnvironment);
+    else Reflect.deleteProperty(process.env, "RAILS_ENV");
   }
 };
 const configs = loadConfigs("test");
@@ -25,6 +30,35 @@ const read = (path: string) => readFileSync(new URL(`../../../../${path}`, impor
 const pushAssetsScript = read("docker/web/push_assets_to_s3.sh");
 
 describe("public RSC asset fingerprinting", () => {
+  it.each([
+    ["production", "production", "production", "/assets/public-rsc/"],
+    ["staging", "production", "production", "/assets/public-rsc/"],
+    ["benchmark", "production", "production", "/public-rsc/"],
+    ["test", "test", "development", "/public-rsc/"],
+    ["development", "development", "development", "/public-rsc/"],
+  ])(
+    "uses %s Rails deployment paths with %s Node compilation",
+    (railsEnvironment, nodeEnvironment, expectedMode, expectedPublicPath) => {
+      const environmentConfigs = loadConfigs(railsEnvironment, nodeEnvironment);
+      expect(environmentConfigs.map(({ mode }) => mode)).toEqual([expectedMode, expectedMode, expectedMode]);
+      expect(environmentConfigs.find(({ name }) => name === "public-rsc-client")?.output?.publicPath).toBe(
+        expectedPublicPath,
+      );
+      const serverAssetPublicPaths = environmentConfigs
+        .slice(1)
+        .map(({ module }) =>
+          module?.rules?.find((rule) => typeof rule === "object" && rule !== null && "generator" in rule),
+        )
+        .map((rule) => {
+          if (!rule || typeof rule !== "object" || !("generator" in rule)) return undefined;
+          const generator: unknown = rule.generator;
+          if (!generator || typeof generator !== "object" || !("publicPath" in generator)) return undefined;
+          return String(generator.publicPath);
+        });
+      expect(serverAssetPublicPaths).toEqual([expectedPublicPath, expectedPublicPath]);
+    },
+  );
+
   it("exports ordered, content-hashed client, server, and RSC bundles", () => {
     expect(configs.map(({ name }) => name)).toEqual(["public-rsc-client", "public-rsc-server", "public-rsc-rsc"]);
     expect(configs.map(({ dependencies }) => dependencies)).toEqual([

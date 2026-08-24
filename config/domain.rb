@@ -75,6 +75,23 @@ configuration_by_env = {
     internal_gumroad_domain: "internal.localhost",
     default_email_domain: "staging.gumroad.com",
     anycable_host: "cable.localhost",
+  },
+  benchmark: {
+    protocol: "http",
+    domain: "localhost:#{dev_lane_port}",
+    asset_domain: "localhost:#{dev_lane_port}",
+    root_domain: "localhost:#{dev_lane_port}",
+    short_domain: "s.localhost:#{dev_lane_port}",
+    discover_domain: "localhost:#{dev_lane_port}",
+    api_domain: "api.localhost:#{dev_lane_port}",
+    third_party_analytics_domain: "analytics.localhost:#{dev_lane_port}",
+    valid_request_hosts: ["app.localhost", "localhost", "app.localhost:#{dev_lane_port}", "localhost:#{dev_lane_port}"],
+    valid_api_request_hosts: ["api.localhost", "api.localhost:#{dev_lane_port}"],
+    valid_discover_host: "localhost",
+    valid_cors_origins: [],
+    internal_gumroad_domain: "internal.localhost",
+    default_email_domain: "localhost",
+    anycable_host: "cable.localhost",
   }
 }
 
