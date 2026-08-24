@@ -142,6 +142,11 @@ module ProductMediaScenariosSeed
   def seed_product!(seller:, definition:)
     permalink = definition.fetch(:unique_permalink)
     product = Link.find_by(unique_permalink: permalink)
+    product_by_general_permalink = Link.by_general_permalink(permalink).order(created_at: :asc, id: :asc).first
+    if product && product_by_general_permalink && product.id != product_by_general_permalink.id
+      raise "Refusing to claim permalink #{permalink.inspect} already used by product #{product_by_general_permalink.id}"
+    end
+    product ||= product_by_general_permalink
     if product && (product.user_id != seller.id || product.json_data[OWNER_KEY] != OWNER)
       raise "Refusing to overwrite non-fixture product with permalink #{permalink.inspect}"
     end
@@ -201,7 +206,7 @@ module ProductMediaScenariosSeed
       guid
     end
 
-    product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: Time.current)
+    product.asset_previews.alive.where.not(guid: desired_guids).update_all(deleted_at: Time.current)
   end
 
   def attach_fixture!(attachment:, fixture:)
@@ -250,7 +255,7 @@ module ProductMediaScenariosSeed
       url
     end
 
-    product.product_files.where.not(url: desired_urls).update_all(deleted_at: Time.current)
+    product.product_files.alive.where.not(url: desired_urls).update_all(deleted_at: Time.current)
   end
 
   def seed_rich_content!(product:)

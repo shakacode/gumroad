@@ -69,6 +69,28 @@ RSpec.describe "product media scenarios seed" do
     expect(product.reload.name).to eq("Existing product")
   end
 
+  it "refuses to overwrite an unrelated product using a fixture general permalink" do
+    product = create(:product, custom_permalink: "mediagallery", name: "Existing product")
+
+    expect { load(seed_file, true) }.to raise_error(RuntimeError, /Refusing to overwrite non-fixture product/)
+
+    expect(product.reload.name).to eq("Existing product")
+  end
+
+  it "soft-deletes stale media once without changing its deletion time on later runs" do
+    load(seed_file, true)
+    gallery = Link.find_by!(unique_permalink: "mediagallery")
+    stale_preview = create(:asset_preview, link: gallery, guid: "stale-media-preview")
+    stale_file = create(:product_file, link: gallery, url: "#{S3_BASE_URL}attachments/stale-media-file.pdf")
+
+    load(seed_file, true)
+    deleted_at = [stale_preview.reload.deleted_at, stale_file.reload.deleted_at]
+    expect(deleted_at).to all(be_present)
+
+    load(seed_file, true)
+    expect([stale_preview.reload.deleted_at, stale_file.reload.deleted_at]).to eq(deleted_at)
+  end
+
   it "repairs same-named storage objects whose bytes differ from the fixtures" do
     load(seed_file, true)
     gallery = Link.find_by!(unique_permalink: "mediagallery")
