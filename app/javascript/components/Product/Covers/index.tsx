@@ -19,6 +19,7 @@ export const Covers = ({
   covers,
   activeCoverId,
   setActiveCoverId,
+  initialCover,
   closeButton,
   className,
   isThumbnail,
@@ -27,6 +28,7 @@ export const Covers = ({
   covers: AssetPreview[];
   activeCoverId: string | null;
   setActiveCoverId: (id: string | null) => void;
+  initialCover?: { id: string; content: React.ReactNode } | null;
   closeButton?: React.ReactNode;
   className?: string;
   isThumbnail?: boolean;
@@ -116,7 +118,13 @@ export const Covers = ({
         onScroll={handleScroll}
       >
         {covers.map((cover) => (
-          <CoverItem cover={cover} frameIsShaped={frameIsShaped} productName={productName} key={cover.id} />
+          <CoverItem
+            cover={cover}
+            frameIsShaped={frameIsShaped}
+            initialContent={initialCover?.id === cover.id ? initialCover.content : null}
+            productName={productName}
+            key={cover.id}
+          />
         ))}
       </div>
       {covers.length > 1 && activeCover?.type !== "oembed" && activeCover?.type !== "video" ? (
@@ -173,17 +181,19 @@ const PreviewArrow = ({ direction, onClick }: { direction: "previous" | "next"; 
 const CoverItem = ({
   cover,
   frameIsShaped,
+  initialContent,
   productName,
 }: {
   cover: AssetPreview;
   frameIsShaped: boolean;
+  initialContent: React.ReactNode;
   productName?: string | undefined;
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const dimensions = useElementDimensions(containerRef);
   const width = dimensions?.width;
 
-  let coverComponent: React.ReactNode;
+  let coverComponent = initialContent;
   if (cover.type === "unsplash") {
     coverComponent = <img src={cover.url} alt={productName ?? ""} />;
   } else if (

@@ -18,7 +18,12 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductReceiptActions.client.tsx
     Product/ProductSecondaryActions.client.tsx
   ].freeze
-  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + %w[
+  MEDIA_CLIENT_COMPONENTS = %w[
+    Product/ProductMedia.client.tsx
+    Product/ProductRefundPolicy.client.tsx
+    Product/ProductShare.client.tsx
+  ].freeze
+  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS + %w[
     Product/ProductDescription.client.tsx
     Product/ProductReviews.client.tsx
   ]).freeze
@@ -124,6 +129,44 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     end
     assert_includes purchase_controls.read, 'import("$app/components/Product/SubscriptionChoiceModal")'
     assert_not_includes static_purchase_imports, "$app/components/Product/SubscriptionChoiceModal"
+    %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
+    end
+  end
+
+  test "keeps media and dialogs outside later product composition" do
+    media_boundaries = MEDIA_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) }
+    client_graph = transitive_javascript_imports(media_boundaries)
+    covers = COMPONENT_DIRECTORY.join("Product/Covers/index.tsx").read
+    product_media = COMPONENT_DIRECTORY.join("Product/ProductMedia.client.tsx").read
+    refund_policy = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicy.client.tsx").read
+    refund_policy_modal = COMPONENT_DIRECTORY.join("Product/ProductRefundPolicyModal.tsx")
+    product_share = COMPONENT_DIRECTORY.join("Product/ProductShare.client.tsx").read
+    product_share_menu = COMPONENT_DIRECTORY.join("Product/ProductShareMenu.tsx")
+    share_section = COMPONENT_DIRECTORY.join("Product/ShareSection.tsx").read
+    subscription_modal = COMPONENT_DIRECTORY.join("Product/SubscriptionChoiceModal.tsx").read
+
+    assert_match %r{import type .*from "\$app/components/Product"}m, product_media
+    assert_includes product_media, "initialCover={initialCover}"
+    assert_includes covers, "initialContent={initialCover?.id === cover.id ? initialCover.content : null}"
+    assert_includes refund_policy, 'import("$app/components/Product/ProductRefundPolicyModal")'
+    assert_includes product_share, 'import("$app/components/Product/ProductShareMenu")'
+    assert_not_includes client_graph, refund_policy_modal
+    assert_not_includes client_graph, product_share_menu
+    %w[$app/components/Modal $app/components/UserAgent $app/data/user_action_event].each do |dependency|
+      assert_not_includes refund_policy, dependency
+      assert_includes refund_policy_modal.read, dependency
+    end
+    %w[TwitterShareButton FacebookShareButton CopyToClipboard].each do |dependency|
+      assert_not_includes product_share, dependency
+      assert_includes product_share_menu.read, dependency
+    end
+    assert_includes product_share, '<Share className="size-5" /> Share'
+    assert_includes share_section, "<ProductShare"
+    assert_not_includes share_section, "<Popover"
+    assert_includes share_section, 'import type { PriceSelection } from "$app/components/Product/ConfigurationSelector"'
+    assert_match %r{import type .*Purchase.*from "\$app/components/Product"}m, subscription_modal
+    media_boundaries.each { assert_not_includes _1.read, "$app/components/Product/Interactive" }
     %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
       assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
     end
