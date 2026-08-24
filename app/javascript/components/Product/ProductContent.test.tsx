@@ -45,6 +45,32 @@ const content = {
 
 afterEach(cleanup);
 
+describe("ProductCoverImage", () => {
+  it("prioritizes the server-rendered cover used for LCP", () => {
+    render(
+      <ProductCoverImage
+        cover={{
+          type: "image",
+          filetype: "png",
+          id: "cover-1",
+          url: "https://example.com/cover.png",
+          original_url: "https://example.com/cover-original.png",
+          thumbnail: null,
+          width: 670,
+          height: 376,
+          native_width: 1920,
+          native_height: 1080,
+        }}
+        productName="A guide"
+      />,
+    );
+
+    const image = screen.getByRole<HTMLImageElement>("img", { name: "A guide" });
+    expect(image.loading).toBe("eager");
+    expect(image.getAttribute("fetchpriority")).toBe("high");
+  });
+});
+
 describe("ProductBundleItemContent", () => {
   it("renders bundle item text as server content", () => {
     render(

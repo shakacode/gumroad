@@ -65,7 +65,14 @@ type BundleProduct = {
 
 export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview; productName: string }) =>
   cover.type === "image" && cover.native_width && cover.native_height ? (
-    <img className="max-h-full w-full object-contain" src={cover.url} alt={productName} itemProp="image" />
+    <img
+      className="max-h-full w-full object-contain"
+      src={cover.url}
+      alt={productName}
+      itemProp="image"
+      loading="eager"
+      fetchPriority="high"
+    />
   ) : null;
 
 export const ProductQuantityRemaining = ({ quantityRemaining }: { quantityRemaining: number | null }) =>
