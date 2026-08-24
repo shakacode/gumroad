@@ -21,5 +21,5 @@ npm run build:public-rsc
 Use `npm run build:public-rsc:test` for test or `NODE_ENV=production` for production. Zero-root generation still emits
 the bootstrap and both bundles.
 
-Docker exports Rails JavaScript, generates packs, and waits for the renderer. Production requires
+Docker exports Rails JavaScript and generates packs. Production requires
 `RENDERER_PASSWORD`; development and test use `devPassword`.

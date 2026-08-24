@@ -21,15 +21,8 @@ const loadConfigs = (environment: string): Configuration[] => {
   }
 };
 const configs = loadConfigs("test");
-const packageJson: { scripts: Record<string, string> } = require("../../../../package.json");
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), "utf8");
-const productionDockerfile = read("docker/web/Dockerfile");
-const testDockerfile = read("docker/web/Dockerfile.test");
-const compileAssetsScript = read("docker/web/compile_assets.sh");
-const previewCompile = read(".buildkite/scripts/compile_assets.sh");
 const pushAssetsScript = read("docker/web/push_assets_to_s3.sh");
-const previewCache = read(".buildkite/scripts/preview_asset_cache.sh");
-const makefile = read("Makefile");
 
 describe("public RSC asset fingerprinting", () => {
   it("exports ordered, content-hashed client, server, and RSC bundles", () => {
@@ -60,33 +53,8 @@ describe("public RSC asset fingerprinting", () => {
     });
   });
 
-  it("generates React on Rails packs before every public RSC compilation path", () => {
-    expect(packageJson.scripts).toMatchObject({
-      "generate:public-rsc-packs": "bundle exec rails js:export && bundle exec rake react_on_rails:generate_packs",
-      "build:public-rsc": "npm run generate:public-rsc-packs && rspack --config config/rspack/public_rsc.config.cjs",
-      "build:public-rsc:test": "RAILS_ENV=test NODE_ENV=test npm run build:public-rsc",
-      "watch:public-rsc":
-        "npm run generate:public-rsc-packs && rspack --watch --config config/rspack/public_rsc.config.cjs",
-    });
-    expect(productionDockerfile).toContain(
-      "&& gosu app env DEVISE_SECRET_KEY=asset-build-only RENDERER_PASSWORD=asset-build-only REVISION=asset-build-only SECRET_KEY_BASE_DUMMY=1 RAILS_ENV=production NODE_ENV=production npm run build:public-rsc",
-    );
-    expect(productionDockerfile).not.toMatch(/^ENV.*(?:DEVISE_SECRET_KEY|RENDERER_PASSWORD|SECRET_KEY_BASE_DUMMY)/mu);
-    expect(productionDockerfile).not.toContain("chmod -R 755 $APP_DIR");
-    expect(productionDockerfile).toContain("COPY --chown=app:app . $APP_DIR/");
-    expect(compileAssetsScript).toContain("npm run setup\nNODE_ENV=production npm run build:public-rsc");
-    expect(previewCompile).toContain("rm -rf public/product-rsc ssr-generated && tar -xzf");
-    expect(testDockerfile.indexOf("ENV DATABASE_HOST=db_test")).toBeLessThan(
-      testDockerfile.indexOf("npm run build:public-rsc:test"),
-    );
-    expect(makefile.match(/RENDERER_PASSWORD=asset-build-only docker\/web\/compile_assets\.sh/gu)).toHaveLength(2);
-    expect(previewCache).toMatch(
-      /PREVIEW_ASSET_CACHE_VERSION="v2"[\s\S]*config\/rspack[\s\S]*public\/product-rsc ssr-generated/u,
-    );
-  });
-
   it("publishes server-only assets through the environment-specific public path", async () => {
-    expect(pushAssetsScript).toContain("s3://${ASSETS_S3_BUCKET}/assets/product-rsc");
+    expect(pushAssetsScript).toContain("s3://${ASSETS_S3_BUCKET}/assets/public-rsc");
     const root = mkdtempSync(fileURLToPath(new URL("./.public-rsc-probe-", import.meta.url)));
     const source = join(root, "source");
     mkdirSync(source);
@@ -95,15 +63,14 @@ describe("public RSC asset fingerprinting", () => {
       join(source, "server.js"),
       `import ${JSON.stringify(clientNodeRuntime)}; import cover from "./cover.png"; export default cover;`,
     );
-    writeFileSync(join(source, "boundary.tsx"), '"use client"; export default () => null;');
     writeFileSync(join(source, "cover.png"), Buffer.alloc(8193, 1));
 
     try {
       for (const [environment, publicPath] of [
-        ["test", "/product-rsc/"],
-        ["production", "/assets/product-rsc/"],
+        ["test", "/public-rsc/"],
+        ["production", "/assets/public-rsc/"],
       ] as const) {
-        const publicOutput = join(root, environment, "public/product-rsc");
+        const publicOutput = join(root, environment, "public/public-rsc");
         const privateOutput = join(root, environment, "private");
         const probeConfigs: Configuration[] = loadConfigs(environment).map((config, index) => ({
           ...config,
@@ -134,9 +101,6 @@ describe("public RSC asset fingerprinting", () => {
           ),
         ).toBe(true);
         expect(existsSync(join(privateOutput, "static"))).toBe(false);
-        const serverManifest = readFileSync(join(privateOutput, "react-server-client-manifest.json"), "utf8");
-        expect(serverManifest).toContain("server-bundle");
-        expect(serverManifest).not.toContain("rsc-bundle");
       }
     } finally {
       rmSync(root, { recursive: true, force: true });

@@ -33,7 +33,7 @@
 /public/vite
 /public/vite-dev
 /public/vite-test
-/public/product-rsc
+/public/public-rsc
 /vendor/bundle
 app/javascript/json_schemas
 app/javascript/stylesheets/pages_tailwind.generated.html

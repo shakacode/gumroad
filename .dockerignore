@@ -9,7 +9,7 @@ node_modules/
 public/vite/
 public/vite-dev/
 public/vite-test/
-public/product-rsc/
+public/public-rsc/
 ssr-generated/
 .node-renderer-bundles/
 ci_scripts/

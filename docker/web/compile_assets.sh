@@ -22,7 +22,7 @@ export PUPPETEER_SKIP_DOWNLOAD="true"
 npm install
 
 npm run setup
-NODE_ENV=production npm run build:public-rsc
+npm run build:public-rsc
 
 bundle exec rake assets:precompile
 

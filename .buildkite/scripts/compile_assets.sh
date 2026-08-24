@@ -107,7 +107,7 @@ if [[ ${BUILDKITE_PARALLEL_JOB:-0} = 0 && $BUILDKITE_BRANCH != "main" ]]; then
       --label assets_compiled=true \
       $WEB_REPO:web-$WEB_TAG \
       bash -c "cd /app \
-        && rm -rf public/product-rsc ssr-generated && tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL \
+        && rm -rf public/public-rsc ssr-generated && tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL \
         && chown -R app:app node_modules public ssr-generated \
         && rm -rf spec/" || return 1
     docker commit staging-assets-from-cache $WEB_REPO:staging-$WEB_TAG || return 1
