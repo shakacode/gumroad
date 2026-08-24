@@ -37,6 +37,8 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     VISUAL_CLIENT_COMPONENTS + COMPOSITION_CLIENT_COMPONENTS + %w[
       Product/ProductDescription.client.tsx
       Product/ProductReviews.client.tsx
+      Profile/ProfileRichText.client.tsx
+      Profile/ProfileRichTextEnhancement.client.tsx
     ]).freeze
 
   test "keeps product client boundaries explicit" do
@@ -253,6 +255,30 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes page, 'hideSellerByline={productProps.page_layout === "profile"}'
     %w[Discover ProductPageInertia Profile].each { assert_not_includes page, _1 }
     assert_not_includes page, "$app/components/PublicPages/PageShell.client"
+  end
+
+  test "keeps profile rich text rendering behind an asynchronous client boundary" do
+    sections = COMPONENT_DIRECTORY.join("Profile/Sections.tsx").read
+    enhancement = COMPONENT_DIRECTORY.join("Profile/ProfileRichTextEnhancement.client.tsx")
+    rich_text = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.client.tsx")
+    rich_text_predicate = COMPONENT_DIRECTORY.join("Profile/ProfileRichText.ts")
+    rich_text_content = COMPONENT_DIRECTORY.join("Profile/ProfileRichTextContent.tsx")
+    client_graph = transitive_javascript_imports([enhancement])
+
+    assert_not_includes sections, "@tiptap/react"
+    assert_not_includes sections, "$app/components/RichTextEditor"
+    assert_includes sections, "<ProfileRichTextEnhancement"
+    assert_includes sections, 'import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent"'
+    assert_includes sections, "fallback={<ProfileRichTextContent content={section.text} />}"
+    assert_includes enhancement.read, 'import("$app/components/Profile/ProfileRichText.client")'
+    assert_includes enhancement.read, "fetchWithOneRetry(importProfileRichText)"
+    assert_not_includes client_graph, rich_text
+    assert_not_includes client_graph, rich_text_content
+    assert_not_includes client_graph, COMPONENT_DIRECTORY.join("RichTextEditor.tsx")
+    assert_not rich_text_predicate.read.start_with?('"use client";')
+    assert_not rich_text_content.read.start_with?('"use client";')
+    assert_includes rich_text.read, "@tiptap/react"
+    assert_includes rich_text.read, "$app/components/RichTextEditor"
   end
 
   private
