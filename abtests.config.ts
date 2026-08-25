@@ -29,7 +29,6 @@ export default defineConfig({
   shared: {
     controlURL: `http://localhost:${CONTROL_PORT}`,
     experimentURL: `http://localhost:${EXPERIMENT_PORT}`,
-    testPathPattern: "ab-tests/(?:product-page|seller-profile-page|discover-page)\\.abtest\\.ts$",
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
     parallelism: PARALLELISM,
