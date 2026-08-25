@@ -26,8 +26,8 @@ export const CtaBar = ({
   product: ProductData;
   purchase: Purchase | null;
   discountCode?: ProductDiscount | null;
-  ctaButtonRef: React.RefObject<HTMLAnchorElement>;
-  configurationSelectorRef: React.RefObject<ConfigurationSelectorHandle>;
+  ctaButtonRef: React.RefObject<HTMLAnchorElement | null>;
+  configurationSelectorRef: React.RefObject<ConfigurationSelectorHandle | null>;
   ctaLabel?: string | undefined;
   selection: PriceSelection;
   hasHero: boolean;
