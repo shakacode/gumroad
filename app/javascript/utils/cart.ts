@@ -6,6 +6,8 @@ import { CartItem } from "$app/components/Checkout/cartState";
 
 export type CartItemsCount = number | "not-available";
 
+const CART_ITEMS_COUNT_TIMEOUT_MS = 5_000;
+
 let countPromise: Promise<CartItemsCount> | null = null;
 
 export const loadCartItemsCount = (src: string, cb: (value: CartItemsCount) => void) => {
@@ -15,16 +17,24 @@ export const loadCartItemsCount = (src: string, cb: (value: CartItemsCount) => v
       iframe.style.display = "none";
       iframe.src = src;
       const { origin } = new URL(src);
+      const finish = (value: CartItemsCount) => {
+        window.removeEventListener("message", handler);
+        iframe.removeEventListener("error", handleError);
+        window.clearTimeout(timeout);
+        iframe.remove();
+        resolve(value);
+      };
       const handler = (evt: MessageEvent) => {
         if (evt.source !== iframe.contentWindow || evt.origin !== origin) return;
 
         if (typia.is<{ type: "cart-items-count"; cartItemsCount: CartItemsCount }>(evt.data)) {
-          window.removeEventListener("message", handler);
-          iframe.remove();
-          resolve(evt.data.cartItemsCount);
+          finish(evt.data.cartItemsCount);
         }
       };
+      const handleError = () => finish("not-available");
       window.addEventListener("message", handler);
+      iframe.addEventListener("error", handleError, { once: true });
+      const timeout = window.setTimeout(() => finish("not-available"), CART_ITEMS_COUNT_TIMEOUT_MS);
       document.body.appendChild(iframe);
     });
   void countPromise.then(cb);

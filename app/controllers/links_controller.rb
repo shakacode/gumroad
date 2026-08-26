@@ -50,7 +50,7 @@ class LinksController < ApplicationController
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
-  layout "inertia", only: %i[index new show cart_items_count edit]
+  layout "inertia", only: %i[index new show edit]
 
   def index
     authorize Link
@@ -248,9 +248,10 @@ class LinksController < ApplicationController
 
   def cart_items_count
     cart = Cart.fetch_by(user: logged_in_user, browser_guid: cookies[:_gumroad_guid])
-    render inertia: "Products/CartItemsCount", props: {
-      cart_items_count: cart&.cart_products&.alive&.count || 0
-    }
+    @cart_items_count = cart&.cart_products&.alive&.count || 0
+    response.set_header("Cache-Control", "private, no-store")
+
+    render layout: false
   end
 
   def landing_iframe_content

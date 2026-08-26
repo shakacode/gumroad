@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <script nonce="<%= SecureHeaders.content_security_policy_script_nonce(request) %>" data-cfasync="false">
+      (() => {
+        const cartItemsCount = <%= @cart_items_count.to_json %>;
+        const postCount = (value) => window.parent.postMessage({ type: "cart-items-count", cartItemsCount: value }, "*");
+
+        if (typeof document.hasStorageAccess !== "function") {
+          postCount(cartItemsCount);
+          return;
+        }
+
+        document.hasStorageAccess().then(
+          (hasAccess) => postCount(hasAccess ? cartItemsCount : "not-available"),
+          () => postCount("not-available"),
+        );
+      })();
+    </script>
+  </body>
+</html>

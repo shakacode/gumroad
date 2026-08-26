@@ -175,6 +175,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
     expect(page).to have_no_field("Search products")
     payload = Nokogiri::HTML(page.html).css('script[data-react-on-rails-rsc-payload="true"]').map(&:text).join
     expect(payload).to include("PublicPages/ProductPageShell.client")
+    expect(payload).not_to include("PublicPages/ProductPageInertia.client")
     expect(payload).not_to include("PublicPages/PageShell.client")
     expect(payload).not_to include("PoweredByFooter")
     expect(payload).to include("Product/ProductFooterCurrencySelector.client")

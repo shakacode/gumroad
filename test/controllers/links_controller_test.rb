@@ -6240,35 +6240,53 @@ class LinksControllerConsumerTest < ActionController::TestCase
 
   # --- GET cart_items_count ---------------------------------------------------
 
-  test "GET cart_items_count returns 0 when no cart exists" do
+  test "GET cart_items_count returns a layout-free bridge with 0 when no cart exists" do
+    SecureHeaders.stubs(:content_security_policy_script_nonce).returns("cart-count-nonce")
+
     get :cart_items_count
 
-    page = inertia_page_from_html
-    assert_equal "Products/CartItemsCount", page["component"]
-    assert_equal 0, page["props"]["cart_items_count"]
-
     html = Nokogiri::HTML.parse(response.body)
-    [
-      "gr:google_analytics:enabled",
-      "gr:fb_pixel:enabled",
-      "gr:tiktok_pixel:enabled",
-    ].each do |property|
-      assert_equal "false", html.xpath("//meta[@property='#{property}']/@content").text
-    end
+    script = html.at_css("script")
+
+    assert_response :success
+    assert_equal "text/html", response.media_type
+    assert_includes response.headers["Cache-Control"], "no-store"
+    assert_equal "cart-count-nonce", script["nonce"]
+    assert_equal "false", script["data-cfasync"]
+    assert_includes script.text, "const cartItemsCount = 0"
+    assert_includes script.text, "document.hasStorageAccess()"
+    assert_includes script.text, 'type: "cart-items-count"'
+    assert_empty html.css("script[src], link[rel='stylesheet']")
+    assert_not_includes response.body, "data-page="
+    assert_not_includes response.body, "/vite/"
+    assert_not_includes response.body, "/public-rsc/"
+    assert_not_includes response.body, "Inertia"
+    assert_not_includes response.body, "React"
   end
 
-  test "GET cart_items_count returns the count of alive cart products" do
+  test "GET cart_items_count serializes the logged-in buyer's alive cart product count" do
     sign_in @user
     product = create_product
     cart = create_cart(user: @user, email: @user.email)
     create_cart_product(cart:, product:)
 
-    @request.headers["X-Inertia"] = "true"
     get :cart_items_count
 
-    page = inertia_page
-    assert_equal "Products/CartItemsCount", page["component"]
-    assert_equal 1, page["props"]["cart_items_count"]
+    script = Nokogiri::HTML.parse(response.body).at_css("script")
+    assert_includes script.text, "const cartItemsCount = 1"
+  end
+
+  test "GET cart_items_count reads an anonymous buyer's cart from the browser guid" do
+    browser_guid = SecureRandom.uuid
+    product = create_product
+    cart = create_cart(user: nil, browser_guid:)
+    create_cart_product(cart:, product:)
+    cookies[:_gumroad_guid] = browser_guid
+
+    get :cart_items_count
+
+    script = Nokogiri::HTML.parse(response.body).at_css("script")
+    assert_includes script.text, "const cartItemsCount = 1"
   end
 
   test "GET cart_items_count does not count deleted cart products" do
@@ -6278,10 +6296,10 @@ class LinksControllerConsumerTest < ActionController::TestCase
     create_cart_product(cart:, product:)
     create_cart_product(cart:, product: create_product, deleted_at: Time.current)
 
-    @request.headers["X-Inertia"] = "true"
     get :cart_items_count
 
-    assert_equal 1, inertia_page["props"]["cart_items_count"]
+    script = Nokogiri::HTML.parse(response.body).at_css("script")
+    assert_includes script.text, "const cartItemsCount = 1"
   end
 
   # --- POST track_user_action -------------------------------------------------
