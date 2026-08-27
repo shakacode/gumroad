@@ -50,14 +50,12 @@ describe DiscoverDomainConstraint do
       expect(described_class.matches?(request)).to eq(false)
     end
 
-    it "leaves the benchmark custom root to GumroadDomainConstraint" do
+    it "accepts the benchmark custom root as the Discover host" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
       stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
-      stub_const("VALID_REQUEST_HOSTS", ["gumroad-inertia.reactonrails.com"])
       request = double("request", host: "gumroad-inertia.reactonrails.com", path: "/")
 
-      expect(described_class.matches?(request)).to eq(false)
-      expect(GumroadDomainConstraint.matches?(request)).to eq(true)
+      expect(described_class.matches?(request)).to eq(true)
     end
 
     it "accepts explicit discover paths on the benchmark custom root" do

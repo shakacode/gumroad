@@ -120,7 +120,7 @@ Confirm static `/vite/` assets are served by the Rails image, fixture media is p
 
 DNS and Control Plane domains are intentionally not created by this change. After generated-host verification, provision a domain for `gumroad-inertia.reactonrails.com` that targets the `gumroad-inertia/rails` workload and accepts all subdomains. The final verification set is:
 
-- `https://gumroad-inertia.reactonrails.com/`
+- `https://gumroad-inertia.reactonrails.com/` for the About page
 - `https://gumroad-inertia.reactonrails.com/discover`
 - `https://gumroad-inertia.reactonrails.com/software-development/programming`
 - `https://gumroad-inertia.reactonrails.com/l/O365IT?layout=discover`
