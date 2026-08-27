@@ -21,9 +21,13 @@ Rails.application.configure do
   # Twin storefronts must resolve both entries and lazy chunks against the
   # request's seller origin instead of a separate asset host.
   config.asset_host = nil
-  config.active_storage.service = :benchmark
+  config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "development").to_sym
+  config.active_storage.resolve_model_to_route = :rails_storage_proxy
 
-  config.action_cable.allowed_request_origins = [%r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i]
+  config.action_cable.allowed_request_origins = [
+    %r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i,
+    %r{\A#{Regexp.escape(PROTOCOL)}://(?:[a-z0-9-]+\.)?#{Regexp.escape(ROOT_DOMAIN)}\z}io,
+  ]
 
   config.logger = ActiveSupport::Logger.new(STDOUT)
     .tap { |logger| logger.formatter = ::Logger::Formatter.new }
