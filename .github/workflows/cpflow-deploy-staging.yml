@@ -1,0 +1,19 @@
+name: Deploy Staging to Control Plane
+
+run-name: Deploy Control Plane staging app
+
+on:
+  push:
+    branches: ["codex/inertia-cpln-baseline"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging:
+    uses: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@v5.2.0
+    with:
+      staging_app_branch_default: "codex/inertia-cpln-baseline"
+    secrets:
+      CPLN_TOKEN_STAGING: ${{ secrets.CPLN_TOKEN_STAGING }}
