@@ -85,6 +85,16 @@ RSpec.describe "Control Plane benchmark storage verification" do
     )
   end
 
+  it "lets benchmark Active Storage use its explicit R2 credentials when global AWS credentials are absent" do
+    aws_initializer = root.join("config/initializers/aws.rb").read
+
+    expect(aws_initializer).to include(
+      "aws_config = { region: AWS_DEFAULT_REGION }",
+      "if AWS_ACCESS_KEY.present? && AWS_SECRET_KEY.present?",
+      "aws_config[:credentials] = Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)",
+    )
+  end
+
   it "emits a browser-reachable Rails path for benchmark attachments" do
     attachment = double
     route_helpers = double
