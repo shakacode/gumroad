@@ -305,6 +305,7 @@ module NativeProductPageSeed
 
   def run!
     uploaded_blobs = []
+    replaced_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "Native product fixture may only run in development, test, or benchmark"
     end
@@ -326,10 +327,10 @@ module NativeProductPageSeed
         attributes: { twitter_handle: "Luis_Furushio" },
       )
       buyers = seed_buyers!
-      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:, uploaded_blobs:) }
+      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:, uploaded_blobs:, replaced_blobs:) }
       seed_bundle_products!(products:)
       seed_seller_profile!(seller:, products:)
-      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT, uploaded_blobs:)
+      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT, uploaded_blobs:, replaced_blobs:)
       products << residential_guide
       seed_recommendations!(source: residential_guide, products:)
 
@@ -340,6 +341,8 @@ module NativeProductPageSeed
         puts "RSC:      #{url}&rsc=1"
       end
     end
+    uploaded_blobs.clear
+    purge_replaced_blobs(replaced_blobs)
   rescue
     delete_uploaded_blobs(uploaded_blobs)
     raise
@@ -382,7 +385,7 @@ module NativeProductPageSeed
     end
   end
 
-  def seed_product!(seller:, buyers:, attributes:, uploaded_blobs:)
+  def seed_product!(seller:, buyers:, attributes:, uploaded_blobs:, replaced_blobs:)
     permalink = attributes.fetch(:permalink)
     unique_permalink = attributes.fetch(:unique_permalink)
     product = Link.find_by(unique_permalink:)
@@ -430,7 +433,7 @@ module NativeProductPageSeed
       deleted_at: nil,
     )
 
-    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:)
+    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:, replaced_blobs:)
     seed_variants!(product:, names: attributes[:variants] || [])
 
     ratings = attributes[:rating_counts]&.flat_map { |rating, count| Array.new(count, rating) } || Array.new(attributes.fetch(:review_count), 5)
@@ -477,7 +480,7 @@ module NativeProductPageSeed
     UpdateCachedSalesRelatedProductsInfosJob.new.perform(source.id)
   end
 
-  def seed_previews!(product:, images:, uploaded_blobs:)
+  def seed_previews!(product:, images:, uploaded_blobs:, replaced_blobs:)
     desired_guids = images.each_with_index.map do |image, index|
       guid = "native-page-#{product.unique_permalink.downcase}-#{index + 1}"
       width, height = MEDIA_DIMENSIONS.fetch(image)
@@ -490,11 +493,13 @@ module NativeProductPageSeed
       fixture_checksum = Digest::MD5.file(fixture_path).base64digest
       content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
       unless preview.file.attached? && preview.file.filename.to_s == image && preview.file.blob.checksum == fixture_checksum
+        replaced_blob = preview.file.blob if preview.file.attached?
         blob = fixture_path.open("rb") do |file|
           ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
         end
         uploaded_blobs << blob
         preview.file.attach(blob)
+        replaced_blobs << replaced_blob if replaced_blob
       end
       preview.file.blob.update!(
         metadata: preview.file.blob.metadata.merge(
@@ -517,6 +522,10 @@ module NativeProductPageSeed
     rescue StandardError
       warn "Failed to delete an uploaded native product fixture after rollback"
     end
+  end
+
+  def purge_replaced_blobs(replaced_blobs)
+    replaced_blobs.each(&:purge)
   end
 
   def seed_seller_profile!(seller:, products:)

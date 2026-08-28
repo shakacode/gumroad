@@ -25,15 +25,15 @@ spec:
     - name: PUMA_WORKER_PROCESSES
       value: "1"
     - name: CUSTOM_DOMAIN
-      value: gumroad-inertia.reactonrails.com
+      value: gumroad-rorp.reactonrails.com
     - name: BENCHMARK_PROTOCOL
       value: https
     - name: BENCHMARK_STORAGE_SERVICE
       value: control_plane_benchmark
     - name: BENCHMARK_STORAGE_PREFIX
-      value: benchmarks/gumroad-inertia
+      value: benchmarks/gumroad-rorp
     - name: BENCHMARK_CACHE_NAMESPACE
-      value: gumroad-inertia
+      value: gumroad-rorp
     - name: BENCHMARK_SELLER_USERNAME
       value: seller
     - name: SESSION_COOKIE_DOMAIN
@@ -47,7 +47,7 @@ spec:
     - name: BRANCH_DEPLOYMENT
       value: "true"
     - name: GUMROAD_RENDERING_SURFACE
-      value: inertia
+      value: rorp
     - name: CONTROL_PLANE_BENCHMARK
       value: "true"
     - name: SECRET_KEY_BASE
@@ -62,8 +62,12 @@ spec:
       value: "cpln://secret/{{APP_SECRETS}}.OBFUSCATE_IDS_CIPHER_KEY"
     - name: OBFUSCATE_IDS_NUMERIC_CIPHER_KEY
       value: "cpln://secret/{{APP_SECRETS}}.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY"
+    - name: RENDERER_PASSWORD
+      value: "cpln://secret/{{APP_SECRETS}}.RENDERER_PASSWORD"
     - name: REACT_ON_RAILS_PRO_LICENSE
       value: "cpln://secret/{{APP_SECRETS}}.REACT_ON_RAILS_PRO_LICENSE"
+    - name: REACT_RENDERER_URL
+      value: "http://renderer.{{APP_NAME}}.cpln.local:3800"
     - name: DATABASE_HOST
       value: "mysql.{{APP_NAME}}.cpln.local"
     - name: DATABASE_PORT

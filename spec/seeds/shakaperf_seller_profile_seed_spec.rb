@@ -133,11 +133,13 @@ RSpec.describe "ShakaPerf seller profile seed" do
     load(seed_file, true)
     seller = User.find_by!(email: seller_email)
     seller.avatar.attach(io: StringIO.new("stale avatar"), filename: "luis-furushio-profile.png", content_type: "image/png")
+    stale_blob = seller.reload.avatar.blob
 
     load(seed_file, true)
 
     fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
     expect(seller.reload.avatar.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
+    expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
   end
 
   it "keeps the old avatar intact when replacement rolls back" do

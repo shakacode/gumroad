@@ -42,7 +42,7 @@ control_plane_benchmark:
   bucket: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_BUCKET") %>
   public: false
   force_path_style: true
-  prefix: <%= ENV.fetch("BENCHMARK_STORAGE_PREFIX", "benchmarks/gumroad-inertia") %>
+  prefix: <%= ENV.fetch("BENCHMARK_STORAGE_PREFIX", "benchmarks/gumroad-rorp") %>
 
 # Use rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
 amazon:

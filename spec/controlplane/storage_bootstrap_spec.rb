@@ -15,7 +15,7 @@ RSpec.describe "Control Plane benchmark storage verification" do
     allow(ActiveStorage::Blob).to receive(:service).and_return(service)
 
     original_prefix = ENV["BENCHMARK_STORAGE_PREFIX"]
-    ENV["BENCHMARK_STORAGE_PREFIX"] = "benchmarks/gumroad-inertia"
+    ENV["BENCHMARK_STORAGE_PREFIX"] = "benchmarks/gumroad-rorp"
     load root.join("scripts/verify_control_plane_benchmark_storage.rb")
   ensure
     ENV["BENCHMARK_STORAGE_PREFIX"] = original_prefix
@@ -23,7 +23,7 @@ RSpec.describe "Control Plane benchmark storage verification" do
 
   it "verifies private write, existence, read, and delete access through Active Storage" do
     service = double
-    checksum = Base64.strict_encode64(Digest::MD5.digest("gumroad-inertia R2 storage probe\n"))
+    checksum = Base64.strict_encode64(Digest::MD5.digest("gumroad-rorp R2 storage probe\n"))
     expect(service).to receive(:public?).ordered.and_return(false)
     expect(service).to receive(:upload).with(
       "release/storage-probe",
@@ -31,7 +31,7 @@ RSpec.describe "Control Plane benchmark storage verification" do
       checksum:,
     ).ordered
     expect(service).to receive(:exist?).with("release/storage-probe").ordered.and_return(true)
-    expect(service).to receive(:download).with("release/storage-probe").ordered.and_return("gumroad-inertia R2 storage probe\n")
+    expect(service).to receive(:download).with("release/storage-probe").ordered.and_return("gumroad-rorp R2 storage probe\n")
     expect(service).to receive(:delete).with("release/storage-probe").ordered
 
     run_verifier(service)
@@ -57,14 +57,14 @@ RSpec.describe "Control Plane benchmark storage verification" do
 
     expect(benchmark_config).to include("config.active_storage.resolve_model_to_route = :rails_storage_proxy")
     expect(storage_config).to match(
-      /control_plane_benchmark:.*?service: PrefixedS3.*?endpoint: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ENDPOINT"\) %>.*?access_key_id: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ACCESS_KEY_ID"\) %>.*?secret_access_key: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY"\) %>.*?region: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_REGION", "auto"\) %>.*?bucket: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_BUCKET"\) %>.*?public: false.*?force_path_style: true.*?prefix: <%= ENV\.fetch\("BENCHMARK_STORAGE_PREFIX", "benchmarks\/gumroad-inertia"\) %>/m,
+      /control_plane_benchmark:.*?service: PrefixedS3.*?endpoint: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ENDPOINT"\) %>.*?access_key_id: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ACCESS_KEY_ID"\) %>.*?secret_access_key: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY"\) %>.*?region: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_REGION", "auto"\) %>.*?bucket: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_BUCKET"\) %>.*?public: false.*?force_path_style: true.*?prefix: <%= ENV\.fetch\("BENCHMARK_STORAGE_PREFIX", "benchmarks\/gumroad-rorp"\) %>/m,
     )
   end
 
   it "preserves the existing local MinIO path independently of benchmark R2" do
     aws_initializer = root.join("config/initializers/aws.rb").read
     benchmark_environment = root.join("config/environments/benchmark.rb").read
-    control_plane_app = root.join(".controlplane/templates/app-inertia.yml").read
+    control_plane_app = root.join(".controlplane/templates/app-rorp.yml").read
     signed_urls = root.join("app/helpers/signed_url_helper.rb").read
     storage_config = root.join("config/storage.yml").read
 

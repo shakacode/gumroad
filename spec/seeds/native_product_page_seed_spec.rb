@@ -198,11 +198,13 @@ RSpec.describe "native product page seed" do
     product = Link.fetch_leniently("O365IT")
     preview = product.display_asset_previews.first
     preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.png", content_type: "image/png")
+    stale_blob = preview.reload.file.blob
 
     load(seed_file, true)
 
     expected_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.png")).base64digest
     expect(preview.reload.file.blob.checksum).to eq(expected_checksum)
+    expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
   end
 
   it "keeps the old preview intact when replacement rolls back" do

@@ -15,18 +15,19 @@ RSpec.describe "Control Plane image and secret bootstrap" do
     expect(env_blocks).not_to match(/SECRET_KEY_BASE|DEVISE_SECRET_KEY|DATABASE_PASSWORD|STRONGBOX_GENERAL/)
     expect(env_blocks).not_to include("NODE_OPTIONS")
     expect(dockerfile).to include("NODE_OPTIONS=--max-old-space-size=4096")
-    expect(dockerfile).to include("npm run setup", "npx vite build", "rails assets:precompile")
+    expect(dockerfile).to include("npm run setup", "npm run build:public-rsc", "npx vite build", "rails assets:precompile")
   end
 
   it "exports the build-only environment before running the complete asset build" do
     dockerfile = root.join(".controlplane/Dockerfile").read
     asset_build = dockerfile.match(
-      /^RUN (?<environment>(?:.*\\\n)+\s*)npm run setup && \\\n\s+npx vite build && \\\n\s+bundle exec rails assets:precompile/,
+      /^RUN (?<environment>(?:.*\\\n)+\s*)npm run setup && \\\n\s+npm run build:public-rsc && \\\n\s+npx vite build && \\\n\s+bundle exec rails assets:precompile/,
     )
 
     expect(asset_build).not_to be_nil
     expect(asset_build[:environment]).to start_with("export NODE_OPTIONS=--max-old-space-size=4096")
     expect(asset_build[:environment]).to include("VITE_RUBY_ASSET_HOST=''")
+    expect(asset_build[:environment]).to include("RENDERER_PASSWORD=build-placeholder-renderer-password")
     expect(asset_build[:environment]).to end_with("SKIP_BRANCH_APP_ES_INDEX_SETUP=true && \\\n    ")
   end
 
@@ -61,7 +62,7 @@ RSpec.describe "Control Plane image and secret bootstrap" do
       "BENCHMARK_STORAGE_S3_ACCESS_KEY_ID=build-placeholder",
       "BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY=build-placeholder",
       "BENCHMARK_STORAGE_S3_REGION=auto",
-      "BENCHMARK_STORAGE_S3_BUCKET=gumroad-inertia-public-storage",
+      "BENCHMARK_STORAGE_S3_BUCKET=gumroad-rorp-public-storage",
     )
     expect(dockerfile).not_to match(/^\s+AWS_S3_ENDPOINT=/)
   end
@@ -124,7 +125,7 @@ RSpec.describe "Control Plane image and secret bootstrap" do
   it "prepares only fixed backing-service secrets and refuses implicit rotation" do
     bootstrap = root.join("bin/prepare-control-plane-benchmark-secrets").read
 
-    expect(bootstrap).to include('APP_NAME="gumroad-inertia"')
+    expect(bootstrap).to include('APP_NAME="gumroad-rorp"')
     expect(bootstrap).to include("Secret ${secret_name} already exists; leaving database credentials unchanged.")
     expect(bootstrap).to include("Secret ${secret_name} already exists; leaving storage credentials unchanged.")
     expect(bootstrap).to include("create_mysql_secret", "create_mongo_secret", "create_r2_secret")
@@ -141,7 +142,7 @@ RSpec.describe "Control Plane image and secret bootstrap" do
     expect(bootstrap).not_to include(
       "create_app_secret",
       "prepare_shared_license_policy",
-      "gumroad-inertia-secrets",
+      "gumroad-rorp-secrets",
     )
     expect(bootstrap).not_to match(/shared.*license/i)
   end

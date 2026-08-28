@@ -18,18 +18,18 @@ RSpec.describe "Control Plane backing-service secret bootstrap" do
         #!/bin/sh
         case "$*" in
           "org get "*) exit 0 ;;
-          "secret get gumroad-inertia-r2 "*) [ "$R2_EXISTS" = "true" ] ;;
-          "secret get gumroad-inertia-mysql "*|"secret get gumroad-inertia-mongo "*) exit 0 ;;
-          "secret reveal gumroad-inertia-mysql "*)
+          "secret get gumroad-rorp-r2 "*) [ "$R2_EXISTS" = "true" ] ;;
+          "secret get gumroad-rorp-mysql "*|"secret get gumroad-rorp-mongo "*) exit 0 ;;
+          "secret reveal gumroad-rorp-mysql "*)
             printf '%s\n' '{"data":{"database":"set","username":"set","password":"set","root_password":"set"}}'
             ;;
-          "secret reveal gumroad-inertia-mongo "*)
+          "secret reveal gumroad-rorp-mongo "*)
             printf '%s\n' '{"data":{"username":"set","password":"set"}}'
             ;;
-          "secret reveal gumroad-inertia-r2 "*)
+          "secret reveal gumroad-rorp-r2 "*)
             printf '%s\n' '{"data":{"endpoint":"https://account.r2.cloudflarestorage.com","access_key_id":"set","secret_access_key":"set","bucket":"shaka-perf-demo-storage"}}'
             ;;
-          "secret create-dictionary "*"--name gumroad-inertia-r2 "*)
+          "secret create-dictionary "*"--name gumroad-rorp-r2 "*)
             printf '%s\n' "$*" > "$R2_CREATE_LOG"
             ;;
           *) echo "unexpected cpln call: $*" >&2; exit 42 ;;
@@ -77,7 +77,7 @@ RSpec.describe "Control Plane backing-service secret bootstrap" do
     expect(status).to be_success, stderr
     expect(stdout).not_to include("opaque-access-key", "opaque-secret-key")
     expect(create_call).to include(
-      "--name gumroad-inertia-r2",
+      "--name gumroad-rorp-r2",
       "--entry endpoint=https://account.r2.cloudflarestorage.com",
       "--entry access_key_id=opaque-access-key",
       "--entry secret_access_key=opaque-secret-key",

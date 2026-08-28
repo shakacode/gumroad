@@ -7,7 +7,7 @@ raise "Benchmark R2 storage must be private" if service.public?
 
 prefix = ENV.fetch("BENCHMARK_STORAGE_PREFIX")
 probe_key = "release/storage-probe"
-probe_body = "gumroad-inertia R2 storage probe\n"
+probe_body = "gumroad-rorp R2 storage probe\n"
 probe_checksum = Base64.strict_encode64(Digest::MD5.digest(probe_body))
 probe_uploaded = false
 
