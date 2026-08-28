@@ -5,7 +5,7 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Production's CDN compresses assets; keep Slow 4G samples representative when Rails serves them locally.
   config.middleware.insert_before 0, Rack::Deflater,
-                                  if: ->(env, *) { env["PATH_INFO"].start_with?("/vite/", "/public-rsc/") },
+                                  if: ->(env, *) { env["PATH_INFO"].start_with?("/vite/", "/public-rsc/", "/product-rsc/") },
                                   include: %w[application/javascript application/json application/xml image/svg+xml text/css text/html text/javascript text/plain text/xml]
 
   config.enable_reloading = false
@@ -22,9 +22,13 @@ Rails.application.configure do
   # Twin storefronts must resolve both entries and lazy chunks against the
   # request's seller origin instead of a separate asset host.
   config.asset_host = nil
-  config.active_storage.service = :benchmark
+  config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
+  config.active_storage.resolve_model_to_route = :rails_storage_proxy
 
-  config.action_cable.allowed_request_origins = [%r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i]
+  config.action_cable.allowed_request_origins = [
+    %r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i,
+    %r{\A#{Regexp.escape(PROTOCOL)}://(?:[a-z0-9-]+\.)?#{Regexp.escape(ROOT_DOMAIN)}\z}io,
+  ]
 
   config.logger = ActiveSupport::Logger.new(STDOUT)
     .tap { |logger| logger.formatter = ::Logger::Formatter.new }

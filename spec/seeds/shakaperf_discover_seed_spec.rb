@@ -96,6 +96,22 @@ RSpec.describe "ShakaPerf Discover seed" do
     expect(user.reload.name).to eq("Unrelated seller")
   end
 
+  it "keeps fixture sale discounts unavailable to storefront buyers" do
+    Taxonomy::Seeder.new.perform
+    load(seed_file, true)
+
+    offer_codes = OfferCode.where(code: "shakaperf-discover")
+    purchase_code_ids = Purchase.joins(:link)
+      .where(links: { unique_permalink: unique_permalinks })
+      .distinct
+      .pluck(:offer_code_id)
+
+    expect(offer_codes.count).to eq(4)
+    expect(offer_codes).to all(be_deleted)
+    expect(purchase_code_ids).to match_array(offer_codes.ids)
+    expect { load(seed_file, true) }.not_to change(offer_codes, :count)
+  end
+
   it "refuses to claim a fixture username from another user" do
     user = create(:user, email: "unrelated@example.com", username: "shakaperfdiscovera")
 

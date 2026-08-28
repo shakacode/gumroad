@@ -118,8 +118,16 @@ function assignLayout(page) {
   return page;
 }
 
-const pages = import.meta.glob("../pages/**/*.tsx");
-const jsxPages = import.meta.glob("../pages/**/*.jsx");
+const pages = import.meta.glob([
+  "../pages/**/*.tsx",
+  "!../pages/**/*.test.tsx",
+  "!../pages/**/*.spec.tsx",
+]);
+const jsxPages = import.meta.glob([
+  "../pages/**/*.jsx",
+  "!../pages/**/*.test.jsx",
+  "!../pages/**/*.spec.jsx",
+]);
 
 async function resolvePageComponent(name) {
   if (name === "Discover/Index") {

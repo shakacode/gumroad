@@ -1,0 +1,43 @@
+# This fixed app is the production-shaped Inertia control for the public
+# storefront benchmark. Surface-specific settings live in app-inertia.yml;
+# backing-service templates are reusable by the later RORP deployment.
+
+allow_org_override_by_env: true
+allow_app_override_by_env: false
+
+apps:
+  gumroad-inertia:
+    cpln_org: shakacode-open-source-examples-staging
+    default_location: aws-us-east-2
+    setup_app_templates:
+      - app-inertia
+      - r2
+      - mysql
+      - mongo
+      - redis
+      - elasticsearch
+      - memcached
+      - rails
+      - sidekiq
+
+    secrets_name: gumroad-inertia-secrets
+    secrets_policy_name: gumroad-inertia-secrets-policy
+
+    one_off_workload: rails
+    app_workloads:
+      - rails
+      - sidekiq
+    additional_workloads:
+      - mysql
+      - mongo
+      - redis
+      - elasticsearch
+      - memcached
+
+    release_script: ALLOW_BENCHMARK_SEED=true .controlplane/release_script.sh
+    use_digest_image_ref: true
+    fix_terminal_size: true
+    runner_job_default_cpu: "1"
+    runner_job_default_memory: 2Gi
+    runner_job_timeout: 3600
+    image_retention_days: 14

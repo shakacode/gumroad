@@ -1,0 +1,64 @@
+kind: volumeset
+name: "{{APP_NAME}}-elasticsearch-vs"
+spec:
+  autoscaling:
+    maxCapacity: 20
+    minFreePercentage: 1
+    scalingFactor: 1.1
+  fileSystemType: ext4
+  initialCapacity: 10
+  performanceClass: general-purpose-ssd
+  snapshots:
+    createFinalSnapshot: true
+    retentionDuration: 7d
+
+---
+kind: workload
+name: elasticsearch
+spec:
+  type: stateful
+  securityOptions:
+    filesystemGroupId: 1000
+  containers:
+    - name: elasticsearch
+      cpu: 500m
+      memory: 1Gi
+      image: elasticsearch:7.9.3
+      env:
+        - name: ES_JAVA_OPTS
+          value: "-Xms512m -Xmx512m"
+        - name: discovery.type
+          value: single-node
+      ports:
+        - number: 9200
+          protocol: http
+      volumes:
+        - uri: "cpln://volumeset/{{APP_NAME}}-elasticsearch-vs"
+          path: /usr/share/elasticsearch/data
+          recoveryPolicy: retain
+      livenessProbe:
+        tcpSocket:
+          port: 9200
+        initialDelaySeconds: 45
+        periodSeconds: 10
+        failureThreshold: 6
+      readinessProbe:
+        tcpSocket:
+          port: 9200
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        failureThreshold: 6
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc

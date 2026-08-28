@@ -18,6 +18,11 @@ else
 end
 
 Rails.application.routes.draw do
+  scope ActiveStorage.routes_prefix do
+    get "/blobs/proxy/:signed_id/*filename" => "active_storage/blobs/proxy#show"
+    get "/representations/proxy/:signed_blob_id/:variation_key/*filename" => "active_storage/representations/proxy#show"
+  end
+
   get "/healthcheck" => "healthcheck#index"
   get "/healthcheck/sidekiq" => "healthcheck#sidekiq"
   get "/healthcheck/payouts" => "healthcheck#payouts"

@@ -304,6 +304,7 @@ module NativeProductPageSeed
   module_function
 
   def run!
+    uploaded_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "Native product fixture may only run in development, test, or benchmark"
     end
@@ -325,10 +326,10 @@ module NativeProductPageSeed
         attributes: { twitter_handle: "Luis_Furushio" },
       )
       buyers = seed_buyers!
-      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:) }
+      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:, uploaded_blobs:) }
       seed_bundle_products!(products:)
       seed_seller_profile!(seller:, products:)
-      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT)
+      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT, uploaded_blobs:)
       products << residential_guide
       seed_recommendations!(source: residential_guide, products:)
 
@@ -339,6 +340,9 @@ module NativeProductPageSeed
         puts "RSC:      #{url}&rsc=1"
       end
     end
+  rescue
+    delete_uploaded_blobs(uploaded_blobs)
+    raise
   end
 
   def owned_user!(email:, name:, username:, bio: nil, attributes: {})
@@ -378,7 +382,7 @@ module NativeProductPageSeed
     end
   end
 
-  def seed_product!(seller:, buyers:, attributes:)
+  def seed_product!(seller:, buyers:, attributes:, uploaded_blobs:)
     permalink = attributes.fetch(:permalink)
     unique_permalink = attributes.fetch(:unique_permalink)
     product = Link.find_by(unique_permalink:)
@@ -426,7 +430,7 @@ module NativeProductPageSeed
       deleted_at: nil,
     )
 
-    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)])
+    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:)
     seed_variants!(product:, names: attributes[:variants] || [])
 
     ratings = attributes[:rating_counts]&.flat_map { |rating, count| Array.new(count, rating) } || Array.new(attributes.fetch(:review_count), 5)
@@ -473,7 +477,7 @@ module NativeProductPageSeed
     UpdateCachedSalesRelatedProductsInfosJob.new.perform(source.id)
   end
 
-  def seed_previews!(product:, images:)
+  def seed_previews!(product:, images:, uploaded_blobs:)
     desired_guids = images.each_with_index.map do |image, index|
       guid = "native-page-#{product.unique_permalink.downcase}-#{index + 1}"
       width, height = MEDIA_DIMENSIONS.fetch(image)
@@ -486,10 +490,10 @@ module NativeProductPageSeed
       fixture_checksum = Digest::MD5.file(fixture_path).base64digest
       content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
       unless preview.file.attached? && preview.file.filename.to_s == image && preview.file.blob.checksum == fixture_checksum
-        preview.file.purge if preview.file.attached?
         blob = fixture_path.open("rb") do |file|
           ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
         end
+        uploaded_blobs << blob
         preview.file.attach(blob)
       end
       preview.file.blob.update!(
@@ -504,6 +508,15 @@ module NativeProductPageSeed
       guid
     end
     product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: STOREFRONT_CREATED_AT)
+  end
+
+  def delete_uploaded_blobs(uploaded_blobs)
+    # The database rollback removes blob rows, but remote objects need explicit cleanup.
+    uploaded_blobs.each do |blob|
+      blob.delete
+    rescue StandardError
+      warn "Failed to delete an uploaded native product fixture after rollback"
+    end
   end
 
   def seed_seller_profile!(seller:, products:)
@@ -603,13 +616,9 @@ module NativeProductPageSeed
   end
 
   def fixture_offer_code!(seller)
-    seller.offer_codes.universal.alive.find_by(code: "native-page-review") ||
-      OfferCode.create!(
-        user: seller,
-        universal: true,
-        amount_percentage: 100,
-        code: "native-page-review",
-      )
+    offer_code = seller.offer_codes.universal.where(code: "native-page-review").order(:id).first_or_initialize
+    offer_code.update!(amount_cents: nil, amount_percentage: 100, deleted_at: STOREFRONT_CREATED_AT)
+    offer_code
   end
 end
 

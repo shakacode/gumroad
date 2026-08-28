@@ -178,6 +178,21 @@ RSpec.describe "native product page seed" do
     expect(unrelated_product.reload.name).to eq("My existing product")
   end
 
+  it "keeps fixture purchase discounts unavailable to storefront buyers" do
+    load(seed_file, true)
+
+    offer_codes = OfferCode.where(code: "native-page-review")
+    purchase_code_ids = Purchase.joins(:link)
+      .where(links: { unique_permalink: unique_permalinks })
+      .distinct
+      .pluck(:offer_code_id)
+
+    expect(offer_codes.count).to eq(2)
+    expect(offer_codes).to all(be_deleted)
+    expect(purchase_code_ids).to match_array(offer_codes.ids)
+    expect { load(seed_file, true) }.not_to change(offer_codes, :count)
+  end
+
   it "repairs a same-named preview whose contents do not match the fixture" do
     load(seed_file, true)
     product = Link.fetch_leniently("O365IT")
@@ -188,6 +203,32 @@ RSpec.describe "native product page seed" do
 
     expected_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.png")).base64digest
     expect(preview.reload.file.blob.checksum).to eq(expected_checksum)
+  end
+
+  it "keeps the old preview intact when replacement rolls back" do
+    load(seed_file, true)
+    preview = Link.fetch_leniently("O365IT").display_asset_previews.first
+    preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.png", content_type: "image/png")
+    stale_blob = preview.reload.file.blob
+    fixture_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.png")).base64digest
+    deleted_keys = []
+    replacement_key = nil
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:delete) { |blob| deleted_keys << blob.key }
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:update!).and_wrap_original do |method, *args|
+      blob = method.receiver
+      if blob.filename.to_s == "microsoft-365.png" && blob.checksum == fixture_checksum
+        replacement_key = blob.key
+        raise "preview metadata failure"
+      end
+
+      method.call(*args)
+    end
+
+    expect { load(seed_file, true) }.to raise_error("preview metadata failure")
+
+    expect(preview.reload.file.blob_id).to eq(stale_blob.id)
+    expect(deleted_keys).to include(replacement_key)
+    expect(deleted_keys).not_to include(stale_blob.key)
   end
 
   it "refuses to infer ownership from the fixture seller email" do

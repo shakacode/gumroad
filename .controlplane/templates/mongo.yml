@@ -1,0 +1,84 @@
+kind: volumeset
+name: "{{APP_NAME}}-mongo-vs"
+spec:
+  autoscaling:
+    maxCapacity: 20
+    minFreePercentage: 1
+    scalingFactor: 1.1
+  fileSystemType: ext4
+  initialCapacity: 10
+  performanceClass: general-purpose-ssd
+  snapshots:
+    createFinalSnapshot: true
+    retentionDuration: 7d
+
+---
+kind: identity
+name: "{{APP_NAME}}-mongo-identity"
+
+---
+kind: policy
+name: "{{APP_NAME}}-mongo-access"
+bindings:
+  - permissions:
+      - reveal
+    principalLinks:
+      - "//gvc/{{APP_NAME}}/identity/{{APP_NAME}}-mongo-identity"
+      - "{{APP_IDENTITY_LINK}}"
+targetKind: secret
+targetLinks:
+  - "//secret/{{APP_NAME}}-mongo"
+
+---
+kind: workload
+name: mongo
+spec:
+  type: stateful
+  containers:
+    - name: mongo
+      cpu: 300m
+      memory: 512Mi
+      image: mongo:4.0.19
+      inheritEnv: false
+      args:
+        - --smallfiles
+        - --bind_ip_all
+      env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "cpln://secret/{{APP_NAME}}-mongo.username"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "cpln://secret/{{APP_NAME}}-mongo.password"
+      ports:
+        - number: 27017
+          protocol: tcp
+      volumes:
+        - uri: "cpln://volumeset/{{APP_NAME}}-mongo-vs"
+          path: /data/db
+          recoveryPolicy: retain
+      livenessProbe:
+        tcpSocket:
+          port: 27017
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 3
+      readinessProbe:
+        tcpSocket:
+          port: 27017
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+  identityLink: "//identity/{{APP_NAME}}-mongo-identity"
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc

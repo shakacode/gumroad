@@ -166,13 +166,9 @@ module ShakaPerfDiscoverSeed
   end
 
   def fixture_offer_code!(seller)
-    seller.offer_codes.universal.alive.find_by(code: "shakaperf-discover") ||
-      OfferCode.create!(
-        user: seller,
-        universal: true,
-        amount_percentage: 100,
-        code: "shakaperf-discover",
-      )
+    offer_code = seller.offer_codes.universal.where(code: "shakaperf-discover").order(:id).first_or_initialize
+    offer_code.update!(amount_cents: nil, amount_percentage: 100, deleted_at: CREATED_AT)
+    offer_code
   end
 
   def catalog_digest

@@ -15,7 +15,7 @@ module ShakaPerfSellerProfileSeed
   VERSION = 1
   VERSION_KEY = "fixture_version"
   SELLER_EMAIL = "shakaperf-profile@example.com"
-  SELLER_USERNAME = "shakaperfprofile"
+  SELLER_USERNAME = ENV.fetch("BENCHMARK_SELLER_USERNAME", "shakaperfprofile")
   CREATED_AT = Time.utc(2026, 2, 1)
   MEDIA_PATH = Rails.root.join("public/native-product-page-fixture")
   COVER_FILES = %w[microsoft-365.png powershell.png purview.png power-platform.png].freeze
@@ -61,6 +61,7 @@ module ShakaPerfSellerProfileSeed
   module_function
 
   def run!
+    uploaded_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "ShakaPerf seller profile seed may only run in development, test, or benchmark"
     end
@@ -68,7 +69,7 @@ module ShakaPerfSellerProfileSeed
     raise "ShakaPerf seller profile catalog definition changed" unless catalog_digest == CATALOG_DIGEST
 
     ActiveRecord::Base.transaction do
-      seller = seed_seller!
+      seller = seed_seller!(uploaded_blobs:)
       products = []
       products.concat(seed_simple_products!(seller:))
       products.concat(seed_variant_products!(seller:))
@@ -81,9 +82,12 @@ module ShakaPerfSellerProfileSeed
       puts "Seeded ShakaPerf profile with #{products.size} products:"
       puts "http://#{SELLER_USERNAME}.localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/"
     end
+  rescue
+    delete_uploaded_blobs(uploaded_blobs)
+    raise
   end
 
-  def seed_seller!
+  def seed_seller!(uploaded_blobs:)
     seller = User.find_by(email: SELLER_EMAIL)
     if seller && seller.json_data[OWNER_KEY] != OWNER
       raise "Refusing to overwrite non-fixture user with email #{SELLER_EMAIL.inspect}"
@@ -106,23 +110,32 @@ module ShakaPerfSellerProfileSeed
     seller.json_data[VERSION_KEY] = VERSION
     seller.password = SecureRandom.hex(24) if seller.new_record?
     seller.save!
-    attach_avatar!(seller)
+    attach_avatar!(seller, uploaded_blobs:)
     seller
   end
 
-  def attach_avatar!(seller)
+  def attach_avatar!(seller, uploaded_blobs:)
     fixture = "luis-furushio-profile.png"
     fixture_path = MEDIA_PATH.join(fixture)
     return if seller.avatar.attached? &&
       seller.avatar.filename.to_s == fixture &&
       seller.avatar.blob.checksum == Digest::MD5.file(fixture_path).base64digest
 
-    seller.avatar.purge if seller.avatar.attached?
     blob = fixture_path.open("rb") do |file|
       ActiveStorage::Blob.create_and_upload!(io: file, filename: fixture, content_type: "image/png", identify: false)
     end
+    uploaded_blobs << blob
     blob.update!(metadata: blob.metadata.merge("identified" => true, "analyzed" => true, "width" => 400, "height" => 400))
     seller.avatar.attach(blob)
+  end
+
+  def delete_uploaded_blobs(uploaded_blobs)
+    # The database rollback removes blob rows, but remote objects need explicit cleanup.
+    uploaded_blobs.each do |blob|
+      blob.delete
+    rescue StandardError
+      warn "Failed to delete an uploaded seller profile fixture after rollback"
+    end
   end
 
   def seed_simple_products!(seller:)

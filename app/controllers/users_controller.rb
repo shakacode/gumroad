@@ -448,6 +448,7 @@ class UsersController < ApplicationController
 
     def check_if_needs_redirect
       return if request.format.json?
+      return if GumroadDomainConstraint.control_plane_branch_host?(request.host)
 
       if !@is_user_custom_domain && @user.subdomain_with_protocol.present?
         redirect_to root_url(host: @user.subdomain_with_protocol, params: request.query_parameters),

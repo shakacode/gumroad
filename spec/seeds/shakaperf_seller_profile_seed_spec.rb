@@ -139,4 +139,32 @@ RSpec.describe "ShakaPerf seller profile seed" do
     fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
     expect(seller.reload.avatar.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
   end
+
+  it "keeps the old avatar intact when replacement rolls back" do
+    Taxonomy::Seeder.new.perform
+    load(seed_file, true)
+    seller = User.find_by!(email: seller_email)
+    seller.avatar.attach(io: StringIO.new("stale avatar"), filename: "luis-furushio-profile.png", content_type: "image/png")
+    stale_blob = seller.reload.avatar.blob
+    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
+    fixture_checksum = Digest::MD5.file(fixture).base64digest
+    deleted_keys = []
+    replacement_key = nil
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:delete) { |blob| deleted_keys << blob.key }
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:update!).and_wrap_original do |method, *args|
+      blob = method.receiver
+      if blob.filename.to_s == "luis-furushio-profile.png" && blob.checksum == fixture_checksum
+        replacement_key = blob.key
+        raise "avatar metadata failure"
+      end
+
+      method.call(*args)
+    end
+
+    expect { load(seed_file, true) }.to raise_error("avatar metadata failure")
+
+    expect(seller.reload.avatar.blob_id).to eq(stale_blob.id)
+    expect(deleted_keys).to include(replacement_key)
+    expect(deleted_keys).not_to include(stale_blob.key)
+  end
 end
