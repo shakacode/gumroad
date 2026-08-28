@@ -26,6 +26,7 @@ RSpec.describe "Control Plane image and secret bootstrap" do
 
     expect(asset_build).not_to be_nil
     expect(asset_build[:environment]).to start_with("export NODE_OPTIONS=--max-old-space-size=4096")
+    expect(asset_build[:environment]).to include("VITE_RUBY_ASSET_HOST=''")
     expect(asset_build[:environment]).to end_with("SKIP_BRANCH_APP_ES_INDEX_SETUP=true && \\\n    ")
   end
 

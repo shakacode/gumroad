@@ -62,6 +62,7 @@ COPY . ./
 # These values exist only in this layer's process so runtime configuration can
 # never inherit build placeholders.
 RUN export NODE_OPTIONS=--max-old-space-size=4096 \
+    VITE_RUBY_ASSET_HOST='' \
     SECRET_KEY_BASE=build-placeholder-secret-key-base \
     DEVISE_SECRET_KEY=build-placeholder-devise-secret-key \
     OBFUSCATE_IDS_CIPHER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
