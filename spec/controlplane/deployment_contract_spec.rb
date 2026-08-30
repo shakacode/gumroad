@@ -239,18 +239,19 @@ RSpec.describe "gumroad-rorp Control Plane contract" do
     guide = root.join("docs/control-plane-benchmark-deployment.md").read
 
     expect(guide).to include(
-      "shaka-perf-demo-storage",
       "benchmarks/gumroad-rorp/",
       "public-files.gumroad-rorp.reactonrails.com",
       "S3_ENDPOINT",
       "AWS_ACCESS_KEY_ID",
       "AWS_SECRET_ACCESS_KEY",
+      "S3_BUCKET",
       "before `setup-app`",
     )
     expect(guide).to include("write/read/delete")
     expect(guide).to include("exact proposed branch head", "before merge")
     expect(guide).to include("the existing `AWS_S3_*` local MinIO configuration is unchanged")
     expect(guide).to include("gumroad-rorp-secrets", "operator-supplied")
+    expect(guide).not_to include("shaka-perf-demo-storage")
     expect(guide).not_to include("Rails proxies media", "fixture media is proxied by Rails")
     expect(guide).not_to match(/benchmark MinIO|MinIO workload|MinIO volume/i)
     expect(guide).not_to match(/creates? (?:the )?(?:R2 )?bucket/i)
