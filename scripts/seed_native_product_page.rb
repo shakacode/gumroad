@@ -489,7 +489,11 @@ module NativeProductPageSeed
       fixture_path = Rails.root.join("public/native-product-page-fixture", image)
       fixture_checksum = Digest::MD5.file(fixture_path).base64digest
       content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
-      unless preview.file.attached? && preview.file.filename.to_s == image && preview.file.blob.checksum == fixture_checksum
+      unless preview.file.attached? &&
+          preview.file.filename.to_s == image &&
+          preview.file.blob.checksum == fixture_checksum &&
+          preview.file.blob.service_name == ActiveStorage::Blob.service.name.to_s &&
+          preview.file.blob.service.exist?(preview.file.blob.key)
         blob = fixture_path.open("rb") do |file|
           ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
         end

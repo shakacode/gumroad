@@ -205,6 +205,38 @@ RSpec.describe "native product page seed" do
     expect(preview.reload.file.blob.checksum).to eq(expected_checksum)
   end
 
+  it "reattaches a matching preview when its object is missing from the current service" do
+    load(seed_file, true)
+    preview = Link.fetch_leniently("O365IT").display_asset_previews.first
+    missing_blob = preview.file.blob
+    service = missing_blob.service
+    allow(service).to receive(:exist?).and_return(true)
+    allow(service).to receive(:exist?).with(missing_blob.key).and_return(false)
+
+    load(seed_file, true)
+
+    fixture = Rails.root.join("public/native-product-page-fixture/microsoft-365.png")
+    expect(preview.reload.file.blob).not_to eq(missing_blob)
+    expect(preview.file.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
+  end
+
+  it "reattaches a matching preview recorded against a stale service" do
+    load(seed_file, true)
+    preview = Link.fetch_leniently("O365IT").display_asset_previews.first
+    stale_blob = preview.file.blob
+    stale_blob.update_column(:service_name, "benchmark")
+    allow(ActiveStorage::Blob.services).to receive(:fetch).and_call_original
+    expect(ActiveStorage::Blob.services).not_to receive(:fetch).with("benchmark")
+
+    load(seed_file, true)
+
+    replacement_blob = preview.reload.file.blob
+    current_service = ActiveStorage::Blob.service
+    expect(replacement_blob).not_to eq(stale_blob)
+    expect(replacement_blob.service_name).to eq(current_service.name.to_s)
+    expect(current_service.exist?(replacement_blob.key)).to be(true)
+  end
+
   it "keeps the old preview intact when replacement rolls back" do
     load(seed_file, true)
     preview = Link.fetch_leniently("O365IT").display_asset_previews.first

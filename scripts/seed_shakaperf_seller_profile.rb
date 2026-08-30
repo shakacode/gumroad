@@ -119,7 +119,9 @@ module ShakaPerfSellerProfileSeed
     fixture_path = MEDIA_PATH.join(fixture)
     return if seller.avatar.attached? &&
       seller.avatar.filename.to_s == fixture &&
-      seller.avatar.blob.checksum == Digest::MD5.file(fixture_path).base64digest
+      seller.avatar.blob.checksum == Digest::MD5.file(fixture_path).base64digest &&
+      seller.avatar.blob.service_name == ActiveStorage::Blob.service.name.to_s &&
+      seller.avatar.blob.service.exist?(seller.avatar.blob.key)
 
     blob = fixture_path.open("rb") do |file|
       ActiveStorage::Blob.create_and_upload!(io: file, filename: fixture, content_type: "image/png", identify: false)
