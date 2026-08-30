@@ -142,6 +142,41 @@ RSpec.describe "ShakaPerf seller profile seed" do
     expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
   end
 
+  it "reattaches a matching avatar when its object is missing from the current service" do
+    Taxonomy::Seeder.new.perform
+    load(seed_file, true)
+    seller = User.find_by!(email: seller_email)
+    missing_blob = seller.avatar.blob
+    service = missing_blob.service
+    allow(service).to receive(:exist?).and_return(true)
+    allow(service).to receive(:exist?).with(missing_blob.key).and_return(false)
+
+    load(seed_file, true)
+
+    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
+    expect(seller.reload.avatar.blob).not_to eq(missing_blob)
+    expect(seller.avatar.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
+  end
+
+  it "reattaches a matching avatar recorded against a stale service" do
+    Taxonomy::Seeder.new.perform
+    load(seed_file, true)
+    seller = User.find_by!(email: seller_email)
+    stale_blob = seller.avatar.blob
+    stale_blob.update_column(:service_name, "benchmark")
+    allow(ActiveStorage::Blob.services).to receive(:fetch).and_call_original
+    expect(ActiveStorage::Blob.services).not_to receive(:fetch).with("benchmark")
+
+    load(seed_file, true)
+
+    replacement_blob = seller.reload.avatar.blob
+    current_service = ActiveStorage::Blob.service
+    expect(replacement_blob).not_to eq(stale_blob)
+    expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
+    expect(replacement_blob.service_name).to eq(current_service.name.to_s)
+    expect(current_service.exist?(replacement_blob.key)).to be(true)
+  end
+
   it "keeps the old avatar intact when replacement rolls back" do
     Taxonomy::Seeder.new.perform
     load(seed_file, true)

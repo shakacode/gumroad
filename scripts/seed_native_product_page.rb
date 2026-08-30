@@ -492,7 +492,11 @@ module NativeProductPageSeed
       fixture_path = Rails.root.join("public/native-product-page-fixture", image)
       fixture_checksum = Digest::MD5.file(fixture_path).base64digest
       content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
-      unless preview.file.attached? && preview.file.filename.to_s == image && preview.file.blob.checksum == fixture_checksum
+      unless preview.file.attached? &&
+          preview.file.filename.to_s == image &&
+          preview.file.blob.checksum == fixture_checksum &&
+          preview.file.blob.service_name == ActiveStorage::Blob.service.name.to_s &&
+          preview.file.blob.service.exist?(preview.file.blob.key)
         replaced_blob = preview.file.blob if preview.file.attached?
         blob = fixture_path.open("rb") do |file|
           ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
@@ -525,7 +529,10 @@ module NativeProductPageSeed
   end
 
   def purge_replaced_blobs(replaced_blobs)
-    replaced_blobs.each(&:purge)
+    current_service_name = ActiveStorage::Blob.service.name.to_s
+    replaced_blobs.each do |blob|
+      blob.service_name == current_service_name ? blob.purge : blob.destroy!
+    end
   end
 
   def seed_seller_profile!(seller:, products:)

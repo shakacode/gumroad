@@ -122,7 +122,9 @@ module ShakaPerfSellerProfileSeed
     fixture_path = MEDIA_PATH.join(fixture)
     return if seller.avatar.attached? &&
       seller.avatar.filename.to_s == fixture &&
-      seller.avatar.blob.checksum == Digest::MD5.file(fixture_path).base64digest
+      seller.avatar.blob.checksum == Digest::MD5.file(fixture_path).base64digest &&
+      seller.avatar.blob.service_name == ActiveStorage::Blob.service.name.to_s &&
+      seller.avatar.blob.service.exist?(seller.avatar.blob.key)
 
     replaced_blob = seller.avatar.blob if seller.avatar.attached?
     blob = fixture_path.open("rb") do |file|
@@ -144,7 +146,10 @@ module ShakaPerfSellerProfileSeed
   end
 
   def purge_replaced_blobs(replaced_blobs)
-    replaced_blobs.each(&:purge)
+    current_service_name = ActiveStorage::Blob.service.name.to_s
+    replaced_blobs.each do |blob|
+      blob.service_name == current_service_name ? blob.purge : blob.destroy!
+    end
   end
 
   def seed_simple_products!(seller:)
