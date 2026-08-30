@@ -15,6 +15,7 @@ export CPLN_ORG=shakacode-open-source-examples-staging
 export S3_ENDPOINT='https://<account-id>.r2.cloudflarestorage.com'
 export AWS_ACCESS_KEY_ID='<opaque-r2-access-key-id>'
 export AWS_SECRET_ACCESS_KEY='<opaque-r2-secret-access-key>'
+export S3_BUCKET='<surface-r2-bucket>'
 
 bin/prepare-control-plane-benchmark-secrets --org "$CPLN_ORG"
 cpflow setup-app \
@@ -25,9 +26,9 @@ cpflow setup-app \
 
 Authenticate `cpln` through its saved profile or `CPLN_TOKEN`; the bootstrap verifies org access without requiring the token environment variable specifically.
 
-The `shaka-perf-demo-storage` bucket must exist and remain private before `setup-app`; this deployment never creates or deletes it. The credentials must be authorized for that bucket. Surface isolation is enforced by the Active Storage key namespace, while the app-owned Control Plane secret limits credential reveal to this app identity. Workloads expose the dictionary only through `BENCHMARK_STORAGE_S3_*` variables; the existing `AWS_S3_*` local MinIO configuration is unchanged. Treat all three exported values as opaque secrets and unset them after bootstrap.
+The operator-supplied bucket must exist and its `public-files.gumroad-inertia.reactonrails.com` custom domain must be active before `setup-app`; this deployment never creates or deletes the bucket. The credentials must be authorized for that bucket. Surface isolation is enforced by the Active Storage key namespace, while the app-owned Control Plane secret limits credential reveal to this app identity. Workloads expose the dictionary only through `BENCHMARK_STORAGE_S3_*` variables; the existing `AWS_S3_*` local MinIO configuration is unchanged. Treat the credential values as opaque secrets and unset all four exports after bootstrap.
 
-Run the backing-service bootstrap before `setup-app`. It creates only `gumroad-inertia-mysql`, `gumroad-inertia-mongo`, and `gumroad-inertia-r2` when absent. R2 values are imported without printing them; the dictionary fixes the bucket to `shaka-perf-demo-storage`, while Rails adds the surface namespace to every key. Existing dictionaries are validated and never rotated. Changing initialization credentials after persistent MySQL or Mongo volumes exist can desynchronize the running service, and R2 credential changes require an explicit operator action.
+Run the backing-service bootstrap before `setup-app`. It creates only `gumroad-inertia-mysql`, `gumroad-inertia-mongo`, and `gumroad-inertia-r2` when absent. R2 values, including `S3_BUCKET`, are imported without printing them, while Rails adds the surface namespace to every key. Existing dictionaries are validated and never rotated. Changing initialization credentials after persistent MySQL or Mongo volumes exist can desynchronize the running service, and R2 credential or bucket changes require an explicit operator action.
 
 `cpflow setup-app` owns the standard application-secret lifecycle. It creates `gumroad-inertia-secrets`, `gumroad-inertia-secrets-policy`, `gumroad-inertia-identity`, and the identity's `reveal` binding. After setup and before the first image deployment, populate `gumroad-inertia-secrets` through Control Plane's secret management with operator-supplied values for `SECRET_KEY_BASE`, `DEVISE_SECRET_KEY`, `STRONGBOX_GENERAL`, `STRONGBOX_GENERAL_PASSWORD`, `OBFUSCATE_IDS_CIPHER_KEY`, `OBFUSCATE_IDS_NUMERIC_CIPHER_KEY`, and `REACT_ON_RAILS_PRO_LICENSE`. Do not source these values from another application's dictionary, place them in shell history, or add them to repository files. Confirm the policy targets only the app-owned dictionary and grants only the app identity `reveal` access.
 

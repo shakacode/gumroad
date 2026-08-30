@@ -64,13 +64,14 @@ RSpec.describe "Control Plane backing-service secret bootstrap" do
     expect(stderr).to eq("")
   end
 
-  it "imports provided R2 credentials into the fixed private bucket without echoing them" do
+  it "imports provided R2 credentials and bucket without echoing them" do
     stdout, stderr, status, create_call = run_bootstrap(
       r2_exists: false,
       extra_env: {
         "S3_ENDPOINT" => "https://account.r2.cloudflarestorage.com",
         "AWS_ACCESS_KEY_ID" => "opaque-access-key",
         "AWS_SECRET_ACCESS_KEY" => "opaque-secret-key",
+        "S3_BUCKET" => "gumroad-inertia-storage",
       },
     )
 
@@ -81,7 +82,7 @@ RSpec.describe "Control Plane backing-service secret bootstrap" do
       "--entry endpoint=https://account.r2.cloudflarestorage.com",
       "--entry access_key_id=opaque-access-key",
       "--entry secret_access_key=opaque-secret-key",
-      "--entry bucket=shaka-perf-demo-storage",
+      "--entry bucket=gumroad-inertia-storage",
     )
   end
 end
