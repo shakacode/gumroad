@@ -8,6 +8,7 @@ RSpec.describe ActiveStorage::Service::PrefixedS3Service do
     described_class.new(
       bucket: "shaka-perf-demo-storage",
       prefix: "benchmarks/gumroad-rorp/",
+      public_host: "public-files.gumroad-rorp.reactonrails.com",
       access_key_id: "opaque-access-key",
       secret_access_key: "opaque-secret-key",
       endpoint: "https://account.r2.cloudflarestorage.com",
@@ -37,5 +38,17 @@ RSpec.describe ActiveStorage::Service::PrefixedS3Service do
     expect(objects).to receive(:batch_delete!)
 
     service.delete_prefixed("variants/")
+  end
+
+  it "serves prefixed objects through the configured public host" do
+    expect(
+      service.url(
+        "blob-key",
+        expires_in: 5.minutes,
+        disposition: :inline,
+        filename: ActiveStorage::Filename.new("fixture.png"),
+        content_type: "image/png",
+      )
+    ).to eq("https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/blob-key")
   end
 end

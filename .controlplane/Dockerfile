@@ -93,11 +93,13 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     CUSTOM_DOMAIN=gumroad-rorp.reactonrails.com \
     BENCHMARK_PROTOCOL=https \
     BENCHMARK_STORAGE_SERVICE=control_plane_benchmark \
+    CONTROL_PLANE_BENCHMARK=true \
     BENCHMARK_STORAGE_S3_ENDPOINT=http://127.0.0.1:9000 \
     BENCHMARK_STORAGE_S3_ACCESS_KEY_ID=build-placeholder \
     BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY=build-placeholder \
     BENCHMARK_STORAGE_S3_REGION=auto \
     BENCHMARK_STORAGE_S3_BUCKET=gumroad-rorp-public-storage \
+    BENCHMARK_STORAGE_PUBLIC_HOST=public-files.gumroad-rorp.reactonrails.com \
     BENCHMARK_CACHE_NAMESPACE=gumroad-rorp \
     SESSION_COOKIE_DOMAIN='' \
     BRANCH=gumroad-rorp \

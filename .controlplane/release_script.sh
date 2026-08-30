@@ -51,7 +51,7 @@ wait_for_tcp "elasticsearch.${app_name}.cpln.local" 9200 elasticsearch
 log "Preparing the benchmark database"
 ./bin/rails db:prepare || error_exit "Database preparation failed"
 
-log "Verifying private benchmark R2 storage"
+log "Verifying benchmark R2 API access and public delivery"
 ./bin/rails runner scripts/verify_control_plane_benchmark_storage.rb || error_exit "Benchmark R2 storage verification failed"
 
 if [ "${ALLOW_BENCHMARK_SEED:-}" = "true" ]; then

@@ -2,7 +2,7 @@
 
 This deployment is the production-shaped RORP experiment for storefront comparisons. It is intentionally separate from the existing legacy deployment and uses the fixed identity `gumroad-rorp` in `shakacode-open-source-examples-staging`, located in `aws-us-east-2`.
 
-The GVC contains Rails, Sidekiq, and an authenticated React on Rails Pro renderer, plus isolated MySQL, MongoDB, Redis, Elasticsearch, and Memcached workloads. The renderer is private to the GVC and serves cleartext HTTP/2 on port `3800`; Rails reaches it through `REACT_RENDERER_URL`. MySQL, MongoDB, and Elasticsearch use retained volumes. Elasticsearch runs as a single node with its surface-local index data mounted at `/usr/share/elasticsearch/data`; its volumeset takes a final snapshot and retains snapshots for seven days. Fixture media temporarily uses the existing private Cloudflare R2 bucket `shaka-perf-demo-storage`, isolated under the `benchmarks/gumroad-rorp/` object namespace. Rails proxies media rather than exposing private R2 URLs. Sidekiq consumes only the critical, default, low, and mongo queues; benchmark workers do not install the production cron schedule. While `CONTROL_PLANE_BENCHMARK=true`, client middleware drops every enqueue except Elasticsearch indexing, asset-preview processing, video-poster generation, Active Storage purge, and product-cache invalidation workers. Drop logs contain only the event, resolved job class, and queue—never arguments.
+The GVC contains Rails, Sidekiq, and an authenticated React on Rails Pro renderer, plus isolated MySQL, MongoDB, Redis, Elasticsearch, and Memcached workloads. The renderer is private to the GVC and serves cleartext HTTP/2 on port `3800`; Rails reaches it through `REACT_RENDERER_URL`. MySQL, MongoDB, and Elasticsearch use retained volumes. Elasticsearch runs as a single node with its surface-local index data mounted at `/usr/share/elasticsearch/data`; its volumeset takes a final snapshot and retains snapshots for seven days. Fixture media temporarily uses the existing Cloudflare R2 bucket `shaka-perf-demo-storage`, isolated under the `benchmarks/gumroad-rorp/` object namespace and delivered through `public-files.gumroad-rorp.reactonrails.com`; S3 API writes remain private. Sidekiq consumes only the critical, default, low, and mongo queues; benchmark workers do not install the production cron schedule. While `CONTROL_PLANE_BENCHMARK=true`, client middleware drops every enqueue except Elasticsearch indexing, asset-preview processing, video-poster generation, Active Storage purge, and product-cache invalidation workers. Drop logs contain only the event, resolved job class, and queue—never arguments.
 
 The reusable backing-service, Rails, and Sidekiq templates come from the reviewed Inertia baseline. RORP-owned identity, host, renderer transport, storage namespace, and release guards live in `app-rorp.yml`, `renderer.yml`, `controlplane.yml`, and `release_script.sh`.
 
@@ -25,7 +25,7 @@ cpflow setup-app \
 
 Authenticate `cpln` through its saved profile or `CPLN_TOKEN`; the bootstrap verifies org access without requiring the token environment variable specifically.
 
-The `shaka-perf-demo-storage` bucket must exist and remain private before `setup-app`; this deployment never creates or deletes it. The credentials must be authorized for that bucket. Surface isolation is enforced by the Active Storage key namespace, while the app-owned Control Plane secret limits credential reveal to this app identity. Workloads expose the dictionary only through `BENCHMARK_STORAGE_S3_*` variables; the existing `AWS_S3_*` local MinIO configuration is unchanged. Treat all three exported values as opaque secrets and unset them after bootstrap.
+The `shaka-perf-demo-storage` bucket must exist and its `public-files.gumroad-rorp.reactonrails.com` custom domain must be active before `setup-app`; this deployment never creates or deletes it. The credentials must be authorized for that bucket. Surface isolation is enforced by the Active Storage key namespace, while the app-owned Control Plane secret limits credential reveal to this app identity. Workloads expose the dictionary only through `BENCHMARK_STORAGE_S3_*` variables; the existing `AWS_S3_*` local MinIO configuration is unchanged. Treat all three exported values as opaque secrets and unset them after bootstrap.
 
 Run the backing-service bootstrap before `setup-app`. It creates only `gumroad-rorp-mysql`, `gumroad-rorp-mongo`, and `gumroad-rorp-r2` when absent. R2 values are imported without printing them; the dictionary fixes the bucket to `shaka-perf-demo-storage`, while Rails adds the surface namespace to every key. Existing dictionaries are validated and never rotated. Changing initialization credentials after persistent MySQL or Mongo volumes exist can desynchronize the running service, and R2 credential changes require an explicit operator action.
 
@@ -47,7 +47,7 @@ Template reapplication does not replace `setup-app`'s standard secret lifecycle.
 
 ## Build and immutable deployment
 
-Provision/update Control Plane and complete the workload, endpoint, and private R2 checks from the exact proposed branch head before merge. This is a pre-merge gate, not a post-merge deployment step.
+Provision/update Control Plane and complete the workload, endpoint, and R2 delivery checks from the exact proposed branch head before merge. This is a pre-merge gate, not a post-merge deployment step.
 
 cpflow 5.2 builds the configured Dockerfile for `linux/amd64`. Record the exact source revision and let cpflow publish the fixed app image:
 
@@ -90,7 +90,7 @@ cpflow deploy-image \
   --run-release-phase
 ```
 
-`use_digest_image_ref: true` makes Rails, Sidekiq, and the renderer reference the resolved SHA-256 digest rather than a mutable tag. The release waits for all five backing services and checks that the exact app is `gumroad-rorp` and the exact surface is `rorp`. Rails `db:prepare` creates a fresh database from the schema or migrates an existing one without running benchmark seeds. Before fixtures, the release verifies the configured private Active Storage service with a namespaced write/read/delete probe; it never provisions remote storage. The guarded seed phase bootstraps taxonomies, installs the three deterministic fixture sets, and reindexes Elasticsearch. The ordinary image entrypoint only executes the requested process; it never migrates or seeds.
+`use_digest_image_ref: true` makes Rails, Sidekiq, and the renderer reference the resolved SHA-256 digest rather than a mutable tag. The release waits for all five backing services and checks that the exact app is `gumroad-rorp` and the exact surface is `rorp`. Rails `db:prepare` creates a fresh database from the schema or migrates an existing one without running benchmark seeds. Before fixtures, the release verifies private S3 API write/read/delete access and direct public delivery, including delete-to-404, for the namespaced Active Storage service; it never provisions remote storage. The guarded seed phase bootstraps taxonomies, installs the three deterministic fixture sets, and reindexes Elasticsearch. The ordinary image entrypoint only executes the requested process; it never migrates or seeds.
 
 For an image rollback, set the Rails container back to the previously recorded digest reference:
 
@@ -126,7 +126,7 @@ Control Plane first exposes a generated host such as `https://rails-<deployment-
 - product-support endpoints for the deterministic `OITPROS` permalink
 - `/healthcheck`
 
-Confirm static `/vite/` and `/public-rsc/` assets are served by the Rails image, product/Discover/seller responses use the RSC transport, Rails can reach the healthy renderer, fixture media is proxied by Rails from private R2 objects under `benchmarks/gumroad-rorp/`, requests settle without server errors, and Rails, Sidekiq, renderer, plus all five service workloads report ready.
+Confirm static `/vite/` and `/public-rsc/` assets are served by the Rails image, product/Discover/seller responses use the RSC transport, Rails can reach the healthy renderer, fixture media uses direct `public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/` URLs without exposing the R2 API endpoint, purge makes the public object return 404, requests settle without server errors, and Rails, Sidekiq, renderer, plus all five service workloads report ready.
 
 ## Final domains
 
@@ -151,4 +151,4 @@ bash -n bin/prepare-control-plane-benchmark-secrets
 bundle exec rspec -O /dev/null spec/controlplane
 ```
 
-The fixture specs require the repository's local MySQL, MongoDB, Redis, Memcached, and Elasticsearch services; test storage remains local and does not require R2 credentials. A full Docker image build, secret/policy provisioning, private R2 access verification, release job, workload readiness, generated-host smoke test, and final-domain QA require live Docker, R2, or Control Plane access and belong in the deployment validation run. Provisioning the bucket is deliberately outside that run.
+The fixture specs require the repository's local MySQL, MongoDB, Redis, Memcached, and Elasticsearch services; test storage remains local and does not require R2 credentials. A full Docker image build, secret/policy provisioning, R2 API and public-delivery verification, release job, workload readiness, generated-host smoke test, and final-domain QA require live Docker, R2, or Control Plane access and belong in the deployment validation run. Provisioning the bucket is deliberately outside that run.

@@ -53,6 +53,7 @@ RSpec.describe "gumroad-rorp Control Plane contract" do
     expect(env.dig("ANYCABLE_REDIS_URL", "value")).to eq("redis://redis.{{APP_NAME}}.cpln.local:6379/5")
     expect(env.dig("BENCHMARK_STORAGE_SERVICE", "value")).to eq("control_plane_benchmark")
     expect(env.dig("BENCHMARK_STORAGE_PREFIX", "value")).to eq("benchmarks/gumroad-rorp")
+    expect(env.dig("BENCHMARK_STORAGE_PUBLIC_HOST", "value")).to eq("public-files.gumroad-rorp.reactonrails.com")
     expect(env.dig("BENCHMARK_STORAGE_S3_ENDPOINT", "value")).to eq("cpln://secret/{{APP_NAME}}-r2.endpoint")
     expect(env.dig("BENCHMARK_STORAGE_S3_BUCKET", "value")).to eq("cpln://secret/{{APP_NAME}}-r2.bucket")
     expect(env.dig("BENCHMARK_STORAGE_S3_REGION", "value")).to eq("auto")
@@ -234,12 +235,13 @@ RSpec.describe "gumroad-rorp Control Plane contract" do
     expect(surface).not_to match(/minio/i)
   end
 
-  it "documents the pre-provisioned private R2 storage contract" do
+  it "documents the pre-provisioned R2 public-delivery contract" do
     guide = root.join("docs/control-plane-benchmark-deployment.md").read
 
     expect(guide).to include(
       "shaka-perf-demo-storage",
       "benchmarks/gumroad-rorp/",
+      "public-files.gumroad-rorp.reactonrails.com",
       "S3_ENDPOINT",
       "AWS_ACCESS_KEY_ID",
       "AWS_SECRET_ACCESS_KEY",
@@ -249,6 +251,7 @@ RSpec.describe "gumroad-rorp Control Plane contract" do
     expect(guide).to include("exact proposed branch head", "before merge")
     expect(guide).to include("the existing `AWS_S3_*` local MinIO configuration is unchanged")
     expect(guide).to include("gumroad-rorp-secrets", "operator-supplied")
+    expect(guide).not_to include("Rails proxies media", "fixture media is proxied by Rails")
     expect(guide).not_to match(/benchmark MinIO|MinIO workload|MinIO volume/i)
     expect(guide).not_to match(/creates? (?:the )?(?:R2 )?bucket/i)
   end
