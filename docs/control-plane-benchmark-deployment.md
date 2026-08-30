@@ -131,15 +131,15 @@ Confirm static `/vite/` and `/public-rsc/` assets are served by the Rails image,
 
 ## Final domains
 
-DNS and Control Plane domains are intentionally not created by this change. After generated-host verification, provision a domain for `gumroad-rorp.reactonrails.com` that targets the `gumroad-rorp/rails` workload and accepts all subdomains. The final verification set is:
+Cloudflare keeps the root CNAME and a DNS-only `*.gumroad-rorp` CNAME to the generated Rails host. Control Plane routes the root plus one explicit domain for each benchmark prefix to `gumroad-rorp/rails`; the root domain has `acceptAllSubdomains: false`. The final verification set is:
 
 - `https://gumroad-rorp.reactonrails.com/` for the About page
 - `https://gumroad-rorp.reactonrails.com/discover`
 - `https://gumroad-rorp.reactonrails.com/software-development/programming`
 - `https://gumroad-rorp.reactonrails.com/l/O365IT?layout=discover`
-- `https://seller.gumroad-rorp.reactonrails.com/`
+- `/` and product/support routes on `seller`, `o365itpros`, `luisfurushio`, and `shakaperfdiscovera` through `shakaperfdiscoverd`
 
-The wildcard certificate/routing requirement is `*.gumroad-rorp.reactonrails.com`; the exact seller hostname must be covered. `SESSION_COOKIE_DOMAIN` is deliberately blank so cookies remain host-only, and `SESSION_COOKIE_SECURE=true` keeps benchmark cookies HTTPS-only.
+Each Control Plane domain uses its own HTTP-01 certificate; there is no wildcard certificate. `SESSION_COOKIE_DOMAIN` is deliberately blank so cookies remain host-only, and `SESSION_COOKIE_SECURE=true` keeps benchmark cookies HTTPS-only.
 
 ## Local contract checks
 
