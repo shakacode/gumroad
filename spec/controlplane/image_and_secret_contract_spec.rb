@@ -57,11 +57,13 @@ RSpec.describe "Control Plane image and secret bootstrap" do
     dockerfile = root.join(".controlplane/Dockerfile").read
 
     expect(dockerfile).to include(
+      "BENCHMARK_STORAGE_SERVICE=benchmark",
       "BENCHMARK_STORAGE_S3_ENDPOINT=http://127.0.0.1:9000",
       "BENCHMARK_STORAGE_S3_ACCESS_KEY_ID=build-placeholder",
       "BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY=build-placeholder",
       "BENCHMARK_STORAGE_S3_REGION=auto",
       "BENCHMARK_STORAGE_S3_BUCKET=gumroad-inertia-public-storage",
+      "BENCHMARK_STORAGE_PUBLIC_HOST=public-files.gumroad-inertia.reactonrails.com",
     )
     expect(dockerfile).not_to match(/^\s+AWS_S3_ENDPOINT=/)
   end

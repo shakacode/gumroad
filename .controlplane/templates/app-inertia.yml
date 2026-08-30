@@ -32,6 +32,8 @@ spec:
       value: benchmark
     - name: BENCHMARK_STORAGE_PREFIX
       value: benchmarks/gumroad-inertia
+    - name: BENCHMARK_STORAGE_PUBLIC_HOST
+      value: public-files.gumroad-inertia.reactonrails.com
     - name: BENCHMARK_CACHE_NAMESPACE
       value: gumroad-inertia
     - name: BENCHMARK_SELLER_USERNAME

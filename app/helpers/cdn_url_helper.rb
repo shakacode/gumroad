@@ -2,10 +2,6 @@
 
 module CdnUrlHelper
   def storage_url_for(file)
-    if Rails.env.benchmark?
-      return Rails.application.routes.url_helpers.rails_storage_proxy_path(file, only_path: true)
-    end
-
     file.url
   end
 

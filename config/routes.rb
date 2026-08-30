@@ -16,6 +16,7 @@ else
 end
 
 Rails.application.routes.draw do
+  # Retained benchmark caches and rollback images can still reference proxy URLs during the R2 transition.
   scope ActiveStorage.routes_prefix do
     get "/blobs/proxy/:signed_id/*filename" => "active_storage/blobs/proxy#show"
     get "/representations/proxy/:signed_blob_id/:variation_key/*filename" => "active_storage/representations/proxy#show"
