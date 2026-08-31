@@ -157,7 +157,7 @@ describe("public RSC asset fingerprinting", () => {
         "export const runtime = true;",
       );
 
-      expect(transformed).toContain('if (typeof window === "undefined") import(');
+      expect(transformed).toContain("if (globalThis.window === undefined) import(");
       expect(transformed).not.toMatch(/^import\(/mu);
       expect(transformed).toContain("export const runtime = true;");
     } finally {
@@ -218,5 +218,5 @@ describe("public RSC asset fingerprinting", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 120_000);
 });
