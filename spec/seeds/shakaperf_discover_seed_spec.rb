@@ -72,6 +72,7 @@ RSpec.describe "ShakaPerf Discover seed" do
     expect(thumbnails.map { _1.file.blob.metadata.slice("width", "height") }.uniq).to eq(
       [{ "width" => 600, "height" => 600 }],
     )
+    expect(thumbnails.map { _1.file.blob.content_type }.uniq).to eq(["image/webp"])
     expect(thumbnails).to all(satisfy do |thumbnail|
       thumbnail.thumbnail_variant.variation.transformations[:resize_to_limit] == [600, 600]
     end)
@@ -80,16 +81,20 @@ RSpec.describe "ShakaPerf Discover seed" do
     expect(thumbnail_urls.map { URI(_1).path.split("/").last }).to eq(
       thumbnails.map { _1.thumbnail_variant.image.blob.key },
     )
+    expect(thumbnails.map { _1.thumbnail_variant.image.blob.content_type }.uniq).to eq(["image/webp"])
+    expect(thumbnails.map { _1.thumbnail_variant.image.blob.service_name }.uniq).to eq(
+      [ActiveStorage::Blob.service.name.to_s],
+    )
     expect(cards.map { _1.dig(:ratings, :count) }).to all(be >= 14)
     expect(cards.map { _1.dig(:seller, :name) }.uniq.size).to eq(4)
     expect(
-      %w[microsoft-365.png powershell.png purview.png power-platform.png]
+      %w[microsoft-365-thumbnail.webp powershell-thumbnail.webp purview-thumbnail.webp power-platform-thumbnail.webp]
         .index_with { Rails.root.join("public/native-product-page-fixture", _1).size },
     ).to eq(
-      "microsoft-365.png" => 920_947,
-      "powershell.png" => 330_858,
-      "purview.png" => 1_273_883,
-      "power-platform.png" => 1_127_025,
+      "microsoft-365-thumbnail.webp" => 48_216,
+      "powershell-thumbnail.webp" => 29_678,
+      "purview-thumbnail.webp" => 55_828,
+      "power-platform-thumbnail.webp" => 38_762,
     )
 
     expect { load(seed_file, true) }

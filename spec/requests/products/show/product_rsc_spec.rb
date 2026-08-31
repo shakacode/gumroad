@@ -50,7 +50,7 @@ describe "Product React on Rails rendering", :product_rsc_renderer, type: :syste
   def create_local_image_cover(*links)
     links = [product] if links.empty?
     links.each { create(:asset_preview, link: _1) }
-    cover_url = "/native-product-page-fixture/residential-guide-thumbnail.jpg"
+    cover_url = "/native-product-page-fixture/residential-guide-thumbnail.webp"
     allow_any_instance_of(AssetPreview).to receive(:as_json).and_wrap_original do |method, *args|
       method.call(*args).merge("url" => cover_url, "original_url" => cover_url)
     end

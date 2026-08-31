@@ -29,8 +29,20 @@ RSpec.describe "ShakaPerf seller profile seed" do
     expect(seller).to have_attributes(name: "ShakaPerf Microsoft 365 Lab", username: "shakaperfprofile")
     expect(seller.json_data).to include("fixture_owner" => "shakaperf-seller-profile", "fixture_version" => 2)
     expect(seller.avatar).to be_attached
-    expect(seller.avatar).to have_attributes(filename: ActiveStorage::Filename.new("luis-furushio-profile.png"), byte_size: 141_657)
-    expect(seller.avatar.blob.metadata).to include("width" => 400, "height" => 400)
+    expect(seller.avatar).to have_attributes(
+      filename: ActiveStorage::Filename.new("luis-furushio-profile.webp"),
+      content_type: "image/webp",
+      byte_size: 18_122,
+    )
+    expect(seller.avatar.blob.metadata).to include(
+      "benchmark_delivery_version" => 1,
+      "width" => 400,
+      "height" => 400,
+    )
+    expect(seller.avatar_variant.image.blob).to have_attributes(
+      content_type: "image/webp",
+      service_name: seller.avatar.blob.service_name,
+    )
 
     products = seller.products.order(created_at: :desc)
     expect(products.size).to eq(22)
@@ -90,6 +102,7 @@ RSpec.describe "ShakaPerf seller profile seed" do
     expect(thumbnails.map { _1.file.blob.metadata.slice("width", "height") }.uniq).to eq(
       [{ "width" => 600, "height" => 600 }],
     )
+    expect(thumbnails.map { _1.file.blob.content_type }.uniq).to eq(["image/webp"])
     expect(thumbnails).to all(satisfy do |thumbnail|
       thumbnail.thumbnail_variant.variation.transformations[:resize_to_limit] == [600, 600]
     end)
@@ -98,14 +111,18 @@ RSpec.describe "ShakaPerf seller profile seed" do
     expect(thumbnail_urls.map { URI(_1).path.split("/").last }).to eq(
       thumbnails.map { _1.thumbnail_variant.image.blob.key },
     )
+    expect(thumbnails.map { _1.thumbnail_variant.image.blob.content_type }.uniq).to eq(["image/webp"])
+    expect(thumbnails.map { _1.thumbnail_variant.image.blob.service_name }.uniq).to eq(
+      [ActiveStorage::Blob.service.name.to_s],
+    )
     expect(
-      %w[microsoft-365.png powershell.png purview.png power-platform.png]
+      %w[microsoft-365-thumbnail.webp powershell-thumbnail.webp purview-thumbnail.webp power-platform-thumbnail.webp]
         .index_with { Rails.root.join("public/native-product-page-fixture", _1).size },
     ).to eq(
-      "microsoft-365.png" => 920_947,
-      "powershell.png" => 330_858,
-      "purview.png" => 1_273_883,
-      "power-platform.png" => 1_127_025,
+      "microsoft-365-thumbnail.webp" => 48_216,
+      "powershell-thumbnail.webp" => 29_678,
+      "purview-thumbnail.webp" => 55_828,
+      "power-platform-thumbnail.webp" => 38_762,
     )
 
     original_order = section.shown_products
@@ -141,18 +158,42 @@ RSpec.describe "ShakaPerf seller profile seed" do
     expect(product.reload.name).to eq("Unrelated product")
   end
 
-  it "repairs a same-named avatar whose contents differ from the fixture" do
+  it "repairs a same-named avatar with an incorrect content type" do
     Taxonomy::Seeder.new.perform
     load(seed_file, true)
     seller = User.find_by!(email: seller_email)
-    seller.avatar.attach(io: StringIO.new("stale avatar"), filename: "luis-furushio-profile.png", content_type: "image/png")
-    stale_blob = seller.reload.avatar.blob
+    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.webp")
+    stale_blob = fixture.open("rb") do |file|
+      ActiveStorage::Blob.create_and_upload!(
+        io: file,
+        filename: "luis-furushio-profile.webp",
+        content_type: "image/png",
+        identify: false,
+      )
+    end
+    seller.avatar.attach(stale_blob)
 
     load(seed_file, true)
 
-    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
     expect(seller.reload.avatar.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
     expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
+    expect(seller.avatar.content_type).to eq("image/webp")
+  end
+
+  it "replaces an avatar uploaded under the previous delivery contract" do
+    Taxonomy::Seeder.new.perform
+    load(seed_file, true)
+    seller = User.find_by!(email: seller_email)
+    stale_blob = seller.avatar.blob
+    stale_blob.update!(metadata: stale_blob.metadata.except("benchmark_delivery_version"))
+
+    load(seed_file, true)
+
+    replacement_blob = seller.reload.avatar.blob
+    expect(replacement_blob).not_to eq(stale_blob)
+    expect(replacement_blob.metadata).to include("benchmark_delivery_version" => 1)
+    expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(false)
+    expect(ActiveStorage::Blob.service.exist?(stale_blob.key)).to be(false)
   end
 
   it "reattaches a matching avatar when its object is missing from the current service" do
@@ -166,7 +207,7 @@ RSpec.describe "ShakaPerf seller profile seed" do
 
     load(seed_file, true)
 
-    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
+    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.webp")
     expect(seller.reload.avatar.blob).not_to eq(missing_blob)
     expect(seller.avatar.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
   end
@@ -194,16 +235,16 @@ RSpec.describe "ShakaPerf seller profile seed" do
     Taxonomy::Seeder.new.perform
     load(seed_file, true)
     seller = User.find_by!(email: seller_email)
-    seller.avatar.attach(io: StringIO.new("stale avatar"), filename: "luis-furushio-profile.png", content_type: "image/png")
+    seller.avatar.attach(io: StringIO.new("stale avatar"), filename: "luis-furushio-profile.webp", content_type: "image/png")
     stale_blob = seller.reload.avatar.blob
-    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.png")
+    fixture = Rails.root.join("public/native-product-page-fixture/luis-furushio-profile.webp")
     fixture_checksum = Digest::MD5.file(fixture).base64digest
     deleted_keys = []
     replacement_key = nil
     allow_any_instance_of(ActiveStorage::Blob).to receive(:delete) { |blob| deleted_keys << blob.key }
     allow_any_instance_of(ActiveStorage::Blob).to receive(:update!).and_wrap_original do |method, *args|
       blob = method.receiver
-      if blob.filename.to_s == "luis-furushio-profile.png" && blob.checksum == fixture_checksum
+      if blob.filename.to_s == "luis-furushio-profile.webp" && blob.checksum == fixture_checksum
         replacement_key = blob.key
         raise "avatar metadata failure"
       end

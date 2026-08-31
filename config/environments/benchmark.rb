@@ -23,6 +23,7 @@ Rails.application.configure do
   # request's seller origin instead of a separate asset host.
   config.asset_host = nil
   config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
+  config.active_storage.content_types_allowed_inline += ["image/webp"]
   config.active_storage.resolve_model_to_route = :rails_storage_proxy unless ENV["CONTROL_PLANE_BENCHMARK"] == "true"
 
   config.action_cable.allowed_request_origins = [

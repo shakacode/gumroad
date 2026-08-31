@@ -40,6 +40,7 @@ Rails.application.configure do
 
   # Where to store uploaded files (see config/storage.yml for options)
   config.active_storage.service = :development
+  config.active_storage.content_types_allowed_inline += ["image/webp"]
 
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
