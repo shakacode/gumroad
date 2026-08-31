@@ -2,6 +2,7 @@
 
 require "digest/md5"
 require "digest/sha2"
+require Rails.root.join("scripts/benchmark_seed_media").to_s
 
 # Seed the high-cardinality public profile used by ShakaPerf.
 #
@@ -12,7 +13,7 @@ module ShakaPerfSellerProfileSeed
   ALLOWED_ENVIRONMENTS = %w[development test benchmark].freeze
   OWNER = "shakaperf-seller-profile"
   OWNER_KEY = "fixture_owner"
-  VERSION = 1
+  VERSION = 2
   VERSION_KEY = "fixture_version"
   SELLER_EMAIL = "shakaperf-profile@example.com"
   SELLER_USERNAME = ENV.fetch("BENCHMARK_SELLER_USERNAME", "shakaperfprofile")
@@ -71,12 +72,12 @@ module ShakaPerfSellerProfileSeed
     ActiveRecord::Base.transaction do
       seller = seed_seller!(uploaded_blobs:)
       products = []
-      products.concat(seed_simple_products!(seller:))
-      products.concat(seed_variant_products!(seller:))
-      products.concat(seed_inventory_products!(seller:))
-      components = seed_component_products!(seller:)
+      products.concat(seed_simple_products!(seller:, uploaded_blobs:))
+      products.concat(seed_variant_products!(seller:, uploaded_blobs:))
+      products.concat(seed_inventory_products!(seller:, uploaded_blobs:))
+      components = seed_component_products!(seller:, uploaded_blobs:)
       products.concat(components)
-      products.concat(seed_bundles!(seller:, components:))
+      products.concat(seed_bundles!(seller:, components:, uploaded_blobs:))
       seed_profile!(seller:, products:)
 
       puts "Seeded ShakaPerf profile with #{products.size} products:"
@@ -140,15 +141,15 @@ module ShakaPerfSellerProfileSeed
     end
   end
 
-  def seed_simple_products!(seller:)
+  def seed_simple_products!(seller:, uploaded_blobs:)
     SIMPLE_NAMES.each_with_index.map do |name, index|
-      seed_product!(seller:, type: "simple", index:, name:, max_purchase_count: 20 + index)
+      seed_product!(seller:, type: "simple", index:, name:, max_purchase_count: 20 + index, uploaded_blobs:)
     end
   end
 
-  def seed_variant_products!(seller:)
+  def seed_variant_products!(seller:, uploaded_blobs:)
     VARIANT_NAMES.each_with_index.map do |name, index|
-      product = seed_product!(seller:, type: "variant", index:, name:)
+      product = seed_product!(seller:, type: "variant", index:, name:, uploaded_blobs:)
       category = product.variant_categories.find_or_initialize_by(title: "Edition")
       category.update!(deleted_at: nil)
       %w[Standard Extended].each_with_index do |variant_name, variant_index|
@@ -166,21 +167,21 @@ module ShakaPerfSellerProfileSeed
     end
   end
 
-  def seed_inventory_products!(seller:)
+  def seed_inventory_products!(seller:, uploaded_blobs:)
     INVENTORY_NAMES.each_with_index.map do |name, index|
-      seed_product!(seller:, type: "inventory", index:, name:, max_purchase_count: index.even? ? 8 : 0)
+      seed_product!(seller:, type: "inventory", index:, name:, max_purchase_count: index.even? ? 8 : 0, uploaded_blobs:)
     end
   end
 
-  def seed_component_products!(seller:)
+  def seed_component_products!(seller:, uploaded_blobs:)
     COMPONENT_NAMES.each_with_index.map do |name, index|
-      seed_product!(seller:, type: "component", index:, name:, max_purchase_count: index == 3 ? 0 : 15)
+      seed_product!(seller:, type: "component", index:, name:, max_purchase_count: index == 3 ? 0 : 15, uploaded_blobs:)
     end
   end
 
-  def seed_bundles!(seller:, components:)
+  def seed_bundles!(seller:, components:, uploaded_blobs:)
     BUNDLE_NAMES.each_with_index.map do |name, index|
-      bundle = seed_product!(seller:, type: "bundle", index:, name:, is_bundle: true)
+      bundle = seed_product!(seller:, type: "bundle", index:, name:, is_bundle: true, uploaded_blobs:)
       desired_ids = components.slice(index * 2, 2).each_with_index.map do |component, position|
         bundle_product = bundle.bundle_products.find_or_initialize_by(product: component)
         bundle_product.update!(position:, quantity: 1, deleted_at: nil)
@@ -191,7 +192,7 @@ module ShakaPerfSellerProfileSeed
     end
   end
 
-  def seed_product!(seller:, type:, index:, name:, max_purchase_count: nil, is_bundle: false)
+  def seed_product!(seller:, type:, index:, name:, uploaded_blobs:, max_purchase_count: nil, is_bundle: false)
     suffix = (65 + index).chr
     unique_permalink = "PROFILE#{type.upcase}#{suffix}"
     custom_permalink = "profile-#{type}-#{suffix.downcase}"
@@ -229,8 +230,7 @@ module ShakaPerfSellerProfileSeed
     product.save!
 
     cover = COVER_FILES.fetch(product_position(type:, index:) % COVER_FILES.size)
-    product.thumbnail || product.build_thumbnail
-    product.thumbnail.update!(unsplash_url: "/native-product-page-fixture/#{cover}", deleted_at: nil)
+    BenchmarkSeedMedia.attach_thumbnail!(product:, filename: cover, uploaded_blobs:)
     seed_rating!(product:, index: product_position(type:, index:))
     product.reload
   end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest/md5"
+require Rails.root.join("scripts/benchmark_seed_media").to_s
 
 # Seed realistic, database-backed creator storefronts for local product-page
 # development.
@@ -16,7 +17,7 @@ module NativeProductPageSeed
   ALLOWED_ENVIRONMENTS = %w[development test benchmark].freeze
   OWNER = "native-product-page-benchmark"
   OWNER_KEY = "native_product_page_fixture_owner"
-  VERSION = 7
+  VERSION = 8
   VERSION_KEY = "native_product_page_fixture_version"
   SELLER_EMAIL = "office365-it-pros-benchmark@example.com"
   BUYER_COUNT = 22
@@ -396,6 +397,7 @@ module NativeProductPageSeed
     end
 
     product ||= seller.links.build(unique_permalink:)
+    previous_description = product.description
     product.assign_attributes(
       user: seller,
       custom_permalink: permalink == unique_permalink ? nil : permalink,
@@ -424,11 +426,21 @@ module NativeProductPageSeed
     product.save!
     product.save_tags!(attributes.fetch(:tags))
 
-    thumbnail = Thumbnail.find_or_initialize_by(product:)
-    thumbnail.update!(
-      unsplash_url: "#{MEDIA_BASE_PATH}/#{attributes[:thumbnail] || attributes.fetch(:cover)}",
-      deleted_at: nil,
+    BenchmarkSeedMedia.attach_thumbnail!(
+      product:,
+      filename: attributes[:thumbnail] || attributes.fetch(:cover),
+      uploaded_blobs:,
     )
+
+    if attributes.fetch(:description).include?(MEDIA_BASE_PATH)
+      product.update!(
+        description: BenchmarkSeedMedia.active_storage_description(
+          template: attributes.fetch(:description),
+          previous_html: previous_description,
+          uploaded_blobs:,
+        ),
+      )
+    end
 
     seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:)
     seed_variants!(product:, names: attributes[:variants] || [])

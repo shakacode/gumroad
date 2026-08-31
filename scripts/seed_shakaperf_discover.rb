@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest/sha2"
+require Rails.root.join("scripts/benchmark_seed_media").to_s
 
 # Seed the deterministic category and search result set used by ShakaPerf.
 #
@@ -11,7 +12,7 @@ module ShakaPerfDiscoverSeed
   ALLOWED_ENVIRONMENTS = %w[development test benchmark].freeze
   OWNER = "shakaperf-discover"
   OWNER_KEY = "fixture_owner"
-  VERSION = 1
+  VERSION = 2
   VERSION_KEY = "fixture_version"
   PRODUCT_COUNT = 24
   CREATED_AT = Time.utc(2026, 3, 1)
@@ -29,6 +30,7 @@ module ShakaPerfDiscoverSeed
   module_function
 
   def run!
+    uploaded_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "ShakaPerf Discover seed may only run in development, test, or benchmark"
     end
@@ -43,13 +45,16 @@ module ShakaPerfDiscoverSeed
       )
       taxonomy = Taxonomy.find_by!(slug: TAXONOMY_SLUG, parent: Taxonomy.find_by!(slug: "software-development"))
       products = PRODUCT_COUNT.times.map do |index|
-        seed_product!(seller: sellers.fetch(index % sellers.size), buyer:, taxonomy:, index:)
+        seed_product!(seller: sellers.fetch(index % sellers.size), buyer:, taxonomy:, index:, uploaded_blobs:)
       end
 
       puts "Seeded #{products.size} ShakaPerf Discover products:"
       puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/software-development/programming"
       puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/discover?query=#{SEARCH_QUERY}"
     end
+  rescue
+    delete_uploaded_blobs(uploaded_blobs)
+    raise
   end
 
   def seed_user!(email:, username:, name:)
@@ -77,7 +82,7 @@ module ShakaPerfDiscoverSeed
     user
   end
 
-  def seed_product!(seller:, buyer:, taxonomy:, index:)
+  def seed_product!(seller:, buyer:, taxonomy:, index:, uploaded_blobs:)
     suffix = (65 + index).chr
     unique_permalink = "DISCOVER#{suffix}"
     custom_permalink = "shakaperf-programming-#{index + 1}"
@@ -113,11 +118,18 @@ module ShakaPerfDiscoverSeed
     product.save_tags!(["shakaperf", "programming"])
 
     cover = COVER_FILES.fetch(index % COVER_FILES.size)
-    product.thumbnail || product.build_thumbnail
-    product.thumbnail.update!(unsplash_url: "/native-product-page-fixture/#{cover}", deleted_at: nil)
+    BenchmarkSeedMedia.attach_thumbnail!(product:, filename: cover, uploaded_blobs:)
     seed_rating!(product:, index:)
     seed_sale!(product:, seller:, buyer:, index:)
     product.reload
+  end
+
+  def delete_uploaded_blobs(uploaded_blobs)
+    uploaded_blobs.each do |blob|
+      blob.delete
+    rescue StandardError
+      warn "Failed to delete an uploaded Discover fixture after rollback"
+    end
   end
 
   def seed_rating!(product:, index:)

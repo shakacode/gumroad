@@ -31,7 +31,7 @@ RSpec.describe "ShakaPerf Discover seed" do
     )
     expect(products.map(&:recommendable?)).to all(eq(true))
     expect(products.map { _1.json_data.slice("fixture_owner", "fixture_version") }.uniq).to eq(
-      [{ "fixture_owner" => "shakaperf-discover", "fixture_version" => 1 }],
+      [{ "fixture_owner" => "shakaperf-discover", "fixture_version" => 2 }],
     )
     expect(products.map(&:user).uniq.size).to eq(4)
     expect(products.map(&:reviews_count).min).to be >= 14
@@ -66,9 +66,19 @@ RSpec.describe "ShakaPerf Discover seed" do
       ProductPresenter.card_for_web(product:, target: Product::Layout::DISCOVER)
     end
     expect(cards.map { _1[:name] }).to eq(24.times.map { format("ShakaPerf Programming Kit %02d", _1 + 1) })
-    expect(cards.map { _1[:thumbnail_url] }.uniq).to match_array(
-      %w[microsoft-365.png powershell.png purview.png power-platform.png]
-        .map { "/native-product-page-fixture/#{_1}" },
+    thumbnails = products.map(&:thumbnail_alive)
+    expect(thumbnails.map(&:unsplash_url)).to all(be_nil)
+    expect(thumbnails.map(&:file)).to all(be_attached)
+    expect(thumbnails.map { _1.file.blob.metadata.slice("width", "height") }.uniq).to eq(
+      [{ "width" => 600, "height" => 600 }],
+    )
+    expect(thumbnails).to all(satisfy do |thumbnail|
+      thumbnail.thumbnail_variant.variation.transformations[:resize_to_limit] == [600, 600]
+    end)
+    thumbnail_urls = cards.map { _1[:thumbnail_url] }
+    expect(thumbnail_urls).to all(satisfy { !_1.include?("/native-product-page-fixture/") })
+    expect(thumbnail_urls.map { URI(_1).path.split("/").last }).to eq(
+      thumbnails.map { _1.thumbnail_variant.image.blob.key },
     )
     expect(cards.map { _1.dig(:ratings, :count) }).to all(be >= 14)
     expect(cards.map { _1.dig(:seller, :name) }.uniq.size).to eq(4)
@@ -86,6 +96,8 @@ RSpec.describe "ShakaPerf Discover seed" do
       .to not_change { Link.where(unique_permalink: unique_permalinks).count }
       .and not_change { Purchase.joins(:link).where(links: { unique_permalink: unique_permalinks }).count }
       .and not_change { User.where("email LIKE ?", "shakaperf-discover-%@example.com").count }
+      .and not_change(ActiveStorage::Blob, :count)
+      .and not_change(ActiveStorage::Attachment, :count)
     expect(Link.where(unique_permalink: unique_permalinks).order(created_at: :desc).pluck(:unique_permalink)).to eq(unique_permalinks)
   end
 
