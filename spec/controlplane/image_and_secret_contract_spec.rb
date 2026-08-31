@@ -118,7 +118,7 @@ RSpec.describe "Control Plane image and secret bootstrap" do
 
     expect(patterns).not_to include("scripts/", "public/", "db/", "config/")
     expect(root.join("scripts/seed_native_product_page.rb")).to exist
-    expect(root.join("public/native-product-page-fixture/residential-guide-preview-1.jpg")).to exist
+    expect(root.join("public/native-product-page-fixture/residential-guide-preview-1.webp")).to exist
     expect(root.join("db/seeds/010_development_staging_test/taxonomy_create.rb")).to exist
     expect(root.join("config/certs/AppleAppAttestRootCA.pem")).to exist
   end
@@ -146,5 +146,14 @@ RSpec.describe "Control Plane image and secret bootstrap" do
       "gumroad-inertia-secrets",
     )
     expect(bootstrap).not_to match(/shared.*license/i)
+  end
+
+  it "serves WebP fixtures inline in every seed-supported environment" do
+    %w[development test benchmark].each do |environment|
+      expect(root.join("config/environments/#{environment}.rb").read).to include(
+        'config.active_storage.content_types_allowed_inline += ["image/webp"]',
+      )
+    end
+    expect(root.join("config/application.rb").read).not_to include("content_types_allowed_inline")
   end
 end

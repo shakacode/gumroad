@@ -43,14 +43,39 @@ RSpec.describe "native product page seed" do
     expect(product.taxonomy).to have_attributes(slug: "software-development", parent_id: nil)
     expect(product.thumbnail.unsplash_url).to be_nil
     expect(product.thumbnail.file).to be_attached
-    expect(product.thumbnail.file.blob.metadata).to include("width" => 600, "height" => 600)
+    expect(product.thumbnail.file).to have_attributes(
+      filename: ActiveStorage::Filename.new("microsoft-365-thumbnail.webp"),
+      content_type: "image/webp",
+    )
+    expect(product.thumbnail.file.blob.metadata).to include(
+      "benchmark_delivery_version" => 1,
+      "width" => 600,
+      "height" => 600,
+    )
     expect(product.thumbnail.thumbnail_variant.variation.transformations).to include(resize_to_limit: [600, 600])
+    thumbnail_variant_blob = product.thumbnail.thumbnail_variant.image.blob
+    expect(thumbnail_variant_blob).to have_attributes(
+      content_type: "image/webp",
+      service_name: product.thumbnail.file.blob.service_name,
+    )
+    thumbnail_variant_blob.open do |file|
+      expect(MiniMagick::Image.open(file.path).dimensions).to eq([600, 600])
+    end
     thumbnail_url = product.thumbnail.url
     expect(thumbnail_url).not_to include("/native-product-page-fixture/")
     expect(URI(thumbnail_url).path.split("/").last).to eq(product.thumbnail.thumbnail_variant.image.blob.key)
     preview = product.display_asset_previews.first
     expect(preview).to have_attributes(display_type: "image")
-    expect(preview.file.filename.to_s).to eq("microsoft-365.png")
+    expect(preview.file.blob).to have_attributes(
+      filename: ActiveStorage::Filename.new("microsoft-365.webp"),
+      content_type: "image/webp",
+    )
+    expect(preview.file.blob.metadata).to include("benchmark_delivery_version" => 1)
+    preview_variant_blob = preview.retina_variant.processed.image.blob
+    expect(preview_variant_blob).to have_attributes(
+      content_type: "image/webp",
+      service_name: preview.file.blob.service_name,
+    )
     expect(preview.as_json).to include(
       width: 670,
       height: 947,
@@ -120,24 +145,23 @@ RSpec.describe "native product page seed" do
     expect(residential_guide.thumbnail.file).to be_attached
     expect(residential_guide.thumbnail.file.blob.metadata).to include("width" => 600, "height" => 600)
     expect(residential_guide.display_asset_previews.map { _1.as_json.slice(:native_width, :native_height) }).to eq(
-      [
-        { native_width: 2_311, native_height: 1_771 },
-        *Array.new(4, { native_width: 1_800, native_height: 1_379 }),
-      ],
+      Array.new(5, { native_width: 1_005, native_height: 770 }),
     )
     expect(residential_guide.display_asset_previews.map { _1.file.blob.byte_size }).to eq(
-      [254_320, 263_964, 280_776, 283_991, 176_091],
+      [61_518, 103_408, 94_502, 110_620, 68_260],
     )
+    expect(residential_guide.display_asset_previews.map { _1.file.blob.content_type }.uniq).to eq(["image/webp"])
     description_urls = Nokogiri::HTML.fragment(residential_guide.description).css("img").map { _1["src"] }
     expect(description_urls).not_to be_empty
     expect(description_urls).to all(satisfy { !_1.include?("/native-product-page-fixture/") })
     description_blobs = description_urls.map { ActiveStorage::Blob.find_by!(key: URI(_1).path.split("/").last) }
     expect(description_blobs.map(&:filename).map(&:to_s)).to eq(
       [
-        "luis-furushio-profile.png",
-        *(1..6).map { "residential-guide-detail-#{_1}.jpg" },
+        "luis-furushio-profile.webp",
+        *(1..6).map { "residential-guide-detail-#{_1}.webp" },
       ],
     )
+    expect(description_blobs.map(&:content_type).uniq).to eq(["image/webp"])
     expect(description_blobs.map(&:service_name).uniq).to eq([ActiveStorage::Blob.service.name.to_s])
     expect(description_blobs).to all(satisfy { ActiveStorage::Blob.service.exist?(_1.key) })
     expect(residential_guide.tags.pluck(:name)).to match_array(["residential design", "architecture"])
@@ -215,29 +239,99 @@ RSpec.describe "native product page seed" do
     load(seed_file, true)
     product = Link.fetch_leniently("O365IT")
     preview = product.display_asset_previews.first
-    preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.png", content_type: "image/png")
+    preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.webp", content_type: "image/png")
 
     load(seed_file, true)
 
-    expected_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.png")).base64digest
+    expected_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.webp")).base64digest
     expect(preview.reload.file.blob.checksum).to eq(expected_checksum)
+    expect(preview.file.content_type).to eq("image/webp")
   end
 
-  it "repairs a same-named thumbnail whose contents do not match the fixture" do
+  it "replaces media uploaded under the previous delivery contract" do
+    load(seed_file, true)
+    product = Link.fetch_leniently("O365IT")
+    thumbnail_blob = product.thumbnail.file.blob
+    preview_blob = product.display_asset_previews.first.file.blob
+    description_blob = ActiveStorage::Blob.find_by!(
+      key: URI(Nokogiri::HTML.fragment(Link.fetch_leniently("bgfjk").description).css("img").first["src"]).path.split("/").last,
+    )
+    [thumbnail_blob, preview_blob, description_blob].each do |blob|
+      blob.update!(metadata: blob.metadata.except("benchmark_delivery_version"))
+    end
+
+    expect do
+      load(seed_file, true)
+    end.not_to have_enqueued_job(ActiveStorage::PurgeJob)
+
+    product.reload
+    expect(product.thumbnail.file.blob).not_to eq(thumbnail_blob)
+    expect(product.thumbnail.file.blob.metadata).to include("benchmark_delivery_version" => 1)
+    replacement_preview = product.display_asset_previews.first.file.blob
+    expect(replacement_preview).not_to eq(preview_blob)
+    expect(replacement_preview.metadata).to include("benchmark_delivery_version" => 1)
+    expect(ActiveStorage::Blob.exists?(thumbnail_blob.id)).to be(false)
+    expect(ActiveStorage::Blob.service.exist?(thumbnail_blob.key)).to be(false)
+    expect(ActiveStorage::Blob.exists?(preview_blob.id)).to be(false)
+    expect(ActiveStorage::Blob.service.exist?(preview_blob.key)).to be(false)
+    expect(ActiveStorage::Blob.exists?(description_blob.id)).to be(false)
+    expect(ActiveStorage::Blob.service.exist?(description_blob.key)).to be(false)
+  end
+
+  it "does not purge an attached blob referenced by edited fixture HTML" do
+    load(seed_file, true)
+    product = Link.fetch_leniently("bgfjk")
+    unrelated_blob = Link.fetch_leniently("O365IT").thumbnail.file.blob
+    fragment = Nokogiri::HTML.fragment(product.description)
+    fragment.css("img").first["src"] = unrelated_blob.url
+    product.update!(description: fragment.to_html)
+
+    load(seed_file, true)
+
+    expect(ActiveStorage::Blob.exists?(unrelated_blob.id)).to be(true)
+    expect(ActiveStorage::Blob.service.exist?(unrelated_blob.key)).to be(true)
+    expect(ActiveStorage::Attachment.exists?(blob_id: unrelated_blob.id)).to be(true)
+  end
+
+  it "keeps committed replacements and retry records when post-commit cleanup fails" do
+    load(seed_file, true)
+    product = Link.fetch_leniently("O365IT")
+    stale_blob = product.thumbnail.file.blob
+    stale_blob.update!(metadata: stale_blob.metadata.except("benchmark_delivery_version"))
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:delete).and_wrap_original do |method, *args|
+      raise "replacement purge failure" if method.receiver.id == stale_blob.id
+
+      method.call(*args)
+    end
+
+    expect { load(seed_file, true) }.to raise_error("replacement purge failure")
+
+    replacement_blob = product.reload.thumbnail.file.blob
+    expect(replacement_blob).not_to eq(stale_blob)
+    expect(ActiveStorage::Blob.exists?(replacement_blob.id)).to be(true)
+    expect(ActiveStorage::Blob.service.exist?(replacement_blob.key)).to be(true)
+    expect(ActiveStorage::Blob.exists?(stale_blob.id)).to be(true)
+  end
+
+  it "repairs a same-named thumbnail with an incorrect content type" do
     load(seed_file, true)
     thumbnail = Link.fetch_leniently("O365IT").thumbnail
-    stale_blob = ActiveStorage::Blob.create_and_upload!(
-      io: StringIO.new("stale fixture"),
-      filename: "microsoft-365.png",
-      content_type: "image/png",
-      identify: false,
-    )
+    fixture = Rails.root.join("public/native-product-page-fixture/microsoft-365-thumbnail.webp")
+    stale_blob = fixture.open("rb") do |file|
+      ActiveStorage::Blob.create_and_upload!(
+        io: file,
+        filename: "microsoft-365-thumbnail.webp",
+        content_type: "image/png",
+        identify: false,
+      )
+    end
     stale_blob.update!(metadata: stale_blob.metadata.merge("identified" => true, "analyzed" => true, "width" => 600, "height" => 600))
     thumbnail.file.attach(stale_blob)
 
     load(seed_file, true)
 
     expect(thumbnail.reload.file.blob).not_to eq(stale_blob)
+    expect(thumbnail.file.content_type).to eq("image/webp")
     expect(thumbnail.unsplash_url).to be_nil
     expect(thumbnail.file.blob.metadata).to include("width" => 600, "height" => 600)
   end
@@ -290,7 +384,7 @@ RSpec.describe "native product page seed" do
 
     load(seed_file, true)
 
-    fixture = Rails.root.join("public/native-product-page-fixture/microsoft-365.png")
+    fixture = Rails.root.join("public/native-product-page-fixture/microsoft-365.webp")
     expect(preview.reload.file.blob).not_to eq(missing_blob)
     expect(preview.file.blob.checksum).to eq(Digest::MD5.file(fixture).base64digest)
   end
@@ -315,15 +409,15 @@ RSpec.describe "native product page seed" do
   it "keeps the old preview intact when replacement rolls back" do
     load(seed_file, true)
     preview = Link.fetch_leniently("O365IT").display_asset_previews.first
-    preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.png", content_type: "image/png")
+    preview.file.attach(io: StringIO.new("stale fixture"), filename: "microsoft-365.webp", content_type: "image/png")
     stale_blob = preview.reload.file.blob
-    fixture_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.png")).base64digest
+    fixture_checksum = Digest::MD5.file(Rails.root.join("public/native-product-page-fixture/microsoft-365.webp")).base64digest
     deleted_keys = []
     replacement_key = nil
     allow_any_instance_of(ActiveStorage::Blob).to receive(:delete) { |blob| deleted_keys << blob.key }
     allow_any_instance_of(ActiveStorage::Blob).to receive(:update!).and_wrap_original do |method, *args|
       blob = method.receiver
-      if blob.filename.to_s == "microsoft-365.png" && blob.checksum == fixture_checksum
+      if blob.filename.to_s == "microsoft-365.webp" && blob.checksum == fixture_checksum
         replacement_key = blob.key
         raise "preview metadata failure"
       end

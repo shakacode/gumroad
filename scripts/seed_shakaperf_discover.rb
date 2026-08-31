@@ -18,7 +18,12 @@ module ShakaPerfDiscoverSeed
   CREATED_AT = Time.utc(2026, 3, 1)
   TAXONOMY_SLUG = "programming"
   SEARCH_QUERY = "ShakaPerf"
-  COVER_FILES = %w[microsoft-365.png powershell.png purview.png power-platform.png].freeze
+  THUMBNAIL_FILES = %w[
+    microsoft-365-thumbnail.webp
+    powershell-thumbnail.webp
+    purview-thumbnail.webp
+    power-platform-thumbnail.webp
+  ].freeze
   CATALOG_DIGEST = "29ade4b2551e220a66a32d4f200061b41c56ce0c017edd3dc88092c09b20b989"
   SELLERS = [
     { email: "shakaperf-discover-a@example.com", username: "shakaperfdiscovera", name: "ShakaPerf Code Studio" },
@@ -31,6 +36,7 @@ module ShakaPerfDiscoverSeed
 
   def run!
     uploaded_blobs = []
+    replaced_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "ShakaPerf Discover seed may only run in development, test, or benchmark"
     end
@@ -45,13 +51,15 @@ module ShakaPerfDiscoverSeed
       )
       taxonomy = Taxonomy.find_by!(slug: TAXONOMY_SLUG, parent: Taxonomy.find_by!(slug: "software-development"))
       products = PRODUCT_COUNT.times.map do |index|
-        seed_product!(seller: sellers.fetch(index % sellers.size), buyer:, taxonomy:, index:, uploaded_blobs:)
+        seed_product!(seller: sellers.fetch(index % sellers.size), buyer:, taxonomy:, index:, uploaded_blobs:, replaced_blobs:)
       end
 
       puts "Seeded #{products.size} ShakaPerf Discover products:"
       puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/software-development/programming"
       puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/discover?query=#{SEARCH_QUERY}"
     end
+    uploaded_blobs.clear
+    purge_replaced_blobs(replaced_blobs)
   rescue
     delete_uploaded_blobs(uploaded_blobs)
     raise
@@ -82,7 +90,7 @@ module ShakaPerfDiscoverSeed
     user
   end
 
-  def seed_product!(seller:, buyer:, taxonomy:, index:, uploaded_blobs:)
+  def seed_product!(seller:, buyer:, taxonomy:, index:, uploaded_blobs:, replaced_blobs:)
     suffix = (65 + index).chr
     unique_permalink = "DISCOVER#{suffix}"
     custom_permalink = "shakaperf-programming-#{index + 1}"
@@ -117,8 +125,8 @@ module ShakaPerfDiscoverSeed
     product.save!
     product.save_tags!(["shakaperf", "programming"])
 
-    cover = COVER_FILES.fetch(index % COVER_FILES.size)
-    BenchmarkSeedMedia.attach_thumbnail!(product:, filename: cover, uploaded_blobs:)
+    thumbnail = THUMBNAIL_FILES.fetch(index % THUMBNAIL_FILES.size)
+    BenchmarkSeedMedia.attach_thumbnail!(product:, filename: thumbnail, uploaded_blobs:, replaced_blobs:)
     seed_rating!(product:, index:)
     seed_sale!(product:, seller:, buyer:, index:)
     product.reload
@@ -126,9 +134,21 @@ module ShakaPerfDiscoverSeed
 
   def delete_uploaded_blobs(uploaded_blobs)
     uploaded_blobs.each do |blob|
+      next if ActiveStorage::Blob.exists?(blob.id)
+
       blob.delete
     rescue StandardError
       warn "Failed to delete an uploaded Discover fixture after rollback"
+    end
+  end
+
+  def purge_replaced_blobs(replaced_blobs)
+    current_service_name = ActiveStorage::Blob.service.name.to_s
+    replaced_blobs.each do |blob|
+      next if BenchmarkSeedMedia.blob_in_use?(blob)
+
+      blob.delete if blob.service_name == current_service_name
+      blob.destroy!
     end
   end
 

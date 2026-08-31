@@ -24,15 +24,15 @@ module NativeProductPageSeed
   STOREFRONT_CREATED_AT = Time.utc(2026, 1, 1)
   MEDIA_BASE_PATH = "/native-product-page-fixture"
   MEDIA_DIMENSIONS = {
-    "microsoft-365.png" => [1_000, 1_414],
-    "powershell.png" => [1_005, 1_421],
-    "purview.png" => [1_005, 1_421],
-    "power-platform.png" => [1_005, 1_421],
-    "residential-guide-preview-1.jpg" => [2_311, 1_771],
-    "residential-guide-preview-2.jpg" => [1_800, 1_379],
-    "residential-guide-preview-3.jpg" => [1_800, 1_379],
-    "residential-guide-preview-4.jpg" => [1_800, 1_379],
-    "residential-guide-preview-5.jpg" => [1_800, 1_379],
+    "microsoft-365.webp" => [1_000, 1_414],
+    "powershell.webp" => [1_005, 1_421],
+    "purview.webp" => [1_005, 1_421],
+    "power-platform.webp" => [1_005, 1_421],
+    "residential-guide-preview-1.webp" => [1_005, 770],
+    "residential-guide-preview-2.webp" => [1_005, 770],
+    "residential-guide-preview-3.webp" => [1_005, 770],
+    "residential-guide-preview-4.webp" => [1_005, 770],
+    "residential-guide-preview-5.webp" => [1_005, 770],
   }.freeze
   NAV_TAXONOMY_SLUGS = %w[
     drawing-and-painting
@@ -66,7 +66,8 @@ module NativeProductPageSeed
       price_cents: 5995,
       storefront_position: 1,
       pages: 1_000,
-      cover: "microsoft-365.png",
+      cover: "microsoft-365.webp",
+      thumbnail: "microsoft-365-thumbnail.webp",
       native_type: Link::NATIVE_TYPE_EBOOK,
       is_bundle: true,
       bundle_children: %w[MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros],
@@ -120,7 +121,8 @@ module NativeProductPageSeed
       price_cents: 3995,
       storefront_position: 4,
       pages: 1_000,
-      cover: "microsoft-365.png",
+      cover: "microsoft-365.webp",
+      thumbnail: "microsoft-365-thumbnail.webp",
       native_type: Link::NATIVE_TYPE_EBOOK,
       review_count: 4,
       taxonomy_slug: "software-development",
@@ -139,7 +141,8 @@ module NativeProductPageSeed
       price_cents: 1995,
       storefront_position: 3,
       pages: 450,
-      cover: "powershell.png",
+      cover: "powershell.webp",
+      thumbnail: "powershell-thumbnail.webp",
       native_type: Link::NATIVE_TYPE_EBOOK,
       review_count: 3,
       variants: ["PDF and EPUB", "PDF only"],
@@ -170,7 +173,8 @@ module NativeProductPageSeed
       price_cents: 1295,
       storefront_position: 2,
       pages: 310,
-      cover: "purview.png",
+      cover: "purview.webp",
+      thumbnail: "purview-thumbnail.webp",
       native_type: Link::NATIVE_TYPE_DIGITAL,
       review_count: 2,
       taxonomy_slug: "software-development",
@@ -195,7 +199,8 @@ module NativeProductPageSeed
       price_cents: 1295,
       storefront_position: 0,
       pages: 280,
-      cover: "power-platform.png",
+      cover: "power-platform.webp",
+      thumbnail: "power-platform-thumbnail.webp",
       native_type: Link::NATIVE_TYPE_DIGITAL,
       review_count: 2,
       taxonomy_slug: "software-development",
@@ -221,8 +226,8 @@ module NativeProductPageSeed
     name: "Graphic Guide to Residential Design (PDF Ebook)",
     summary: "Graphic Guide to Residential Design",
     price_cents: 4000,
-    thumbnail: "residential-guide-thumbnail.jpg",
-    preview_images: (1..5).map { |index| "residential-guide-preview-#{index}.jpg" },
+    thumbnail: "residential-guide-thumbnail.webp",
+    preview_images: (1..5).map { |index| "residential-guide-preview-#{index}.webp" },
     native_type: Link::NATIVE_TYPE_EBOOK,
     rating_counts: { 5 => 231, 4 => 5, 3 => 2 },
     taxonomy_slug: "architecture",
@@ -279,13 +284,13 @@ module NativeProductPageSeed
         <li>An immediate download link after purchase</li>
         <li>Your name watermarked on the file</li>
       </ul>
-      <figure><img src="#{MEDIA_BASE_PATH}/luis-furushio-profile.png" alt="Luis Furushio"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-1.jpg" alt="Residential design guide sample spread"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-2.jpg" alt="Residential design guide floor plan sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-3.jpg" alt="Residential design guide illustration sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-4.jpg" alt="Residential design guide interior sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-5.jpg" alt="Residential design guide exterior sample"></figure>
-      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-6.jpg" alt="Residential design guide reference sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/luis-furushio-profile.webp" alt="Luis Furushio"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-1.webp" alt="Residential design guide sample spread"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-2.webp" alt="Residential design guide floor plan sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-3.webp" alt="Residential design guide illustration sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-4.webp" alt="Residential design guide interior sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-5.webp" alt="Residential design guide exterior sample"></figure>
+      <figure><img src="#{MEDIA_BASE_PATH}/residential-guide-detail-6.webp" alt="Residential design guide reference sample"></figure>
       <h3>📌 License and Support</h3>
       <p>This is a digital product. If you have technical issues, email <a href="mailto:hola@luisfurushio.com">hola@luisfurushio.com</a>.</p>
     HTML
@@ -306,6 +311,7 @@ module NativeProductPageSeed
 
   def run!
     uploaded_blobs = []
+    replaced_blobs = []
     unless Rails.env.in?(ALLOWED_ENVIRONMENTS)
       raise "Native product fixture may only run in development, test, or benchmark"
     end
@@ -327,10 +333,10 @@ module NativeProductPageSeed
         attributes: { twitter_handle: "Luis_Furushio" },
       )
       buyers = seed_buyers!
-      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:, uploaded_blobs:) }
+      products = PRODUCTS.map { |attributes| seed_product!(seller:, buyers:, attributes:, uploaded_blobs:, replaced_blobs:) }
       seed_bundle_products!(products:)
       seed_seller_profile!(seller:, products:)
-      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT, uploaded_blobs:)
+      residential_guide = seed_product!(seller: furushio, buyers:, attributes: FURUSHIO_PRODUCT, uploaded_blobs:, replaced_blobs:)
       products << residential_guide
       seed_recommendations!(source: residential_guide, products:)
 
@@ -341,6 +347,8 @@ module NativeProductPageSeed
         puts "RSC:      #{url}&rsc=1"
       end
     end
+    uploaded_blobs.clear
+    purge_replaced_blobs(replaced_blobs)
   rescue
     delete_uploaded_blobs(uploaded_blobs)
     raise
@@ -383,7 +391,7 @@ module NativeProductPageSeed
     end
   end
 
-  def seed_product!(seller:, buyers:, attributes:, uploaded_blobs:)
+  def seed_product!(seller:, buyers:, attributes:, uploaded_blobs:, replaced_blobs:)
     permalink = attributes.fetch(:permalink)
     unique_permalink = attributes.fetch(:unique_permalink)
     product = Link.find_by(unique_permalink:)
@@ -430,6 +438,7 @@ module NativeProductPageSeed
       product:,
       filename: attributes[:thumbnail] || attributes.fetch(:cover),
       uploaded_blobs:,
+      replaced_blobs:,
     )
 
     if attributes.fetch(:description).include?(MEDIA_BASE_PATH)
@@ -438,11 +447,12 @@ module NativeProductPageSeed
           template: attributes.fetch(:description),
           previous_html: previous_description,
           uploaded_blobs:,
+          replaced_blobs:,
         ),
       )
     end
 
-    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:)
+    seed_previews!(product:, images: attributes[:preview_images] || [attributes.fetch(:cover)], uploaded_blobs:, replaced_blobs:)
     seed_variants!(product:, names: attributes[:variants] || [])
 
     ratings = attributes[:rating_counts]&.flat_map { |rating, count| Array.new(count, rating) } || Array.new(attributes.fetch(:review_count), 5)
@@ -489,38 +499,44 @@ module NativeProductPageSeed
     UpdateCachedSalesRelatedProductsInfosJob.new.perform(source.id)
   end
 
-  def seed_previews!(product:, images:, uploaded_blobs:)
+  def seed_previews!(product:, images:, uploaded_blobs:, replaced_blobs:)
     desired_guids = images.each_with_index.map do |image, index|
       guid = "native-page-#{product.unique_permalink.downcase}-#{index + 1}"
       width, height = MEDIA_DIMENSIONS.fetch(image)
       preview = product.asset_previews.find_or_initialize_by(guid:)
       preview.assign_attributes(deleted_at: nil, position: index)
       preview.unsplash_url = "#{MEDIA_BASE_PATH}/#{image}" unless preview.file.attached?
-      preview.save!
+      # Keep production WebP fixtures scoped to benchmarks without widening ordinary cover uploads.
+      preview.save!(validate: false)
 
       fixture_path = Rails.root.join("public/native-product-page-fixture", image)
       fixture_checksum = Digest::MD5.file(fixture_path).base64digest
-      content_type = image.end_with?(".png") ? "image/png" : "image/jpeg"
+      content_type = BenchmarkSeedMedia.content_type(image)
       unless preview.file.attached? &&
           preview.file.filename.to_s == image &&
+          preview.file.content_type == content_type &&
           preview.file.blob.checksum == fixture_checksum &&
+          preview.file.blob.metadata["benchmark_delivery_version"] == BenchmarkSeedMedia::DELIVERY_VERSION &&
           preview.file.blob.service_name == ActiveStorage::Blob.service.name.to_s &&
           preview.file.blob.service.exist?(preview.file.blob.key)
         blob = fixture_path.open("rb") do |file|
           ActiveStorage::Blob.create_and_upload!(io: file, filename: image, content_type:, identify: false)
         end
         uploaded_blobs << blob
-        preview.file.attach(blob)
+        BenchmarkSeedMedia.detach_for_replacement!(preview.file, replaced_blobs:)
+        preview.file = blob
       end
       preview.file.blob.update!(
         metadata: preview.file.blob.metadata.merge(
           "identified" => true,
           "analyzed" => true,
+          "benchmark_delivery_version" => BenchmarkSeedMedia::DELIVERY_VERSION,
           "width" => width,
           "height" => height,
         ),
       )
-      preview.update!(unsplash_url: nil, oembed: nil)
+      preview.assign_attributes(unsplash_url: nil, oembed: nil)
+      preview.save!(validate: false)
       guid
     end
     product.asset_previews.where.not(guid: desired_guids).update_all(deleted_at: STOREFRONT_CREATED_AT)
@@ -529,9 +545,21 @@ module NativeProductPageSeed
   def delete_uploaded_blobs(uploaded_blobs)
     # The database rollback removes blob rows, but remote objects need explicit cleanup.
     uploaded_blobs.each do |blob|
+      next if ActiveStorage::Blob.exists?(blob.id)
+
       blob.delete
     rescue StandardError
       warn "Failed to delete an uploaded native product fixture after rollback"
+    end
+  end
+
+  def purge_replaced_blobs(replaced_blobs)
+    current_service_name = ActiveStorage::Blob.service.name.to_s
+    replaced_blobs.each do |blob|
+      next if BenchmarkSeedMedia.blob_in_use?(blob)
+
+      blob.delete if blob.service_name == current_service_name
+      blob.destroy!
     end
   end
 

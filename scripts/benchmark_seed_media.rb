@@ -1,22 +1,18 @@
 # frozen_string_literal: true
 
 require "digest/md5"
-require "image_processing/mini_magick"
 require "uri"
 
 module BenchmarkSeedMedia
+  DELIVERY_VERSION = 1
   MEDIA_PATH = Rails.root.join("public/native-product-page-fixture")
   THUMBNAIL_DIMENSION = Thumbnail::DISPLAY_THUMBNAIL_DIMENSION
 
   extend CdnUrlHelper
 
   module_function
-  def attach_thumbnail!(product:, filename:, uploaded_blobs:)
+  def attach_thumbnail!(product:, filename:, uploaded_blobs:, replaced_blobs:)
     fixture_path = MEDIA_PATH.join(filename)
-    processed_file = ImageProcessing::MiniMagick
-      .source(fixture_path)
-      .resize_to_fill(THUMBNAIL_DIMENSION, THUMBNAIL_DIMENSION)
-      .call
     source_checksum = Digest::MD5.file(fixture_path).base64digest
     thumbnail = product.thumbnail || product.build_thumbnail
 
@@ -25,7 +21,7 @@ module BenchmarkSeedMedia
         current_blob?(candidate, filename:, source_checksum:, width: THUMBNAIL_DIMENSION, height: THUMBNAIL_DIMENSION)
       end
       blob ||= upload_blob!(
-        io: processed_file,
+        io: fixture_path.open("rb"),
         filename:,
         content_type: content_type(filename),
         source_checksum:,
@@ -33,15 +29,16 @@ module BenchmarkSeedMedia
         height: THUMBNAIL_DIMENSION,
         uploaded_blobs:,
       )
-      thumbnail.file.attach(blob)
+      detach_for_replacement!(thumbnail.file, replaced_blobs:)
+      thumbnail.file = blob
     end
 
-    thumbnail.update!(unsplash_url: nil, deleted_at: nil)
-  ensure
-    processed_file&.close!
+    # Keep production WebP fixtures scoped to benchmarks without widening ordinary thumbnail uploads.
+    thumbnail.assign_attributes(unsplash_url: nil, deleted_at: nil)
+    thumbnail.save!(validate: false)
   end
 
-  def active_storage_description(template:, previous_html:, uploaded_blobs:)
+  def active_storage_description(template:, previous_html:, uploaded_blobs:, replaced_blobs:)
     previous_sources = Nokogiri::HTML.fragment(previous_html.to_s).css("img").map { _1["src"] }
     fragment = Nokogiri::HTML.fragment(template)
 
@@ -52,6 +49,7 @@ module BenchmarkSeedMedia
       width, height = image_dimensions(fixture_path)
       blob = blob_from_url(previous_sources[index])
       unless current_blob?(blob, filename:, source_checksum:, width:, height:)
+        replaced_blob = blob
         blob = upload_blob!(
           io: fixture_path.open("rb"),
           filename:,
@@ -61,6 +59,7 @@ module BenchmarkSeedMedia
           height:,
           uploaded_blobs:,
         )
+        replaced_blobs << replaced_blob if managed_description_blob?(replaced_blob)
       end
       image["src"] = cdn_url_for(blob.url)
     end
@@ -68,10 +67,28 @@ module BenchmarkSeedMedia
     fragment.to_html
   end
 
+  def detach_for_replacement!(attachment, replaced_blobs:)
+    return unless attachment.attached?
+
+    replaced_blobs << attachment.blob
+    attachment.detach
+  end
+
+  def managed_description_blob?(blob)
+    blob&.metadata&.fetch("benchmark_source_checksum", nil).present? && !blob.attachments.exists?
+  end
+
+  def blob_in_use?(blob)
+    blob.attachments.exists? || Link.where("description LIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(blob.key)}%").exists?
+  end
+
   def current_blob?(blob, filename:, source_checksum:, width:, height:)
     blob.present? &&
       blob.filename.to_s == filename &&
+      blob.content_type == content_type(filename) &&
+      blob.checksum == source_checksum &&
       blob.metadata["benchmark_source_checksum"] == source_checksum &&
+      blob.metadata["benchmark_delivery_version"] == DELIVERY_VERSION &&
       blob.service_name == ActiveStorage::Blob.service.name.to_s &&
       blob.metadata["width"].to_i == width &&
       blob.metadata["height"].to_i == height &&
@@ -86,6 +103,7 @@ module BenchmarkSeedMedia
       metadata: blob.metadata.merge(
         "identified" => true,
         "analyzed" => true,
+        "benchmark_delivery_version" => DELIVERY_VERSION,
         "benchmark_source_checksum" => source_checksum,
         "width" => width,
         "height" => height,
@@ -113,6 +131,9 @@ module BenchmarkSeedMedia
   end
 
   def content_type(filename)
-    filename.end_with?(".png") ? "image/png" : "image/jpeg"
+    return "image/webp" if filename.end_with?(".webp")
+    return "image/png" if filename.end_with?(".png")
+
+    "image/jpeg"
   end
 end
