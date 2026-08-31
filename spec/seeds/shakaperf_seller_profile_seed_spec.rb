@@ -27,7 +27,7 @@ RSpec.describe "ShakaPerf seller profile seed" do
 
     seller = User.find_by!(email: seller_email)
     expect(seller).to have_attributes(name: "ShakaPerf Microsoft 365 Lab", username: "shakaperfprofile")
-    expect(seller.json_data).to include("fixture_owner" => "shakaperf-seller-profile", "fixture_version" => 1)
+    expect(seller.json_data).to include("fixture_owner" => "shakaperf-seller-profile", "fixture_version" => 2)
     expect(seller.avatar).to be_attached
     expect(seller.avatar).to have_attributes(filename: ActiveStorage::Filename.new("luis-furushio-profile.png"), byte_size: 141_657)
     expect(seller.avatar.blob.metadata).to include("width" => 400, "height" => 400)
@@ -84,9 +84,20 @@ RSpec.describe "ShakaPerf seller profile seed" do
       .props(request:, pundit_user: owner, seller_custom_domain_url: nil, editing: false)
     expect(owner_result[:sections].sole.dig(:search_results, :products).size).to eq(22)
 
-    expected_thumbnail_urls = %w[microsoft-365.png powershell.png purview.png power-platform.png]
-      .map { "/native-product-page-fixture/#{_1}" }
-    expect(products.map { _1.thumbnail_alive.url }.uniq).to match_array(expected_thumbnail_urls)
+    thumbnails = products.map(&:thumbnail_alive)
+    expect(thumbnails.map(&:unsplash_url)).to all(be_nil)
+    expect(thumbnails.map(&:file)).to all(be_attached)
+    expect(thumbnails.map { _1.file.blob.metadata.slice("width", "height") }.uniq).to eq(
+      [{ "width" => 600, "height" => 600 }],
+    )
+    expect(thumbnails).to all(satisfy do |thumbnail|
+      thumbnail.thumbnail_variant.variation.transformations[:resize_to_limit] == [600, 600]
+    end)
+    thumbnail_urls = thumbnails.map(&:url)
+    expect(thumbnail_urls).to all(satisfy { !_1.include?("/native-product-page-fixture/") })
+    expect(thumbnail_urls.map { URI(_1).path.split("/").last }).to eq(
+      thumbnails.map { _1.thumbnail_variant.image.blob.key },
+    )
     expect(
       %w[microsoft-365.png powershell.png purview.png power-platform.png]
         .index_with { Rails.root.join("public/native-product-page-fixture", _1).size },
@@ -103,6 +114,8 @@ RSpec.describe "ShakaPerf seller profile seed" do
       .and not_change { seller.products.count }
       .and not_change { BundleProduct.where(bundle: bundles).count }
       .and not_change { Variant.joins(:variant_category).where(variant_categories: { link_id: variant_products }).count }
+      .and not_change(ActiveStorage::Blob, :count)
+      .and not_change(ActiveStorage::Attachment, :count)
     expect(section.reload.shown_products).to eq(original_order)
   end
 
