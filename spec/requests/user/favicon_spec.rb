@@ -13,12 +13,12 @@ describe "User favicons", type: :system, js: true do
   end
 
   describe "user profile photo as a favicon" do
-    it "does display on the profile page" do
+    it "does display on the profile page", :product_rsc_renderer do
       visit("/#{@user.username}")
       expect(page).to have_xpath("/html/head/link[@href='#{@user.avatar_url}']", visible: false)
     end
 
-    it "does not duplicate the shortcut icon link (gp#1966)" do
+    it "does not duplicate the shortcut icon link (gp#1966)", :product_rsc_renderer do
       visit("/#{@user.username}")
       expect(page).to have_xpath("/html/head/link[@rel='shortcut icon']", count: 1, visible: false)
     end
