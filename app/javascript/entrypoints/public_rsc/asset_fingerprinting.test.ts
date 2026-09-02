@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
@@ -27,7 +28,36 @@ const loadConfigs = (railsEnvironment: string, nodeEnvironment = railsEnvironmen
 };
 const configs = loadConfigs("test");
 const read = (path: string) => readFileSync(new URL(`../../../../${path}`, import.meta.url), "utf8");
+const clientConfigSource = read("config/rspack/public_rsc/client.cjs");
+const inertiaLayout = read("app/views/layouts/inertia.html.erb");
 const pushAssetsScript = read("docker/web/push_assets_to_s3.sh");
+const loadClientConfigWithEntries = (entry: Record<string, string | string[]>): Configuration => {
+  const clientModule: { exports: Configuration } = { exports: {} };
+  runInNewContext(clientConfigSource, {
+    module: clientModule,
+    require: (request: string) => {
+      if (request === "shakapacker/rspack") {
+        return {
+          config: {},
+          generateRspackConfig: () => ({ entry, module: {}, output: {}, plugins: [], resolve: {} }),
+        };
+      }
+      if (request === "./common.cjs") {
+        return {
+          assetRule: {},
+          baseResolve: {},
+          createPlugins: () => [],
+          createScriptRules: () => [],
+          mode: "development",
+          publicAssetPath: "/public-rsc/",
+          publicOutputPath: "/tmp/public-rsc",
+        };
+      }
+      throw new Error(`Unexpected require: ${request}`);
+    },
+  });
+  return clientModule.exports;
+};
 
 describe("public RSC asset fingerprinting", () => {
   it.each([
@@ -68,7 +98,7 @@ describe("public RSC asset fingerprinting", () => {
     ]);
 
     const clientEntries = Object.keys(configs[0]?.entry ?? {});
-    expect(clientEntries).toContain("public_rsc_bootstrap");
+    expect(clientEntries).not.toContain("public_rsc_bootstrap");
     expect(clientEntries).not.toContain("product_rsc");
     expect(clientEntries).not.toContain("server-bundle");
     expect(configs.slice(1).map(({ entry }) => Object.keys(entry ?? {}))).toEqual([["server-bundle"], ["rsc-bundle"]]);
@@ -84,6 +114,27 @@ describe("public RSC asset fingerprinting", () => {
     });
     expect(configs[1]?.resolve?.alias).toMatchObject({
       "@rails/activestorage$": expect.stringContaining("activestorage_server.js"),
+    });
+    expect(inertiaLayout).not.toContain('prepend_javascript_pack_tag "public_rsc_bootstrap"');
+  });
+
+  it("prepends the bootstrap to string and array generated entries", () => {
+    const clientConfig = loadClientConfigWithEntries({
+      public_rsc_bootstrap: "/packs/public_rsc_bootstrap.tsx",
+      "generated/ArrayComponent": ["/generated/array-runtime.ts", "/generated/ArrayComponent.tsx"],
+      "generated/StringComponent": "/generated/StringComponent.tsx",
+      untouched: "/packs/untouched.ts",
+      "server-bundle": "/packs/server-bundle.ts",
+    });
+
+    expect(clientConfig.entry).toEqual({
+      "generated/ArrayComponent": [
+        "/packs/public_rsc_bootstrap.tsx",
+        "/generated/array-runtime.ts",
+        "/generated/ArrayComponent.tsx",
+      ],
+      "generated/StringComponent": ["/packs/public_rsc_bootstrap.tsx", "/generated/StringComponent.tsx"],
+      untouched: "/packs/untouched.ts",
     });
   });
 
