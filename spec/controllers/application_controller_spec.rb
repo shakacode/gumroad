@@ -22,6 +22,15 @@ describe ApplicationController do
     cookies[:_gumroad_guid] = "fdakjl9fdoakjs9"
   end
 
+  describe "#authorize_rack_mini_profiler" do
+    it "does not require the profiler when its middleware is not loaded" do
+      hide_const("Rack::MiniProfiler")
+      allow(controller).to receive(:authorize_rack_mini_profiler?).and_return(true)
+
+      expect { controller.send(:authorize_rack_mini_profiler) }.not_to raise_error
+    end
+  end
+
   describe "#invalidate_session_if_necessary" do
     let!(:user) { create(:user, last_active_sessions_invalidated_at: 1.month.ago) }
 
