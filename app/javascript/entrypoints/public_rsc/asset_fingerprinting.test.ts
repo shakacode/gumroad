@@ -1,7 +1,7 @@
 import { rspack, type Configuration } from "@rspack/core";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
@@ -9,6 +9,11 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 const configPath = require.resolve("../../../../config/rspack/public_rsc.config.cjs");
 const clientNodeRuntime = require.resolve("react-on-rails-rsc/client.node");
+type RspackInjectionLoader = {
+  _chunkName: string;
+  _discoveredClientFiles: string[];
+  default: (this: { cacheable: () => void; emitWarning: () => void }, source: string) => string;
+};
 const loadConfigs = (railsEnvironment: string, nodeEnvironment = railsEnvironment): Configuration[] => {
   const previousNodeEnvironment = process.env.NODE_ENV;
   const hadRailsEnvironment = Object.prototype.hasOwnProperty.call(process.env, "RAILS_ENV");
@@ -136,6 +141,29 @@ describe("public RSC asset fingerprinting", () => {
       "generated/StringComponent": ["/packs/public_rsc_bootstrap.tsx", "/generated/StringComponent.tsx"],
       untouched: "/packs/untouched.ts",
     });
+  });
+
+  it("leaves discovered browser chunks for Flight while retaining server imports", () => {
+    const rspackPluginPath = require.resolve("react-on-rails-rsc/RspackPlugin");
+    const injectionLoader: RspackInjectionLoader = require(join(dirname(rspackPluginPath), "injection-loader.js"));
+    const originalClientFiles = injectionLoader._discoveredClientFiles;
+    const originalChunkName = injectionLoader._chunkName;
+
+    try {
+      injectionLoader._discoveredClientFiles = ["/virtual/DeferredClient.tsx"];
+      injectionLoader._chunkName = "client[index]";
+      const transformed = injectionLoader.default.call(
+        { cacheable: () => undefined, emitWarning: () => undefined },
+        "export const runtime = true;",
+      );
+
+      expect(transformed).toContain('if (typeof window === "undefined") import(');
+      expect(transformed).not.toMatch(/^import\(/mu);
+      expect(transformed).toContain("export const runtime = true;");
+    } finally {
+      injectionLoader._discoveredClientFiles = originalClientFiles;
+      injectionLoader._chunkName = originalChunkName;
+    }
   });
 
   it("publishes server-only assets through the environment-specific public path", async () => {
