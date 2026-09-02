@@ -52,24 +52,24 @@ describe DiscoverDomainConstraint do
 
     it "accepts the benchmark custom root as the Discover host" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
-      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
-      request = double("request", host: "gumroad-inertia.reactonrails.com", path: "/")
+      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-rorp.reactonrails.com")
+      request = double("request", host: "gumroad-rorp.reactonrails.com", path: "/")
 
       expect(described_class.matches?(request)).to eq(true)
     end
 
     it "accepts explicit discover paths on the benchmark custom root" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
-      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
-      request = double("request", host: "gumroad-inertia.reactonrails.com", path: "/discover")
+      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-rorp.reactonrails.com")
+      request = double("request", host: "gumroad-rorp.reactonrails.com", path: "/discover")
 
       expect(described_class.matches?(request)).to eq(true)
     end
 
     it "accepts taxonomy paths on the benchmark custom root" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
-      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
-      request = double("request", host: "gumroad-inertia.reactonrails.com", path: "/software-development/programming")
+      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-rorp.reactonrails.com")
+      request = double("request", host: "gumroad-rorp.reactonrails.com", path: "/software-development/programming")
       allow(DiscoverTaxonomyConstraint).to receive(:matches?).with(request).and_return(true)
 
       expect(described_class.matches?(request)).to eq(true)
@@ -77,7 +77,7 @@ describe DiscoverDomainConstraint do
 
     it "accepts product support paths on the benchmark custom root" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
-      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
+      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-rorp.reactonrails.com")
       allow(DiscoverTaxonomyConstraint).to receive(:matches?).and_return(false)
 
       [
@@ -85,7 +85,7 @@ describe DiscoverDomainConstraint do
         "/links/example/track_user_action",
         "/offer_codes/compute_discount",
       ].each do |path|
-        request = double("request", host: "gumroad-inertia.reactonrails.com", path: path)
+        request = double("request", host: "gumroad-rorp.reactonrails.com", path: path)
         expect(described_class.matches?(request)).to eq(true)
       end
     end
@@ -106,8 +106,8 @@ describe DiscoverDomainConstraint do
 
     it "does not treat the benchmark seller host as Discover" do
       ENV["CONTROL_PLANE_BENCHMARK"] = "true"
-      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-inertia.reactonrails.com")
-      request = double("request", host: "seller.gumroad-inertia.reactonrails.com", path: "/discover")
+      stub_const("VALID_DISCOVER_REQUEST_HOST", "gumroad-rorp.reactonrails.com")
+      request = double("request", host: "seller.gumroad-rorp.reactonrails.com", path: "/discover")
 
       expect(described_class.matches?(request)).to eq(false)
     end
