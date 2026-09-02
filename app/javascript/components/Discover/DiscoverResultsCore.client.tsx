@@ -1,13 +1,19 @@
 import { X } from "@boxicons/react";
-import { router, usePage } from "@inertiajs/react";
+import { Deferred, router, usePage } from "@inertiajs/react";
 import { range } from "lodash-es";
 import * as React from "react";
 import typia from "typia";
 
 import { SearchRequest, SearchResults } from "$app/data/search";
+import type { CardProduct } from "$app/parsers/product";
+import { last } from "$app/utils/array";
 import { CurrencyCode } from "$app/utils/currency";
 import { discoverTitleGenerator, Taxonomy } from "$app/utils/discover";
 
+import { RecentlyViewed } from "$app/components/Discover/RecentlyViewed";
+import type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
+import { RecommendedProducts, RecommendedProductsSkeleton } from "$app/components/Discover/RecommendedProducts.client";
+import { RecommendedWishlists } from "$app/components/Discover/RecommendedWishlists";
 import { HomeFooter } from "$app/components/Home/Shared/Footer";
 import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { RatingStars } from "$app/components/RatingStars";
@@ -18,11 +24,15 @@ import { Label } from "$app/components/ui/Label";
 import { Radio } from "$app/components/ui/Radio";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
+import type { CardWishlist } from "$app/components/Wishlist/Card";
 
 type Props = {
   currency_code: CurrencyCode;
   search_results: SearchResults;
   taxonomies_for_nav: Taxonomy[];
+  recommended_products?: CardProduct[];
+  recommended_wishlists?: CardWishlist[];
+  recently_viewed?: RecentlyViewedProps | null;
   curated_product_ids: string[];
   black_friday_offer_code: string;
 };
@@ -34,11 +44,20 @@ const sortTitles = {
   best_sellers: "Best selling products",
 };
 
+// Featured products and search results overlap when there are no filters, so skip them in the search request.
+const recommendedProductsCount = 8;
+const addInitialOffset = (params: SearchRequest) =>
+  Object.entries(params).every(([key, value]) => !value || ["taxonomy", "curated_product_ids"].includes(key))
+    ? { ...params, from: recommendedProductsCount + 1 }
+    : params;
+
 const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOrder: string | undefined) => {
   const url = new URL(href);
   const parsedParams: SearchRequest = {
     taxonomy: url.pathname === Routes.discover_path() ? undefined : url.pathname.replace("/", ""),
-    curated_product_ids: curatedProductIds,
+    curated_product_ids: curatedProductIds.slice(
+      url.pathname === Routes.discover_path() ? recommendedProductsCount : 0,
+    ),
   };
 
   function parseParams<T extends keyof SearchRequest>(keys: T[], transform: (value: string) => SearchRequest[T]) {
@@ -56,7 +75,15 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
   return { params: parsedParams, sortWasExplicit };
 };
 
-export function DiscoverResultsCore() {
+export function DiscoverResultsCore({
+  recentlyViewed: recentlyViewedSlot,
+  recommendedProducts: recommendedProductsSlot,
+  recommendedWishlists: recommendedWishlistsSlot,
+}: {
+  recentlyViewed?: React.ReactNode;
+  recommendedProducts?: React.ReactNode;
+  recommendedWishlists?: React.ReactNode;
+}) {
   const props = typia.assert<Props>(usePage().props);
   const originalLocation = useOriginalLocation();
   const defaultSortOrder = props.curated_product_ids.length > 0 ? "curated" : undefined;
@@ -65,7 +92,7 @@ export function DiscoverResultsCore() {
   const sortWasExplicitRef = React.useRef(initialParsed.sortWasExplicit);
 
   const [state, dispatch] = useSearchReducer({
-    params: initialParsed.params,
+    params: addInitialOffset(initialParsed.params),
     results: props.search_results,
   });
 
@@ -94,15 +121,25 @@ export function DiscoverResultsCore() {
     const urlString = url.pathname + url.search;
     const currentUrlString = window.location.pathname + window.location.search;
     if (urlString !== currentUrlString) {
-      router.get(
-        url.toString(),
-        {},
-        {
-          preserveState: true,
-          preserveScroll: true,
-          only: ["search_results"],
-        },
-      );
+      const currentParams = parseUrlParams(window.location.href, props.curated_product_ids, defaultSortOrder).params;
+      const offerCodeChanged = state.params.offer_code !== currentParams.offer_code;
+      const shouldFetchRecommendations = url.pathname !== new URL(window.location.href).pathname;
+
+      if (offerCodeChanged) {
+        window.location.assign(url.toString());
+      } else if (shouldFetchRecommendations) {
+        router.get(url.toString(), {}, { preserveState: true, preserveScroll: true });
+      } else {
+        router.get(
+          url.toString(),
+          {},
+          {
+            preserveState: true,
+            preserveScroll: true,
+            only: ["search_results"],
+          },
+        );
+      }
     }
 
     document.title = discoverTitleGenerator(
@@ -111,7 +148,7 @@ export function DiscoverResultsCore() {
       url.search,
       sortWasExplicitRef.current ? undefined : defaultSortOrder,
     );
-  }, [state.params, props.taxonomies_for_nav, defaultSortOrder]);
+  }, [state.params, props.taxonomies_for_nav, defaultSortOrder, props.curated_product_ids]);
 
   React.useEffect(() => {
     const handlePopstate = () => {
@@ -121,7 +158,7 @@ export function DiscoverResultsCore() {
         defaultSortOrder,
       );
       sortWasExplicitRef.current = sortWasExplicit;
-      dispatch({ type: "set-params", params: newParams });
+      dispatch({ type: "set-params", params: addInitialOffset(newParams) });
     };
     window.addEventListener("popstate", handlePopstate);
     return () => window.removeEventListener("popstate", handlePopstate);
@@ -133,10 +170,47 @@ export function DiscoverResultsCore() {
   };
 
   const hasOfferCode = !!state.params.offer_code;
+  const taxonomyPath = state.params.taxonomy;
+  const recommendedProducts = props.recommended_products ?? [];
+  const isCuratedProducts = (() => {
+    try {
+      if (!recommendedProducts.length || !recommendedProducts[0]?.url) return false;
+      const url = new URL(recommendedProducts[0].url, originalLocation);
+      return url.searchParams.get("recommended_by") === "products_for_you";
+    } catch {
+      return false;
+    }
+  })();
+  const showRecommendationSections = !state.params.query && !hasOfferCode;
+  const wishlistTaxonomy = taxonomyPath
+    ? props.taxonomies_for_nav.find((taxonomy) => taxonomy.slug === last(taxonomyPath.split("/")))
+    : undefined;
+  const recommendedWishlistsTitle = wishlistTaxonomy
+    ? `Wishlists for ${wishlistTaxonomy.label}`
+    : "Wishlists you might like";
 
   return (
     <>
       <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
+        {showRecommendationSections && recommendedProductsSlot !== undefined ? (
+          recommendedProductsSlot
+        ) : showRecommendationSections ? (
+          <Deferred data={["recommended_products"]} fallback={<RecommendedProductsSkeleton />}>
+            {recommendedProducts.length ? (
+              <RecommendedProducts
+                products={recommendedProducts}
+                title={isCuratedProducts ? "Recommended" : "Featured products"}
+              />
+            ) : null}
+          </Deferred>
+        ) : null}
+        {showRecommendationSections && recentlyViewedSlot !== undefined ? (
+          recentlyViewedSlot
+        ) : showRecommendationSections ? (
+          <Deferred data={["recently_viewed"]} fallback={null}>
+            <RecentlyViewed data={props.recently_viewed} />
+          </Deferred>
+        ) : null}
         <section className="flex flex-col gap-4">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--spacer-2)", flexWrap: "wrap" }}>
             <h2>
@@ -154,7 +228,7 @@ export function DiscoverResultsCore() {
                     onClick={() =>
                       updateParams({
                         sort: "curated",
-                        curated_product_ids: props.curated_product_ids,
+                        curated_product_ids: props.curated_product_ids.slice(recommendedProductsCount),
                       })
                     }
                   >
@@ -247,6 +321,16 @@ export function DiscoverResultsCore() {
             pagination="button"
           />
         </section>
+        {showRecommendationSections && recommendedWishlistsSlot !== undefined ? (
+          recommendedWishlistsSlot
+        ) : showRecommendationSections ? (
+          <Deferred
+            data={["recommended_wishlists"]}
+            fallback={<RecommendedWishlists wishlists={null} title={recommendedWishlistsTitle} />}
+          >
+            <RecommendedWishlists wishlists={props.recommended_wishlists ?? null} title={recommendedWishlistsTitle} />
+          </Deferred>
+        ) : null}
       </div>
       <HomeFooter currencySelector />
     </>

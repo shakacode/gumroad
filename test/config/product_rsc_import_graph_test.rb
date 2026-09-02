@@ -37,6 +37,9 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Discover/Cart.client.tsx
     Discover/DiscoverResults.client.tsx
     Discover/MobileMenu.client.tsx
+    Discover/RecentlyViewed.tsx
+    Discover/RecommendedProducts.client.tsx
+    Discover/RecommendedWishlists.tsx
     Discover/Search.client.tsx
     Discover/TaxonomyMenu.client.tsx
   ].freeze
@@ -391,8 +394,6 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_includes client_graph, results_core
     assert_includes results_core.read, "Routes.discover_path()"
     assert_includes results_core.read, "$app/components/Product/CardGrid"
-    assert_not_includes results.read, "recommendedProducts"
-    assert_not_includes results.read, "recentlyViewed"
     assert_not_includes results.read, "blackFridayHero"
     assert_not_includes results_core.read, "renderLayout"
     assert_not_includes results_core.read, "BlackFridayHero"
@@ -400,6 +401,37 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Index.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Layout.tsx")
     assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Discover/Nav.tsx")
+  end
+
+  test "keeps Discover recommendations in streamed server regions with legacy fallbacks" do
+    async_regions = %w[
+      Discover/AsyncRecentlyViewed.tsx
+      Discover/AsyncRecommendedProducts.tsx
+      Discover/AsyncRecommendedWishlists.tsx
+    ].map { COMPONENT_DIRECTORY.join(_1) }
+    results = COMPONENT_DIRECTORY.join("Discover/DiscoverResults.client.tsx").read
+    results_core = COMPONENT_DIRECTORY.join("Discover/DiscoverResultsCore.client.tsx").read
+    react_types = Rails.root.join("app/javascript/types/index.d.ts").read
+    recently_viewed = COMPONENT_DIRECTORY.join("Discover/RecentlyViewed.tsx").read
+
+    async_regions.each do |region|
+      assert_not region.read.start_with?('"use client";')
+      assert_includes region.read, "React.use("
+    end
+    assert_includes results, "recentlyViewed"
+    assert_includes results, "recommendedProducts"
+    assert_includes results, "recommendedWishlists"
+    assert_includes results_core, '<Deferred data={["recently_viewed"]}'
+    assert_includes results_core, '<Deferred data={["recommended_products"]}'
+    assert_includes results_core, 'data={["recommended_wishlists"]}'
+    assert_includes results_core, "<RecommendedProductsSkeleton />"
+    assert_includes results_core, "<RecommendedWishlists wishlists={null}"
+    assert_equal 3, results_core.scan("Slot !== undefined").count
+    assert_includes results_core, "const recommendedWishlistsTitle = wishlistTaxonomy"
+    assert_includes results_core, ": \"Wishlists you might like\""
+    assert_includes react_types, "function use<T>(usable: PromiseLike<T>): T;"
+    assert_includes recently_viewed, 'export type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types"'
+    assert_not_includes results_core, "$app/components/Discover/DiscoverPage"
   end
 
   private
