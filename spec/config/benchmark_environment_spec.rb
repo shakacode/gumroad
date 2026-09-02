@@ -26,6 +26,9 @@ RSpec.describe "benchmark Rails environment" do
     rack_attack_request = Rack::Attack::Request.new(
       Rack::MockRequest.env_for("/", "HTTP_CF_CONNECTING_IP" => "203.0.113.10")
     )
+    deflater = Rails.application.middleware.find { _1.klass == Rack::Deflater }
+    compression_condition = deflater.args.first[:if]
+    compresses = ->(headers) { compression_condition.nil? || compression_condition.call(nil, 200, headers, []) }
     team_member = Object.new
     def team_member.is_team_member? = true
     controller = ApplicationController.new
@@ -73,6 +76,8 @@ RSpec.describe "benchmark Rails environment" do
       currency_source: CURRENCY_SOURCE,
       analytics_enabled: ApplicationController.new.send(:analytics_enabled?, seller: nil),
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
+      compresses_regular_response: compresses.call({}),
+      compresses_live_stream: compresses.call("x-accel-buffering" => "no"),
       rack_attack_safelisted: Rack::Attack.configuration.safelisted?(rack_attack_request),
       seller_subdomain_match: Subdomain.send(:subdomain_request?, "seller.localhost").present?,
       profiler_constant_loaded: defined?(Rack::MiniProfiler).present?,
@@ -194,6 +199,13 @@ RSpec.describe "benchmark Rails environment" do
       vite_output_dir: "vite",
     )
     expect(@benchmark_config[:middleware]).to include("Rack::Deflater")
+  end
+
+  it "does not wrap live responses in Rack compression" do
+    expect(@benchmark_config).to include(
+      compresses_regular_response: true,
+      compresses_live_stream: false,
+    )
   end
 
   it "resolves initial and lazy Vite assets against each storefront origin" do

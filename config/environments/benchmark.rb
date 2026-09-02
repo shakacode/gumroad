@@ -5,6 +5,7 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Production's CDN compresses assets; keep Slow 4G samples representative when Rails serves them locally.
   config.middleware.insert_before 0, Rack::Deflater,
+                                  if: ->(_env, _status, headers, _body) { headers["x-accel-buffering"] != "no" },
                                   include: %w[
                                     application/javascript
                                     application/json
