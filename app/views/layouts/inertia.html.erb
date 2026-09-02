@@ -19,7 +19,6 @@
       </footer>
     <% end %>
     <% if @product_rsc_document_props || @public_rsc_props %>
-      <% prepend_javascript_pack_tag "public_rsc_bootstrap" %>
       <%= stylesheet_pack_tag crossorigin: "anonymous" %>
       <%= javascript_pack_tag crossorigin: "anonymous", nonce: SecureHeaders.content_security_policy_script_nonce(request) %>
     <% elsif !@hide_layouts %>
