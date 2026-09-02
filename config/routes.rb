@@ -6,6 +6,8 @@ require "user_custom_domain_constraint"
 require "gumroad_domain_constraint"
 require "discover_domain_constraint"
 require "discover_taxonomy_constraint"
+require "public_rsc_document_request_constraint"
+require "product_rsc_document_request_constraint"
 require "sidekiq/cron/web"
 require "sidekiq_unique_jobs/web"
 
@@ -30,6 +32,8 @@ Rails.application.routes.draw do
   get "/healthcheck/stripe_balance" => "healthcheck#stripe_balance"
   get "/healthcheck/purchases" => "healthcheck#purchases"
   get "/healthcheck/apple_pay_domain" => "healthcheck#apple_pay_domain"
+
+  rsc_payload_route path: "rsc_payload", controller: "rsc_payload"
 
   # IndexNow key verification file (https://www.indexnow.org/documentation).
   # Deliberately unconstrained by host: the spec requires the key file to be
