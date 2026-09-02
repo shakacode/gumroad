@@ -16,7 +16,11 @@ describe "Profile page analytics", type: :request do
     before { allow(Rails.env).to receive(:production?).and_return(true) }
 
     def seller_analytics_props
-      get "#{seller.subdomain_with_protocol}/", headers: { "X-Inertia" => "true" }
+      get "#{seller.subdomain_with_protocol}/", headers: {
+        "X-Inertia" => "true",
+        "X-Inertia-Partial-Component" => "Users/Show",
+        "X-Inertia-Partial-Data" => "seller_analytics",
+      }
       expect(response).to be_successful
       JSON.parse(response.body).dig("props", "seller_analytics")
     end
