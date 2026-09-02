@@ -72,7 +72,7 @@ export type Review = {
 export const getReviews = async (productId: string, page: number) => {
   const response = await request({
     method: "GET",
-    url: Routes.product_reviews_path({ product_id: productId, page }),
+    url: Routes.product_reviews_path({ product_id: productId, page, format: "json" }),
     accept: "json",
   });
 
