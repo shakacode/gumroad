@@ -1,0 +1,214 @@
+services:
+  control-server:
+    image: ${CONTROL_IMAGE_NAME}
+    ports:
+      - "${CONTROL_PORT}:3000"
+    environment: &control-environment
+      RAILS_ENV: benchmark
+      RACK_ENV: benchmark
+      NODE_ENV: production
+      VITE_RUBY_MODE: production
+      VITE_RUBY_ASSET_HOST: ""
+      VITE_RUBY_AUTO_BUILD: "false"
+      DEV_LANE_PORT: ${CONTROL_PORT}
+      DATABASE_HOST: mysql-control
+      MONGO_DATABASE_URL: mongo-control:27017
+      MONGO_SECONDARY_DATABASE_URL: mongo-control:27017
+      REDIS_HOST: redis-control:6379/0
+      SIDEKIQ_REDIS_HOST: redis-control:6379/1
+      RPUSH_REDIS_HOST: redis-control:6379/2
+      RACK_ATTACK_REDIS_HOST: redis-control:6379/3
+      MEMCACHE_SERVERS: 127.0.0.1:11211
+      BENCHMARK_CACHE_NAMESPACE: shakaperf-control
+      ELASTICSEARCH_HOST: http://elasticsearch-control:9200
+      AWS_S3_ENDPOINT: http://minio-control.localhost:9100
+      AWS_ACCESS_KEY_ID: shakaperf
+      AWS_SECRET_ACCESS_KEY: shakaperf
+    extra_hosts:
+      - "minio-control.localhost:host-gateway"
+    volumes:
+      - control_volume:/home/${USER}/app
+      - ./runtime:/shakaperf-twin:ro
+      - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro
+      - ../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro
+      - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
+    depends_on:
+      mysql-control:
+        condition: service_healthy
+      mongo-control:
+        condition: service_healthy
+      redis-control:
+        condition: service_healthy
+      elasticsearch-control:
+        condition: service_healthy
+      createbuckets-control:
+        condition: service_completed_successfully
+    command: sleep infinity
+
+  experiment-server:
+    image: ${EXPERIMENT_IMAGE_NAME}
+    ports:
+      - "${EXPERIMENT_PORT}:3000"
+    environment:
+      <<: *control-environment
+      DEV_LANE_PORT: ${EXPERIMENT_PORT}
+      DATABASE_HOST: mysql-experiment
+      MONGO_DATABASE_URL: mongo-experiment:27017
+      MONGO_SECONDARY_DATABASE_URL: mongo-experiment:27017
+      REDIS_HOST: redis-experiment:6379/0
+      SIDEKIQ_REDIS_HOST: redis-experiment:6379/1
+      RPUSH_REDIS_HOST: redis-experiment:6379/2
+      RACK_ATTACK_REDIS_HOST: redis-experiment:6379/3
+      MEMCACHE_SERVERS: 127.0.0.1:11211
+      BENCHMARK_CACHE_NAMESPACE: shakaperf-experiment
+      ELASTICSEARCH_HOST: http://elasticsearch-experiment:9200
+      AWS_S3_ENDPOINT: http://minio-experiment.localhost:9101
+    extra_hosts:
+      - "minio-experiment.localhost:host-gateway"
+    volumes:
+      - experiment_volume:/home/${USER}/app
+      - ./runtime:/shakaperf-twin:ro
+      - ../scripts/seed_native_product_page.rb:/shakaperf-fixtures/seed_native_product_page.rb:ro
+      - ../scripts/seed_shakaperf_seller_profile.rb:/shakaperf-fixtures/seed_shakaperf_seller_profile.rb:ro
+      - ../scripts/seed_shakaperf_discover.rb:/shakaperf-fixtures/seed_shakaperf_discover.rb:ro
+      - ../public/native-product-page-fixture:/home/${USER}/app/public/native-product-page-fixture:ro
+    depends_on:
+      mysql-experiment:
+        condition: service_healthy
+      mongo-experiment:
+        condition: service_healthy
+      redis-experiment:
+        condition: service_healthy
+      elasticsearch-experiment:
+        condition: service_healthy
+      createbuckets-experiment:
+        condition: service_completed_successfully
+    command: sleep infinity
+
+  mysql-control:
+    image: mysql:8.0.32
+    environment: &mysql-environment
+      MYSQL_DATABASE: gumroad_development
+      MYSQL_ROOT_PASSWORD: password
+    command: &mysql-command
+      - mysqld
+      - --default-authentication-plugin=mysql_native_password
+      - --collation-server=utf8mb4_unicode_ci
+      - --character-set-server=utf8mb4
+    healthcheck: &mysql-healthcheck
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mysql-experiment:
+    image: mysql:8.0.32
+    environment: *mysql-environment
+    command: *mysql-command
+    healthcheck: *mysql-healthcheck
+
+  mongo-control:
+    image: mongo:4.0.19
+    healthcheck: &mongo-healthcheck
+      test: ["CMD", "mongo", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  mongo-experiment:
+    image: mongo:4.0.19
+    healthcheck: *mongo-healthcheck
+
+  redis-control:
+    image: redis:7.0.7
+    healthcheck: &redis-healthcheck
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis-experiment:
+    image: redis:7.0.7
+    healthcheck: *redis-healthcheck
+
+  elasticsearch-control:
+    image: elasticsearch:7.9.3
+    environment: &elasticsearch-environment
+      ES_JAVA_OPTS: -Xms256m -Xmx256m
+      discovery.type: single-node
+    healthcheck: &elasticsearch-healthcheck
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  elasticsearch-experiment:
+    image: elasticsearch:7.9.3
+    environment: *elasticsearch-environment
+    healthcheck: *elasticsearch-healthcheck
+
+  minio-control:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    environment: &minio-environment
+      MINIO_ROOT_USER: shakaperf
+      MINIO_ROOT_PASSWORD: shakaperf
+    command: server /data
+    ports:
+      - "9100:9000"
+    volumes:
+      - minio_control_data:/data
+    healthcheck: &minio-healthcheck
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  minio-experiment:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    environment: *minio-environment
+    command: server /data
+    ports:
+      - "9101:9000"
+    volumes:
+      - minio_experiment_data:/data
+    healthcheck: *minio-healthcheck
+
+  createbuckets-control:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio-control:
+        condition: service_healthy
+    entrypoint: &createbucket-entrypoint >
+      /bin/sh -c "/usr/bin/mc alias set storage http://$${MINIO_HOST}:9000 shakaperf shakaperf &&
+      for bucket in gumroad-dev gumroad-dev-public-storage; do
+        /usr/bin/mc mb --ignore-existing storage/$${bucket} &&
+        /usr/bin/mc anonymous set public storage/$${bucket};
+      done"
+    environment:
+      MINIO_HOST: minio-control
+
+  createbuckets-experiment:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio-experiment:
+        condition: service_healthy
+    entrypoint: *createbucket-entrypoint
+    environment:
+      MINIO_HOST: minio-experiment
+
+volumes:
+  control_volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${CONTROL_VOLUME_DIR}
+  experiment_volume:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${EXPERIMENT_VOLUME_DIR}
+  minio_control_data:
+  minio_experiment_data:
