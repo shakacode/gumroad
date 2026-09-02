@@ -5,6 +5,7 @@ import { AssetPreview } from "$app/parsers/product";
 import { classNames } from "$app/utils/classNames";
 import { MAX_PORTRAIT_FRAME_HEIGHT } from "$app/utils/videoFrame";
 
+import { DEFAULT_IMAGE_WIDTH } from "$app/components/Product/productCover";
 import { useElementDimensions } from "$app/components/useElementDimensions";
 import { useOnChange } from "$app/components/useOnChange";
 import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
@@ -13,7 +14,7 @@ import { Embed } from "./Embed";
 import { Image } from "./Image";
 import { Video } from "./Video";
 
-export const DEFAULT_IMAGE_WIDTH = 1005;
+export { DEFAULT_IMAGE_WIDTH };
 
 export const Covers = ({
   covers,
