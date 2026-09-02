@@ -240,19 +240,6 @@ describe("Covers", () => {
     expect(image?.className).toContain("object-contain");
   });
 
-  it("prioritizes the active image and lazily loads inactive carousel images", () => {
-    const { container } = renderCovers([
-      cover({ type: "image", filetype: "png" }),
-      cover({ id: "cover-2", type: "image", filetype: "png" }),
-    ]);
-    const images = container.querySelectorAll<HTMLImageElement>("img");
-
-    expect(images[0]?.loading).toBe("eager");
-    expect(images[0]?.getAttribute("fetchpriority")).toBe("high");
-    expect(images[1]?.loading).toBe("lazy");
-    expect(images[1]?.getAttribute("fetchpriority")).toBe("low");
-  });
-
   it("sizes a portrait embed cover by ratio so it shrinks to fit the capped frame", () => {
     const { container } = renderCovers([portrait({ type: "oembed", filetype: null })]);
     const box = container.querySelector<HTMLElement>("[role=tabpanel] > div");

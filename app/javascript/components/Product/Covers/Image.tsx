@@ -10,10 +10,9 @@ type Props = {
   // See Covers/Video: `max-h-full` only bounds anything inside a frame with a definite
   // height, and only a shaped frame has one.
   frameIsShaped: boolean;
-  isActive: boolean;
   productName?: string | undefined;
 };
-const Image = ({ cover, dimensions, frameIsShaped, isActive, productName }: Props) => (
+const Image = ({ cover, dimensions, frameIsShaped, productName }: Props) => (
   <img
     // `w-full` alone derives the height from the width, which overflows a frame whose
     // height is capped — a tall poster or phone screenshot would be cropped top and
@@ -27,8 +26,6 @@ const Image = ({ cover, dimensions, frameIsShaped, isActive, productName }: Prop
     // context to name — the editor preview — because an unnamed img is announced by its filename.
     alt={productName ?? ""}
     itemProp="image"
-    loading={isActive ? "eager" : "lazy"}
-    fetchPriority={isActive ? "high" : "low"}
   />
 );
 

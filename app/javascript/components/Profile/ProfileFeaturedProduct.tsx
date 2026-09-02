@@ -8,11 +8,9 @@ import { FeaturedProductStateProvider } from "$app/components/Product/ProductSta
 export const ProfileFeaturedProduct = ({
   props,
   serverContent,
-  prioritizeCover,
 }: {
   props: ProductProps;
   serverContent: ServerContent | null;
-  prioritizeCover: boolean;
 }) => {
   if (props.product.native_type === "coffee") return <CoffeeProduct {...props} />;
   if (!serverContent) return null;
@@ -24,7 +22,6 @@ export const ProfileFeaturedProduct = ({
         purchase={props.purchase}
         wishlists={props.wishlists}
         serverContent={serverContent}
-        prioritizeCover={prioritizeCover}
         showEditButton={false}
       />
     </FeaturedProductStateProvider>

@@ -18,7 +18,6 @@ import { ProductSingleCover, singleStaticImageCover } from "$app/components/Prod
 type ProductArticleProps = Pick<ProductProps, "product" | "purchase" | "wishlists"> & {
   ctaLabel?: string | undefined;
   serverContent: ServerContent;
-  prioritizeCover?: boolean | undefined;
   showEditButton?: boolean | undefined;
 };
 
@@ -28,7 +27,6 @@ export default function ProductArticle({
   wishlists,
   ctaLabel,
   serverContent,
-  prioritizeCover = true,
   showEditButton = true,
 }: ProductArticleProps) {
   const staticCover = singleStaticImageCover(product.covers);
@@ -46,14 +44,13 @@ export default function ProductArticle({
           sellerId={product.seller?.id}
         />
         {staticCover && serverContent.initialCover?.id === staticCover.id ? (
-          <ProductSingleCover cover={staticCover} productName={product.name} prioritize={prioritizeCover} />
+          <ProductSingleCover cover={staticCover} productName={product.name} />
         ) : (
           <ProductMedia
             covers={product.covers}
             initialCover={serverContent.initialCover}
             mainCoverId={product.main_cover_id}
             productName={product.name}
-            prioritizeCover={prioritizeCover}
           />
         )}
         {serverContent.quantityRemaining}

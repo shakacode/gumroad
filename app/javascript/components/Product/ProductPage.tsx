@@ -62,37 +62,10 @@ export default function ProductPage({
   taxonomies_for_nav: taxonomiesForNav,
   ...productProps
 }: ProductPageProps) {
-  const prioritizedFeaturedSectionId =
-    productProps.sections.find((section, index) => {
-      if (
-        index >= productProps.main_section_index ||
-        section.type !== "SellerProfileFeaturedProductSection" ||
-        !section.props ||
-        section.props.product.native_type === "coffee" ||
-        !rscFeaturedProductContent[section.id]
-      ) {
-        return false;
-      }
-
-      const { covers, main_cover_id: mainCoverId } = section.props.product;
-      const activeCover = covers.find(({ id }) => id === mainCoverId) ?? covers[0];
-      return (
-        activeCover?.type === "unsplash" ||
-        (activeCover?.type === "image" &&
-          activeCover.native_width !== null &&
-          activeCover.native_width > 0 &&
-          activeCover.native_height !== null &&
-          activeCover.native_height > 0)
-      );
-    })?.id ?? null;
-  const prioritizeMainCover = prioritizedFeaturedSectionId === null;
   const toServerContent = (
     content: ProductContentProps,
     { product, purchase }: Pick<ProductInteractionPageProps, "product" | "purchase">,
-    {
-      hideSellerByline = false,
-      prioritizeCover = true,
-    }: { hideSellerByline?: boolean; prioritizeCover?: boolean } = {},
+    hideSellerByline = false,
   ): ServerContent => {
     const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
 
@@ -109,7 +82,7 @@ export default function ProductPage({
       initialCover: initialCover
         ? {
             id: initialCover.id,
-            content: <ProductCoverImage cover={initialCover} productName={product.name} prioritize={prioritizeCover} />,
+            content: <ProductCoverImage cover={initialCover} productName={product.name} />,
           }
         : null,
       membershipNotices: <ProductMembershipNotices content={content} />,
@@ -140,10 +113,7 @@ export default function ProductPage({
       streamingNotice: <ProductStreamingNotice content={content} />,
     };
   };
-  const serverContent = toServerContent(rscProductContent, productProps, {
-    hideSellerByline: productProps.page_layout === "profile",
-    prioritizeCover: prioritizeMainCover,
-  });
+  const serverContent = toServerContent(rscProductContent, productProps, productProps.page_layout === "profile");
   const ctaLabel =
     productProps.page_layout === "discover" || productProps.page_layout === "profile" ? "Add to cart" : undefined;
   const productArticle = (
@@ -153,7 +123,6 @@ export default function ProductPage({
       wishlists={productProps.wishlists}
       ctaLabel={ctaLabel}
       serverContent={serverContent}
-      prioritizeCover={prioritizeMainCover}
     />
   );
   const serverProfileSections = Object.fromEntries(
@@ -229,14 +198,7 @@ export default function ProductPage({
             {section.props ? (
               <ProfileFeaturedProduct
                 props={section.props}
-                serverContent={
-                  content
-                    ? toServerContent(content, section.props, {
-                        prioritizeCover: section.id === prioritizedFeaturedSectionId,
-                      })
-                    : null
-                }
-                prioritizeCover={section.id === prioritizedFeaturedSectionId}
+                serverContent={content ? toServerContent(content, section.props) : null}
               />
             ) : null}
           </ProfileSectionFrame>,

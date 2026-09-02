@@ -13,13 +13,11 @@ export const ProductMedia = ({
   initialCover,
   mainCoverId,
   productName,
-  prioritizeCover = true,
 }: {
   covers: Product["covers"];
   initialCover: InitialCover;
   mainCoverId: string | null;
   productName: string;
-  prioritizeCover?: boolean;
 }) => {
   const [activeCoverId, setActiveCoverId] = React.useState(mainCoverId);
   useOnChange(() => setActiveCoverId(mainCoverId), [mainCoverId]);
@@ -33,7 +31,6 @@ export const ProductMedia = ({
       setActiveCoverId={setActiveCoverId}
       initialCover={initialCover}
       productName={productName}
-      prioritizeActiveCover={prioritizeCover}
       className={activeCoverId ? "" : "pb-[25%]"}
     />
   );

@@ -64,15 +64,7 @@ type BundleProduct = {
   variant: string | null;
 };
 
-export const ProductCoverImage = ({
-  cover,
-  productName,
-  prioritize = true,
-}: {
-  cover: AssetPreview;
-  productName: string;
-  prioritize?: boolean;
-}) => {
+export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview; productName: string }) => {
   if (cover.type !== "image" || !cover.native_width || !cover.native_height) return null;
 
   const srcSet =
@@ -88,8 +80,6 @@ export const ProductCoverImage = ({
       sizes={srcSet ? PRODUCT_COVER_SIZES : undefined}
       alt={productName}
       itemProp="image"
-      loading={prioritize ? "eager" : "lazy"}
-      fetchPriority={prioritize ? "high" : "low"}
     />
   );
 };

@@ -100,8 +100,6 @@ describe("ProductCoverImage", () => {
     );
     expect(image?.getAttribute("sizes")).toBe("(min-width: 75.25rem) 73.25rem, calc(100vw - 2rem)");
     expect(image?.getAttribute("alt")).toBe("A guide");
-    expect(image?.loading).toBe("eager");
-    expect(image?.getAttribute("fetchpriority")).toBe("high");
   });
 
   it("leaves video covers to the client player", () => {
