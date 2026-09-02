@@ -1,0 +1,40 @@
+kind: workload
+name: memcached
+spec:
+  type: standard
+  containers:
+    - name: memcached
+      cpu: 50m
+      memory: 64Mi
+      image: memcached:1.6-alpine
+      args:
+        - -l
+        - 0.0.0.0
+      ports:
+        - number: 11211
+          protocol: tcp
+      livenessProbe:
+        tcpSocket:
+          port: 11211
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+      readinessProbe:
+        tcpSocket:
+          port: 11211
+        initialDelaySeconds: 2
+        periodSeconds: 5
+        failureThreshold: 3
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc

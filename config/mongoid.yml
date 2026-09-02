@@ -14,6 +14,12 @@ benchmark:
       hosts:
         - <%= ENV.fetch("MONGO_DATABASE_URL") %>
       database: <%= ENV.fetch("MONGO_DATABASE_NAME") %>
+<% if ENV["CONTROL_PLANE_BENCHMARK"] == "true" %>
+      options:
+        user: <%= ENV.fetch("MONGO_DATABASE_USERNAME") %>
+        password: <%= ENV.fetch("MONGO_DATABASE_PASSWORD") %>
+        auth_source: <%= ENV.fetch("MONGO_AUTH_SOURCE", "admin") %>
+<% end %>
   options:
     use_utc: true
     raise_not_found_error: false
