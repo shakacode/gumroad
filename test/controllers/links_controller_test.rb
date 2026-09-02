@@ -627,6 +627,14 @@ class LinksControllerSellerAreaTest < ActionController::TestCase
     assert_equal false, page["props"]["show_orientation_text"]
   end
 
+  test "GET new marks mobile app web view when display=mobile_app" do
+    @request.headers["X-Inertia"] = "true"
+    get :new, params: { display: "mobile_app" }
+
+    assert_response :success
+    assert_equal true, inertia_page["props"]["is_mobile_app_web_view"]
+  end
+
   # --- POST create ------------------------------------------------------------
 
   test "POST create calls authorize with LinkPolicy for Link" do
@@ -4925,6 +4933,40 @@ class LinksControllerShowTest < ActionController::TestCase
     assert page["props"]["product"].present?
   end
 
+  test "GET show renders Products/Profile/Show when the seller has the product page storefront enabled" do
+    seller = create_user(product_page_storefront_enabled: true)
+    link = create_product(user: seller)
+    @request.host = URI.parse(seller.subdomain_with_protocol).host
+    @request.headers["X-Inertia"] = "true"
+    get :show, params: { id: link.to_param }
+    assert_response :success
+    page = inertia_page
+    assert_equal "Products/Profile/Show", page["component"]
+    assert page["props"]["creator_profile"].present?
+    assert page["props"]["product"].present?
+  end
+
+  test "GET show keeps the standalone page when the seller turned the product page storefront off" do
+    seller = create_user(product_page_storefront_enabled: false)
+    link = create_product(user: seller)
+    @request.host = URI.parse(seller.subdomain_with_protocol).host
+    @request.headers["X-Inertia"] = "true"
+    get :show, params: { id: link.to_param }
+    assert_response :success
+    assert_equal "Products/Show", inertia_page["component"]
+  end
+
+  test "GET show keeps the standalone page for the storefront-enabled seller's own view" do
+    seller = create_user(product_page_storefront_enabled: true)
+    link = create_product(user: seller)
+    sign_in seller
+    @request.host = URI.parse(seller.subdomain_with_protocol).host
+    @request.headers["X-Inertia"] = "true"
+    get :show, params: { id: link.to_param }
+    assert_response :success
+    assert_equal "Products/Show", inertia_page["component"]
+  end
+
   test "GET show renders Products/Discover/Show with taxonomy props for discover layout" do
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
@@ -5587,6 +5629,17 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_not html_doc.css("meta[property='product:price:currency'][content='USD']").empty?
   end
 
+  test "GET show emits product:price:amount in major units for a zero-decimal currency" do
+    product = create_product(user: @user, price_currency_type: "jpy", price_cents: 14_800)
+
+    get :show, params: { id: product.unique_permalink }
+
+    assert_response :success
+    html_doc = Nokogiri::HTML(response.body)
+    assert_not html_doc.css("meta[property='product:price:amount'][content='14800.0']").empty?
+    assert_not html_doc.css("meta[property='product:price:currency'][content='JPY']").empty?
+  end
+
   test "GET show sets canonical and og:url meta tags for product without reviews" do
     product = create_product(user: @user)
     get :show, params: { id: product.unique_permalink }
@@ -6149,6 +6202,94 @@ class LinksControllerIncrementViewsTest < ActionController::TestCase
 
     assert_equal 0, ElasticsearchIndexerWorker.jobs.size
   end
+
+  test "GET increment_views.gif records a page view with the authenticated source URL" do
+    sign_out @user
+    source_url = "https://landing.example"
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: @increment_product.analytics_view_token(source_url:) }
+
+    assert_response :success
+    assert_equal "image/gif", @response.media_type
+    assert ElasticsearchIndexerWorker.jobs.any? { |job| job["args"][0] == "index" && job["args"][1]["class_name"] == "ProductPageView" },
+           "Expected ElasticsearchIndexerWorker to index a ProductPageView"
+    assert_equal source_url, ElasticsearchIndexerWorker.jobs.last["args"][1]["body"]["url"]
+    assert_equal source_url, ElasticsearchIndexerWorker.jobs.last["args"][1]["body"]["referrer"]
+  end
+
+  test "GET increment_views.gif ignores spoofed attribution parameters" do
+    sign_out @user
+    source_url = "https://landing.example"
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: @increment_product.analytics_view_token(source_url:), view_url: "https://evil.example/post", referrer: "https://evil.example/referrer" }
+
+    assert_response :success
+    assert_equal "image/gif", @response.media_type
+    assert_equal source_url, ElasticsearchIndexerWorker.jobs.last["args"][1]["body"]["url"]
+    assert_equal source_url, ElasticsearchIndexerWorker.jobs.last["args"][1]["body"]["referrer"]
+  end
+
+  test "GET increment_views.gif replays only the same script-load token into the same page view id" do
+    sign_out @user
+    source_url = "https://landing.example/post"
+    token = @increment_product.analytics_view_token(source_url:, event_id: "script-load-1")
+
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: token }
+    first_id = ElasticsearchIndexerWorker.jobs.last["args"][1]["id"]
+
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: token }
+    second_id = ElasticsearchIndexerWorker.jobs.last["args"][1]["id"]
+
+    assert_equal first_id, second_id
+
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: @increment_product.analytics_view_token(source_url:, event_id: "script-load-2") }
+    third_id = ElasticsearchIndexerWorker.jobs.last["args"][1]["id"]
+
+    assert_not_equal first_id, third_id
+  end
+
+  test "GET increment_views.gif does not record page view without a valid analytics token" do
+    sign_out @user
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: "invalid" }
+
+    assert_response :success
+    assert_equal "image/gif", @response.media_type
+    assert_equal 0, ElasticsearchIndexerWorker.jobs.size
+  end
+
+  test "GET increment_views.gif does not record page view with another product's analytics token" do
+    sign_out @user
+    other_product = create_product
+    source_url = "https://landing.example/post"
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: other_product.analytics_view_token(source_url:) }
+
+    assert_response :success
+    assert_equal "image/gif", @response.media_type
+    assert_equal 0, ElasticsearchIndexerWorker.jobs.size
+  end
+
+  test "GET increment_views.gif does not record page view when the token is replayed from another source" do
+    sign_out @user
+    @request.env["HTTP_REFERER"] = "https://evil.example/post"
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: @increment_product.analytics_view_token(source_url: "https://landing.example/post") }
+
+    assert_response :success
+    assert_equal "image/gif", @response.media_type
+    assert_equal 0, ElasticsearchIndexerWorker.jobs.size
+  end
+
+  test "GET increment_views.gif does not record page view for bots" do
+    @request.env["HTTP_USER_AGENT"] = "EventMachine HttpClient"
+    source_url = "https://landing.example/post"
+    @request.env["HTTP_REFERER"] = source_url
+    get :increment_views, params: { id: @increment_product.to_param, format: :gif, analytics_token: @increment_product.analytics_view_token(source_url:) }
+
+    assert_response :success
+    assert_equal 0, ElasticsearchIndexerWorker.jobs.size
+  end
 end
 
 class LinksControllerWithoutEmailTest < ActionController::TestCase
@@ -6456,6 +6597,58 @@ class LinksControllerSearchTest < ActionController::TestCase
     get :search, params: { user_id: @creator.external_id, section_id: ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID }
 
     assert_equal({ "total" => 0, "tags_data" => [], "filetypes_data" => [], "taxonomy_attributes_data" => [], "products" => [] }, response.parsed_body)
+  end
+
+  test "GET search accepts the default products section id when the creator has only non-product sections" do
+    setting_and_ordering_setup
+    @recommended_by = nil
+    @on_profile = true
+    @section.destroy!
+    create_seller_profile_posts_section(seller: @creator)
+    Link.import(force: true, refresh: true)
+
+    get :search, params: { user_id: @creator.external_id, section_id: ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID }
+
+    assert_response :success
+    assert_equal 1, response.parsed_body["total"]
+    assert_equal [product_json(@sao_product, "profile")], response.parsed_body["products"]
+  end
+
+  test "GET search honors exclude_ids on the default products section" do
+    setting_and_ordering_setup
+    @recommended_by = nil
+    @on_profile = true
+    @section.destroy!
+    create_seller_profile_posts_section(seller: @creator)
+    Link.import(force: true, refresh: true)
+
+    get :search, params: {
+      user_id: @creator.external_id,
+      section_id: ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID,
+      exclude_ids: [@sao_product.external_id],
+    }
+
+    assert_response :success
+    assert_equal 0, response.parsed_body["total"]
+    assert_equal [], response.parsed_body["products"]
+  end
+
+  test "GET search ignores crafted nested exclude_ids instead of 500ing" do
+    setting_and_ordering_setup
+    @recommended_by = nil
+    @on_profile = true
+    @section.destroy!
+    create_seller_profile_posts_section(seller: @creator)
+    Link.import(force: true, refresh: true)
+
+    get :search, params: {
+      user_id: @creator.external_id,
+      section_id: ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID,
+      exclude_ids: { "a" => [@sao_product.external_id] },
+    }
+
+    assert_response :success
+    assert_equal 1, response.parsed_body["total"]
   end
 
   test "GET search searches only for recommendable products" do

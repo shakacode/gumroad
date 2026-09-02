@@ -151,6 +151,8 @@ Rails.application.routes.draw do
         member do
           post :preview
           post :send, action: :send_email
+          post :schedule
+          post :unschedule
         end
       end
       resources :workflows, only: [:index, :show] do
@@ -202,6 +204,17 @@ Rails.application.routes.draw do
           resources :attestations, only: [:create]
         end
       end
+
+      # Gumhead points its Anthropic base URL at /v2/gumhead, so its
+      # runtime's /v1/messages calls land on these routes; the model key
+      # stays server-side and every call is metered per seller (see
+      # Api::V2::Gumhead::MessagesController).
+      namespace :gumhead do
+        scope "v1" do
+          post "messages", to: "messages#create"
+          post "messages/count_tokens", to: "messages#count_tokens"
+        end
+      end
     end
   end
 
@@ -226,9 +239,11 @@ Rails.application.routes.draw do
         if named_routes
           post :track_user_action, as: :track_user_action
           post :increment_views, as: :increment_views
+          get :increment_views
         else
           post :track_user_action
           post :increment_views
+          get :increment_views
         end
       end
     end
@@ -304,6 +319,7 @@ Rails.application.routes.draw do
     get "/gumroad", to: "embedded_javascripts#overlay"
     get "/gumroad-overlay", to: "embedded_javascripts#overlay"
     get "/gumroad-embed", to: "embedded_javascripts#embed"
+    get "/gumroad-analytics", to: "embedded_javascripts#analytics"
     get "/gumroad-multioverlay", to: "embedded_javascripts#overlay"
   end
 
@@ -383,6 +399,7 @@ Rails.application.routes.draw do
             get :products
           end
         end
+        resources :products, only: [:index, :destroy]
         get "/agent/meta", to: "agent#meta"
         get "/agent/conversations/latest", to: "agent#latest_conversation"
         get "/agent/turns/:client_turn_id", to: "agent#turn_status"
@@ -489,7 +506,11 @@ Rails.application.routes.draw do
             end
           end
 
-          resources :products, only: [:index, :show]
+          resources :products, only: [:index, :show] do
+            member do
+              get "files/:file_id/download_url", action: :file_download, as: :file_download
+            end
+          end
         end
 
         namespace :grmc do
@@ -915,6 +936,7 @@ Rails.application.routes.draw do
         post :publish
         post :unpublish
         post :increment_views
+        get :increment_views
         post :track_user_action
         put :sections, action: :update_sections
       end
@@ -1013,6 +1035,7 @@ Rails.application.routes.draw do
     get "/dashboard/monthly_recurring_revenue" => "dashboard#monthly_recurring_revenue", as: :dashboard_monthly_recurring_revenue
     get "/dashboard/download_tax_form" => "dashboard#download_tax_form", as: :dashboard_download_tax_form
     post "/dashboard/dismiss_getting_started_checklist" => "dashboard#dismiss_getting_started_checklist", as: :dashboard_dismiss_getting_started_checklist
+    post "/dashboard/dismiss_gumhead_promo" => "dashboard#dismiss_gumhead_promo", as: :dashboard_dismiss_gumhead_promo
 
     get "/products", to: "links#index", as: :products
 

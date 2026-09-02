@@ -8,10 +8,17 @@ class LinksController < ApplicationController
   include PageMeta::Favicon, PageMeta::Product
   include RequireAccountEmail
   include RendersCustomHtmlPages
+  include MobileAppWebView
+
+  enable_mobile_app_web_view only: %i[new create edit]
+
+  # Products/Show and Products/Profile/Show both render from #show.
+  self.buyer_currency_footer_actions = %w[show].freeze
 
   DEFAULT_PRICE = 500
   PRICE_INPUT_MAX_LENGTH = 64
   PRICE_INPUT_PATTERN = /\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)\z/
+  TRANSPARENT_1X1_GIF = "GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xFF\xFF\xFF!\xF9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;".b.freeze
 
   prepend_before_action :disable_third_party_analytics!, only: :cart_items_count
 
@@ -53,7 +60,9 @@ class LinksController < ApplicationController
     authorize Link
 
     set_meta_tag(title: "What are you creating?")
-    render inertia: "Products/New", props: ProductPresenter.new_page_props(current_seller:)
+    render inertia: "Products/New", props: ProductPresenter.new_page_props(current_seller:).merge(
+      is_mobile_app_web_view: params[:display] == "mobile_app" || session[:mobile_app_web_view] == true
+    )
   end
 
   def create
@@ -204,6 +213,12 @@ class LinksController < ApplicationController
         else
           if params[:embed] || params[:overlay]
             render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
+          elsif @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
+            # Storefront-wrapped product page (gumroad-private#2196): profile header above the
+            # product, catalog below (injected in ProductPresenter#product_page_props). Same
+            # component the `layout=profile` branch above renders. The seller's own view keeps
+            # the standalone page — the presenter suppresses the catalog for owners anyway.
+            render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
           else
             render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
           end
@@ -246,12 +261,13 @@ class LinksController < ApplicationController
       # live products) when the creator has products but hasn't saved any profile sections yet.
       # That section has no database row, so when the frontend fetches more results for it,
       # accept its well-known id and search across all the creator's profile products (leaving
-      # `section` nil below does exactly that). Guarded on the creator still having no saved
-      # sections so this id can't be used to bypass a customized profile layout.
+      # `section` nil below does exactly that). Guarded on the creator having no saved product
+      # sections — mirroring ProductPresenter's storefront catalog on product pages — so this id
+      # can't be used to bypass a customized profile layout.
       searching_default_products_section =
         user.present? &&
         search_params[:section_id] == ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID &&
-        user.seller_profile_sections.on_profile.none?
+        user.seller_profile_products_sections.on_profile.none?
       return render json: { total: 0, filetypes_data: [], tags_data: [], taxonomy_attributes_data: [], products: [] } if user.nil? || (section.nil? && !searching_default_products_section && search_params[:ids].blank?)
       search_params[:section] = section if section
       search_params[:is_alive_on_profile] = true
@@ -259,6 +275,16 @@ class LinksController < ApplicationController
       search_params[:sort] = section&.default_product_sort if search_params[:sort].nil?
       search_params[:sort] = ProductSortKey::PAGE_LAYOUT if search_params[:sort] == "default" || search_params[:sort].nil?
       search_params[:ids]&.map! { ObfuscateIds.decrypt(_1) }
+      if search_params[:exclude_ids].present?
+        # Always overwrite (or drop) the key: leaving a crafted nested structure in place would
+        # reach ES as a `terms` clause and 400 (→ public 500).
+        exclude_ids = Array(search_params[:exclude_ids]).filter_map { _1.is_a?(String) ? ObfuscateIds.decrypt(_1) : nil }
+        if exclude_ids.any?
+          search_params[:exclude_ids] = exclude_ids
+        else
+          search_params.delete(:exclude_ids)
+        end
+      end
     else
       search_params[:sort] = ProductSortKey::FEATURED if search_params[:sort] == "default"
       search_params[:include_rated_as_adult] = logged_in_user&.show_nsfw_products?
@@ -328,20 +354,30 @@ class LinksController < ApplicationController
   end
 
   def increment_views
+    source_url = request.referrer if request.get?
+    analytics_view_payload = @product.analytics_view_token_payload(params[:analytics_token], source_url:) if request.get?
+    external_analytics_source_url = analytics_view_payload&.fetch("source_url")
     skip = is_bot?
     skip |= logged_in_user.present? && (@product.user_id == current_seller.id || logged_in_user.is_team_member?)
     skip |= impersonating_user&.id
+    skip |= request.get? && analytics_view_payload.blank?
 
     unless skip
       create_product_page_view(
         user_id: logged_in_user&.id,
-        referrer: Array.wrap(params[:referrer]).compact_blank.last || request.referrer,
+        referrer: external_analytics_source_url || Array.wrap(params[:referrer]).compact_blank.last || request.referrer,
         was_product_recommended: ActiveModel::Type::Boolean.new.cast(params[:was_product_recommended]),
-        view_url: params[:view_url] || request.env["PATH_INFO"]
+        view_url: external_analytics_source_url || params[:view_url] || request.env["PATH_INFO"],
+        id: request.get? ? external_analytics_view_id(analytics_view_payload:) : SecureRandom.uuid
       )
     end
 
-    render json: { success: true }
+    if request.format.gif?
+      expires_now
+      send_data TRANSPARENT_1X1_GIF, type: "image/gif", disposition: "inline"
+    else
+      render json: { success: true }
+    end
   end
 
   def track_user_action
@@ -402,15 +438,10 @@ class LinksController < ApplicationController
       end
 
       ActiveRecord::Base.transaction do
-        # Serialize concurrent saves of the same product. `lock!` takes a
-        # SELECT ... FOR UPDATE on the product row and reloads it (dropping
-        # stale association caches), so the freshness check below reads the
-        # committed state and no second save can slip between the check and
-        # the writes: a concurrent save blocks here until this transaction
-        # commits, then re-reads the rows this save just wrote and sees its own
-        # snapshot as stale. Without the lock, two saves echoing the same
-        # (fresh) timestamps could both pass the check and the last writer
-        # would silently win — the exact overwrite this guard exists to stop.
+        # Serialize concurrent saves. lock! takes FOR UPDATE and reloads
+        # (dropping stale association caches) so the freshness check below
+        # reads committed state. Without it, two saves echoing the same
+        # timestamps both pass and the last writer silently wins.
         @product.lock!
 
         # Capture the deletion-guard diagnostics (alive counts, persisted
@@ -431,45 +462,23 @@ class LinksController < ApplicationController
         # even if this same transaction repairs or deletes its source first.
         legacy_dead_file_embed_ids_by_rich_content_id
 
-        # Build the save contract NOW, before anything is written
-        # (gumroad-private#1379). Its freshness check compares the client's
-        # revision token against the product's current fingerprint, and the
-        # save mutates rows as it proceeds — creating a content page changes
-        # that fingerprint. Constructing it here, immediately after the lock and
-        # reload, means the question it answers is "was the client editing the
-        # state that was committed when this save started?", which is the only
-        # version of the question that has a stable answer.
+        # Build the save contract now, before any write. Creating a content
+        # page mutates the product fingerprint; only a post-lock, pre-write
+        # contract answers "was the client editing the committed start state?"
         product_save_contract
 
-        # Reject a DESTRUCTIVE save built from a stale (or absent) snapshot
-        # before anything is written. Skipping the deletion silently, as an
-        # earlier revision of this branch did, is the worst available outcome:
-        # the seller is told "Changes saved", the editor clears the pending
-        # removals, and the versions they deleted are still there — so the
-        # interface now disagrees with the database and the next save has lost
-        # the intent entirely.
-        #
-        # Only destructive saves are refused. A stale tab fixing a typo still
-        # saves normally, because a stale write is recoverable and a stale
-        # delete is not — rejecting every stale save is what forced #6245 to be
-        # switched off.
+        # Reject a DESTRUCTIVE save from a stale (or absent) snapshot before
+        # any write. Silently skipping the deletion tells the seller "Changes
+        # saved", clears pending removals, and leaves the versions in the DB.
+        # Only destructive saves are refused — a stale typo-fix is recoverable;
+        # a stale delete is not. Rejecting every stale save is what killed #6245.
         ensure_contract_deletions_are_fresh!
 
-        # Reject a save built from a stale snapshot BEFORE any mutation: a
-        # payload that echoes page/variant snapshot timestamps older than the
-        # stored rows would silently overwrite content another session saved in
-        # between (gumroad-private#1295). The deletion guards below can't catch
-        # this — an in-place update under an existing id deletes nothing.
-        #
-        # NOTE: the seller-visible rejection is currently gated OFF by default
-        # (the `product_editor_stale_content_block` Flipper flag) because
-        # enforcing it blocked hundreds of legitimate saves — see
-        # Product::StaleContentWriteGuard's class comment for why. By default
-        # this call therefore DETECTS and reports staleness to Sentry and
-        # returns normally, letting the save continue. It only raises when the
-        # flag is on; raising rolls the transaction back (nothing has been
-        # written yet) and releases the lock, and the rescue below renders the
-        # 409.
+        # Reject a stale in-place overwrite before any mutation. Deletion
+        # guards cannot catch this — an update under an existing id deletes
+        # nothing. Seller-visible 409 is gated OFF by default
+        # (`product_editor_stale_content_block`); without the flag this only
+        # reports to Sentry. See Product::StaleContentWriteGuard.
         Product::StaleContentWriteGuard.ensure_fresh!(
           product: @product,
           pages_params: snapshot_pages_params,
@@ -642,37 +651,22 @@ class LinksController < ApplicationController
         error_code: "ambiguous_rich_content_id_conflict",
       }, status: :conflict
     rescue Product::SaveContract::StaleDeletionConflict => e
-      # Raised before any mutation, so the transaction rolls back with nothing
-      # written and the removals are still pending in the database. The editor
-      # must NOT clear its pending-removal state on this response — the whole
-      # point is that the seller's deletion has not happened yet.
-      #
-      # Deliberately NO fresh `editor_revision` here, unlike the success
-      # response. Adopting a token on this path can only authorise the session's
-      # NEXT save — which is the same stale full snapshot — so the deletion
-      # would land while every field a co-editor changed in between was reverted
-      # to this session's values (proved in LinksControllerSaveContractTest,
-      # "resending a stale snapshot with the 409's fresh token deletes as asked
-      # AND reverts the other session's edit"). It was emitted here for a
-      # reconcile-and-retry affordance that does not exist and cannot be built
-      # client-side; the client threw it away (see saveProductError). Both
-      # candidate retries in gumroad-private#1532 — a deletion-only write, or
-      # re-fetch-then-reconcile — get a current token from the reload they
-      # already have to do, so neither needs one on the refusal.
+      # Raised before any mutation, so the rollback leaves removals pending.
+      # The editor must NOT clear pending-removal state — the deletion has
+      # not happened. Deliberately no fresh editor_revision: adopting one
+      # would authorize the same stale snapshot on the next save, landing
+      # the deletion and reverting a co-editor's intervening edits. The
+      # client discards any token (saveProductError); a retry reloads.
       log_editor_save_conflict("stale_deletion_conflict")
       return render json: {
         error_message: e.message,
         error_code: "stale_deletion_conflict",
       }, status: :conflict
     rescue Product::RichContentDeletionGuard::HiddenVariantContentConflict => e
-      # The fail-closed inconsistent-content case: hidden version-level pages
-      # AND real product-level content both exist, so the save must not pick a
-      # winner. Return the hidden pages so the editor can present the seller
-      # an explicit choice between keeping the product-level content and
-      # keeping the version-level content. The guard raises on the first version
-      # it inspects, so list every hidden version page here (fresh from the
-      # rolled-back state) — one choice must cover all of them, not one dialog
-      # per version.
+      # Fail-closed: hidden version-level pages AND real product-level content
+      # both exist, so the save must not pick a winner. Return every hidden
+      # version page (the guard raises on the first it inspects) for one
+      # seller choice, not one dialog per version.
       log_editor_save_conflict("hidden_variant_content_conflict")
       return render json: {
         error_message: e.message,
@@ -812,6 +806,10 @@ class LinksController < ApplicationController
   end
 
   private
+    def external_analytics_view_id(analytics_view_payload:)
+      Digest::SHA256.hexdigest([@product.id, analytics_view_payload.fetch("event_id")].join("\0"))
+    end
+
     def price_cents_from_units(value)
       value = value.to_s
       return if value.length > PRICE_INPUT_MAX_LENGTH || !value.match?(PRICE_INPUT_PATTERN)
@@ -914,22 +912,12 @@ class LinksController < ApplicationController
       end
     end
 
-    # The editor's save contract (Product::SaveContract, gumroad-private#1379).
-    # Built from PERMITTED params on purpose: `submitted?` must see collections
-    # exactly as strong parameters shaped them, so a malformed value — which
-    # the permit list drops — reads as "not submitted" rather than as data.
-    # The contract-specific keys (editor_revision, deletion_operations) are not
-    # product attributes, so they are permitted here rather than in the policy.
-    # Deletion operations are wired per collection as its save path adopts the
-    # contract: :files, :public_files (ids are PublicFile#public_id) and
-    # :integrations (integrations have no external id in the editor payload —
-    # they are keyed by provider name, so their "ids" here are provider names
-    # from Integration::ALL_NAMES).
-    #
-    # deep_symbolize_keys is load-bearing: the contract reads
-    # `deletion_operations.dig(:deleted_ids, :files)` with symbol keys, and
-    # Parameters#to_unsafe_h.symbolize_keys re-stringifies NESTED keys, so the
-    # contract must be handed plain, deeply-symbolized hashes.
+    # Built from PERMITTED params so submitted? sees collections as strong
+    # parameters shaped them — a dropped malformed value is "not submitted".
+    # editor_revision / deletion_operations are not product attributes, so
+    # they are permitted here rather than in the policy.
+    # deep_symbolize_keys is load-bearing: the contract digs symbol keys, and
+    # Parameters#to_unsafe_h.symbolize_keys re-stringifies NESTED keys.
     def product_save_contract
       @_product_save_contract ||= begin
         contract_params = product_permitted_params.to_h.deep_symbolize_keys.merge(

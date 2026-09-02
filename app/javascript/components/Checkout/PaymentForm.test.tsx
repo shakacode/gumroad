@@ -31,6 +31,7 @@ vi.mock("$app/components/Checkout/PaymentElementInput", () => ({
 }));
 vi.mock("$app/components/useRecaptcha", () => ({
   useRecaptcha: () => ({ execute: vi.fn(), container: null }),
+  RecaptchaDisclosure: () => null,
   RECAPTCHA_UNAVAILABLE_MESSAGE: "unavailable",
   RecaptchaUnavailableError: class extends Error {},
   RecaptchaCancelledError: class extends Error {},
@@ -83,6 +84,9 @@ const state = (overrides: Partial<State> = {}): State => ({
   city: "",
   state: "",
   zipCode: "",
+  buyerCurrency: null,
+  buyerCurrencyRemint: null,
+  unavailableBuyerCurrency: null,
   saveAddress: false,
   gift: null,
   customFieldValues: {},

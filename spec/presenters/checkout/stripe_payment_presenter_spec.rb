@@ -40,6 +40,7 @@ describe Checkout::StripePaymentPresenter do
         # The product's own pricing currency, mirroring CheckoutPresenter#product_common,
         # which sets currency_code on every real add_products entry.
         currency_code: product.price_currency_type.to_s.downcase,
+        exchange_rate: 0.8,
         require_shipping: product.require_shipping?,
         installment_plan: product.installment_plan.present? ? {
           number_of_installments: product.installment_plan.number_of_installments,
@@ -70,20 +71,21 @@ describe Checkout::StripePaymentPresenter do
     checkout_product_for(product, **overrides)
   end
 
-  def card_element_fallback(reason, request_apple_pay_merchant_tokens: false)
-    { integration: described_class::STRIPE_CARD_ELEMENT_INTEGRATION, fallback_reason: reason, disable_wallets: false, request_apple_pay_merchant_tokens:, payment_element_wallets: false, flat_payment_methods: false, elements_options: nil }
+  def card_element_fallback(reason, request_apple_pay_merchant_tokens: false, india_card_mandate_reliability: false)
+    { integration: described_class::STRIPE_CARD_ELEMENT_INTEGRATION, fallback_reason: reason, disable_wallets: false, request_apple_pay_merchant_tokens:, india_card_mandate_reliability:, payment_element_wallets: false, flat_payment_methods: false, elements_options: nil }
   end
 
   # The Element's Link toggle and the intent's method list derive from the same resolver output, so
   # they move together; Link is always launched, and the US-locked methods (cashapp/us_bank_account)
   # are passed explicitly by the region-gate specs.
-  def payment_element_client_confirm_props(stripe_link_enabled: true, payment_method_types: %w[card link], stripe_connect_account_id: nil, currency: "usd", presentment_amount_cents: nil, listed_currency_display: nil, recurring_upi_registration: false, direct_listed_card: false, disable_wallets: false, request_apple_pay_merchant_tokens: false, payment_element_wallets: false, flat_payment_methods: payment_element_wallets || disable_wallets)
+  def payment_element_client_confirm_props(stripe_link_enabled: true, payment_method_types: %w[card link], stripe_connect_account_id: nil, currency: "usd", presentment_amount_cents: nil, listed_currency_display: nil, recurring_upi_registration: false, direct_listed_card: false, disable_wallets: false, request_apple_pay_merchant_tokens: false, india_card_mandate_reliability: false, payment_element_wallets: false, flat_payment_methods: payment_element_wallets || disable_wallets)
     {
       integration: described_class::STRIPE_PAYMENT_ELEMENT_CLIENT_CONFIRM_INTEGRATION,
       fallback_reason: nil,
       recurring_upi_registration:,
       disable_wallets:,
       request_apple_pay_merchant_tokens:,
+      india_card_mandate_reliability:,
       payment_element_wallets:,
       flat_payment_methods:,
       elements_options: {
@@ -106,12 +108,13 @@ describe Checkout::StripePaymentPresenter do
     }
   end
 
-  def payment_element_props(stripe_elements_mode: described_class::STRIPE_ELEMENTS_MODE_FOR_PAYMENT_INTENT, stripe_link_enabled: true, request_apple_pay_merchant_tokens: false, buyer_currency_presentment: false, disable_wallets: false, payment_element_wallets: false, flat_payment_methods: payment_element_wallets || disable_wallets)
+  def payment_element_props(stripe_elements_mode: described_class::STRIPE_ELEMENTS_MODE_FOR_PAYMENT_INTENT, stripe_link_enabled: true, request_apple_pay_merchant_tokens: false, india_card_mandate_reliability: false, buyer_currency_presentment: false, disable_wallets: false, payment_element_wallets: false, flat_payment_methods: payment_element_wallets || disable_wallets)
     {
       integration: described_class::STRIPE_PAYMENT_ELEMENT_INTEGRATION,
       fallback_reason: nil,
       disable_wallets:,
       request_apple_pay_merchant_tokens:,
+      india_card_mandate_reliability:,
       payment_element_wallets:,
       flat_payment_methods:,
       elements_options: {
@@ -142,13 +145,28 @@ describe Checkout::StripePaymentPresenter do
     expect(stripe_payment_props(add_products: [checkout_product_for(product)])).to eq(payment_element_props)
   end
 
+  it "exposes the India mandate flag for one eligible seller" do
+    seller = create(:user)
+    product = create(:product, user: seller, price_cents: 1234)
+    Feature.activate_user(described_class::STRIPE_PAYMENT_ELEMENT_CHECKOUT_FEATURE_NAME, seller)
+    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
+
+    expect(stripe_payment_props(add_products: [checkout_product_for(product)]))
+      .to eq(payment_element_props(india_card_mandate_reliability: true))
+  ensure
+    Feature.deactivate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller) if seller
+  end
+
   it "selects Stripe Payment Element for a flagged single-seller direct-charge checkout" do
     seller = create(:user, check_merchant_account_is_linked: true)
     product = create(:product, user: seller, price_cents: 1234)
     create(:merchant_account_stripe_connect, user: seller)
     Feature.activate_user(described_class::STRIPE_PAYMENT_ELEMENT_CHECKOUT_FEATURE_NAME, seller)
+    Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
 
     expect(stripe_payment_props(add_products: [checkout_product_for(product)])).to eq(payment_element_props)
+  ensure
+    Feature.deactivate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller) if seller
   end
 
   it "selects Stripe Payment Element even when the buyer has a saved card" do
@@ -411,6 +429,7 @@ describe Checkout::StripePaymentPresenter do
       fallback_reason: "buyer_currency_presentment_unsupported",
       disable_wallets: true,
       request_apple_pay_merchant_tokens: false,
+      india_card_mandate_reliability: false,
       payment_element_wallets: false,
       flat_payment_methods: false,
       elements_options: nil,
@@ -1679,6 +1698,69 @@ describe Checkout::StripePaymentPresenter do
       if seller
         Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
         deactivate_buyer_currency_flags(seller)
+      end
+    end
+
+    it "mounts a multi-item cart uniformly priced in CAD as one direct-listed CAD element" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::CAD, price_cents: 1500)
+      second_product = create(:product, user: seller, price_currency_type: Currency::CAD, price_cents: 2500)
+      activate_buyer_currency_flags(seller)
+      Feature.activate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("24.48.0.1", "Canada")
+
+      add_products = [checkout_product_for(product), checkout_product_for(second_product)]
+      expect(stripe_payment_props(add_products:, ip: "24.48.0.1")).to eq(
+        payment_element_client_confirm_props(
+          currency: Currency::CAD,
+          presentment_amount_cents: 4000,
+          direct_listed_card: true,
+          disable_wallets: true,
+        )
+      )
+    ensure
+      if seller
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+        deactivate_buyer_currency_flags(seller)
+      end
+    end
+
+    it "keeps a same-currency cart with split exchange rates on the canonical USD element" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::CAD, price_cents: 1500)
+      second_product = create(:product, user: seller, price_currency_type: Currency::CAD, price_cents: 2500)
+      activate_buyer_currency_flags(seller)
+      Feature.activate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("24.48.0.1", "Canada")
+
+      first = checkout_product_for(product)
+      first[:product][:exchange_rate] = 0.8
+      second = checkout_product_for(second_product)
+      second[:product][:exchange_rate] = 0.9
+      expect(stripe_payment_props(add_products: [first, second], ip: "24.48.0.1")).to eq(payment_element_client_confirm_props)
+    ensure
+      if seller
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+        deactivate_buyer_currency_flags(seller)
+      end
+    end
+
+    it "keeps a multi-seller CAD cart on the canonical USD element" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::CAD, price_cents: 1500)
+      other_seller, other_product = buyer_currency_seller_with_product(price_currency_type: Currency::CAD, price_cents: 2500)
+      [seller, other_seller].each do |current_seller|
+        activate_buyer_currency_flags(current_seller)
+        Feature.activate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, current_seller)
+      end
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("24.48.0.1", "Canada")
+
+      add_products = [checkout_product_for(product), checkout_product_for(other_product)]
+      expect(stripe_payment_props(add_products:, ip: "24.48.0.1")).to eq(payment_element_props)
+    ensure
+      [seller, other_seller].compact.each do |current_seller|
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, current_seller)
+        deactivate_buyer_currency_flags(current_seller)
       end
     end
 

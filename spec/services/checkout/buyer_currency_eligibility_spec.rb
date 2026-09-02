@@ -44,6 +44,8 @@ describe Checkout::BuyerCurrencyEligibility do
     Feature.deactivate_user(:buyer_local_currency, seller)
     Feature.deactivate_user(described_class::FEATURE_NAME, seller)
     Feature.deactivate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+    Feature.deactivate_user(described_class::SUBSCRIPTION_FEATURE_NAME, seller)
+    Feature.deactivate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
   end
 
   it "allows the PR1 Stripe test-mode direct-charge path" do
@@ -52,8 +54,44 @@ describe Checkout::BuyerCurrencyEligibility do
     expect(decision.fallback_reason).to be_nil
   end
 
+  it "gates on the currency the submitted quote token confirmed, not GeoIP" do
+    token = Rails.application.message_verifier(:buyer_currency_quote).generate({ currency: Currency::GBP })
+
+    picked_decision = described_class.new(order:,
+                                          seller:,
+                                          merchant_account:,
+                                          chargeable:,
+                                          purchases:,
+                                          params: { buyer_currency_quote: token },
+                                          setup_future_charges:,
+                                          off_session:).decision
+
+    expect(picked_decision).to be_eligible
+    expect(picked_decision.currency).to eq(Currency::GBP)
+  end
+
+  it "falls back to GeoIP when the submitted quote token is tampered" do
+    tampered_decision = described_class.new(order:,
+                                            seller:,
+                                            merchant_account:,
+                                            chargeable:,
+                                            purchases:,
+                                            params: { buyer_currency_quote: "not-a-signed-token" },
+                                            setup_future_charges:,
+                                            off_session:).decision
+
+    expect(tampered_decision).to be_eligible
+    expect(tampered_decision.currency).to eq(Currency::CAD)
+  end
+
   it "allows the PR1 Stripe test-mode Gumroad platform-account path" do
-    platform_merchant_account = create(:merchant_account, user: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id, currency: Currency::USD)
+    platform_merchant_account = create(
+      :merchant_account,
+      user: nil,
+      charge_processor_id: StripeChargeProcessor.charge_processor_id,
+      charge_processor_merchant_id: "acct_buyer_currency_platform",
+      currency: Currency::USD
+    )
     purchase.update!(merchant_account: platform_merchant_account)
 
     platform_decision = described_class.new(order:,
@@ -68,6 +106,45 @@ describe Checkout::BuyerCurrencyEligibility do
     expect(platform_decision).to be_eligible
     expect(platform_decision.currency).to eq(Currency::CAD)
     expect(platform_decision.fallback_reason).to be_nil
+  end
+
+  context "with India card mandate reliability enabled for a membership" do
+    let(:product) { create(:subscription_product, user: seller, price_currency_type: Currency::USD) }
+
+    before do
+      Feature.activate_user(described_class::SUBSCRIPTION_FEATURE_NAME, seller)
+      Feature.activate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller)
+      allow_any_instance_of(described_class).to receive(:buyer_currency_for_ip).and_return(Currency::AUD)
+    end
+
+    it "falls back before quoting an unsupported platform mandate currency" do
+      platform_merchant_account = create(
+        :merchant_account,
+        user: nil,
+        currency: Currency::USD,
+        charge_processor_merchant_id: "acct_india_mandate_eligibility"
+      )
+      purchase.update!(merchant_account: platform_merchant_account)
+
+      platform_decision = described_class.new(
+        order:,
+        seller:,
+        merchant_account: platform_merchant_account,
+        chargeable:,
+        purchases:,
+        params:,
+        setup_future_charges:,
+        off_session:
+      ).decision
+
+      expect(platform_decision).not_to be_eligible
+      expect(platform_decision.fallback_reason).to eq(:unsupported_indian_card_mandate_currency)
+    end
+
+    it "keeps direct Connect outside the mandate currency gate" do
+      expect(decision).to be_eligible
+      expect(decision.currency).to eq(Currency::AUD)
+    end
   end
 
   it "falls back when the internal rollout flag is disabled" do
@@ -336,17 +413,99 @@ describe Checkout::BuyerCurrencyEligibility do
     Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
     report_listed_currency_element(params)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
-                     displayed_price_currency_type: Currency::CAD)
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
 
     expect(decision).to be_eligible
     expect(decision.currency).to eq(Currency::CAD)
     expect(decision.direct_listed_amount?).to eq(true)
   end
 
+  it "allows direct listed charging for a multi-item cart uniformly priced in the buyer's currency" do
+    Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+    report_listed_currency_element(params)
+    purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
+    second_purchase = create(:purchase,
+                             link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                             seller:,
+                             merchant_account:,
+                             purchase_state: "in_progress",
+                             ip_address: "203.0.113.1")
+    second_purchase.update!(displayed_price_currency_type: Currency::CAD,
+                            rate_converted_to_usd: "0.8")
+    purchases << second_purchase
+
+    expect(decision).to be_eligible
+    expect(decision.currency).to eq(Currency::CAD)
+    expect(decision.direct_listed_amount?).to eq(true)
+  end
+
+  it "falls back from the listed lane when the order spans another seller" do
+    Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+    report_listed_currency_element(params)
+    purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
+    other_seller = create(:user)
+    order.purchases << purchase
+    order.purchases << create(:purchase,
+                              link: create(:product, user: other_seller, price_currency_type: Currency::CAD),
+                              seller: other_seller,
+                              purchase_state: "in_progress",
+                              ip_address: "203.0.113.1",
+                              displayed_price_currency_type: Currency::CAD,
+                              rate_converted_to_usd: "0.8")
+
+    expect(decision).not_to be_eligible
+    expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
+  end
+
+  it "falls back from the listed lane when the charge purchases belong to more than one seller" do
+    Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+    report_listed_currency_element(params)
+    purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
+    other_seller = create(:user)
+    purchases << create(:purchase,
+                        link: create(:product, user: other_seller, price_currency_type: Currency::CAD),
+                        seller: other_seller,
+                        merchant_account:,
+                        purchase_state: "in_progress",
+                        ip_address: "203.0.113.1",
+                        displayed_price_currency_type: Currency::CAD,
+                        rate_converted_to_usd: "0.8")
+
+    expect(decision).not_to be_eligible
+    expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
+  end
+
+  it "falls back from the listed lane when same-currency purchases have split conversion rates" do
+    Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+    report_listed_currency_element(params)
+    purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
+    purchases << create(:purchase,
+                        link: create(:product, user: seller, price_currency_type: Currency::CAD),
+                        seller:,
+                        merchant_account:,
+                        purchase_state: "in_progress",
+                        ip_address: "203.0.113.1",
+                        displayed_price_currency_type: Currency::CAD,
+                        rate_converted_to_usd: "0.9")
+
+    expect(decision).not_to be_eligible
+    expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
+  end
+
   it "falls back when checkout did not mount the listed-currency Payment Element" do
     Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
-                     displayed_price_currency_type: Currency::CAD)
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
 
     expect(decision).not_to be_eligible
     expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
@@ -356,7 +515,8 @@ describe Checkout::BuyerCurrencyEligibility do
     Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
     report_listed_currency_element(params)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
-                     displayed_price_currency_type: Currency::CAD)
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
 
     client_confirm_decision = described_class.new(order:,
                                                   seller:,
@@ -382,7 +542,7 @@ describe Checkout::BuyerCurrencyEligibility do
     expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
   end
 
-  it "falls back for a mixed cart with a buyer-currency product and a quoted product" do
+  it "quotes a mixed cart of a buyer-currency listing and a USD listing" do
     Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
     report_listed_currency_element(params)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD))
@@ -393,8 +553,9 @@ describe Checkout::BuyerCurrencyEligibility do
                         purchase_state: "in_progress",
                         ip_address: "203.0.113.1")
 
-    expect(decision).not_to be_eligible
-    expect(decision.fallback_reason).to eq(:listed_currency_is_buyer_currency)
+    expect(decision).to be_eligible
+    expect(decision.currency).to eq(Currency::CAD)
+    expect(decision.direct_listed_amount?).to eq(false)
   end
 
   it "keeps earlier fallbacks ahead of direct listed charging" do
@@ -435,7 +596,8 @@ describe Checkout::BuyerCurrencyEligibility do
     Feature.activate_user(described_class::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
     report_listed_currency_element(params)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
-                     displayed_price_currency_type: Currency::CAD)
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
     create(:tip, purchase:, value_cents: 200)
 
     expect(decision).not_to be_eligible
@@ -461,7 +623,8 @@ describe Checkout::BuyerCurrencyEligibility do
     report_listed_currency_element(params)
     merchant_account.record_settlement_currency_mismatch!(Currency::CAD)
     purchase.update!(link: create(:product, user: seller, price_currency_type: Currency::CAD),
-                     displayed_price_currency_type: Currency::CAD)
+                     displayed_price_currency_type: Currency::CAD,
+                     rate_converted_to_usd: "0.8")
 
     expect(decision).to be_eligible
     expect(decision.direct_listed_amount?).to eq(true)

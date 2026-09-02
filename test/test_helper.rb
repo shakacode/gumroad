@@ -135,9 +135,7 @@ module ActiveSupport
 
     # Activate features that the RSpec suite activates globally in
     # spec_helper.rb (`config.before(:each)` around line 336). Tests that
-    # un-stubbed from RSpec inherit this assumption — e.g. EmailEvent
-    # writes are gated on `:log_email_events`, otherwise the observer
-    # silently no-ops and `assert_difference { EmailEvent.count }` fails.
+    # un-stubbed from RSpec inherit this assumption.
     setup do
       # Flipper is Redis-backed (config/initializers/feature_toggle.rb) and Redis is
       # NOT rolled back with the test transaction, so a feature a test toggles — or any
@@ -150,7 +148,6 @@ module ActiveSupport
 
       %i[
         store_discover_searches
-        log_email_events
         seller_refund_policy_new_users_enabled
         paypal_payout_fee
         disable_braintree_sales
@@ -177,6 +174,12 @@ module ActiveSupport
       # blob/variant URLs. ActiveStorage::Current is a per-request CurrentAttribute
       # that resets between tests, so set it each time.
       ActiveStorage::Current.url_options = { protocol: "https", host: "localhost", port: nil }
+
+      # Mirror spec/support/refund_policy_fine_print_moderation.rb: the
+      # classifier hits OpenRouter on every RefundPolicy save with fine print.
+      # Default it off so factories and unrelated tests never make the call.
+      # Tests that exercise the gate should unstub and stub the client.
+      RefundPolicy.any_instance.stubs(:fine_print_claims_no_refunds?).returns(false)
     end
   end
 end

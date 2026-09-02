@@ -85,12 +85,41 @@ class ProductPresenter
 
   def product_page_props(seller_custom_domain_url:, **kwargs)
     sections_props = ProfileSectionsPresenter.new(seller: user, query: product.seller_profile_sections).props(request:, pundit_user:, seller_custom_domain_url:)
-    {
+    props = {
       **product_props(seller_custom_domain_url:, **kwargs),
       **sections_props,
       sections: product.sections.filter_map { |id| sections_props[:sections].find { |section| section[:id] === ObfuscateIds.encrypt(id) } },
       main_section_index: product.main_section_index || 0,
     }
+    if show_storefront_catalog?(rendered_sections: props[:sections], layout: kwargs[:layout])
+      # Product sections only: the virtual default-products section must be injected even when
+      # the seller's profile has non-product sections, and LinksController#search mirrors this
+      # query when accepting its id for pagination.
+      # `omit_product` drops the product the buyer is already viewing from the catalog —
+      # leading with it reads as a render bug (and wastes the first tile).
+      catalog_props = ProfileSectionsPresenter.new(seller: user, query: user.seller_profile_products_sections.on_profile)
+                                              .props(request:, pundit_user:, seller_custom_domain_url:, editing: false, include_default_products_section: true, omit_product: product)
+      props[:sections] = catalog_props[:sections]
+      props[:sections].each do |section|
+        # The virtual catalog needs a label on product pages: with no heading it reads as
+        # stray cards below the product rather than the rest of the store. Saved sections
+        # keep the seller's own header choice, including a hidden one.
+        section[:header] = "More from #{user.name_or_username}" if section[:id] == ProfileSectionsPresenter::DEFAULT_PRODUCTS_SECTION_ID
+      end
+      props[:main_section_index] = 0
+    end
+    props
+  end
+
+  # Buyers landing on a shared product link see the rest of the catalog below the product
+  # (gumroad-private#2196) unless the seller curated per-page sections or turned the storefront
+  # rendering off. Discover product pages keep their own recommendation context, and the
+  # seller's own view keeps the empty, editing-shaped payload for the section editor.
+  def show_storefront_catalog?(rendered_sections:, layout: nil)
+    user.product_page_storefront_enabled? &&
+      layout != Product::Layout::DISCOVER &&
+      rendered_sections.empty? &&
+      pundit_user&.seller != user
   end
 
   def covers

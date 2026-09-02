@@ -15,8 +15,13 @@ function ProfileProductShowPage() {
   const props = typia.assert<PageProps>(usePage().props);
 
   return (
-    <ProfileLayout creatorProfile={props.creator_profile}>
-      <ProductLayout cart {...props} />
+    <ProfileLayout
+      creatorProfile={props.creator_profile}
+      currencySelector
+      shownCurrency={props.product.buyer_currency_display?.buyer_currency_shown}
+    >
+      {/* The profile header above already shows the seller's avatar and name. */}
+      <ProductLayout cart hideSellerByline {...props} />
     </ProfileLayout>
   );
 }

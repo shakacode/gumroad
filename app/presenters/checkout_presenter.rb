@@ -229,8 +229,10 @@ class CheckoutPresenter
       price_cents: subscription.current_plan_displayed_price_cents(authenticated_offer_code_buyer: logged_in_user) / subscription.original_purchase.quantity,
     }
     current_recurrence_alive = product.recurrence_price_enabled?(subscription.recurrence)
+    # Overdue plan/seat changes reprice at the live catalog only when that recurrence is
+    # still offered. A retired recurrence is only present via subscription_attrs.
     show_current_prices = subscription.deactivated? ||
-      (subscription.alive? && !subscription.overdue_for_charge? && current_recurrence_alive)
+      (current_recurrence_alive && (subscription.alive? || subscription.overdue_for_charge?))
     options = (variant_category = product.variant_categories_alive.first) ? variant_category.variants.in_order.alive.map do
       |variant| show_current_prices ? variant.to_option : variant.to_option(subscription_attrs: tier_attrs)
     end : []
@@ -301,6 +303,7 @@ class CheckoutPresenter
         is_in_free_trial: subscription.in_free_trial?,
         is_test: subscription.is_test_subscription,
         is_overdue_for_charge: subscription.overdue_for_charge?,
+        payment_method_update_required: subscription.status == "payment_method_update_required",
         is_gift: subscription.gift?,
         is_installment_plan: subscription.is_installment_plan,
         # False when the seller has retired the recurrence this buyer is on; the row is still

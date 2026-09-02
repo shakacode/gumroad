@@ -82,6 +82,7 @@ type Props = {
     is_in_free_trial: boolean;
     is_test: boolean;
     is_overdue_for_charge: boolean;
+    payment_method_update_required: boolean;
     is_gift: boolean;
     is_installment_plan: boolean;
     current_recurrence_available: boolean;
@@ -196,12 +197,15 @@ export default function SubscriptionsManage() {
   );
   const requirePayment = price > 0;
   const noChangesToCurrentPlan = noChangesToNonPriceOptions && (!isPWYW || price === subscription.price);
+  // Overdue charges the full new plan; subtracting stale proration would trip the price guard.
   let amountDueToday =
     (subscription.alive || subscription.pending_cancellation) &&
     !subscription.is_overdue_for_charge &&
     (price < subscription.price || subscription.is_in_free_trial || noChangesToCurrentPlan)
       ? 0
-      : Math.max(price - subscription.prorated_discount_price_cents, 0);
+      : subscription.is_overdue_for_charge
+        ? price
+        : Math.max(price - subscription.prorated_discount_price_cents, 0);
   if (amountDueToday > 0) amountDueToday = Math.max(amountDueToday, getMinPriceCents(product.currency_code));
 
   // Mirrors `Subscription::UpdaterService#apply_plan_change_immediately?`. Reading this off
@@ -446,8 +450,16 @@ export default function SubscriptionsManage() {
         </CardContent>
       ) : null}
 
+      {subscription.payment_method_update_required ? (
+        <CardContent>
+          <Alert variant="warning" className="grow">
+            Automatic renewals are paused. You keep access in the meantime; update your payment method below to resume.
+          </Alert>
+        </CardContent>
+      ) : null}
+
       {!subscription.is_installment_plan ? (
-        <CardContent style={{ display: "grid", gap: "1rem", gridTemplateColumns: "1fr" }}>
+        <CardContent className="grid grid-cols-1 gap-4 empty:hidden">
           <ConfigurationSelector
             product={configurationSelectorProduct}
             selection={selection}

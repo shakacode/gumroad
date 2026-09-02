@@ -3296,6 +3296,17 @@ describe User, :vcr do
     end
   end
 
+  describe "#enable_product_page_storefront" do
+    it "sets product_page_storefront_enabled to true for new users" do
+      user = User.new
+      expect(user.product_page_storefront_enabled).to be(false)
+
+      user = build(:user)
+      user.save!
+      expect(user.product_page_storefront_enabled).to be(true)
+    end
+  end
+
   describe "after_commit callback to enqueue GenerateSubscribePreviewJob" do
     before do
       allow_any_instance_of(User).to receive(:generate_subscribe_preview).and_call_original
@@ -3328,6 +3339,11 @@ describe User, :vcr do
 
     it "schedules GenerateSubscribePreviewJob when the name changes" do
       @user.update!(name: "Marty McFly")
+      expect(GenerateSubscribePreviewJob).to have_enqueued_sidekiq_job(@user.id)
+    end
+
+    it "schedules GenerateSubscribePreviewJob when the bio changes" do
+      @user.update!(bio: "I write about woodworking.")
       expect(GenerateSubscribePreviewJob).to have_enqueued_sidekiq_job(@user.id)
     end
 

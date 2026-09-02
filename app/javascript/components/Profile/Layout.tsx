@@ -7,7 +7,6 @@ import { NavigationButton } from "$app/components/Button";
 import { CartNavigationButton } from "$app/components/Checkout/CartNavigationButton";
 import { useCartItemsCount } from "$app/components/Checkout/useCartItemsCount";
 import { useAppDomain } from "$app/components/DomainSettings";
-import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { PoweredByFooter } from "$app/components/PoweredByFooter";
 import { TopCreatorBadge } from "$app/components/Product/AuthorByline";
 import { FollowForm } from "$app/components/Profile/FollowForm";
@@ -18,14 +17,18 @@ import { WithTooltip } from "$app/components/WithTooltip";
 type LayoutProps = {
   creatorProfile: CreatorProfile;
   hideFollowForm?: boolean;
+  // Off by default: this layout also runs the product editor's preview and the profile settings
+  // preview, where a buyer currency control belongs to nobody and a reload discards unsaved edits.
+  currencySelector?: boolean | undefined;
+  shownCurrency?: string | null | undefined;
   children?: React.ReactNode;
 };
 
-export const Layout = ({ creatorProfile, hideFollowForm, children }: LayoutProps) => {
+export const Layout = ({ creatorProfile, hideFollowForm, currencySelector, shownCurrency, children }: LayoutProps) => {
   const cartItemsCount = useCartItemsCount();
   const appDomain = useAppDomain();
-  const loggedInUser = useLoggedInUser();
   const isDesktop = useIsAboveBreakpoint("lg");
+  const hideSubscribeForm = hideFollowForm || Boolean(creatorProfile.hide_follow_form);
 
   const headerButtons =
     creatorProfile.can_edit || creatorProfile.twitter_handle || cartItemsCount ? (
@@ -49,37 +52,24 @@ export const Layout = ({ creatorProfile, hideFollowForm, children }: LayoutProps
     <div className="flex min-h-screen flex-col">
       <header className="z-20 border-border bg-background text-lg lg:border-b lg:px-4 lg:py-6">
         <div className="mx-auto flex max-w-6xl flex-wrap lg:flex-nowrap lg:items-center lg:gap-6">
-          <div className="relative flex grow items-center gap-3 border-b border-border p-4 lg:flex-1 lg:border-0 lg:p-0">
-            {(loggedInUser?.isGumroadAdmin || loggedInUser?.isImpersonating) &&
-            creatorProfile.external_id !== loggedInUser.id ? (
-              <NavigationButton
-                href={Routes.admin_impersonate_url({
-                  host: appDomain,
-                  user_identifier: creatorProfile.external_id,
-                })}
-                className="left-3"
-                color="filled"
-              >
-                Impersonate
-              </NavigationButton>
-            ) : null}
+          <div className="relative flex min-w-0 grow flex-wrap items-center gap-3 border-b border-border p-4 lg:flex-1 lg:flex-nowrap lg:border-0 lg:p-0">
             {creatorProfile.avatar_url ? <Avatar src={creatorProfile.avatar_url} alt="Profile Picture" /> : null}
-            <a href={Routes.root_path()} className="flex items-center gap-2 no-underline">
-              {creatorProfile.name}
+            <a href={Routes.root_path()} className="flex max-w-full min-w-0 items-center gap-2 no-underline">
+              <span className="truncate">{creatorProfile.name}</span>
               {creatorProfile.is_verified ? (
-                <WithTooltip tip="Top creator" position="bottom">
+                <WithTooltip tip="Top creator" position="bottom" className="shrink-0">
                   <TopCreatorBadge />
                 </WithTooltip>
               ) : null}
             </a>
             {creatorProfile.reputation ? (
-              <div className="flex items-center gap-1 text-sm text-muted" aria-label="Creator rating">
+              <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-muted" aria-label="Creator rating">
                 <Star pack="filled" className="size-4" />
                 {`${creatorProfile.reputation.average} from ${creatorProfile.reputation.count} verified ${creatorProfile.reputation.count === 1 ? "review" : "reviews"} across ${creatorProfile.reputation.products_count} products`}
               </div>
             ) : null}
           </div>
-          {!hideFollowForm ? (
+          {!hideSubscribeForm ? (
             <div className="flex basis-full items-center gap-3 border-b border-border p-4 lg:basis-auto lg:border-0 lg:p-0">
               <FollowForm creatorProfile={creatorProfile} />
             </div>
@@ -90,7 +80,11 @@ export const Layout = ({ creatorProfile, hideFollowForm, children }: LayoutProps
       </header>
       <main className="flex flex-1 flex-col">
         {children}
-        <PoweredByFooter className="mx-auto w-full max-w-6xl" />
+        <PoweredByFooter
+          className="mx-auto w-full max-w-6xl"
+          currencySelector={currencySelector}
+          shownCurrency={shownCurrency}
+        />
       </main>
     </div>
   );
