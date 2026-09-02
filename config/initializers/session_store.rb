@@ -22,6 +22,7 @@ session_cookie_name =
   when :development
     "#{base_cookie_name}_development"
   when :benchmark
+    domain = ENV.key?("SESSION_COOKIE_DOMAIN") ? ENV["SESSION_COOKIE_DOMAIN"].presence : :all
     "#{base_cookie_name}_benchmark"
   else
     "#{base_cookie_name}_#{Rails.env}"
@@ -29,7 +30,7 @@ session_cookie_name =
 
 Rails.application.config.session_store :cookie_store,
                                        key: session_cookie_name,
-                                       secure: Rails.env.production?,
+                                       secure: ENV.fetch("SESSION_COOKIE_SECURE", Rails.env.production?.to_s) == "true",
                                        domain:,
                                        expire_after:,
                                        tld_length:

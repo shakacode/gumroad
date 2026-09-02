@@ -293,6 +293,8 @@ class LinksController < ApplicationController
   end
 
   def check_if_needs_redirect
+    return if GumroadDomainConstraint.control_plane_branch_host?(request.host)
+
     # If the request is for the product's custom domain, don't redirect
     return if product_by_custom_domain.present?
 

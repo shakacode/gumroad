@@ -313,7 +313,7 @@ class AssetPreview < ApplicationRecord
     variant = blob.preview_image.variant(resize_to_limit: [retina_width || RETINA_DISPLAY_WIDTH, nil])
     return nil unless process || resized_poster_exists?(variant)
 
-    cdn_url_for(variant.processed.url)
+    cdn_url_for(storage_url_for(variant.processed))
   rescue StandardError => e
     Rails.logger.warn("AssetPreview#persisted_video_poster_url failed for asset_preview #{id}: #{e.message}")
     nil
@@ -341,7 +341,7 @@ class AssetPreview < ApplicationRecord
 
     url = Timeout.timeout(IMAGE_PROCESSING_TIMEOUT_SECONDS) do
       preview = file.preview(resize_to_limit: [retina_width || RETINA_DISPLAY_WIDTH, nil]).processed
-      cdn_url_for(preview.url)
+      cdn_url_for(storage_url_for(preview))
     end
     Rails.cache.write(video_poster_cache_key, url)
     url
@@ -392,13 +392,13 @@ class AssetPreview < ApplicationRecord
 
     Rails.cache.fetch("attachment_#{file.id}_#{style}_url") do
       if style == :retina
-        retina_variant.url
+        storage_url_for(retina_variant)
       else
-        file.url
+        storage_url_for(file)
       end
     end
   rescue
-    file.url
+    storage_url_for(file)
   end
 
   def default_style
