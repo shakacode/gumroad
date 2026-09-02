@@ -17,7 +17,7 @@ export type GlobalProps = React.ComponentProps<typeof AppWrapper>["global"] & {
   logged_in_user?: unknown;
 };
 
-export const buildInertiaPage = (
+const buildInertiaPage = (
   component: string,
   global: GlobalProps,
   pageProps: Record<string, unknown>,
@@ -35,13 +35,19 @@ export const buildInertiaPage = (
 
 export default function PageShell({
   children,
+  component,
   global,
-  initialPage,
+  inertiaMeta,
+  pageProps,
 }: {
   children: React.ReactNode;
+  component: string;
   global: GlobalProps;
-  initialPage: Page;
+  inertiaMeta?: MetaTag[] | undefined;
+  pageProps: Record<string, unknown>;
 }) {
+  const initialPage = buildInertiaPage(component, global, pageProps, inertiaMeta);
+
   return (
     <InertiaApp initialPage={initialPage} initialComponent={() => null} resolveComponent={() => () => null}>
       {() => (

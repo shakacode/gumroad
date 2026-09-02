@@ -5,7 +5,7 @@ import * as React from "react";
 import type { MetaTag } from "$app/layouts/components/MetaTags";
 import UsersShow from "$app/pages/Users/Show";
 
-import PageShell, { buildInertiaPage, type GlobalProps } from "$app/components/PublicPages/PageShell.client";
+import PageShell, { type GlobalProps } from "$app/components/PublicPages/PageShell.client";
 
 export type ProfileRscCompatibilityPageProps = Record<string, unknown> & {
   _inertia_meta?: MetaTag[];
@@ -17,10 +17,8 @@ export default function ProfileRscCompatibilityPage({
   global,
   ...profileProps
 }: ProfileRscCompatibilityPageProps) {
-  const initialPage = buildInertiaPage("Users/Show", global, profileProps, inertiaMeta);
-
   return (
-    <PageShell global={global} initialPage={initialPage}>
+    <PageShell component="Users/Show" global={global} inertiaMeta={inertiaMeta} pageProps={profileProps}>
       <UsersShow />
     </PageShell>
   );
