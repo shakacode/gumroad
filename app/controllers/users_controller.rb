@@ -32,7 +32,8 @@ class UsersController < ApplicationController
       format.html do
         set_user_page_meta(@user)
         set_favicon_meta_tags(@user)
-        render inertia: "Users/Show", props: ProfilePresenter.new(pundit_user:, seller: @user).profile_props(seller_custom_domain_url:, request:)
+        profile_props = ProfilePresenter.new(pundit_user:, seller: @user).profile_props(seller_custom_domain_url:, request:)
+        render_profile_page(profile_props)
       end
       format.json { render json: ProfilePresenter::PublicApiProps.new(seller: @user, seller_custom_domain_url:).props }
       format.any { e404 }
@@ -217,6 +218,10 @@ class UsersController < ApplicationController
   end
 
   private
+    def render_profile_page(profile_props)
+      render inertia: "Users/Show", props: profile_props
+    end
+
     # The profile is authored entirely through the seller's agent + CLI, so the
     # custom HTML never carries a buy affordance — there's no checkout bridge or
     # ?wanted=true fall-through like the product landing page has. Store links
