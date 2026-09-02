@@ -27,6 +27,7 @@ import { ProductFooter } from "$app/components/Product/ProductFooter";
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
+import { ProductProfileLayout } from "$app/components/Profile/ProductProfileLayout";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
@@ -103,11 +104,13 @@ export default function ProductPage({
     };
   };
   const serverContent = toServerContent(rscProductContent, productProps, productProps.page_layout === "profile");
+  const ctaLabel = productProps.page_layout === "profile" ? "Add to cart" : undefined;
   const productArticle = (
     <ProductArticle
       product={productProps.product}
       purchase={productProps.purchase}
       wishlists={productProps.wishlists}
+      ctaLabel={ctaLabel}
       serverContent={serverContent}
     />
   );
@@ -217,22 +220,42 @@ export default function ProductPage({
           </React.Fragment>
         ))
       : mainSection;
-
-  return (
-    <ProductPageShell global={global}>
-      <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
-        <ProductStickyCta
-          product={productProps.product}
-          purchase={productProps.purchase}
-          cart={false}
-          hasHero={false}
-        />
-        {productSections}
+  const pageSections = (
+    <>
+      <ProductStickyCta
+        product={productProps.product}
+        purchase={productProps.purchase}
+        cart={productProps.page_layout === "profile"}
+        hasHero={false}
+      />
+      {productSections}
+    </>
+  );
+  const productContent =
+    productProps.page_layout === "profile" ? (
+      <ProductProfileLayout
+        creatorProfile={productProps.creator_profile}
+        detectedCurrency={global.detected_buyer_currency}
+        rootDomain={global.domain_settings.root_domain}
+        shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
+      >
+        {pageSections}
+      </ProductProfileLayout>
+    ) : (
+      <>
+        {pageSections}
         <ProductFooter
           detectedCurrency={global.detected_buyer_currency}
           rootDomain={global.domain_settings.root_domain}
           shownCurrency={productProps.product.buyer_currency_display?.buyer_currency_shown}
         />
+      </>
+    );
+
+  return (
+    <ProductPageShell global={global}>
+      <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
+        {productContent}
       </ProductStateProvider>
     </ProductPageShell>
   );
