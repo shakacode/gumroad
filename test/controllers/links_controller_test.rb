@@ -4896,6 +4896,28 @@ class LinksControllerShowTest < ActionController::TestCase
     @product_memo ||= create_product(user: @user)
   end
 
+  test "projects main and featured product document content" do
+    document_props = @controller.send(
+      :product_rsc_document_props,
+      {
+        product: rsc_product_props(name: "Main product"),
+        sections: [
+          { id: "featured", props: { product: rsc_product_props(name: "Featured product") } },
+          { id: "featured-editor", featured_product_id: "product" },
+        ],
+        page_layout: Product::Layout::DISCOVER,
+      }
+    )
+
+    assert_equal "Main product", document_props.dig(:rsc_product_content, :name)
+    assert_equal "Featured product", document_props.dig(:rsc_featured_product_content, "featured", :name)
+    assert_equal ["featured"], document_props[:rsc_featured_product_content].keys
+    assert_equal "Main product", document_props.dig(:product, :name)
+    assert_equal 2, document_props[:sections].size
+    assert_equal Product::Layout::DISCOVER, document_props[:page_layout]
+    assert_not document_props.dig(:rsc_product_content).key?(:price_cents)
+  end
+
   test "GET show 404s when link isn't found" do
     assert_raises(ActionController::RoutingError) { get :show, params: { id: "NOT real" } }
   end
@@ -6057,6 +6079,19 @@ class LinksControllerShowTest < ActionController::TestCase
       get :show, params: { id: product.to_param }
     end
   end
+
+  private
+    def rsc_product_props(name:)
+      {
+        name:,
+        price_cents: 1_000,
+        bundle_products: [],
+        recurrences: nil,
+        options: [],
+        rental: nil,
+        pwyw: nil,
+      }
+    end
 end
 
 class PublicRscRenderingConcernTest < ActiveSupport::TestCase
