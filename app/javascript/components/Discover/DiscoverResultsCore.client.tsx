@@ -5,6 +5,7 @@ import * as React from "react";
 import typia from "typia";
 
 import { SearchRequest, SearchResults } from "$app/data/search";
+import { useScrollToElement } from "$app/hooks/useScrollToElement";
 import type { CardProduct } from "$app/parsers/product";
 import { last } from "$app/utils/array";
 import { CurrencyCode } from "$app/utils/currency";
@@ -76,10 +77,12 @@ const parseUrlParams = (href: string, curatedProductIds: string[], defaultSortOr
 };
 
 export function DiscoverResultsCore({
+  blackFridayHero,
   recentlyViewed: recentlyViewedSlot,
   recommendedProducts: recommendedProductsSlot,
   recommendedWishlists: recommendedWishlistsSlot,
 }: {
+  blackFridayHero: React.ReactNode;
   recentlyViewed?: React.ReactNode;
   recommendedProducts?: React.ReactNode;
   recommendedWishlists?: React.ReactNode;
@@ -95,6 +98,10 @@ export function DiscoverResultsCore({
     params: addInitialOffset(initialParsed.params),
     results: props.search_results,
   });
+
+  const isBlackFridayPage = state.params.offer_code === props.black_friday_offer_code;
+  const showBlackFridayHero = blackFridayHero != null;
+  const resultsRef = useScrollToElement(isBlackFridayPage && showBlackFridayHero, undefined, [state.params]);
 
   React.useEffect(() => {
     const url = new URL(window.location.href);
@@ -191,6 +198,7 @@ export function DiscoverResultsCore({
 
   return (
     <>
+      {blackFridayHero}
       <div className="grid gap-16! px-4 py-16 lg:ps-16 lg:pe-16">
         {showRecommendationSections && recommendedProductsSlot !== undefined ? (
           recommendedProductsSlot
@@ -211,7 +219,7 @@ export function DiscoverResultsCore({
             <RecentlyViewed data={props.recently_viewed} />
           </Deferred>
         ) : null}
-        <section className="flex flex-col gap-4">
+        <section ref={resultsRef} className="flex flex-col gap-4">
           <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--spacer-2)", flexWrap: "wrap" }}>
             <h2>
               {state.params.query || hasOfferCode
