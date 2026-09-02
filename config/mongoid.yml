@@ -8,6 +8,16 @@ development:
     use_utc: true
     raise_not_found_error: false
 
+benchmark:
+  clients:
+    default:
+      hosts:
+        - <%= ENV.fetch("MONGO_DATABASE_URL") %>
+      database: <%= ENV.fetch("MONGO_DATABASE_NAME") %>
+  options:
+    use_utc: true
+    raise_not_found_error: false
+
 test:
   clients:
     default:
