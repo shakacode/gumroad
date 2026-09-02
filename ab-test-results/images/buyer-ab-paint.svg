@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 794" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" role="img" aria-labelledby="title description">
+<title id="title">Gumroad: first paint and largest-content paint — cold phone visits</title>
+<desc id="description">Standard-performance medians from 18 paired samples per case in compare-results-1-sep-11pm. Discover marketplace: FCP Inertia 8.77 s, React on Rails Pro / RSC 1.97 s; LCP Inertia 9.65 s, React on Rails Pro / RSC 2.88 s. Discover category: FCP Inertia 8.11 s, React on Rails Pro / RSC 1.55 s; LCP Inertia 9.12 s, React on Rails Pro / RSC 2.35 s. Discover-layout Product: FCP Inertia 13.76 s, React on Rails Pro / RSC 1.67 s; LCP Inertia 13.83 s, React on Rails Pro / RSC 2.43 s. Profile-layout Product: FCP Inertia 14.35 s, React on Rails Pro / RSC 1.38 s; LCP Inertia 14.40 s, React on Rails Pro / RSC 2.36 s. Seller Profile: FCP Inertia 13.86 s, React on Rails Pro / RSC 1.14 s; LCP Inertia 13.86 s, React on Rails Pro / RSC 1.14 s.</desc>
+<metadata>{&quot;source&quot;:&quot;compare-results-1-sep-11pm&quot;,&quot;stage&quot;:&quot;perf&quot;,&quot;samplesPerSide&quot;:18,&quot;metrics&quot;:[&quot;FCP&quot;,&quot;LCP&quot;],&quot;inputs&quot;:[{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-22187712/perf.json&quot;,&quot;sha256&quot;:&quot;4d213ae591d8e417cb6e222ae71a088c4d6f1a6b046e61d2915fa073dc515cac&quot;},{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-22187712/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;467cc3cf46ab728a11885c6c84671cff4eaa692d598e1222fd7581f285c87048&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-3079d45d/perf.json&quot;,&quot;sha256&quot;:&quot;c2644add3477d1420d8ac5c719c8adb32dbc8fc187ecc434883c5d40b482dd1a&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-3079d45d/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;2c7c673c5b4e833677a5b67d859f3b0dbba89149b5e23a1964754ea6b5e34441&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-c3f0647d/perf.json&quot;,&quot;sha256&quot;:&quot;b5251b2a6384cdfc2e3322b67e65c3326a118fa4edfe451c97081a63b52d1d0d&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-c3f0647d/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;7f0600bc2878412927d50e91f501b07558a78db2cee3fde1243a7ccfec99b8e1&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-ee80e18f/perf.json&quot;,&quot;sha256&quot;:&quot;83b4e0945872784068966d6b26e3cee36c7490756b606998c6f12b91c26b8158&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-ee80e18f/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;c0ca3e8b36f5fca7c9df60982f5d70e6ed8aac08922c4b5aaf4cf752caac26fa&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-4f6a4554/perf.json&quot;,&quot;sha256&quot;:&quot;f784c11d6e27946adaa070c6368c69cc10c7c3a6632b7d7f3e1a1a948e7ebd83&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-4f6a4554/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;de138d7cee1186e431d7b3270772dfef34508bd11f424dfc1558c4b8d15be49f&quot;}]}</metadata>
+<rect width="1200" height="794" fill="#fcfcfb"/>
+<text x="56" y="58" font-size="30" fill="#0b0b0b" font-weight="650">Gumroad: first paint and largest-content paint</text>
+<text x="56" y="90" font-size="17" fill="#0b0b0b" >Throttled phone · cold visits (empty browser cache) · lower is better</text>
+<rect x="56" y="116" width="14" height="14" rx="3" fill="#2a78d6"/>
+<text x="80" y="129" font-size="17" fill="#0b0b0b" >Inertia</text>
+<rect x="246" y="116" width="14" height="14" rx="3" fill="#eb6834"/>
+<text x="270" y="129" font-size="17" fill="#0b0b0b" >React on Rails Pro / RSC</text>
+<text x="320" y="182" font-size="23" fill="#0b0b0b" font-weight="650">FCP</text>
+<text x="320" y="207" font-size="15" fill="#0b0b0b" >First contentful paint</text>
+<line x1="320" y1="251" x2="320" y2="715" stroke="#e6e5e1"/>
+<text x="320" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">0</text>
+<line x1="423.3333333333333" y1="251" x2="423.3333333333333" y2="715" stroke="#e6e5e1"/>
+<text x="423.3333333333333" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">5</text>
+<line x1="526.6666666666666" y1="251" x2="526.6666666666666" y2="715" stroke="#e6e5e1"/>
+<text x="526.6666666666666" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">10</text>
+<line x1="630" y1="251" x2="630" y2="715" stroke="#e6e5e1"/>
+<text x="630" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">15s</text>
+<text x="740" y="182" font-size="23" fill="#0b0b0b" font-weight="650">LCP</text>
+<text x="740" y="207" font-size="15" fill="#0b0b0b" >Largest contentful paint</text>
+<line x1="740" y1="251" x2="740" y2="715" stroke="#e6e5e1"/>
+<text x="740" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">0</text>
+<line x1="843.3333333333334" y1="251" x2="843.3333333333334" y2="715" stroke="#e6e5e1"/>
+<text x="843.3333333333334" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">5</text>
+<line x1="946.6666666666666" y1="251" x2="946.6666666666666" y2="715" stroke="#e6e5e1"/>
+<text x="946.6666666666666" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">10</text>
+<line x1="1050" y1="251" x2="1050" y2="715" stroke="#e6e5e1"/>
+<text x="1050" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">15s</text>
+<text x="56" y="294" font-size="18" fill="#0b0b0b" >Discover marketplace</text>
+<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="FCP" data-side="control" data-value="8771">
+<rect x="320" y="263" width="181.267" height="22" rx="4" fill="#2a78d6"/>
+<text x="509.26733333333334" y="280" font-size="17" fill="#0b0b0b" >8.77 s</text>
+</g>
+<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="FCP" data-side="experiment" data-value="1965">
+<rect x="320" y="294" width="40.610" height="22" rx="4" fill="#eb6834"/>
+<text x="368.61" y="311" font-size="17" fill="#0b0b0b" >1.97 s</text>
+</g>
+<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="LCP" data-side="control" data-value="9648">
+<rect x="740" y="263" width="199.392" height="22" rx="4" fill="#2a78d6"/>
+<text x="947.392" y="280" font-size="17" fill="#0b0b0b" >9.65 s</text>
+</g>
+<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="LCP" data-side="experiment" data-value="2877">
+<rect x="740" y="294" width="59.458" height="22" rx="4" fill="#eb6834"/>
+<text x="807.458" y="311" font-size="17" fill="#0b0b0b" >2.88 s</text>
+</g>
+<line x1="56" y1="339" x2="1144" y2="339" stroke="#eeede9"/>
+<text x="56" y="390" font-size="18" fill="#0b0b0b" >Discover category</text>
+<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="FCP" data-side="control" data-value="8109">
+<rect x="320" y="359" width="167.586" height="22" rx="4" fill="#2a78d6"/>
+<text x="495.586" y="376" font-size="17" fill="#0b0b0b" >8.11 s</text>
+</g>
+<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="FCP" data-side="experiment" data-value="1550">
+<rect x="320" y="390" width="32.033" height="22" rx="4" fill="#eb6834"/>
+<text x="360.0333333333333" y="407" font-size="17" fill="#0b0b0b" >1.55 s</text>
+</g>
+<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="LCP" data-side="control" data-value="9118">
+<rect x="740" y="359" width="188.439" height="22" rx="4" fill="#2a78d6"/>
+<text x="936.4386666666667" y="376" font-size="17" fill="#0b0b0b" >9.12 s</text>
+</g>
+<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="LCP" data-side="experiment" data-value="2348">
+<rect x="740" y="390" width="48.525" height="22" rx="4" fill="#eb6834"/>
+<text x="796.5253333333334" y="407" font-size="17" fill="#0b0b0b" >2.35 s</text>
+</g>
+<line x1="56" y1="435" x2="1144" y2="435" stroke="#eeede9"/>
+<text x="56" y="486" font-size="18" fill="#0b0b0b" >Discover-layout Product</text>
+<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="FCP" data-side="control" data-value="13764">
+<rect x="320" y="455" width="284.456" height="22" rx="4" fill="#2a78d6"/>
+<text x="612.456" y="472" font-size="17" fill="#0b0b0b" >13.76 s</text>
+</g>
+<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="FCP" data-side="experiment" data-value="1666">
+<rect x="320" y="486" width="34.431" height="22" rx="4" fill="#eb6834"/>
+<text x="362.43066666666664" y="503" font-size="17" fill="#0b0b0b" >1.67 s</text>
+</g>
+<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="LCP" data-side="control" data-value="13833">
+<rect x="740" y="455" width="285.882" height="22" rx="4" fill="#2a78d6"/>
+<text x="1033.882" y="472" font-size="17" fill="#0b0b0b" >13.83 s</text>
+</g>
+<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="LCP" data-side="experiment" data-value="2433">
+<rect x="740" y="486" width="50.282" height="22" rx="4" fill="#eb6834"/>
+<text x="798.282" y="503" font-size="17" fill="#0b0b0b" >2.43 s</text>
+</g>
+<line x1="56" y1="531" x2="1144" y2="531" stroke="#eeede9"/>
+<text x="56" y="582" font-size="18" fill="#0b0b0b" >Profile-layout Product</text>
+<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="FCP" data-side="control" data-value="14349">
+<rect x="320" y="551" width="296.546" height="22" rx="4" fill="#2a78d6"/>
+<text x="624.546" y="568" font-size="17" fill="#0b0b0b" >14.35 s</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="FCP" data-side="experiment" data-value="1382">
+<rect x="320" y="582" width="28.561" height="22" rx="4" fill="#eb6834"/>
+<text x="356.5613333333333" y="599" font-size="17" fill="#0b0b0b" >1.38 s</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="LCP" data-side="control" data-value="14405">
+<rect x="740" y="551" width="297.703" height="22" rx="4" fill="#2a78d6"/>
+<text x="1045.7033333333334" y="568" font-size="17" fill="#0b0b0b" >14.40 s</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="LCP" data-side="experiment" data-value="2357">
+<rect x="740" y="582" width="48.711" height="22" rx="4" fill="#eb6834"/>
+<text x="796.7113333333333" y="599" font-size="17" fill="#0b0b0b" >2.36 s</text>
+</g>
+<line x1="56" y1="627" x2="1144" y2="627" stroke="#eeede9"/>
+<text x="56" y="678" font-size="18" fill="#0b0b0b" >Seller Profile</text>
+<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="FCP" data-side="control" data-value="13855">
+<rect x="320" y="647" width="286.337" height="22" rx="4" fill="#2a78d6"/>
+<text x="614.3366666666666" y="664" font-size="17" fill="#0b0b0b" >13.86 s</text>
+</g>
+<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="FCP" data-side="experiment" data-value="1139">
+<rect x="320" y="678" width="23.539" height="22" rx="4" fill="#eb6834"/>
+<text x="351.53933333333333" y="695" font-size="17" fill="#0b0b0b" >1.14 s</text>
+</g>
+<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="LCP" data-side="control" data-value="13855">
+<rect x="740" y="647" width="286.337" height="22" rx="4" fill="#2a78d6"/>
+<text x="1034.3366666666666" y="664" font-size="17" fill="#0b0b0b" >13.86 s</text>
+</g>
+<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="LCP" data-side="experiment" data-value="1139">
+<rect x="740" y="678" width="23.539" height="22" rx="4" fill="#eb6834"/>
+<text x="771.5393333333334" y="695" font-size="17" fill="#0b0b0b" >1.14 s</text>
+</g>
+<line x1="56" y1="734" x2="1144" y2="734" stroke="#d8d7d3"/>
+<text x="56" y="765" font-size="16" fill="#0b0b0b" >ShakaPerf · September 1, 11 p.m. run · medians of 18 paired samples per case</text>
+</svg>
