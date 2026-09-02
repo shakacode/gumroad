@@ -169,11 +169,12 @@ class LinksController < ApplicationController
                                   ChargeProcessor::DEFAULT_CURRENCY_CODE
     @pay_with_card_enabled = @product.user.pay_with_card_enabled?
     presenter = ProductPresenter.new(pundit_user:, product: @product, request:)
+    effective_page_layout = product_page_layout
     presenter_props = {
       recommended_by: params[:recommended_by],
       discount_code: params[:offer_code] || params[:code],
       quantity: (params[:quantity] || 1).to_i,
-      layout: params[:layout],
+      layout: effective_page_layout,
       seller_custom_domain_url:,
       # Review reminder emails link logged-out bundle buyers here with their purchase's
       # external id and email digest, so the page can recognize the purchase and show
@@ -199,34 +200,46 @@ class LinksController < ApplicationController
 
     respond_to do |format|
       format.html do
-        case params[:layout]
-        when Product::Layout::PROFILE
-          render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
-        when Product::Layout::DISCOVER
-          if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
-            return render inertia: "Products/Discover/Show", props: {
-              autocomplete_results: Discover::AutocompletePresenter.new(
-                query: params[:query],
-                user: logged_in_user,
-                browser_guid: cookies[:_gumroad_guid]
-              ).props
-            }
-          end
-          discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
-          render inertia: "Products/Discover/Show", props: presenter.discover_product_props(discover_props:, **presenter_props)
-        else
-          if params[:embed] || params[:overlay]
-            render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
-          elsif @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
-            # Storefront-wrapped product page (gumroad-private#2196): profile header above the
-            # product, catalog below (injected in ProductPresenter#product_page_props). Same
-            # component the `layout=profile` branch above renders. The seller's own view keeps
-            # the standalone page — the presenter suppresses the catalog for owners anyway.
-            render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
-          else
-            render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
-          end
+        if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
+          return render inertia: "Products/Discover/Show", props: {
+            autocomplete_results: Discover::AutocompletePresenter.new(
+              query: params[:query],
+              user: logged_in_user,
+              browser_guid: cookies[:_gumroad_guid]
+            ).props
+          }
         end
+
+        return render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props) if params[:embed] || params[:overlay]
+
+        unless product_rsc_controller?
+          return case effective_page_layout
+                 when Product::Layout::PROFILE
+                   render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+                 when Product::Layout::DISCOVER
+                   discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
+                   render inertia: "Products/Discover/Show", props: presenter.discover_product_props(discover_props:, **presenter_props)
+                 else
+                   render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
+                 end
+        end
+
+        if request.inertia?
+          response.set_header("X-Inertia-Location", request.original_url)
+          return head :conflict
+        end
+
+        product_props = case effective_page_layout
+                        when Product::Layout::PROFILE
+                          presenter.profile_product_props(sections_editing: false, **presenter_props)
+                        when Product::Layout::DISCOVER
+                          discover_props = { taxonomy_path: @product.taxonomy&.ancestry_path&.join("/"), taxonomies_for_nav: }
+                          presenter.discover_product_props(discover_props:, sections_editing: false, **presenter_props)
+                        else
+                          presenter.product_page_props(sections_editing: false, **presenter_props)
+        end
+
+        render_product_rsc_document(product_rsc_document_props(product_props).merge(page_layout: effective_page_layout))
       end
       format.json { render json: ProductPresenter::PublicApiProps.new(product: @product, seller_custom_domain_url:).props }
       format.any { e404 }
@@ -810,8 +823,17 @@ class LinksController < ApplicationController
   end
 
   private
+    def product_page_layout
+      return params[:layout] if params[:layout].in?([Product::Layout::PROFILE, Product::Layout::DISCOVER])
+      Product::Layout::PROFILE if @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
+    end
+
     def product_rsc_document_request?
       !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+    end
+
+    def product_rsc_controller?
+      is_a?(ProductRscLinksController)
     end
 
     def product_rsc_document_props(product_props)
@@ -823,6 +845,21 @@ class LinksController < ApplicationController
 
           [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
         end.to_h
+      )
+    end
+
+    def render_product_rsc_document(product_props)
+      @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
+      @product_rsc_document_props = product_props.merge(
+        _inertia_meta: inertia_meta.meta_tags,
+        global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)
+      )
+      release_live_active_record_connections
+
+      stream_view_containing_react_components(
+        template: "links/rsc_show",
+        layout: "inertia",
+        rsc_stream_observability: true
       )
     end
 
