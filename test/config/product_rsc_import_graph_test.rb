@@ -11,12 +11,19 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductStateProvider.client.tsx
     Product/useSelectionFromUrl.client.ts
   ].freeze
-  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + %w[
+  PURCHASE_CLIENT_COMPONENTS = %w[
+    Product/ProductEditButton.client.tsx
+    Product/ProductLicenseKeyLookup.client.tsx
+    Product/ProductPurchaseControls.client.tsx
+    Product/ProductReceiptActions.client.tsx
+    Product/ProductSecondaryActions.client.tsx
+  ].freeze
+  CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + %w[
     Product/ProductDescription.client.tsx
     Product/ProductReviews.client.tsx
   ]).freeze
 
-  test "keeps the product description and reviews as explicit client boundaries" do
+  test "keeps product client boundaries explicit" do
     CLIENT_COMPONENTS.each do |path|
       assert COMPONENT_DIRECTORY.join(path).read.start_with?('"use client";'), "Expected #{path} to be a client boundary"
     end
@@ -93,6 +100,30 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
       assert_match %r{import type .*from "\$app/components/Product"}m, boundary.read
     end
     assert_not_includes client_graph, product_barrel
+    %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
+    end
+  end
+
+  test "keeps purchase controls out of later product composition" do
+    purchase_boundaries = PURCHASE_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) }
+    client_graph = transitive_javascript_imports(purchase_boundaries)
+    purchase_controls = COMPONENT_DIRECTORY.join("Product/ProductPurchaseControls.client.tsx")
+    static_purchase_imports = purchase_controls.read.scan(
+      /(?:^|\n)\s*(?:import|export)\s+(?!type\b).*?\bfrom\s+["']([^"']+)["']/m,
+    ).flatten
+    type_consumers = purchase_boundaries.select do |boundary|
+      %w[ProductEditButton.client.tsx ProductPurchaseControls.client.tsx ProductSecondaryActions.client.tsx].include?(
+        boundary.basename.to_s,
+      )
+    end
+
+    type_consumers.each do |boundary|
+      assert_match %r{import type .*from "\$app/components/Product"}m, boundary.read
+      assert_not_includes boundary.read, "$app/components/Product/Interactive"
+    end
+    assert_includes purchase_controls.read, 'import("$app/components/Product/SubscriptionChoiceModal")'
+    assert_not_includes static_purchase_imports, "$app/components/Product/SubscriptionChoiceModal"
     %w[Interactive.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx].each do |composition|
       assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
     end
