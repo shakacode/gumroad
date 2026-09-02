@@ -27,8 +27,14 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     Product/ProductPreorderNotice.client.tsx
     Product/ProductStickyCta.client.tsx
   ].freeze
+  COMPOSITION_CLIENT_COMPONENTS = %w[
+    Product/CoffeeProduct.tsx
+    Product/ProductAnalytics.client.tsx
+    PublicPages/PageShell.client.tsx
+    PublicPages/ProductPageShell.client.tsx
+  ].freeze
   CLIENT_COMPONENTS = (PRICING_CLIENT_COMPONENTS + PURCHASE_CLIENT_COMPONENTS + MEDIA_CLIENT_COMPONENTS +
-    VISUAL_CLIENT_COMPONENTS + %w[
+    VISUAL_CLIENT_COMPONENTS + COMPOSITION_CLIENT_COMPONENTS + %w[
       Product/ProductDescription.client.tsx
       Product/ProductReviews.client.tsx
     ]).freeze
@@ -212,6 +218,41 @@ class ProductRscImportGraphTest < ActiveSupport::TestCase
     %w[ProductArticle.tsx ProductPage.tsx].each do |composition|
       assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
     end
+  end
+
+  test "keeps product composition server-owned and legacy edges out of its client graph" do
+    composition_boundaries = COMPOSITION_CLIENT_COMPONENTS.map { COMPONENT_DIRECTORY.join(_1) }
+    client_graph = transitive_javascript_imports(composition_boundaries)
+    cta_button = COMPONENT_DIRECTORY.join("Product/CtaButton.tsx").read
+    legacy_product = COMPONENT_DIRECTORY.join("Product/LegacyProduct.tsx").read
+    page_path = COMPONENT_DIRECTORY.join("Product/ProductPage.tsx")
+    page = page_path.read
+    root_graph = transitive_javascript_imports([page_path])
+
+    %w[ProductArticle.tsx ProductContent.tsx ProductFooter.tsx ProductPage.tsx].each do |composition|
+      component = COMPONENT_DIRECTORY.join("Product", composition)
+      assert_predicate component, :file?
+      assert_not component.read.start_with?('"use client";')
+    end
+    %w[index.tsx Interactive.tsx LegacyProduct.tsx ProductArticle.tsx ProductContent.tsx ProductPage.tsx
+       SubscriptionChoiceModal.tsx].each do |composition|
+      assert_not_includes client_graph, COMPONENT_DIRECTORY.join("Product", composition)
+    end
+    %w[index.tsx Interactive.tsx LegacyProduct.tsx SubscriptionChoiceModal.tsx].each do |legacy_edge|
+      assert_not_includes root_graph, COMPONENT_DIRECTORY.join("Product", legacy_edge)
+    end
+    assert_match %r{import type .*from "\$app/components/Product/Interactive"}m, cta_button
+    assert_includes cta_button, "$app/components/Product/productAvailability"
+    assert_includes legacy_product, "product.seller && !(hideSellerByline && !product.collaborating_user)"
+    assert_includes legacy_product, "legacyProductContent({ ...props, hideSellerByline })"
+    assert_includes page, "$app/components/PublicPages/ProductPageShell.client"
+    assert_includes page, "<ProductStateProvider"
+    assert_includes page, "<ProductArticle"
+    assert_includes page, "<ProductFooter"
+    assert_includes page, "detectedCurrency={global.detected_buyer_currency}"
+    assert_includes page, 'hideSellerByline={productProps.page_layout === "profile"}'
+    %w[Discover ProductPageInertia Profile].each { assert_not_includes page, _1 }
+    assert_not_includes page, "$app/components/PublicPages/PageShell.client"
   end
 
   private

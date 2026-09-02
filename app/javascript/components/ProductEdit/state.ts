@@ -15,7 +15,7 @@ import { CurrencyCode } from "$app/utils/currency";
 import { Taxonomy } from "$app/utils/discover";
 import { RecurrenceId } from "$app/utils/recurringPricing";
 
-import { PublicFile, Seller } from "$app/components/Product";
+import type { PublicFile, Seller } from "$app/components/Product/Interactive";
 import { SubtitleFile } from "$app/components/SubtitleList/Row";
 
 import { Page } from "./ContentTab/PageTab";
