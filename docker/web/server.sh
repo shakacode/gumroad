@@ -32,4 +32,4 @@ else
   echo "npm run setup skipped (outputs already in image)"
 fi
 
-exec bundle exec rails server -p $PORT
+exec bundle exec rails server -p "$PORT"

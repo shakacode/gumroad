@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
 import AutoImport from "unplugin-auto-import/vite";
-import { defineConfig } from "vite";
+import { defineConfig, type ResolvedConfig } from "vite";
 import RubyPlugin from "vite-plugin-ruby";
 
 import { staleModuleGuard } from "./config/vite/stale-module-guard";
@@ -18,6 +18,20 @@ function stripCjsExportsPlugin() {
       if (id.endsWith("routes.js")) {
         return code.replace(/^Object\.defineProperty\(exports.*$/mu, "").replace(/^exports\.\w+\s*=.*$/gmu, "");
       }
+    },
+  };
+}
+
+function excludePublicRscEntrypoints() {
+  return {
+    name: "exclude-public-rsc-entrypoints",
+    configResolved(config: ResolvedConfig) {
+      const { input } = config.build.rollupOptions;
+      if (!input || typeof input !== "object" || Array.isArray(input)) return;
+
+      config.build.rollupOptions.input = Object.fromEntries(
+        Object.entries(input).filter(([, filename]) => !/[\\/]entrypoints[\\/]public_rsc[\\/]/u.test(filename)),
+      );
     },
   };
 }
@@ -93,6 +107,7 @@ function manualChunks(id: string) {
 export default defineConfig(({ mode }) => ({
   plugins: [
     RubyPlugin(),
+    excludePublicRscEntrypoints(),
     react(),
     staleModuleGuard(),
     UnpluginTypia({ cache: true }),

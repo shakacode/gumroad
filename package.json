@@ -143,11 +143,15 @@
   },
   "scripts": {
     "build": "npm run build:pages-tailwind && npx vite build",
+    "build:public-rsc": "npm run generate:public-rsc-packs && rspack --config config/rspack/public_rsc.config.cjs",
+    "build:public-rsc:test": "RAILS_ENV=test NODE_ENV=test npm run build:public-rsc",
     "build:pages-tailwind": "node scripts/build_pages_tailwind.mjs",
     "build:widget": "WIDGET_TARGET=gumroad npx vite build --config vite.config.widget.ts && WIDGET_TARGET=gumroad-embed npx vite build --config vite.config.widget.ts",
+    "generate:public-rsc-packs": "bundle exec rails js:export && bundle exec rake react_on_rails:generate_packs",
     "lint-fast": "DISABLE_TYPE_CHECKED=1 npx eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "watch:public-rsc": "npm run generate:public-rsc-packs && rspack --watch --config config/rspack/public_rsc.config.cjs",
     "setup": "bundle exec rails js:export && npm run build:pages-tailwind",
     "postinstall": "patch-package && ts-patch install -s"
   },
