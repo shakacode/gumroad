@@ -14,9 +14,9 @@ RSpec.describe "Active Storage proxy routing" do
 
   it "recognizes blob proxy URLs before storefront catch-alls on every benchmark host" do
     hosts = [
-      "gumroad-inertia.reactonrails.com",
+      "gumroad-rorp.reactonrails.com",
       "rails-example.cpln.app",
-      "seller.gumroad-inertia.reactonrails.com",
+      "seller.gumroad-rorp.reactonrails.com",
     ]
 
     hosts.each do |host|
@@ -37,7 +37,7 @@ RSpec.describe "Active Storage proxy routing" do
 
   it "recognizes representation proxy URLs before storefront catch-alls" do
     route = Rails.application.routes.recognize_path(
-      "https://gumroad-inertia.reactonrails.com/rails/active_storage/representations/proxy/blob/variation/file.png",
+      "https://gumroad-rorp.reactonrails.com/rails/active_storage/representations/proxy/blob/variation/file.png",
       method: :get
     )
 

@@ -25,11 +25,11 @@ RSpec.describe "Control Plane benchmark release" do
       stdout, stderr, status = Open3.capture3(
         {
           "ALLOW_BENCHMARK_SEED" => nil,
-          "BRANCH" => "gumroad-inertia",
+          "BRANCH" => "gumroad-rorp",
           "CPLN_GVC" => nil,
           "DATABASE_HOST" => "mysql",
           "DATABASE_PORT" => "3306",
-          "GUMROAD_RENDERING_SURFACE" => "inertia",
+          "GUMROAD_RENDERING_SURFACE" => "rorp",
           "RAILS_CALL_LOG" => calls.to_s,
           "SKIP_CONTROL_PLANE_SERVICE_WAIT" => "true",
         }.merge(env),
@@ -79,18 +79,18 @@ RSpec.describe "Control Plane benchmark release" do
   end
 
   it "rejects another app before database mutation" do
-    status, _stdout, stderr, calls = run_release("BRANCH" => "gumroad-rorp")
+    status, _stdout, stderr, calls = run_release("BRANCH" => "gumroad-inertia")
 
     expect(status).not_to be_success
-    expect(stderr).to include("expected gumroad-inertia")
+    expect(stderr).to include("expected gumroad-rorp")
     expect(calls).to be_empty
   end
 
   it "rejects another rendering surface before database mutation" do
-    status, _stdout, stderr, calls = run_release("GUMROAD_RENDERING_SURFACE" => "rorp")
+    status, _stdout, stderr, calls = run_release("GUMROAD_RENDERING_SURFACE" => "inertia")
 
     expect(status).not_to be_success
-    expect(stderr).to include("expected inertia")
+    expect(stderr).to include("expected rorp")
     expect(calls).to be_empty
   end
 end

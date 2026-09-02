@@ -28,6 +28,8 @@ ssr-generated/
 .node-renderer-bundles/
 ci_scripts/
 .githooks/
+docker/tmp/
+compare-results*/
 .env*
 *.key
 *.pem
