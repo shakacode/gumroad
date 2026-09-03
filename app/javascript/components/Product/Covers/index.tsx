@@ -216,7 +216,8 @@ const CoverItem = ({
             height: cover.native_height * ratio,
           };
     if (cover.type === "image") {
-      coverComponent = (
+      // Keep the image supplied by Flight so measurement preserves its node and responsive sources.
+      coverComponent = initialContent ?? (
         <Image cover={cover} dimensions={dimensions} frameIsShaped={frameIsShaped} productName={productName} />
       );
     } else if (cover.type === "oembed") {
