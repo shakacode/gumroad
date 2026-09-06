@@ -16,6 +16,7 @@ ENV APP_DIR=/app \
     RAILS_SERVE_STATIC_FILES=true \
     VITE_RUBY_MODE=production \
     VITE_RUBY_AUTO_BUILD=false \
+    RENDERER_SERVER_BUNDLE_CACHE_PATH=/app/.node-renderer-bundles \
     GIT_COMMIT=${GIT_COMMIT}
 
 WORKDIR ${APP_DIR}
@@ -109,7 +110,8 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     npm run setup && \
     npm run build:public-rsc && \
     npx vite build && \
-    bundle exec rails assets:precompile
+    bundle exec rails assets:precompile && \
+    bundle exec rails react_on_rails_pro:pre_seed_renderer_cache
 
 COPY .controlplane/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh /app/.controlplane/release_script.sh
