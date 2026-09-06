@@ -3,6 +3,25 @@
 require "spec_helper"
 
 describe "Product RSC shared globals", type: :request do
+  it "leaves image preloads to React while retaining the product metadata" do
+    product = create(:product)
+    create(:asset_preview, link: product)
+    rendered_props = nil
+    rendered_meta = nil
+    allow_any_instance_of(ProductRscLinksController).to receive(:stream_view_containing_react_components) do |controller, **|
+      rendered_props = controller.instance_variable_get(:@product_rsc_document_props)
+      rendered_meta = controller.send(:erb_meta_tags)
+      controller.response_body = "server-rendered product"
+    end
+
+    get product.long_url
+
+    expect(response).to be_successful
+    expect(rendered_meta).not_to include('rel="preload"')
+    expect(rendered_meta).to include('rel="canonical"', 'property="og:image"')
+    expect(rendered_props.fetch(:_inertia_meta).any? { |tag| tag[:rel] == "preload" && tag[:as] == "image" }).to be(false)
+  end
+
   it "projects flash and detected buyer currency without exposing the CSP nonce" do
     seller = create(:user)
     product = create(:product, user: seller)

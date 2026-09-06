@@ -26,6 +26,7 @@ import {
   ProductTitle,
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
+import { ProductCoverPreloads } from "$app/components/Product/ProductCoverPreloads";
 import { ProductFooter } from "$app/components/Product/ProductFooter";
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
@@ -286,5 +287,10 @@ export default function ProductPage({
       product
     );
 
-  return <ProductPageShell global={global}>{page}</ProductPageShell>;
+  return (
+    <>
+      <ProductCoverPreloads covers={productProps.product.covers} mainCoverId={productProps.product.main_cover_id} />
+      <ProductPageShell global={global}>{page}</ProductPageShell>
+    </>
+  );
 }

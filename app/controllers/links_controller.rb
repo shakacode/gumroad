@@ -849,6 +849,10 @@ class LinksController < ApplicationController
     end
 
     def render_product_rsc_document(product_props)
+      # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
+      meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
+        remove_meta_tag(tag[:head_key])
+      end
       @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
       @product_rsc_document_props = product_props.merge(
         _inertia_meta: inertia_meta.meta_tags,
