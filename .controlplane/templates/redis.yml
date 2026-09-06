@@ -1,0 +1,41 @@
+kind: workload
+name: redis
+spec:
+  type: standard
+  containers:
+    - name: redis
+      cpu: 100m
+      memory: 128Mi
+      image: redis:7.0.7
+      args:
+        - redis-server
+        - --appendonly
+        - "yes"
+      ports:
+        - number: 6379
+          protocol: tcp
+      livenessProbe:
+        tcpSocket:
+          port: 6379
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+      readinessProbe:
+        tcpSocket:
+          port: 6379
+        initialDelaySeconds: 2
+        periodSeconds: 5
+        failureThreshold: 3
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc

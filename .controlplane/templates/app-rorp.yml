@@ -1,0 +1,121 @@
+kind: gvc
+name: "{{APP_NAME}}"
+spec:
+  env:
+    - name: RAILS_ENV
+      value: benchmark
+    - name: RACK_ENV
+      value: benchmark
+    - name: NODE_ENV
+      value: production
+    - name: VITE_RUBY_MODE
+      value: production
+    - name: VITE_RUBY_ASSET_HOST
+      value: ""
+    - name: VITE_RUBY_AUTO_BUILD
+      value: "false"
+    - name: RAILS_LOG_TO_STDOUT
+      value: "true"
+    - name: RAILS_SERVE_STATIC_FILES
+      value: "true"
+    - name: RAILS_MAX_THREADS
+      value: "3"
+    - name: DB_POOL_SIZE
+      value: "5"
+    - name: PUMA_WORKER_PROCESSES
+      value: "1"
+    - name: CUSTOM_DOMAIN
+      value: gumroad-rorp.reactonrails.com
+    - name: BENCHMARK_PROTOCOL
+      value: https
+    - name: BENCHMARK_STORAGE_SERVICE
+      value: benchmark
+    - name: BENCHMARK_STORAGE_PREFIX
+      value: benchmarks/gumroad-rorp
+    - name: BENCHMARK_STORAGE_PUBLIC_HOST
+      value: public-files.gumroad-rorp.reactonrails.com
+    - name: BENCHMARK_CACHE_NAMESPACE
+      value: gumroad-rorp
+    - name: BENCHMARK_SELLER_USERNAME
+      value: seller
+    - name: SESSION_COOKIE_DOMAIN
+      value: ""
+    - name: SESSION_COOKIE_SECURE
+      value: "true"
+    - name: BRANCH
+      value: "{{APP_NAME}}"
+    - name: REVISION
+      value: "{{APP_NAME}}"
+    - name: BRANCH_DEPLOYMENT
+      value: "true"
+    - name: GUMROAD_RENDERING_SURFACE
+      value: rorp
+    - name: CONTROL_PLANE_BENCHMARK
+      value: "true"
+    - name: SECRET_KEY_BASE
+      value: "cpln://secret/{{APP_SECRETS}}.SECRET_KEY_BASE"
+    - name: DEVISE_SECRET_KEY
+      value: "cpln://secret/{{APP_SECRETS}}.DEVISE_SECRET_KEY"
+    - name: STRONGBOX_GENERAL
+      value: "cpln://secret/{{APP_SECRETS}}.STRONGBOX_GENERAL"
+    - name: STRONGBOX_GENERAL_PASSWORD
+      value: "cpln://secret/{{APP_SECRETS}}.STRONGBOX_GENERAL_PASSWORD"
+    - name: OBFUSCATE_IDS_CIPHER_KEY
+      value: "cpln://secret/{{APP_SECRETS}}.OBFUSCATE_IDS_CIPHER_KEY"
+    - name: OBFUSCATE_IDS_NUMERIC_CIPHER_KEY
+      value: "cpln://secret/{{APP_SECRETS}}.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY"
+    - name: RENDERER_PASSWORD
+      value: "cpln://secret/{{APP_SECRETS}}.RENDERER_PASSWORD"
+    - name: REACT_ON_RAILS_PRO_LICENSE
+      value: "cpln://secret/{{APP_SECRETS}}.REACT_ON_RAILS_PRO_LICENSE"
+    - name: REACT_RENDERER_URL
+      value: "http://renderer.{{APP_NAME}}.cpln.local:3800"
+    - name: DATABASE_HOST
+      value: "mysql.{{APP_NAME}}.cpln.local"
+    - name: DATABASE_PORT
+      value: "3306"
+    - name: DATABASE_NAME
+      value: "cpln://secret/{{APP_NAME}}-mysql.database"
+    - name: DATABASE_USERNAME
+      value: "cpln://secret/{{APP_NAME}}-mysql.username"
+    - name: DATABASE_PASSWORD
+      value: "cpln://secret/{{APP_NAME}}-mysql.password"
+    - name: MONGO_DATABASE_URL
+      value: "mongo.{{APP_NAME}}.cpln.local:27017"
+    - name: MONGO_SECONDARY_DATABASE_URL
+      value: "mongo.{{APP_NAME}}.cpln.local:27017"
+    - name: MONGO_DATABASE_NAME
+      value: gumroad_log_benchmark
+    - name: MONGO_DATABASE_USERNAME
+      value: "cpln://secret/{{APP_NAME}}-mongo.username"
+    - name: MONGO_DATABASE_PASSWORD
+      value: "cpln://secret/{{APP_NAME}}-mongo.password"
+    - name: MONGO_AUTH_SOURCE
+      value: admin
+    - name: REDIS_HOST
+      value: "redis.{{APP_NAME}}.cpln.local:6379/0"
+    - name: SIDEKIQ_REDIS_HOST
+      value: "redis.{{APP_NAME}}.cpln.local:6379/1"
+    - name: RPUSH_REDIS_HOST
+      value: "redis.{{APP_NAME}}.cpln.local:6379/2"
+    - name: RACK_ATTACK_REDIS_HOST
+      value: "redis.{{APP_NAME}}.cpln.local:6379/3"
+    - name: ANYCABLE_REDIS_URL
+      value: "redis://redis.{{APP_NAME}}.cpln.local:6379/5"
+    - name: MEMCACHE_SERVERS
+      value: "memcached.{{APP_NAME}}.cpln.local:11211"
+    - name: ELASTICSEARCH_HOST
+      value: "http://elasticsearch.{{APP_NAME}}.cpln.local:9200"
+    - name: BENCHMARK_STORAGE_S3_ENDPOINT
+      value: "cpln://secret/{{APP_NAME}}-r2.endpoint"
+    - name: BENCHMARK_STORAGE_S3_ACCESS_KEY_ID
+      value: "cpln://secret/{{APP_NAME}}-r2.access_key_id"
+    - name: BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY
+      value: "cpln://secret/{{APP_NAME}}-r2.secret_access_key"
+    - name: BENCHMARK_STORAGE_S3_REGION
+      value: auto
+    - name: BENCHMARK_STORAGE_S3_BUCKET
+      value: "cpln://secret/{{APP_NAME}}-r2.bucket"
+  staticPlacement:
+    locationLinks:
+      - "{{APP_LOCATION_LINK}}"
