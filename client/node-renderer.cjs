@@ -2,7 +2,7 @@ const path = require("path");
 const { reactOnRailsProNodeRenderer, parseWorkersCount } = require("react-on-rails-pro-node-renderer");
 
 // Pro 17.0's stable-only guard rejects this reviewed prerelease despite its aligned React 19.2 contract.
-if (require("react-on-rails-rsc/package.json").version === "19.3.0-rc.0") {
+if (require("react-on-rails-rsc/package.json").version === "19.3.0-rc.1") {
   process.env.REACT_ON_RAILS_PRO_DISABLE_VERSION_CHECK ??= "1";
 }
 

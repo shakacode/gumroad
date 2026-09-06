@@ -1,16 +1,13 @@
 import { rspack, type Configuration } from "@rspack/core";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import dependencyPackageJson from "react-on-rails-rsc/package.json";
 import { RSCRspackPlugin } from "react-on-rails-rsc/RspackPlugin";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const packageRoot = dirname(require.resolve("react-on-rails-rsc/package.json"));
 const clientBrowserRuntime = require.resolve("react-on-rails-rsc/client.browser");
-const rspackPlugin = readFileSync(join(packageRoot, "dist/react-server-dom-rspack/plugin.js"), "utf8");
 
 type ClientManifest = {
   filePathToModuleMetadata: Record<string, { chunks: (string | number)[] }>;
@@ -36,7 +33,7 @@ const compile = (config: Configuration) =>
     ),
   );
 
-describe("react-on-rails-rsc patch", () => {
+describe("react-on-rails-rsc shared chunks", () => {
   it("allows Rspack to extract shared dependencies from generated client-reference chunks", async () => {
     const root = mkdtempSync(fileURLToPath(new URL("./.rsc-split-chunks-probe-", import.meta.url)));
     const source = join(root, "source");
@@ -90,27 +87,4 @@ describe("react-on-rails-rsc patch", () => {
       rmSync(root, { recursive: true, force: true });
     }
   }, 120_000);
-
-  it("limits the versioned patch to removing the generated-chunk guard", () => {
-    const patch = readFileSync(
-      new URL(`../../../../patches/react-on-rails-rsc+${dependencyPackageJson.version}.patch`, import.meta.url),
-      "utf8",
-    );
-    expect(rspackPlugin).not.toContain("Prevent splitChunks from extracting modules");
-    expect(rspackPlugin).not.toContain("guardedSplitChunks");
-    expect(rspackPlugin).not.toContain("installSplitChunksGuard");
-    expect(rspackPlugin).not.toContain("RSCRspackPlugin.splitChunksGuard");
-
-    const changedFiles = [...patch.matchAll(/^diff --git a\/(.+) b\/(.+)$/gmu)].map(([, before, after]) => [
-      before,
-      after,
-    ]);
-    expect(changedFiles).toEqual([
-      [
-        "node_modules/react-on-rails-rsc/dist/react-server-dom-rspack/plugin.js",
-        "node_modules/react-on-rails-rsc/dist/react-server-dom-rspack/plugin.js",
-      ],
-    ]);
-    expect(patch).not.toContain(".js.map");
-  });
 });
