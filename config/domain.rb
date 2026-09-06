@@ -7,6 +7,9 @@
 # request.host, which never carries a port.
 dev_lane_port = ENV.fetch("DEV_LANE_PORT", "3000")
 
+# Keep seller pages and the root cart iframe in the same HTTP cache partition.
+benchmark_host = ENV.fetch("BENCHMARK_HOST", "gumroad.localhost")
+
 configuration_by_env = {
   production: {
     protocol: "https",
@@ -78,20 +81,20 @@ configuration_by_env = {
   },
   benchmark: {
     protocol: ENV.fetch("BENCHMARK_PROTOCOL", "http"),
-    domain: "localhost:#{dev_lane_port}",
-    asset_domain: "localhost:#{dev_lane_port}",
-    root_domain: "localhost:#{dev_lane_port}",
-    short_domain: "s.localhost:#{dev_lane_port}",
-    discover_domain: "localhost:#{dev_lane_port}",
-    api_domain: "api.localhost:#{dev_lane_port}",
-    third_party_analytics_domain: "analytics.localhost:#{dev_lane_port}",
-    valid_request_hosts: ["app.localhost", "localhost", "app.localhost:#{dev_lane_port}", "localhost:#{dev_lane_port}"],
-    valid_api_request_hosts: ["api.localhost", "api.localhost:#{dev_lane_port}"],
-    valid_discover_host: "localhost",
+    domain: "#{benchmark_host}:#{dev_lane_port}",
+    asset_domain: "#{benchmark_host}:#{dev_lane_port}",
+    root_domain: "#{benchmark_host}:#{dev_lane_port}",
+    short_domain: "s.#{benchmark_host}:#{dev_lane_port}",
+    discover_domain: "#{benchmark_host}:#{dev_lane_port}",
+    api_domain: "api.#{benchmark_host}:#{dev_lane_port}",
+    third_party_analytics_domain: "analytics.#{benchmark_host}:#{dev_lane_port}",
+    valid_request_hosts: ["app.#{benchmark_host}", benchmark_host, "app.#{benchmark_host}:#{dev_lane_port}", "#{benchmark_host}:#{dev_lane_port}"],
+    valid_api_request_hosts: ["api.#{benchmark_host}", "api.#{benchmark_host}:#{dev_lane_port}"],
+    valid_discover_host: benchmark_host,
     valid_cors_origins: [],
-    internal_gumroad_domain: "internal.localhost",
-    default_email_domain: "localhost",
-    anycable_host: "cable.localhost",
+    internal_gumroad_domain: "internal.#{benchmark_host}",
+    default_email_domain: benchmark_host,
+    anycable_host: "cable.#{benchmark_host}",
   }
 }
 

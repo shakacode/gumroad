@@ -8,7 +8,8 @@ services:
       RACK_ENV: benchmark
       NODE_ENV: production
       VITE_RUBY_MODE: production
-      VITE_RUBY_ASSET_HOST: ""
+      BENCHMARK_HOST: control.localhost
+      VITE_RUBY_ASSET_HOST: "http://control.localhost:${CONTROL_PORT}"
       VITE_RUBY_AUTO_BUILD: "false"
       DEV_LANE_PORT: ${CONTROL_PORT}
       DATABASE_HOST: mysql-control
@@ -52,6 +53,8 @@ services:
       - "${EXPERIMENT_PORT}:3000"
     environment:
       <<: *control-environment
+      BENCHMARK_HOST: experiment.localhost
+      VITE_RUBY_ASSET_HOST: "http://experiment.localhost:${EXPERIMENT_PORT}"
       DEV_LANE_PORT: ${EXPERIMENT_PORT}
       DATABASE_HOST: mysql-experiment
       MONGO_DATABASE_URL: mongo-experiment:27017

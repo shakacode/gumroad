@@ -28,8 +28,8 @@ const LIGHTHOUSE_CONFIG = {
 
 export default defineConfig({
   shared: {
-    controlURL: `http://localhost:${CONTROL_PORT}`,
-    experimentURL: `http://localhost:${EXPERIMENT_PORT}`,
+    controlURL: `http://control.localhost:${CONTROL_PORT}`,
+    experimentURL: `http://experiment.localhost:${EXPERIMENT_PORT}`,
     viewportDefinitions: [DESKTOP_VIEWPORT, PHONE_VIEWPORT],
     viewports: ["desktop", "phone"],
     parallelism: PARALLELISM,
@@ -45,7 +45,6 @@ export default defineConfig({
       failOn: ["error"],
       allowList: [
         "FB.getLoginStatus can no longer be called from http pages",
-        "/cart_items_count",
         "Executing inline script violates the following Content Security Policy directive",
       ],
     },

@@ -11,7 +11,7 @@ spec:
     - name: VITE_RUBY_MODE
       value: production
     - name: VITE_RUBY_ASSET_HOST
-      value: ""
+      value: "https://gumroad-inertia.reactonrails.com"
     - name: VITE_RUBY_AUTO_BUILD
       value: "false"
     - name: RAILS_LOG_TO_STDOUT

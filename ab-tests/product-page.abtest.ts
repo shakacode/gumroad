@@ -14,15 +14,15 @@ type ProductFixture = {
 
 const standardProduct: ProductFixture = {
   name: /Graphic Guide to Residential Design/u,
-  controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
-  experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
+  controlUrl: `http://luisfurushio.control.localhost:${CONTROL_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
+  experimentUrl: `http://luisfurushio.experiment.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=discover&recommended_by=search`,
   layout: "discover",
 };
 
 const sellerProfileProduct: ProductFixture = {
   name: /Graphic Guide to Residential Design/u,
-  controlUrl: `http://luisfurushio.localhost:${CONTROL_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
-  experimentUrl: `http://luisfurushio.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
+  controlUrl: `http://luisfurushio.control.localhost:${CONTROL_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
+  experimentUrl: `http://luisfurushio.experiment.localhost:${EXPERIMENT_PORT}/l/bgfjk?layout=profile&recommended_by=search`,
   layout: "profile",
 };
 
@@ -67,24 +67,10 @@ const warmCurrentProduct =
     }
   };
 
-const warmProductBeforeLanding =
-  (fixture: ProductFixture): BeforeNavigateHook =>
-  async (context) => {
-    await prepareShakaPerfNavigation(context);
-    const page = await context.context.newPage();
-    try {
-      await page.goto(context.isControl ? fixture.controlUrl : fixture.experimentUrl, {
-        waitUntil: "domcontentloaded",
-      });
-      await waitForProduct(page, fixture);
-    } finally {
-      await page.close();
-    }
-  };
-
 const warmPerfConfig = (beforeNavigate: BeforeNavigateHook) => ({
   shared: { beforeNavigate },
   perf: { lighthouseConfig: { disableStorageReset: true } },
+  audit: { lighthouseConfig: { disableStorageReset: true } },
 });
 
 const landingCoverage: { testTypes: TestType[]; visregSelectors: string[] } = {

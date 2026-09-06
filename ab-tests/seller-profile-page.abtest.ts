@@ -69,6 +69,7 @@ const warmProductBeforeProfileLanding: BeforeNavigateHook = async (context) => {
 const warmPerfConfig = (beforeNavigate: BeforeNavigateHook) => ({
   shared: { beforeNavigate },
   perf: { lighthouseConfig: { disableStorageReset: true } },
+  audit: { lighthouseConfig: { disableStorageReset: true } },
 });
 
 abTest(

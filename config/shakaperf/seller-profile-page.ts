@@ -6,7 +6,11 @@ export const SELLER_PROFILE = {
   firstProductPermalink: "profile-simple-a",
 } as const;
 
-const profileOrigin = (port: number) => `http://${SELLER_PROFILE.username}.localhost:${port}`;
+const profileOrigin = (port: number) => {
+  const host =
+    port === Number(process.env.SHAKAPERF_CONTROL_PORT || 3100) ? "control.localhost" : "experiment.localhost";
+  return `http://${SELLER_PROFILE.username}.${host}:${port}`;
+};
 
 export const sellerProfileUrl = (port: number) => `${profileOrigin(port)}/`;
 
