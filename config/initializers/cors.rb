@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 # Allow requests from all origins to API domain
-Rails.application.config.middleware.insert_before 0, Rack::Cors do
+# Static benchmark assets already allow every origin; Rack::Cors would add Vary: Origin and defeat iframe reuse.
+cors_insertion = Rails.env.benchmark? ? :insert_after : :insert_before
+cors_position = Rails.env.benchmark? ? ActionDispatch::Static : 0
+Rails.application.config.middleware.public_send(cors_insertion, cors_position, Rack::Cors) do
   public_profile_json_request = proc do |env|
     path = env["PATH_INFO"].to_s
     request = Rack::Request.new(env)

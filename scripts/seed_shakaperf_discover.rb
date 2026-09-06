@@ -55,8 +55,8 @@ module ShakaPerfDiscoverSeed
       end
 
       puts "Seeded #{products.size} ShakaPerf Discover products:"
-      puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/software-development/programming"
-      puts "http://localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/discover?query=#{SEARCH_QUERY}"
+      puts "#{PROTOCOL}://#{ROOT_DOMAIN}/software-development/programming"
+      puts "#{PROTOCOL}://#{ROOT_DOMAIN}/discover?query=#{SEARCH_QUERY}"
     end
     uploaded_blobs.clear
     purge_replaced_blobs(replaced_blobs)
