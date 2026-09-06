@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 794" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" role="img" aria-labelledby="title description">
 <title id="title">Gumroad: requests, bytes, and response time — cold phone visits</title>
-<desc id="description">Standard-performance medians from 18 paired samples per case in compare-results-1-sep-11pm. Discover marketplace: Total requests Inertia 94, React on Rails Pro / RSC 76; Total bytes Inertia 1,602.7 KB, React on Rails Pro / RSC 2,055.2 KB; TTFB Inertia 252 ms, React on Rails Pro / RSC 583 ms. Discover category: Total requests Inertia 89, React on Rails Pro / RSC 71; Total bytes Inertia 1,472.3 KB, React on Rails Pro / RSC 1,931.4 KB; TTFB Inertia 216 ms, React on Rails Pro / RSC 575 ms. Discover-layout Product: Total requests Inertia 145, React on Rails Pro / RSC 95.5; Total bytes Inertia 3,572.9 KB, React on Rails Pro / RSC 3,125.5 KB; TTFB Inertia 699 ms, React on Rails Pro / RSC 482 ms. Profile-layout Product: Total requests Inertia 147, React on Rails Pro / RSC 94; Total bytes Inertia 3,549.9 KB, React on Rails Pro / RSC 2,968.7 KB; TTFB Inertia 335 ms, React on Rails Pro / RSC 285 ms. Seller Profile: Total requests Inertia 137, React on Rails Pro / RSC 57; Total bytes Inertia 2,543.5 KB, React on Rails Pro / RSC 1,609.1 KB; TTFB Inertia 393 ms, React on Rails Pro / RSC 234 ms.</desc>
-<metadata>{&quot;source&quot;:&quot;compare-results-1-sep-11pm&quot;,&quot;stage&quot;:&quot;perf&quot;,&quot;samplesPerSide&quot;:18,&quot;metrics&quot;:[&quot;downloads-count&quot;,&quot;downloads&quot;,&quot;TTFB&quot;],&quot;inputs&quot;:[{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-22187712/perf.json&quot;,&quot;sha256&quot;:&quot;4d213ae591d8e417cb6e222ae71a088c4d6f1a6b046e61d2915fa073dc515cac&quot;},{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-22187712/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;467cc3cf46ab728a11885c6c84671cff4eaa692d598e1222fd7581f285c87048&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-3079d45d/perf.json&quot;,&quot;sha256&quot;:&quot;c2644add3477d1420d8ac5c719c8adb32dbc8fc187ecc434883c5d40b482dd1a&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-3079d45d/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;2c7c673c5b4e833677a5b67d859f3b0dbba89149b5e23a1964754ea6b5e34441&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-c3f0647d/perf.json&quot;,&quot;sha256&quot;:&quot;b5251b2a6384cdfc2e3322b67e65c3326a118fa4edfe451c97081a63b52d1d0d&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-c3f0647d/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;7f0600bc2878412927d50e91f501b07558a78db2cee3fde1243a7ccfec99b8e1&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-ee80e18f/perf.json&quot;,&quot;sha256&quot;:&quot;83b4e0945872784068966d6b26e3cee36c7490756b606998c6f12b91c26b8158&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-ee80e18f/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;c0ca3e8b36f5fca7c9df60982f5d70e6ed8aac08922c4b5aaf4cf752caac26fa&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-4f6a4554/perf.json&quot;,&quot;sha256&quot;:&quot;f784c11d6e27946adaa070c6368c69cc10c7c3a6632b7d7f3e1a1a948e7ebd83&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-4f6a4554/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;de138d7cee1186e431d7b3270772dfef34508bd11f424dfc1558c4b8d15be49f&quot;}]}</metadata>
+<desc id="description">Standard-performance medians from 18 paired samples per case in compare-results-4-sep-8am. Discover marketplace: Total requests Inertia 94, React on Rails Pro / RSC 76; Total bytes Inertia 1,614.8 KB, React on Rails Pro / RSC 1,804.2 KB; TTFB Inertia 99 ms, React on Rails Pro / RSC 161 ms. Discover category: Total requests Inertia 89, React on Rails Pro / RSC 71; Total bytes Inertia 1,480.1 KB, React on Rails Pro / RSC 1,669.2 KB; TTFB Inertia 144 ms, React on Rails Pro / RSC 334 ms. Discover-layout Product: Total requests Inertia 145, React on Rails Pro / RSC 95.5; Total bytes Inertia 3,574.9 KB, React on Rails Pro / RSC 2,946.5 KB; TTFB Inertia 279 ms, React on Rails Pro / RSC 333 ms. Profile-layout Product: Total requests Inertia 147, React on Rails Pro / RSC 94; Total bytes Inertia 3,564.9 KB, React on Rails Pro / RSC 2,855.1 KB; TTFB Inertia 282 ms, React on Rails Pro / RSC 466 ms. Seller Profile: Total requests Inertia 137, React on Rails Pro / RSC 57; Total bytes Inertia 2,544.4 KB, React on Rails Pro / RSC 1,548.4 KB; TTFB Inertia 236 ms, React on Rails Pro / RSC 108 ms.</desc>
+<metadata>{&quot;source&quot;:&quot;compare-results-4-sep-8am&quot;,&quot;stage&quot;:&quot;perf&quot;,&quot;samplesPerSide&quot;:18,&quot;metrics&quot;:[&quot;downloads-count&quot;,&quot;downloads&quot;,&quot;TTFB&quot;],&quot;inputs&quot;:[{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-ce50b1a3/perf.json&quot;,&quot;sha256&quot;:&quot;1170ffb4ccb34cf70697f52a73e340a10509afdb655ac2f69b9f2499d1302e59&quot;},{&quot;path&quot;:&quot;discover-page-marketplace-cold-landing-phone-ce50b1a3/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;88f789c59f64afed5798c3d6f7f6b59a4d6330c241ef65d1d6636f8a18e5dda6&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-1ae33a19/perf.json&quot;,&quot;sha256&quot;:&quot;ca60df30911426a48dcae3e8fb0c7ebf4d5df9f6a59038c6b3ef85a7826a9399&quot;},{&quot;path&quot;:&quot;discover-page-programming-category-cold-landing-phone-1ae33a19/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;aebbca8735e38b9aeed08d4777868712715e6b8044494283b6a0dfde9d8b4c7e&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-4762b087/perf.json&quot;,&quot;sha256&quot;:&quot;0e0bfaa8152c39acc70aa2c918fab9520139b96ffbef51c5ee29ce90d65dbc3b&quot;},{&quot;path&quot;:&quot;product-page-discover-layout-cold-landing-phone-4762b087/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;f234bff2fedff60dce02a036a1f7e640e13ea20f6230f2e1ce559474ce6202ca&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-1c0f4f87/perf.json&quot;,&quot;sha256&quot;:&quot;93cb955b37a14e1853a05fcd26613131fca9e222012d5f5c42e14fed8594c1c8&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-1c0f4f87/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;a47ba3cbe3fb1c9438a38960334c4c5f909ded8e851052b24db28071b00a2349&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-b7db1386/perf.json&quot;,&quot;sha256&quot;:&quot;2e1bd05ea9bafa5e60c2c0c52783f4c7520d98ced5400c80627401a2f803a0aa&quot;},{&quot;path&quot;:&quot;seller-profile-cold-landing-phone-b7db1386/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;fb510f00f4015c97404f36e980e1628fd2f1684c1545f41a9884fa1984a10c8a&quot;}]}</metadata>
 <rect width="1200" height="794" fill="#fcfcfb"/>
 <text x="56" y="58" font-size="30" fill="#0b0b0b" font-weight="650">Gumroad: requests, bytes, and response time</text>
 <text x="56" y="90" font-size="17" fill="#0b0b0b" >Throttled phone · cold visits (empty browser cache) · lower is better</text>
@@ -44,134 +44,134 @@
 <line x1="1060" y1="251" x2="1060" y2="715" stroke="#e6e5e1"/>
 <text x="1060" y="236" font-size="13" fill="#0b0b0b" text-anchor="middle">800ms</text>
 <text x="56" y="294" font-size="18" fill="#0b0b0b" >Discover marketplace</text>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="downloads-count" data-side="control" data-value="94">
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="downloads-count" data-side="control" data-value="94">
 <rect x="320" y="263" width="112.800" height="22" rx="4" fill="#2a78d6"/>
 <text x="440.8" y="280" font-size="17" fill="#0b0b0b" >94</text>
 </g>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="downloads-count" data-side="experiment" data-value="76">
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="downloads-count" data-side="experiment" data-value="76">
 <rect x="320" y="294" width="91.200" height="22" rx="4" fill="#eb6834"/>
 <text x="419.2" y="311" font-size="17" fill="#0b0b0b" >76</text>
 </g>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="downloads" data-side="control" data-value="1602.7">
-<rect x="600" y="263" width="72.121" height="22" rx="4" fill="#2a78d6"/>
-<text x="680.1215" y="280" font-size="17" fill="#0b0b0b" >1,602.7 KB</text>
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="downloads" data-side="control" data-value="1614.8">
+<rect x="600" y="263" width="72.666" height="22" rx="4" fill="#2a78d6"/>
+<text x="680.6659999999999" y="280" font-size="17" fill="#0b0b0b" >1,614.8 KB</text>
 </g>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="downloads" data-side="experiment" data-value="2055.2">
-<rect x="600" y="294" width="92.484" height="22" rx="4" fill="#eb6834"/>
-<text x="700.4839999999999" y="311" font-size="17" fill="#0b0b0b" >2,055.2 KB</text>
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="downloads" data-side="experiment" data-value="1804.2">
+<rect x="600" y="294" width="81.189" height="22" rx="4" fill="#eb6834"/>
+<text x="689.189" y="311" font-size="17" fill="#0b0b0b" >1,804.2 KB</text>
 </g>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="TTFB" data-side="control" data-value="252">
-<rect x="880" y="263" width="56.700" height="22" rx="4" fill="#2a78d6"/>
-<text x="944.7" y="280" font-size="17" fill="#0b0b0b" >252 ms</text>
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="TTFB" data-side="control" data-value="99">
+<rect x="880" y="263" width="22.275" height="22" rx="4" fill="#2a78d6"/>
+<text x="910.275" y="280" font-size="17" fill="#0b0b0b" >99 ms</text>
 </g>
-<g data-case="discover-page-marketplace-cold-landing-phone-22187712" data-metric="TTFB" data-side="experiment" data-value="583">
-<rect x="880" y="294" width="131.175" height="22" rx="4" fill="#eb6834"/>
-<text x="1019.175" y="311" font-size="17" fill="#0b0b0b" >583 ms</text>
+<g data-case="discover-page-marketplace-cold-landing-phone-ce50b1a3" data-metric="TTFB" data-side="experiment" data-value="161">
+<rect x="880" y="294" width="36.225" height="22" rx="4" fill="#eb6834"/>
+<text x="924.225" y="311" font-size="17" fill="#0b0b0b" >161 ms</text>
 </g>
 <line x1="56" y1="339" x2="1144" y2="339" stroke="#eeede9"/>
 <text x="56" y="390" font-size="18" fill="#0b0b0b" >Discover category</text>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="downloads-count" data-side="control" data-value="89">
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="downloads-count" data-side="control" data-value="89">
 <rect x="320" y="359" width="106.800" height="22" rx="4" fill="#2a78d6"/>
 <text x="434.8" y="376" font-size="17" fill="#0b0b0b" >89</text>
 </g>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="downloads-count" data-side="experiment" data-value="71">
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="downloads-count" data-side="experiment" data-value="71">
 <rect x="320" y="390" width="85.200" height="22" rx="4" fill="#eb6834"/>
 <text x="413.2" y="407" font-size="17" fill="#0b0b0b" >71</text>
 </g>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="downloads" data-side="control" data-value="1472.3">
-<rect x="600" y="359" width="66.254" height="22" rx="4" fill="#2a78d6"/>
-<text x="674.2535" y="376" font-size="17" fill="#0b0b0b" >1,472.3 KB</text>
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="downloads" data-side="control" data-value="1480.1">
+<rect x="600" y="359" width="66.605" height="22" rx="4" fill="#2a78d6"/>
+<text x="674.6045" y="376" font-size="17" fill="#0b0b0b" >1,480.1 KB</text>
 </g>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="downloads" data-side="experiment" data-value="1931.4">
-<rect x="600" y="390" width="86.913" height="22" rx="4" fill="#eb6834"/>
-<text x="694.913" y="407" font-size="17" fill="#0b0b0b" >1,931.4 KB</text>
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="downloads" data-side="experiment" data-value="1669.2">
+<rect x="600" y="390" width="75.114" height="22" rx="4" fill="#eb6834"/>
+<text x="683.114" y="407" font-size="17" fill="#0b0b0b" >1,669.2 KB</text>
 </g>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="TTFB" data-side="control" data-value="216">
-<rect x="880" y="359" width="48.600" height="22" rx="4" fill="#2a78d6"/>
-<text x="936.6" y="376" font-size="17" fill="#0b0b0b" >216 ms</text>
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="TTFB" data-side="control" data-value="144">
+<rect x="880" y="359" width="32.400" height="22" rx="4" fill="#2a78d6"/>
+<text x="920.4" y="376" font-size="17" fill="#0b0b0b" >144 ms</text>
 </g>
-<g data-case="discover-page-programming-category-cold-landing-phone-3079d45d" data-metric="TTFB" data-side="experiment" data-value="575">
-<rect x="880" y="390" width="129.375" height="22" rx="4" fill="#eb6834"/>
-<text x="1017.375" y="407" font-size="17" fill="#0b0b0b" >575 ms</text>
+<g data-case="discover-page-programming-category-cold-landing-phone-1ae33a19" data-metric="TTFB" data-side="experiment" data-value="334">
+<rect x="880" y="390" width="75.150" height="22" rx="4" fill="#eb6834"/>
+<text x="963.15" y="407" font-size="17" fill="#0b0b0b" >334 ms</text>
 </g>
 <line x1="56" y1="435" x2="1144" y2="435" stroke="#eeede9"/>
 <text x="56" y="486" font-size="18" fill="#0b0b0b" >Discover-layout Product</text>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="downloads-count" data-side="control" data-value="145">
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="downloads-count" data-side="control" data-value="145">
 <rect x="320" y="455" width="174.000" height="22" rx="4" fill="#2a78d6"/>
 <text x="502" y="472" font-size="17" fill="#0b0b0b" >145</text>
 </g>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="downloads-count" data-side="experiment" data-value="95.5">
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="downloads-count" data-side="experiment" data-value="95.5">
 <rect x="320" y="486" width="114.600" height="22" rx="4" fill="#eb6834"/>
 <text x="442.6" y="503" font-size="17" fill="#0b0b0b" >95.5</text>
 </g>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="downloads" data-side="control" data-value="3572.9">
-<rect x="600" y="455" width="160.781" height="22" rx="4" fill="#2a78d6"/>
-<text x="768.7805000000001" y="472" font-size="17" fill="#0b0b0b" >3,572.9 KB</text>
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="downloads" data-side="control" data-value="3574.9">
+<rect x="600" y="455" width="160.870" height="22" rx="4" fill="#2a78d6"/>
+<text x="768.8705" y="472" font-size="17" fill="#0b0b0b" >3,574.9 KB</text>
 </g>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="downloads" data-side="experiment" data-value="3125.5">
-<rect x="600" y="486" width="140.648" height="22" rx="4" fill="#eb6834"/>
-<text x="748.6475" y="503" font-size="17" fill="#0b0b0b" >3,125.5 KB</text>
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="downloads" data-side="experiment" data-value="2946.5">
+<rect x="600" y="486" width="132.593" height="22" rx="4" fill="#eb6834"/>
+<text x="740.5925" y="503" font-size="17" fill="#0b0b0b" >2,946.5 KB</text>
 </g>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="TTFB" data-side="control" data-value="699">
-<rect x="880" y="455" width="157.275" height="22" rx="4" fill="#2a78d6"/>
-<text x="1045.275" y="472" font-size="17" fill="#0b0b0b" >699 ms</text>
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="TTFB" data-side="control" data-value="279">
+<rect x="880" y="455" width="62.775" height="22" rx="4" fill="#2a78d6"/>
+<text x="950.775" y="472" font-size="17" fill="#0b0b0b" >279 ms</text>
 </g>
-<g data-case="product-page-discover-layout-cold-landing-phone-c3f0647d" data-metric="TTFB" data-side="experiment" data-value="482">
-<rect x="880" y="486" width="108.450" height="22" rx="4" fill="#eb6834"/>
-<text x="996.45" y="503" font-size="17" fill="#0b0b0b" >482 ms</text>
+<g data-case="product-page-discover-layout-cold-landing-phone-4762b087" data-metric="TTFB" data-side="experiment" data-value="333">
+<rect x="880" y="486" width="74.925" height="22" rx="4" fill="#eb6834"/>
+<text x="962.925" y="503" font-size="17" fill="#0b0b0b" >333 ms</text>
 </g>
 <line x1="56" y1="531" x2="1144" y2="531" stroke="#eeede9"/>
 <text x="56" y="582" font-size="18" fill="#0b0b0b" >Profile-layout Product</text>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="downloads-count" data-side="control" data-value="147">
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="downloads-count" data-side="control" data-value="147">
 <rect x="320" y="551" width="176.400" height="22" rx="4" fill="#2a78d6"/>
 <text x="504.4" y="568" font-size="17" fill="#0b0b0b" >147</text>
 </g>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="downloads-count" data-side="experiment" data-value="94">
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="downloads-count" data-side="experiment" data-value="94">
 <rect x="320" y="582" width="112.800" height="22" rx="4" fill="#eb6834"/>
 <text x="440.8" y="599" font-size="17" fill="#0b0b0b" >94</text>
 </g>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="downloads" data-side="control" data-value="3549.9">
-<rect x="600" y="551" width="159.745" height="22" rx="4" fill="#2a78d6"/>
-<text x="767.7455" y="568" font-size="17" fill="#0b0b0b" >3,549.9 KB</text>
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="downloads" data-side="control" data-value="3564.9">
+<rect x="600" y="551" width="160.421" height="22" rx="4" fill="#2a78d6"/>
+<text x="768.4205" y="568" font-size="17" fill="#0b0b0b" >3,564.9 KB</text>
 </g>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="downloads" data-side="experiment" data-value="2968.7">
-<rect x="600" y="582" width="133.591" height="22" rx="4" fill="#eb6834"/>
-<text x="741.5915" y="599" font-size="17" fill="#0b0b0b" >2,968.7 KB</text>
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="downloads" data-side="experiment" data-value="2855.1">
+<rect x="600" y="582" width="128.480" height="22" rx="4" fill="#eb6834"/>
+<text x="736.4795" y="599" font-size="17" fill="#0b0b0b" >2,855.1 KB</text>
 </g>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="TTFB" data-side="control" data-value="335">
-<rect x="880" y="551" width="75.375" height="22" rx="4" fill="#2a78d6"/>
-<text x="963.375" y="568" font-size="17" fill="#0b0b0b" >335 ms</text>
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="TTFB" data-side="control" data-value="282">
+<rect x="880" y="551" width="63.450" height="22" rx="4" fill="#2a78d6"/>
+<text x="951.45" y="568" font-size="17" fill="#0b0b0b" >282 ms</text>
 </g>
-<g data-case="product-page-profile-layout-cold-landing-phone-ee80e18f" data-metric="TTFB" data-side="experiment" data-value="285">
-<rect x="880" y="582" width="64.125" height="22" rx="4" fill="#eb6834"/>
-<text x="952.125" y="599" font-size="17" fill="#0b0b0b" >285 ms</text>
+<g data-case="product-page-profile-layout-cold-landing-phone-1c0f4f87" data-metric="TTFB" data-side="experiment" data-value="466">
+<rect x="880" y="582" width="104.850" height="22" rx="4" fill="#eb6834"/>
+<text x="992.85" y="599" font-size="17" fill="#0b0b0b" >466 ms</text>
 </g>
 <line x1="56" y1="627" x2="1144" y2="627" stroke="#eeede9"/>
 <text x="56" y="678" font-size="18" fill="#0b0b0b" >Seller Profile</text>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="downloads-count" data-side="control" data-value="137">
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="downloads-count" data-side="control" data-value="137">
 <rect x="320" y="647" width="164.400" height="22" rx="4" fill="#2a78d6"/>
 <text x="492.4" y="664" font-size="17" fill="#0b0b0b" >137</text>
 </g>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="downloads-count" data-side="experiment" data-value="57">
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="downloads-count" data-side="experiment" data-value="57">
 <rect x="320" y="678" width="68.400" height="22" rx="4" fill="#eb6834"/>
 <text x="396.4" y="695" font-size="17" fill="#0b0b0b" >57</text>
 </g>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="downloads" data-side="control" data-value="2543.5">
-<rect x="600" y="647" width="114.457" height="22" rx="4" fill="#2a78d6"/>
-<text x="722.4575" y="664" font-size="17" fill="#0b0b0b" >2,543.5 KB</text>
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="downloads" data-side="control" data-value="2544.4">
+<rect x="600" y="647" width="114.498" height="22" rx="4" fill="#2a78d6"/>
+<text x="722.498" y="664" font-size="17" fill="#0b0b0b" >2,544.4 KB</text>
 </g>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="downloads" data-side="experiment" data-value="1609.1">
-<rect x="600" y="678" width="72.409" height="22" rx="4" fill="#eb6834"/>
-<text x="680.4095" y="695" font-size="17" fill="#0b0b0b" >1,609.1 KB</text>
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="downloads" data-side="experiment" data-value="1548.4">
+<rect x="600" y="678" width="69.678" height="22" rx="4" fill="#eb6834"/>
+<text x="677.678" y="695" font-size="17" fill="#0b0b0b" >1,548.4 KB</text>
 </g>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="TTFB" data-side="control" data-value="393">
-<rect x="880" y="647" width="88.425" height="22" rx="4" fill="#2a78d6"/>
-<text x="976.425" y="664" font-size="17" fill="#0b0b0b" >393 ms</text>
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="TTFB" data-side="control" data-value="236">
+<rect x="880" y="647" width="53.100" height="22" rx="4" fill="#2a78d6"/>
+<text x="941.1" y="664" font-size="17" fill="#0b0b0b" >236 ms</text>
 </g>
-<g data-case="seller-profile-cold-landing-phone-4f6a4554" data-metric="TTFB" data-side="experiment" data-value="234">
-<rect x="880" y="678" width="52.650" height="22" rx="4" fill="#eb6834"/>
-<text x="940.65" y="695" font-size="17" fill="#0b0b0b" >234 ms</text>
+<g data-case="seller-profile-cold-landing-phone-b7db1386" data-metric="TTFB" data-side="experiment" data-value="108">
+<rect x="880" y="678" width="24.300" height="22" rx="4" fill="#eb6834"/>
+<text x="912.3" y="695" font-size="17" fill="#0b0b0b" >108 ms</text>
 </g>
 <line x1="56" y1="734" x2="1144" y2="734" stroke="#d8d7d3"/>
-<text x="56" y="765" font-size="16" fill="#0b0b0b" >ShakaPerf · September 1, 11 p.m. run · medians of 18 paired samples per case</text>
+<text x="56" y="765" font-size="16" fill="#0b0b0b" >ShakaPerf · September 4, 8 a.m. run · medians of 18 paired samples per case</text>
 </svg>

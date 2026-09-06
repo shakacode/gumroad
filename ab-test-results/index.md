@@ -1,4 +1,4 @@
-# Gumroad Left React on Rails. Going back cuts Gumroad’s First Paint from 14 Seconds to under 2
+# Gumroad Left React on Rails. Going back cuts Gumroad’s First Paint from 17 Seconds to under 2
 
 By Justin Gordon, CEO of ShakaCode · September 2026
 
@@ -10,11 +10,11 @@ Ramez Weissa took Gumroad’s codebase and added React on Rails Pro with React 1
 
 We used [ShakaPerf](https://shakaperf.com/), our A/B performance testing system, to compare two versions of Gumroad: the existing client-rendered Inertia implementation (the control) and our React on Rails Pro implementation with React 19 and Server Components (the experiment). Both versions used matching seeded content and ran under the same conditions.
 
-On a throttled phone with no page files saved in the browser’s cache—a “cold” visit—the tested Product page’s first paint fell from nearly 14 seconds to under 2.
+On a throttled phone with no page files saved in the browser’s cache—a “cold” visit—the tested Product page’s first paint fell from over 17 seconds to under 2.
 
 First Contentful Paint, or FCP, marks when the browser first draws qualifying text or an image.
 
-![Cold-phone First Contentful Paint in the September 1 report](images/current-cold-phone-fcp.svg)
+![Cold-phone First Contentful Paint in the September 4 report](images/current-cold-phone-fcp.svg)
 
 ## Why the first storefront visit mattered
 
@@ -22,7 +22,7 @@ Gumroad’s Inertia architecture works well once the application is running in t
 
 The Inertia version still had to load its Vite entry and page module and execute the React tree before rendering the page. Some resources could be preloaded earlier, but fetching an image was not enough to make the surrounding Product interface appear.
 
-React on Rails Pro changed the initial delivery path. Rails prepared application data, called a private React renderer, and streamed rendered HTML plus React Server Component payloads. The browser could paint the initial page while client code and the remaining response continued arriving.
+React on Rails Pro changed the initial delivery path. Rails prepared application data, called a private React renderer, and streamed rendered HTML plus React Server Component payloads. The browser could paint the initial page while client code continued arriving.
 
 ## How we tested with ShakaPerf
 
@@ -32,7 +32,7 @@ Alongside cold visits, we tested “warm” visits: full page loads after an ear
 
 Control and experiment ran in isolated Docker containers. Each paired measurement started both sides together. The suite selected 11 scenarios across desktop and phone—22 cases covering cold and warm visits to Product, Discover, and Seller Profile pages. This included visual diff comparisons and accessibility checks, keeping the performance numbers connected to the unchanged page a buyer receives.
 
-> **Reference test profile:** September 1 report; 22 selected cases, 22 valid standard-performance results; 18 simultaneous control/experiment pairs per valid case. The artifact-embedded Lighthouse diagnostic profile uses DevTools throttling with 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and 3× CPU slowdown.
+> **Reference test profile:** September 4 report; 22 selected cases, 22 valid standard-performance results; 18 simultaneous control/experiment pairs per valid case. The artifact-embedded Lighthouse diagnostic profile uses DevTools throttling with 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and 3× CPU slowdown.
 
 ## What changed across Gumroad
 
@@ -58,26 +58,26 @@ Fewer requests did not always mean smaller downloads: both Discover pages transf
 
 Across all 22 successful standard-performance cases:
 
-- FCP improved in every case, with a mean reduction of 68.3% and a range of 39.5% to 91.8%.
-- LCP improved in every case, with a mean reduction of 68.6% and a range of 43.7% to 91.8%.
-- Total requests improved in every case, with a mean reduction of 36.6% and a range of 19.1% to 60.3%.
-- Total transferred bytes increased in 16 of 22 cases. Across those 16 cases, the mean increase was 245.6 KB, ranging from 67.8 to 466.4 KB.
+- FCP improved in every case, with a mean reduction of 68.3% and a range of 44.3% to 90.8%.
+- LCP improved in every case, with a mean reduction of 71.9% and a range of 52.3% to 91.1%.
+- Total requests improved in every case, with a mean reduction of 36.5% and a range of 19.1% to 60.3%.
+- Total transferred bytes increased in 16 of 22 cases. Across those 16 cases, the mean increase was 62.9 KB, ranging from 7.3 to 190.1 KB.
 
 These summaries compare the versions’ medians and give each included case equal weight; they are not pooled paired-effect estimates. The FCP, LCP, and request-count improvements held across both cold and warm visits.
 
-The [generated benchmark summary](latest-results.md) contains the complete case table, classifications, sample counts, and source-file hashes. The [self-contained performance report](self-contained-performance-report.html) includes the correctness checks.
+The [generated benchmark summary](latest-results.md) contains the complete case table, correctness checks, classifications, sample counts, and source-file hashes.
 
-## The browser painted while the document was still streaming
+## The browser painted while JavaScript was still loading
 
 The Product timeline makes the delivery change concrete.
 
-In one throttled diagnostic navigation of the Discover-layout Product phone case, the Inertia version requested its Product page module around 4.19 seconds and reached FCP at 9.97 seconds. The React on Rails Pro version requested its generated Product module around 0.23 seconds and painted at 1.30 seconds.
+In one throttled diagnostic navigation of the Discover-layout Product phone case, the Inertia version requested its Product page module around 4.18 seconds and reached FCP at 10.03 seconds. The React on Rails Pro version requested its generated Product module around 0.23 seconds and painted at 1.23 seconds.
 
-The React on Rails Pro document did not finish transferring until about 3.99 seconds. Its first paint happened roughly 2.69 seconds before the response ended.
+The React on Rails Pro document did not finish transferring until about 0.32 seconds. Its first paint happened roughly 0.91 seconds after the response ended.
 
 ![Simplified Product phone streaming timeline from one diagnostic navigation](images/product-streaming-timeline.svg)
 
-Both sides requested Product images early, at roughly a quarter of a second. Streamed HTML let the React on Rails Pro page paint while the response and client work continued.
+Both sides requested Product images early, at roughly a quarter of a second. Streamed HTML let the React on Rails Pro page paint while client work continued.
 
 ShakaPerf filmstrip from one diagnostic page load.
 
@@ -87,11 +87,11 @@ Explore the [side-by-side replay](product-profile-desktop-replay/timeline_replay
 
 ## The costs belong next to the wins
 
-Warm visits often transferred more document or Flight data. Cold Discover visits transferred more JavaScript and total bytes: on phones, JavaScript grew from 918.7 to 1,376.2 KB. TTFB increased enough to classify as a regression in five valid cases, while 17 showed no classified difference. Total bytes improved in six cases and regressed in 16.
+Warm visits often transferred more document or Flight data. Cold Discover visits transferred more JavaScript and total bytes: on phones, JavaScript grew from 918.7 to 1,376.1 KB. TTFB classified as a regression in four valid cases, an improvement in three, and no classified difference in 15. Total bytes improved in six cases and regressed in 16.
 
-Those costs matter when planning caching and renderer capacity. Even with them, FCP, LCP, Speed Index, total requests, and JavaScript requests improved across every valid performance case. Both Product layouts and Seller Profile transferred less JavaScript. The Product trace shows how a page can become visible while its response continues arriving.
+Those costs matter when planning caching and renderer capacity. Even with them, FCP, LCP, Speed Index, total requests, and JavaScript requests improved across every valid performance case. Both Product layouts and Seller Profile transferred less JavaScript. The Product trace shows how a page can become visible while its client JavaScript continues arriving.
 
-![Performance classifications across the 22 successful September 1 cases](images/current-metric-classifications.svg)
+![Performance classifications across the 22 successful September 4 cases](images/current-metric-classifications.svg)
 
 React on Rails Pro also adds a renderer service to deploy, secure, monitor, and load-test. That operational work belongs in the adoption decision alongside the browser gains.
 
