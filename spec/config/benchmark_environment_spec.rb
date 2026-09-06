@@ -8,7 +8,7 @@ RSpec.describe "benchmark Rails environment" do
     require "json"
 
     storage = ActiveStorage::Blob.services.fetch(:benchmark)
-    storefront_hosts = %w[localhost:3100 o365itpros.localhost:3100]
+    storefront_hosts = %w[control.localhost:3100 o365itpros.control.localhost:3100]
     requests = storefront_hosts.to_h do |host|
       session = ActionDispatch::Integration::Session.new(Rails.application)
       session.host! host
@@ -74,7 +74,7 @@ RSpec.describe "benchmark Rails environment" do
       analytics_enabled: ApplicationController.new.send(:analytics_enabled?, seller: nil),
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
       rack_attack_safelisted: Rack::Attack.configuration.safelisted?(rack_attack_request),
-      seller_subdomain_match: Subdomain.send(:subdomain_request?, "seller.localhost").present?,
+      seller_subdomain_match: Subdomain.send(:subdomain_request?, "seller.control.localhost").present?,
       profiler_constant_loaded: defined?(Rack::MiniProfiler).present?,
       team_member_profiler_authorization_safe:,
       session_key: Rails.application.config.session_options[:key],
@@ -122,7 +122,8 @@ RSpec.describe "benchmark Rails environment" do
         response = Rack::MockRequest.new(Rails.application).get(
           path,
           "HTTP_ACCEPT_ENCODING" => "gzip",
-          "HTTP_HOST" => "localhost:3100",
+          "HTTP_ORIGIN" => "http://o365itpros.control.localhost:3100",
+          "HTTP_HOST" => "control.localhost:3100",
         )
         decoded = if response.headers["content-encoding"] == "gzip"
           Zlib::GzipReader.new(StringIO.new(response.body)).read
@@ -133,6 +134,8 @@ RSpec.describe "benchmark Rails environment" do
           status: response.status,
           content_encoding: response.headers["content-encoding"],
           cache_control: response.headers["cache-control"],
+          allow_origin: response.headers["access-control-allow-origin"],
+          vary: response.headers["vary"],
           decoded: decoded == contents,
         }]
       end
@@ -194,7 +197,7 @@ RSpec.describe "benchmark Rails environment" do
         reader = Thread.new do
           decoder = nil
           request = Net::HTTP::Get.new("/__benchmark_compression/#{mode}", {
-            "Host" => "localhost:3100",
+            "Host" => "control.localhost:3100",
             "Accept" => "text/html",
             "Accept-Encoding" => mode == "identity" ? "identity" : "gzip",
           })
@@ -251,7 +254,8 @@ RSpec.describe "benchmark Rails environment" do
       "RENDERER_PASSWORD" => "benchmark-spec-renderer-password",
       "REACT_RENDERER_URL" => "http://127.0.0.1:3800",
       "VITE_RUBY_MODE" => environment == "benchmark" ? "production" : nil,
-      "VITE_RUBY_ASSET_HOST" => environment == "benchmark" ? "" : nil,
+      "VITE_RUBY_ASSET_HOST" => environment == "benchmark" ? "http://control.localhost:3100" : nil,
+      "BENCHMARK_HOST" => environment == "benchmark" ? "control.localhost" : nil,
       "DEV_LANE_PORT" => environment == "benchmark" ? "3100" : nil,
       "CUSTOM_DOMAIN" => nil,
       "REVISION" => "benchmark-spec",
@@ -284,12 +288,12 @@ RSpec.describe "benchmark Rails environment" do
     )
   end
 
-  it "serves deterministic static files without an asset host or Vite compilation" do
+  it "serves deterministic static files from a shared asset host without Vite compilation" do
     expect(@benchmark_config).to include(
       static_files: true,
-      asset_host: nil,
+      asset_host: "http://control.localhost:3100",
       vite_mode: "production",
-      vite_asset_host: "",
+      vite_asset_host: "http://control.localhost:3100",
       vite_auto_build: false,
       vite_output_dir: "vite",
     )
@@ -304,15 +308,15 @@ RSpec.describe "benchmark Rails environment" do
     expect(streams.values_at(:identity, :no_transform, :sse)).to all(include(content_encoding: nil))
   end
 
-  it "resolves initial and lazy Vite assets against each storefront origin" do
+  it "resolves initial and lazy Vite assets against one shared origin" do
     expect(@benchmark_config[:vite_urls]).to eq(
-      "localhost:3100": {
-        entry: "http://localhost:3100/vite/assets/entry.js",
-        lazy_chunk: "http://localhost:3100/vite/assets/lazy-chunk.js",
+      "control.localhost:3100": {
+        entry: "http://control.localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://control.localhost:3100/vite/assets/lazy-chunk.js",
       },
-      "o365itpros.localhost:3100": {
-        entry: "http://o365itpros.localhost:3100/vite/assets/entry.js",
-        lazy_chunk: "http://o365itpros.localhost:3100/vite/assets/lazy-chunk.js",
+      "o365itpros.control.localhost:3100": {
+        entry: "http://control.localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://control.localhost:3100/vite/assets/lazy-chunk.js",
       },
     )
     expect(@benchmark_config[:vite_urls].to_json).not_to include("assets.gumroad.com")
@@ -329,6 +333,8 @@ RSpec.describe "benchmark Rails environment" do
     expect(compression.values_at(*compression.keys.reject { _1.end_with?(".png") })).to all(include(status: 200, content_encoding: "gzip", decoded: true))
     expect(compression.values_at(*compression.keys.select { _1.end_with?(".png") })).to all(include(status: 200, content_encoding: nil, decoded: true))
     expect(compression.values).to all(satisfy { _1[:cache_control].include?("immutable") })
+    expect(compression.values).to all(include(allow_origin: "*"))
+    expect(compression.values).to all(satisfy { !_1[:vary].to_s.downcase.include?("origin") })
   end
 
   it "uses disposable local database, Mongo and MinIO configuration" do
@@ -355,12 +361,12 @@ RSpec.describe "benchmark Rails environment" do
   end
 
   it "keeps HTTP localhost and seller subdomains routable" do
-    expect(@benchmark_config).to include(domain: "localhost:3100", protocol: "http")
+    expect(@benchmark_config).to include(domain: "control.localhost:3100", protocol: "http")
     expect(@benchmark_config[:rack_attack_safelisted]).to be(true)
     expect(@benchmark_config).to include(seller_subdomain_match: true)
     expect(@benchmark_config[:requests]).to eq(
-      "localhost:3100": { status: 200, location: nil },
-      "o365itpros.localhost:3100": { status: 200, location: nil },
+      "control.localhost:3100": { status: 200, location: nil },
+      "o365itpros.control.localhost:3100": { status: 200, location: nil },
     )
   end
 

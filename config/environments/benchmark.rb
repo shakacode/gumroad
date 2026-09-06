@@ -28,12 +28,12 @@ Rails.application.configure do
 
   config.public_file_server.enabled = true
   config.public_file_server.headers = {
-    "Cache-Control" => "public, max-age=#{1.year.to_i}, immutable"
+    "Cache-Control" => "public, max-age=#{1.year.to_i}, immutable",
+    "Access-Control-Allow-Origin" => "*"
   }
 
-  # Twin storefronts must resolve both entries and lazy chunks against the
-  # request's seller origin instead of a separate asset host.
-  config.asset_host = nil
+  # Seller pages and the cart iframe share one cacheable asset origin per stack.
+  config.asset_host = "#{PROTOCOL}://#{ROOT_DOMAIN}"
   config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
   config.active_storage.content_types_allowed_inline += ["image/webp"]
 

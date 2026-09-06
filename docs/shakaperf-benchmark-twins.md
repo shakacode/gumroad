@@ -48,8 +48,8 @@ containers.
 
 Readiness is fixture-independent:
 
-- Control: <http://localhost:3100/healthcheck>
-- Experiment: <http://localhost:3200/healthcheck>
+- Control: <http://control.localhost:3100/healthcheck>
+- Experiment: <http://experiment.localhost:3200/healthcheck>
 
 When finished, stop and remove the disposable twins:
 
@@ -59,3 +59,41 @@ shaka-perf servers stop-containers
 
 The server workflow loads the deterministic benchmark catalogs after twin
 isolation is established, and the compare workflow runs the configured suites.
+
+## Asset and browser cache behavior
+
+Each stack serves shared assets from its root origin: `http://control.localhost:3100`
+for control and `http://experiment.localhost:3200` for experiment (or the configured ports).
+Seller pages (for example `luisfurushio.control.localhost`) and `/cart_items_count`
+use those same URLs. Keeping sellers beneath each stack root also puts them in
+the same Chromium HTTP cache partition; `seller.localhost` and bare `localhost`
+do not share that partition ([Chrome cache partitioning](https://developer.chrome.com/blog/http-cache-partitioning/)). The live demos use
+their respective `https://gumroad-inertia.reactonrails.com` and
+`https://gumroad-rorp.reactonrails.com` roots. Static responses allow cross-origin
+module and font loading and retain the benchmark's immutable cache headers.
+Static files run before Rack::Cors to avoid an origin-dependent cache variant.
+RORP compiles its chunk prefix from `BENCHMARK_PROTOCOL` and `CUSTOM_DOMAIN`,
+or the local `BENCHMARK_HOST` and `DEV_LANE_PORT`. Local twin setup rebuilds
+these bundles with its configured host and port. Do not use Rspack's `"auto"`
+public path: the RSC manifest emits an empty prefix and SSR requests chunks
+relative to the seller page. Rebuild when changing the RORP asset origin.
+
+Deploy live changes through the baseline branches' `cpflow-deploy-rorp.yml`
+and `cpflow-deploy-inertia.yml` GitHub workflows. Use local builds for testing;
+do not upload images or deploy workloads directly.
+
+ShakaPerf clears browser data before the navigation hook; caching stays enabled
+during navigation so the cart iframe can reuse the parent's assets. Seller
+Profile warm hooks run after that reset and retain `disableStorageReset: true`
+for both performance measurements and audits. Keep resource blocking on the CDP-based
+`installRequestBlocking` helper; Playwright routing disables HTTP caching.
+The primary benchmark includes the real cart iframe and only blocks reCAPTCHA.
+Any iframe-blocked run must be labeled as an isolation diagnostic.
+
+Verify with a fresh browser context: both documents must request identical
+shared bundle URLs, iframe responses should reuse the browser cache, and a
+second context must download those assets again. For warm samples, verify the
+measured navigation reuses the warmup assets. Inspect lazy chunks and fonts as
+well as entry scripts, and check for CORS or CSP errors. Track all script
+responses and failures, including URLs outside `/vite/` and `/public-rsc/`,
+so malformed chunk URLs cannot escape the check.

@@ -7,6 +7,7 @@ const {
   createScriptRules,
   mode,
   publicAssetPath,
+  publicAssetUrl,
   publicOutputPath,
 } = require("./common.cjs");
 
@@ -57,6 +58,6 @@ module.exports = {
     chunkFilename: "[name].[contenthash:8].js",
     clean: true,
     path: publicOutputPath,
-    publicPath: publicAssetPath,
+    publicPath: publicAssetUrl,
   },
 };

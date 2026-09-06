@@ -11,6 +11,14 @@ const buildEnvironment = process.env.NODE_ENV || process.env.RAILS_ENV || "devel
 const mode = ["production", "staging"].includes(buildEnvironment) ? "production" : "development";
 const railsEnvironment = process.env.RAILS_ENV || buildEnvironment;
 const publicAssetPath = ["production", "staging"].includes(railsEnvironment) ? "/assets/public-rsc/" : "/public-rsc/";
+const benchmarkDomain =
+  process.env.CUSTOM_DOMAIN ||
+  `${process.env.BENCHMARK_HOST || "gumroad.localhost"}:${process.env.DEV_LANE_PORT || "3000"}`;
+// RSC serializes this prefix into HTML; unlike the browser runtime, it cannot resolve publicPath: "auto".
+const publicAssetUrl =
+  railsEnvironment === "benchmark"
+    ? `${process.env.BENCHMARK_PROTOCOL || "http"}://${benchmarkDomain}${publicAssetPath}`
+    : publicAssetPath;
 const publicRscClientReferences = [{ directory: sourcePath, recursive: true, include: /\.[cm]?[jt]sx?$/u }];
 
 const baseResolve = {
@@ -114,6 +122,7 @@ module.exports = {
   mode,
   privateOutputPath,
   publicAssetPath,
+  publicAssetUrl,
   publicOutputPath,
   publicRscPacksDirectory,
   serverAssetRule,

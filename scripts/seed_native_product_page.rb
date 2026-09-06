@@ -54,7 +54,6 @@ module NativeProductPageSeed
     audio
   ].freeze
   RECOMMENDED_PRODUCT_PERMALINKS = %w[OITPROS MCOREGUIDE MPSAUTOMATION MPURVIEW PowerPlatformITPros].freeze
-  LOCAL_PORT = ENV.fetch("DEV_LANE_PORT", "3000")
   ReviewIdentity = Data.define(:id, :email, :name)
 
   PRODUCTS = [
@@ -342,7 +341,7 @@ module NativeProductPageSeed
 
       puts "Seeded 2 creators: #{products.size} products and #{products.sum(&:reviews_count)} reviews."
       products.each do |product|
-        url = "http://#{product.user.username}.localhost:#{LOCAL_PORT}/l/#{product.general_permalink}?layout=discover"
+        url = "#{PROTOCOL}://#{product.user.username}.#{ROOT_DOMAIN}/l/#{product.general_permalink}?layout=discover"
         puts "Ordinary: #{url}"
         puts "RSC:      #{url}&rsc=1"
       end

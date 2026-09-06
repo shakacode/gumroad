@@ -87,7 +87,7 @@ module ShakaPerfSellerProfileSeed
       seed_profile!(seller:, products:)
 
       puts "Seeded ShakaPerf profile with #{products.size} products:"
-      puts "http://#{SELLER_USERNAME}.localhost:#{ENV.fetch('DEV_LANE_PORT', '3000')}/"
+      puts "#{PROTOCOL}://#{SELLER_USERNAME}.#{ROOT_DOMAIN}/"
     end
     uploaded_blobs.clear
     purge_replaced_blobs(replaced_blobs)

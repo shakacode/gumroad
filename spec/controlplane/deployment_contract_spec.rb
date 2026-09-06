@@ -22,6 +22,22 @@ RSpec.describe "gumroad-rorp Control Plane contract" do
     load_documents(name).find { |document| document["kind"] == "workload" }
   end
 
+  it "serves Vite assets from the stack's shared root origin" do
+    env = load_documents("app-rorp").fetch(0).dig("spec", "env").to_h { |entry| [entry.fetch("name"), entry.fetch("value")] }
+
+    expect(env.fetch("VITE_RUBY_ASSET_HOST")).to eq("#{env.fetch("BENCHMARK_PROTOCOL")}://#{env.fetch("CUSTOM_DOMAIN")}")
+  end
+
+  it "keeps each local seller and cart iframe on the same site with separate asset origins" do
+    compose = YAML.safe_load(root.join("twin-servers/docker-compose.yml").read, aliases: true)
+
+    %w[control experiment].each do |stack|
+      env = compose.dig("services", "#{stack}-server", "environment")
+      expect(env.fetch("BENCHMARK_HOST")).to eq("#{stack}.localhost")
+      expect(env.fetch("VITE_RUBY_ASSET_HOST")).to eq("http://#{stack}.localhost:${#{stack.upcase}_PORT}")
+    end
+  end
+
   it "fixes the app identity, region, and immutable image behavior" do
     config = YAML.safe_load(root.join(".controlplane/controlplane.yml").read, aliases: true)
     app = config.fetch("apps").fetch("gumroad-rorp")

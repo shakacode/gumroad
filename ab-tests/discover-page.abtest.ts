@@ -64,6 +64,7 @@ const warmCurrentPage =
 const warmPerfConfig = (beforeNavigate: BeforeNavigateHook) => ({
   shared: { beforeNavigate },
   perf: { lighthouseConfig: { disableStorageReset: true } },
+  audit: { lighthouseConfig: { disableStorageReset: true } },
 });
 
 abTest(

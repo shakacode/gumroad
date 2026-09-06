@@ -107,6 +107,10 @@ function manualChunks(id: string) {
 export default defineConfig(({ mode }) => ({
   plugins: [
     RubyPlugin(),
+    // Keep lazy imports and preload URLs relative to the shared entry URL in portable benchmark images.
+    ...(process.env.RAILS_ENV === "benchmark"
+      ? [{ name: "benchmark-relative-assets", config: () => ({ base: "./" }) }]
+      : []),
     excludePublicRscEntrypoints(),
     react(),
     staleModuleGuard(),
