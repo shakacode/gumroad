@@ -1,4 +1,4 @@
-# We made Gumroad’s Product content appear 8× faster with React on Rails Pro
+# We made Gumroad’s Product content appear 5.4× faster with React on Rails Pro
 
 By Justin Gordon, CEO of ShakaCode · September 2026
 
@@ -46,7 +46,7 @@ The work is organized into reviewable changes:
 
 [Throttling settings](#throttling-settings). \[3\] Open the [Product Page][page-3].
 
-Both versions started downloading images early, but Inertia still had to load and run its page JavaScript before showing content. React on Rails Pro began streaming server-rendered content while JavaScript continued downloading, bringing first paint forward from 10.03 seconds to 1.23 seconds in this sample.”
+Both versions started downloading images early, but Inertia still had to load and run its page JavaScript before showing content. React on Rails Pro began streaming server-rendered content while JavaScript continued downloading, bringing first paint forward from 10.09 seconds to 1.16 seconds in this sample.”
 
 ## Earlier content costs and caveats
 
@@ -82,7 +82,7 @@ The [benchmark summary](latest-results.md) includes the complete measurements, v
 
 <a id="throttling-settings"></a>
 
-> Test reference: September 4, 8 a.m. run. The diagnostic Lighthouse profile used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency, and 3× CPU slowdown.
+> Test reference: September 7, 1 a.m. run. The diagnostic Lighthouse profile used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency, and 3× CPU slowdown.
 
 ## What changed across all 22 cases
 

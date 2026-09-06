@@ -1,0 +1,1058 @@
+{
+  "source": "compare-results-sep-7-1am",
+  "caseId": "product-page-discover-layout-cold-landing-phone-2c2049e0",
+  "diagnosticStage": "perf-low-noise",
+  "diagnosticLighthouseStarts": ["2026-09-06T22:03:57.919Z", "2026-09-06T22:03:57.917Z"],
+  "diagnosticNote": "The timeline and embedded Lighthouse reports are one low-noise diagnostic capture from this run, not the 18-pair main-perf medians.",
+  "traces": {
+    "control": {
+      "fetchTime": "2026-09-06T22:03:59.029Z",
+      "firstScreenshotRelativeToNavigationMs": -48.546,
+      "lighthouseVersion": "13.4.1",
+      "throttlingMethod": "devtools",
+      "throttling": {
+        "rttMs": 100,
+        "throughputKbps": 2700,
+        "requestLatencyMs": 200,
+        "downloadThroughputKbps": 2700,
+        "uploadThroughputKbps": 2700,
+        "cpuSlowdownMultiplier": 3
+      },
+      "screenEmulation": {
+        "mobile": true,
+        "width": 375,
+        "height": 667,
+        "deviceScaleFactor": 3,
+        "disabled": false
+      },
+      "document": {
+        "url": "http://luisfurushio.control.localhost:3100/l/bgfjk?layout=discover&recommended_by=search",
+        "startMs": 0.5649999380111694,
+        "endMs": 252.93499994277954
+      },
+      "pageChunk": {
+        "url": "http://control.localhost:3100/vite/assets/Show-DL2CrdNR.js",
+        "startMs": 4172.46799993515,
+        "endMs": 4518.177999973297
+      },
+      "otherScripts": [
+        {
+          "url": "http://control.localhost:3100/vite/assets/entrypoints/base.ts-BzYRut_5.js",
+          "startMs": 253.6629999279976,
+          "endMs": 516.9329999089241
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/vendor-BFEkc7Zk.js",
+          "startMs": 253.91299998760223,
+          "endMs": 3997.150999903679
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/currency-CDNq5oR4.js",
+          "startMs": 254.16899991035461,
+          "endMs": 838.0709999203682
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/third_party_tracking-DqMGxUSU.js",
+          "startMs": 254.8549998998642,
+          "endMs": 1237.2129999399185
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/request-DzEC0uyW.js",
+          "startMs": 255.29299992322922,
+          "endMs": 850.7059999704361
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/base_page-C4GNpoRL.js",
+          "startMs": 255.7989999651909,
+          "endMs": 794.9969999194145
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/vendor-pdf-DyrkI9rT.js",
+          "startMs": 255.91699993610382,
+          "endMs": 3120.7539999485016
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/DomainSettings-c6Z7cUdQ.js",
+          "startMs": 255.9749999642372,
+          "endMs": 1823.4279999732971
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/entrypoints/inertia.js-CDMuwh2T.js",
+          "startMs": 256.02899992465973,
+          "endMs": 1770.7579999566078
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Layout-B1Wc6dqc.js",
+          "startMs": 4172.681999921799,
+          "endMs": 4578.799999952316
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CartNavigationButton-CUuRIj7P.js",
+          "startMs": 4172.996999979019,
+          "endMs": 4669.9279999136925
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/cart-BSCaZLOV.js",
+          "startMs": 4173.149999976158,
+          "endMs": 4682.910999953747
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/array-ClnQDgBW.js",
+          "startMs": 4173.233999967575,
+          "endMs": 4418.284999907017
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Sheet-C11wvYIu.js",
+          "startMs": 4173.320999920368,
+          "endMs": 4414.025999903679
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/mobile-DAmUKAtR.js",
+          "startMs": 4173.411999940872,
+          "endMs": 4653.406999945641
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useOnOutsideClick--tmvgYMi.js",
+          "startMs": 4173.48199993372,
+          "endMs": 4904.573999941349
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useIsAboveBreakpoint-BGZTj3dz.js",
+          "startMs": 4173.564999938011,
+          "endMs": 4926.334999918938
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/styles-Z6wqCFnS.js",
+          "startMs": 4173.613999962807,
+          "endMs": 5134.513999938965
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ComboBox-lAPpT3iL.js",
+          "startMs": 4173.92099994421,
+          "endMs": 4913.205999970436
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useDebouncedCallback-6bOmtMyv.js",
+          "startMs": 4173.997999966145,
+          "endMs": 4921.85799998045
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useOnChange-BdHxL4LQ.js",
+          "startMs": 4174.048999965191,
+          "endMs": 5169.9509999156
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/product-cover-DTLpjN1o.js",
+          "startMs": 4174.0939999222755,
+          "endMs": 5127.7009999156
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Layout-CnPJLN3T.js",
+          "startMs": 4174.136999964714,
+          "endMs": 5412.417999982834
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/index-B7DBi2DM.js",
+          "startMs": 4174.173999965191,
+          "endMs": 5546.749999940395
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/vendor-editor-D248fx6T.js",
+          "startMs": 4174.568999946117,
+          "endMs": 5881.993999958038
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/product_reviews-wuXvQwJV.js",
+          "startMs": 4174.739999949932,
+          "endMs": 5681.711999952793
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/user_action_event-DbU1G8dS.js",
+          "startMs": 4174.794999957085,
+          "endMs": 5364.482999920845
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/view_event-nHgWj5sI.js",
+          "startMs": 4174.85899990797,
+          "endMs": 5407.860999941826
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/product-DQ_2k9gx.js",
+          "startMs": 4174.909999907017,
+          "endMs": 5786.080999970436
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/date-CZYTfhlz.js",
+          "startMs": 4175.131999909878,
+          "endMs": 5911.540999948978
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/PriceTag-BMPwdBub.js",
+          "startMs": 4175.180999934673,
+          "endMs": 5659.438999950886
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/recurringPricing-DXePVW59.js",
+          "startMs": 4175.23399990797,
+          "endMs": 5776.7349999547005
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/labels--vhCmeVm.js",
+          "startMs": 4175.3259999156,
+          "endMs": 6006.970999956131
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CartItemList-DieqtMiJ.js",
+          "startMs": 4175.363999962807,
+          "endMs": 5915.8099999427795
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CopyToClipboard-DlGfOf9B.js",
+          "startMs": 4175.477999925613,
+          "endMs": 6132.925999939442
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/WithTooltip-Br7ceFj-.js",
+          "startMs": 4175.918999910355,
+          "endMs": 6003.478999912739
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/AuthorByline-DleOMrFZ.js",
+          "startMs": 4176.017999947071,
+          "endMs": 6232.336999952793
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ConfigurationSelector-DvsdOKff.js",
+          "startMs": 4176.055999994278,
+          "endMs": 6150.094999969006
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/offer-code-CRLvLXgB.js",
+          "startMs": 4176.173999905586,
+          "endMs": 6353.883999943733
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/LoadingSpinner-C8oT48XA.js",
+          "startMs": 4176.253999948502,
+          "endMs": 6449.695999920368
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/NumberInput-IgqHt9cv.js",
+          "startMs": 4176.723999917507,
+          "endMs": 6224.594999969006
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/PriceInput-fyqO-Vkr.js",
+          "startMs": 4176.760999917984,
+          "endMs": 6358.060999929905
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/TypeSafeOptionSelect-CcFOioP0.js",
+          "startMs": 4176.794999957085,
+          "endMs": 6671.000999927521
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Select--CPYZdQB.js",
+          "startMs": 4176.8659999370575,
+          "endMs": 6766.21899998188
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Pill-eSNlPeDQ.js",
+          "startMs": 4176.940999984741,
+          "endMs": 6440.824999988079
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Tabs-C4-bxc4w.js",
+          "startMs": 4177.271999895573,
+          "endMs": 6566.756999969482
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/FileEmbed-5Kg7zpBO.js",
+          "startMs": 4177.306999921799,
+          "endMs": 6991.871999979019
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/file-DQFSGrHt.js",
+          "startMs": 4177.394999921322,
+          "endMs": 7000.5539999604225
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/jwPlayer-DFhnuXXx.js",
+          "startMs": 4177.443999946117,
+          "endMs": 6666.396999955177
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/SubtitleUploadBox-BGmttBKI.js",
+          "startMs": 4177.880999982357,
+          "endMs": 7256.465999960899
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Rows-BGTpecf8.js",
+          "startMs": 4178.29599994421,
+          "endMs": 7226.341999948025
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useConfigureEvaporate-BsBGjQq0.js",
+          "startMs": 4178.369999945164,
+          "endMs": 6904.92099994421
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/promise-BfxSSwHN.js",
+          "startMs": 4178.4279999136925,
+          "endMs": 6987.876999914646
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Range-CxlqN9-v.js",
+          "startMs": 4178.8599999547005,
+          "endMs": 7447.771999955177
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/TranscodingNoticeModal-B06NXSh6.js",
+          "startMs": 4178.899999976158,
+          "endMs": 7473.925999939442
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/media_location-DWXeZqm2.js",
+          "startMs": 4179.160999894142,
+          "endMs": 7200.154999911785
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/DiscordButton-C7Mj8OAq.js",
+          "startMs": 4179.294999957085,
+          "endMs": 7234.930999934673
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Layout-3nu5H4ix.js",
+          "startMs": 4179.340999960899,
+          "endMs": 7686.533999979496
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/account-toArzl9N.js",
+          "startMs": 4179.413999915123,
+          "endMs": 7444.715999960899
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/payment_method_params-DYU5z3S2.js",
+          "startMs": 4179.485999941826,
+          "endMs": 7699.705999970436
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/library-dm4FqXnG.js",
+          "startMs": 4179.85699993372,
+          "endMs": 7465.255999982357
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ReviewForm-F8E70_Ka.js",
+          "startMs": 4179.909999907017,
+          "endMs": 7937.907999932766
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Textarea-EAIOdLqO.js",
+          "startMs": 4179.983999967575,
+          "endMs": 7665.282999932766
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Card-_42d02w6.js",
+          "startMs": 4180.391999900341,
+          "endMs": 7929.349999964237
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Details-B6E9147x.js",
+          "startMs": 4180.430999934673,
+          "endMs": 7695.35799998045
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/InlineList-B0qZS3AG.js",
+          "startMs": 4180.475999951363,
+          "endMs": 8153.292999923229
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/FileRowContent-B1kHD3CK.js",
+          "startMs": 4180.619999945164,
+          "endMs": 7903.322999894619
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ReviewVideoPlayer-CVz6IEpj.js",
+          "startMs": 4180.683999955654,
+          "endMs": 8172.148999989033
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/guid_generator-Z7OWF3rD.js",
+          "startMs": 4180.952999949455,
+          "endMs": 7924.961999952793
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Switch-BfPqw6Jm.js",
+          "startMs": 4180.989999949932,
+          "endMs": 8372.580999970436
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Separator-BDJSdsym.js",
+          "startMs": 4181.024999976158,
+          "endMs": 8394.526999950409
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Placeholder-CzkYf-Hz.js",
+          "startMs": 4181.358999967575,
+          "endMs": 8137.7129999399185
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/RichTextEditor-DOql5OKZ.js",
+          "startMs": 4181.392999947071,
+          "endMs": 8215.66899996996
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/RatingStars-DFN1xt-F.js",
+          "startMs": 4181.430999934673,
+          "endMs": 8593.555999934673
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ReviewResponseForm-_T_RIqOn.js",
+          "startMs": 4181.520999968052,
+          "endMs": 8376.189999938011
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/customers-DvbfX8pa.js",
+          "startMs": 4181.600999951363,
+          "endMs": 8415.306999981403
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/index-p4dK0G3X.js",
+          "startMs": 4181.668999910355,
+          "endMs": 8623.691999971867
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Thumbnail-RB-qe4mx.js",
+          "startMs": 4182.187999904156,
+          "endMs": 8645.296999931335
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ProductCard-BWLQR-jv.js",
+          "startMs": 4182.323999941349,
+          "endMs": 8815.18699991703
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/StretchedLink-BMLkrAEj.js",
+          "startMs": 4182.430999994278,
+          "endMs": 8615.15699994564
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/DiscountInput-Bvi-gEKl.js",
+          "startMs": 4182.7689999341965,
+          "endMs": 8849.284999907017
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Radio-CbzmoxXv.js",
+          "startMs": 4182.876999914646,
+          "endMs": 8811.565999984741
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Dropdown-BBCEtZG7.js",
+          "startMs": 4183.004999995232,
+          "endMs": 9035.96699988842
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Select-BXpnRo3K.js",
+          "startMs": 4183.078999936581,
+          "endMs": 8841.050999939442
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useAddThirdPartyAnalytics-CX3evGOV.js",
+          "startMs": 4183.34299993515,
+          "endMs": 9066.443999946117
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useReactNativeMessage-tlN-vCGS.js",
+          "startMs": 4183.470999956131,
+          "endMs": 9261.649999916553
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Card-CCOEsyNa.js",
+          "startMs": 4183.52999997139,
+          "endMs": 9040.285999894142
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/ProductCardGrid-CI-GDaAy.js",
+          "startMs": 4183.634999930859,
+          "endMs": 9287.803999960423
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useElementDimensions-JJj0m5i8.js",
+          "startMs": 4183.689999938011,
+          "endMs": 9057.828999996185
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/countdown-CiAurRkY.js",
+          "startMs": 4184.1159999370575,
+          "endMs": 9253.204999923706
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/wishlists-CITNztc3.js",
+          "startMs": 4184.169999957085,
+          "endMs": 9500.335999965668
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/EditSections-nHtrQR13.js",
+          "startMs": 4184.335999906063,
+          "endMs": 9556.782999932766
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CardGrid-BQ3gRD33.js",
+          "startMs": 4184.395999968052,
+          "endMs": 9305.115999937057
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/FollowButton-eZqBJLAw.js",
+          "startMs": 4184.636999964714,
+          "endMs": 9704.666999936104
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/Sections-DhkR7zg0.js",
+          "startMs": 4184.708999991417,
+          "endMs": 9474.237999975681
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CoffeeProduct-BNTcUFwv.js",
+          "startMs": 4184.819999933243,
+          "endMs": 9517.826999902725
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/FollowForm-B-TsVtnt.js",
+          "startMs": 4184.93799996376,
+          "endMs": 9730.45199996233
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/email-CxF-h5Q1.js",
+          "startMs": 4185.032999932766,
+          "endMs": 9912.662999987602
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/useRecaptcha-BlK00gY_.js",
+          "startMs": 4185.327999949455,
+          "endMs": 9725.926999986172
+        },
+        {
+          "url": "https://js.stripe.com/v3",
+          "startMs": 4187.202999949455,
+          "endMs": 5967.5539999604225
+        },
+        {
+          "url": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js",
+          "startMs": 7269.945999920368,
+          "endMs": 7326.536999940872
+        },
+        {
+          "url": "https://m.stripe.network/out-4.5.45.js",
+          "startMs": 7400.716999948025,
+          "endMs": 7627.695999979973
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/entrypoints/base.ts-BzYRut_5.js",
+          "startMs": 10257.157999932766,
+          "endMs": 10258.038999974728
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/vendor-BFEkc7Zk.js",
+          "startMs": 10257.225999951363,
+          "endMs": 10265.379999995232
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/currency-CDNq5oR4.js",
+          "startMs": 10257.303999960423,
+          "endMs": 10258.414999961853
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/third_party_tracking-DqMGxUSU.js",
+          "startMs": 10258.799999952316,
+          "endMs": 10259.554999947548
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/request-DzEC0uyW.js",
+          "startMs": 10259.616999924183,
+          "endMs": 10260.538999974728
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/base_page-C4GNpoRL.js",
+          "startMs": 10260.952999949455,
+          "endMs": 10261.726999938488
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/vendor-pdf-DyrkI9rT.js",
+          "startMs": 10262.213999986649,
+          "endMs": 10266.18799996376
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/DomainSettings-c6Z7cUdQ.js",
+          "startMs": 10263.79399996996,
+          "endMs": 10266.270999968052
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/entrypoints/inertia.js-CDMuwh2T.js",
+          "startMs": 10265.23299998045,
+          "endMs": 10266.726999938488
+        },
+        {
+          "url": "http://control.localhost:3100/vite/assets/CartItemsCount-DulxGbZs.js",
+          "startMs": 10445.773999929428,
+          "endMs": 10720.029999911785
+        },
+        {
+          "url": "https://js.stripe.com/v3",
+          "startMs": 10446.877999961376,
+          "endMs": 10449.444999933243
+        }
+      ],
+      "firstImage": {
+        "url": "http://minio-control.localhost:9100/gumroad-dev-public-storage/fne6bnue3urruts4ijrqwk0p3ski",
+        "startMs": 229.46699994802475,
+        "endMs": 1901.039999961853
+      },
+      "fcpMs": 10090.295,
+      "lcpMs": 10150.834
+    },
+    "experiment": {
+      "fetchTime": "2026-09-06T22:03:59.046Z",
+      "firstScreenshotRelativeToNavigationMs": 1.495,
+      "lighthouseVersion": "13.4.1",
+      "throttlingMethod": "devtools",
+      "throttling": {
+        "rttMs": 100,
+        "throughputKbps": 2700,
+        "requestLatencyMs": 200,
+        "downloadThroughputKbps": 2700,
+        "uploadThroughputKbps": 2700,
+        "cpuSlowdownMultiplier": 3
+      },
+      "screenEmulation": {
+        "mobile": true,
+        "width": 375,
+        "height": 667,
+        "deviceScaleFactor": 3,
+        "disabled": false
+      },
+      "document": {
+        "url": "http://luisfurushio.experiment.localhost:3200/l/bgfjk?layout=discover&recommended_by=search",
+        "startMs": 0.5410000085830688,
+        "endMs": 320.69400000572205
+      },
+      "pageChunk": {
+        "url": "http://experiment.localhost:3200/public-rsc/generated/ProductPage.e734d655.js",
+        "startMs": 244.1560000181198,
+        "endMs": 1075.544000029564
+      },
+      "otherScripts": [
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/runtime.cececa76.js",
+          "startMs": 243.0310000181198,
+          "endMs": 620.4300000071526
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/6293.0a4c4de8.js",
+          "startMs": 243.48200005292892,
+          "endMs": 2976.304000020027
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/890.68d26199.js",
+          "startMs": 243.8080000281334,
+          "endMs": 1162.2799999713898
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/1124.3018c1ac.js",
+          "startMs": 537.619000017643,
+          "endMs": 1588.1620000004768
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/148.fd42f3dc.js",
+          "startMs": 620.6119999885559,
+          "endMs": 1131.8629999756813
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/9369.cca0e527.js",
+          "startMs": 1075.8020000457764,
+          "endMs": 1453.7680000066757
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client44.866398fa.js",
+          "startMs": 1114.5390000343323,
+          "endMs": 1553.4560000300407
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/7712.d6744f37.js",
+          "startMs": 1131.9500000476837,
+          "endMs": 1613.6830000281334
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/989.3877bbf6.js",
+          "startMs": 1453.9210000038147,
+          "endMs": 3128.725000023842
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client43.355f2464.js",
+          "startMs": 1535.5530000329018,
+          "endMs": 1817.854000031948
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client7.9902f120.js",
+          "startMs": 1553.5789999961853,
+          "endMs": 2021.5450000166893
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/2905.4abaf3b5.js",
+          "startMs": 1588.257000029087,
+          "endMs": 1974.20400005579
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client0.c690353b.js",
+          "startMs": 1613.791000008583,
+          "endMs": 2008.6280000209808
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client8.25c359ca.js",
+          "startMs": 1817.9770000576973,
+          "endMs": 2308.0109999775887
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/3669.8b6fa59b.js",
+          "startMs": 1974.283999979496,
+          "endMs": 2386.5770000219345
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/7152.17a6420f.js",
+          "startMs": 2008.6980000138283,
+          "endMs": 2507.623000025749
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client3.a45264a3.js",
+          "startMs": 2021.7789999842644,
+          "endMs": 2360
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/1212.ab107287.js",
+          "startMs": 2360.123000025749,
+          "endMs": 2707.435000002384
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/1264.83f45458.js",
+          "startMs": 2369.388000011444,
+          "endMs": 3149.981000006199
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/1444.a83e3f90.js",
+          "startMs": 2386.707000017166,
+          "endMs": 2703.800000011921
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/2522.7a4efbb7.js",
+          "startMs": 2507.8460000157356,
+          "endMs": 2985.055999994278
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/3602.59d5bc4f.js",
+          "startMs": 2703.8940000534058,
+          "endMs": 3059.6140000224113
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/3792.dbbc8141.js",
+          "startMs": 2707.5580000281334,
+          "endMs": 3033.4959999918938
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/4754.927fe7e0.js",
+          "startMs": 2985.175000011921,
+          "endMs": 3258.7490000128746
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/4981.efe53b8f.js",
+          "startMs": 3033.6579999923706,
+          "endMs": 3285.6290000081062
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/5985.250ec65b.js",
+          "startMs": 3059.768999993801,
+          "endMs": 3336.5520000457764
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/6430.7a1d1096.js",
+          "startMs": 3107.4840000271797,
+          "endMs": 3380.1349999904633
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/682.e862f8c2.js",
+          "startMs": 3128.9129999876022,
+          "endMs": 3805.2199999690056
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/7166.daa38923.js",
+          "startMs": 3150.180999994278,
+          "endMs": 3923.2400000691414
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/7875.edb7ce3a.js",
+          "startMs": 3336.804000020027,
+          "endMs": 5133.434000015259
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/8353.859c32a0.js",
+          "startMs": 3380.2180000543594,
+          "endMs": 3714.182000041008
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/84.dfc20d83.js",
+          "startMs": 3714.378000020981,
+          "endMs": 4100.466000020504
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/848.ce0b5970.js",
+          "startMs": 3805.3889999985695,
+          "endMs": 4191.9520000219345
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/9636.197a9655.js",
+          "startMs": 3923.3590000271797,
+          "endMs": 4508.367000043392
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/9750.4027d0f1.js",
+          "startMs": 4100.574999988079,
+          "endMs": 4499.728000044823
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/9908.66ea46f0.js",
+          "startMs": 4192.07800000906,
+          "endMs": 4556.274999976158
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client13.abd02095.js",
+          "startMs": 4499.843000054359,
+          "endMs": 4882.534000039101
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client21.6df22131.js",
+          "startMs": 4508.505999982357,
+          "endMs": 4894.930000007153
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client22.6229f0f6.js",
+          "startMs": 4556.395000040531,
+          "endMs": 4942.328000068665
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client26.dd338edd.js",
+          "startMs": 4882.671000063419,
+          "endMs": 5155.092000067234
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client28.60b603bf.js",
+          "startMs": 4895.027999997139,
+          "endMs": 5166.0479999780655
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client29.f7bbc0b2.js",
+          "startMs": 4942.429000020027,
+          "endMs": 5241.805999994278
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client39.fcd8d4e9.js",
+          "startMs": 4951.210000038147,
+          "endMs": 5407.426999986172
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client16.83c500b5.js",
+          "startMs": 4999.152999997139,
+          "endMs": 5367.97000002861
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client12.60e16d07.js",
+          "startMs": 5133.566000044346,
+          "endMs": 5484.84600007534
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client19.ef2bdf9a.js",
+          "startMs": 5155.280000030994,
+          "endMs": 5607.676999986172
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client15.f8926ea2.js",
+          "startMs": 5166.209999978542,
+          "endMs": 5675.819000005722
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client20.f63d09cc.js",
+          "startMs": 5241.958999991417,
+          "endMs": 5497.8560000658035
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/client25.4cdd6fb6.js",
+          "startMs": 5368.070000052452,
+          "endMs": 5590.934000074863
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/5038.6fc79da6.js",
+          "startMs": 5738.255000054836,
+          "endMs": 5980.304000020027
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/2646.5805a9e1.js",
+          "startMs": 5738.385000050068,
+          "endMs": 7499.331000030041
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/3476.ac5f2ed3.js",
+          "startMs": 5739.15600001812,
+          "endMs": 6500.397000014782
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/7995.8285b4ba.js",
+          "startMs": 5739.7009999752045,
+          "endMs": 6279.159000039101
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/4780.c55cb197.js",
+          "startMs": 5740.518999993801,
+          "endMs": 6601.143000006676
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/8336.2f40fe71.js",
+          "startMs": 5740.9580000042915,
+          "endMs": 6956.123000025749
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/entrypoints/base.ts-CLnu5neG.js",
+          "startMs": 5930.042000055313,
+          "endMs": 6605.718000054359
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/vendor-CYe9QsFo.js",
+          "startMs": 5930.1389999985695,
+          "endMs": 9317.078999996185
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/currency-CDNq5oR4.js",
+          "startMs": 5930.375,
+          "endMs": 6808.805000066757
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/third_party_tracking-DLu0Lh88.js",
+          "startMs": 5930.512000024319,
+          "endMs": 6891.108000040054
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/request-DzEC0uyW.js",
+          "startMs": 5930.665000021458,
+          "endMs": 6869.90600001812
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/base_page-CXNm-VY3.js",
+          "startMs": 5930.728000044823,
+          "endMs": 7034.488000035286
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/vendor-pdf-BmaacDMs.js",
+          "startMs": 5930.778999984264,
+          "endMs": 8388.465000033379
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/DomainSettings-BP06JXSI.js",
+          "startMs": 5930.833999991417,
+          "endMs": 7520.445999979973
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/entrypoints/inertia.js-BA-Pvcjz.js",
+          "startMs": 5930.881000041962,
+          "endMs": 7547.096000015736
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/1376.b6d92532.js",
+          "startMs": 5980.469000041485,
+          "endMs": 7338.274000048637
+        },
+        {
+          "url": "http://experiment.localhost:3200/public-rsc/9371.82d1bc39.js",
+          "startMs": 6279.3270000219345,
+          "endMs": 7590.89200001955
+        },
+        {
+          "url": "http://experiment.localhost:3200/vite/assets/CartItemsCount-CY9XyBZc.js",
+          "startMs": 9497.87900006771,
+          "endMs": 9712.226999998093
+        },
+        {
+          "url": "https://js.stripe.com/v3",
+          "startMs": 9498.56400001049,
+          "endMs": 9732.799000024796
+        }
+      ],
+      "firstImage": {
+        "url": "http://minio-experiment.localhost:9101/gumroad-dev-public-storage/qebxjx4xrma0jgi2nqdvncqd7ssp",
+        "startMs": 252.75300002098083,
+        "endMs": 2087.115999996662
+      },
+      "fcpMs": 1163.405,
+      "lcpMs": 2092.834
+    }
+  },
+  "mainPerf": {
+    "stage": "perf",
+    "fcpSamples": {
+      "control": {
+        "valuesMs": [
+          15186.687, 15239.453, 9929.634, 15046.184, 15904.982, 10113.295, 10375.354, 13421.856, 14974.018, 10188.006,
+          10566.195, 15055.893, 13110.381, 10185.768, 13164.515, 10151.881, 10741.967, 10651.163
+        ],
+        "count": 18,
+        "medianMs": 11926.173999999999,
+        "minMs": 9929.634,
+        "maxMs": 15904.982
+      },
+      "experiment": {
+        "valuesMs": [
+          1489.951, 3483.498, 1270.928, 1248.991, 8628.773, 1329.277, 1295.237, 3856.361, 3577.846, 1277.188, 1324.228,
+          4416.441, 1355.532, 1380.814, 3144.474, 1358.274, 1320.343, 1273.156
+        ],
+        "count": 18,
+        "medianMs": 1356.9029999999998,
+        "minMs": 1248.991,
+        "maxMs": 8628.773
+      }
+    },
+    "allExperimentSamplesFasterThanAllControlSamples": true
+  },
+  "inputs": [
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/perf.json",
+      "sha256": "529d1a1d2d760bef54afd2320354c039b772c778b35931bceeae408339103240"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/perf-low-noise.json",
+      "sha256": "5a0da53f1d93f50d6acf9291ba4094cac8bbc76b23c7a7ddaeaf4e3385480c1d"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/ab-measurements.json",
+      "sha256": "9db4359cfc4a80bdddff7047b7389a46df00bb58152c4c69a2db833ef8b728a1"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/timeline_comparison.html",
+      "sha256": "bd26feab02f8a445f26cdcfdd81eb2a94659e4cd2080a72a7d47b0a418dbf5af"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/timeline_preview.svg",
+      "sha256": "ad310db03806322ff539b909f53b340b245cffa5ca1e393faa4f0b4e0a74a149"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/control_lighthouse_report.html",
+      "sha256": "035111fcabf747cac5dc572f472ac51e431e354e6f9ae25d7770ad40e127d97a"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/control_performance_profile.json",
+      "sha256": "287a72f69168a06eef7e9a35ea14876421069757bdbfcf94cf8252840e8ef886"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/experiment_lighthouse_report.html",
+      "sha256": "3d3801ff16d873b7d7445355978bc73a4521e9afbe0406e5bff3e119c58d84cb"
+    },
+    {
+      "path": "product-page-discover-layout-cold-landing-phone-2c2049e0/artifacts/experiment_performance_profile.json",
+      "sha256": "8108d0e1c1b2b25e634c82f4ced6cf12d7339a6386541353b6d30cafa00f00ac"
+    }
+  ]
+}
