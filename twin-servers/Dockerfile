@@ -8,8 +8,8 @@ ARG GID=1000
 ARG BUNDLE_PATH=/home/${NON_ROOT_USER}/bundle
 ARG APP_PATH=/home/${NON_ROOT_USER}/app
 
-FROM node:${NODE_VERSION}-bullseye-slim AS node
-FROM ruby:${RUBY_VERSION}-slim-bullseye
+FROM node:${NODE_VERSION}-bookworm-slim AS node
+FROM ruby:${RUBY_VERSION}-slim-bookworm
 
 ARG NON_ROOT_USER
 ARG UID
