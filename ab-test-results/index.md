@@ -1,127 +1,141 @@
-# Gumroad Left React on Rails. Going back cuts Gumroad’s First Paint from 17 Seconds to under 2
+# We made Gumroad’s Product content appear 8× faster with React on Rails Pro
 
 By Justin Gordon, CEO of ShakaCode · September 2026
 
-A buyer can leave before your storefront has a chance to make its case. Google's 2016 research found that 53% of mobile visits were abandoned when sites took longer than three seconds to load. In Clutch's 2025 survey, 52% of shoppers said they would leave a website that took more than ten seconds. [Google](https://blog.google/products-and-platforms/products/ads/speed-scorecard-impact-calculator/) · [Clutch survey coverage](https://www.retailbrew.com/stories/2025/09/04/lousy-web-design-may-play-a-huge-role-in-whether-a-customer-shops-with-a-brand-survey)
+Could React 19 Server Components make Gumroad’s public pages appear sooner while keeping Inertia in the application?
 
-Gumroad’s [move from React on Rails to Inertia](https://x.com/gumroad/status/2034374288007188817) simplified how its Rails application delivered interactive pages. But a buyer arriving at a storefront has a different immediate need: seeing what is for sale. That raised a question for our team at ShakaCode: could we make those public pages appear sooner while keeping Inertia in the application?
+We used [ShakaPerf](https://shakaperf.com/) to migrate and measure the core public pages in [Gumroad’s](https://gumroad.com/) codebase to [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/), with React 19 and Server Components. Rails kept the business logic, Inertia was kept in place. We changed how those pages reached the browser, making these pages load substantially faster.
 
-Ramez Weissa took Gumroad’s codebase and added React on Rails Pro with React 19 and Server Components to its Product, Discover, and Seller Profile pages. Rails continued handling the application’s business logic. The change was how those pages reached the browser: the server could begin delivering rendered content while JavaScript continued loading.
+![Time to first and largest content on five Gumroad pages, comparing Inertia with React on Rails Pro](images/gumroad-page-paint.svg)
 
-We used [ShakaPerf](https://shakaperf.com/), our A/B performance testing system, to compare two versions of Gumroad: the existing client-rendered Inertia implementation (the control) and our React on Rails Pro implementation with React 19 and Server Components (the experiment). Both versions used matching seeded content and ran under the same conditions.
+Try the [1-5] pages for yourself in the [live deployments below](#try-the-live-deployments-with-lighthouse). · [Throttling settings](#throttling-settings)
 
-On a throttled phone with no page files saved in the browser’s cache—a “cold” visit—the tested Product page’s first paint fell from over 17 seconds to under 2.
+## Watch both versions load
 
-First Contentful Paint, or FCP, marks when the browser first draws qualifying text or an image.
+**[▶ Open the interactive side-by-side replay](product-discover-phone-replay/timeline_replay.html)** for the Product Page (discover layout) on phone.
 
-![Cold-phone First Contentful Paint in the September 4 report](images/current-cold-phone-fcp.svg)
+![Loading filmstrip: Inertia, visual differences, and React on Rails Pro on the Product Page with discover layout](images/product-timeline-preview.svg)
 
-## Why the first storefront visit mattered
+[Throttling settings](#throttling-settings)
 
-Gumroad’s Inertia architecture works well once the application is running in the browser: Rails supplies page data, React renders the interface, and later navigation reuses the loaded client runtime. On a cold visit, that client runtime still has to reach the browser.
+## Here is how we did this
 
-The Inertia version still had to load its Vite entry and page module and execute the React tree before rendering the page. Some resources could be preloaded earlier, but fetching an image was not enough to make the surrounding Product interface appear.
+Ramez Weissa added React on Rails Pro with React 19 and Server Components to three types of Gumroad page. Rails kept routing and business logic; Inertia continued serving the rest of the application.
 
-React on Rails Pro changed the initial delivery path. Rails prepared application data, called a private React renderer, and streamed rendered HTML plus React Server Component payloads. The browser could paint the initial page while client code continued arriving.
+On a fresh visit, the tested Inertia implementation had to download and execute its page JavaScript before React could render the content. React on Rails Pro streamed server-rendered content while JavaScript continued loading. Making that possible took component restructuring, not just a rendering switch:
 
-## How we tested with ShakaPerf
+| Page           | How we changed it                                                                                                                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Seller Profile | Added server streaming around much of the existing client page. Most of the existing page remained in client components; we changed how it was delivered rather than splitting it extensively into server and client components. |
+| Discover       | Moved the page shell and recommendation regions to the server, letting recommendations stream independently while search and other interactions stayed client-side.                                                              |
+| Product        | Substantially split the page into server-rendered content and layout, and client components for commerce interactions. This meant reorganizing existing components and their shared state.                                       |
 
-We used [ShakaPerf](https://shakaperf.com/), ShakaCode’s A/B performance testing system, to compare Gumroad’s existing client-rendered Inertia pages with the React on Rails Pro versions.
+Inertia’s strength is navigation after the first load, when it can reuse JavaScript already running in the browser. React on Rails Pro brings the benefit earlier: on a fresh visit, it delivers rendered content while JavaScript is still loading.
 
-Alongside cold visits, we tested “warm” visits: full page loads after an earlier visit had saved reusable files in the browser’s cache. This covered returning to the same page and opening a Seller Profile after visiting a Product page.
+The work is organized into reviewable changes:
 
-Control and experiment ran in isolated Docker containers. Each paired measurement started both sides together. The suite selected 11 scenarios across desktop and phone—22 cases covering cold and warm visits to Product, Discover, and Seller Profile pages. This included visual diff comparisons and accessibility checks, keeping the performance numbers connected to the unchanged page a buyer receives.
+[Explore the PR stack](https://github.com/shakacode/gumroad/pulls?q=is%3Apr)
 
-> **Reference test profile:** September 4 report; 22 selected cases, 22 valid standard-performance results; 18 simultaneous control/experiment pairs per valid case. The artifact-embedded Lighthouse diagnostic profile uses DevTools throttling with 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and 3× CPU slowdown.
+1. **Add ShakaPerf** — our A/B testing tool for comparing web performance, checking visual differences, and running accessibility checks across two implementations.
+2. **Add React on Rails Pro and React 19** — introduce server rendering alongside Inertia.
+3. **Split server and client components** — move initial content to the server while keeping interactions client-side.
 
-## What changed across Gumroad
+## Where the loading time went
 
-We used a different migration depth for each public surface.
+![Performance profile comparing Inertia and React Server Components for the Product Page with discover layout](images/product-streaming-timeline.svg)
 
-On Product pages, the initial buyer-facing composition moved into the streamed server tree while interactive commerce behavior remained in client components. This required splitting the Product page into server components for its initial content and "use client" components for interactive commerce behavior.
+[Throttling settings](#throttling-settings). \[3\] Open the [Product Page][page-3].
 
-Discover used a streamed server shell with independent asynchronous recommendation regions. The shell could arrive while recommendation work continued; search, filtering, cart behavior, and other interactions stayed client-side.
+Both versions started downloading images early, but Inertia still had to load and run its page JavaScript before showing content. React on Rails Pro began streaming server-rendered content while JavaScript continued downloading, bringing first paint forward from 10.03 seconds to 1.23 seconds in this sample.”
 
-Seller Profile took the smallest step: the new document and streaming path wrapped much of the existing client page. This let us test a different delivery path before deeply restructuring that component tree.
+## Earlier content costs and caveats
 
-Other requests continued through Inertia and Vite. Rails kept routing, policies, models, and the request lifecycle. RSC and streaming entered at selected document boundaries instead of through a wholesale application migration.
+![Requests, transferred data, and time to first byte for five Gumroad pages](images/buyer-ab-requests-bytes-ttfb.svg)
 
-## A/B Test results
+Try the [1-5] pages for yourself in the [live deployments below](#try-the-live-deployments-with-lighthouse). · [Throttling settings](#throttling-settings)
 
-For cold phone visits, representative medians from the standard paired measurements were:
+**Alternative A — percentage changes (gallery #3)**
 
-![Cold-phone first contentful paint and largest contentful paint comparing Inertia and React on Rails Pro across five Gumroad surfaces](images/buyer-ab-paint.svg)
+![Percentage changes in requests, transferred bytes, and time to first byte for five Gumroad pages](images/gumroad-cost-changes-percent.svg)
 
-![Cold-phone total requests, transferred bytes, and time to first byte comparing Inertia and React on Rails Pro across five Gumroad surfaces](images/buyer-ab-requests-bytes-ttfb.svg)
+Try the [1-5] pages for yourself in the [live deployments below](#try-the-live-deployments-with-lighthouse). · [Throttling settings](#throttling-settings)
 
-Fewer requests did not always mean smaller downloads: both Discover pages transferred more bytes.
+**Alternative B — changes in requests, KB and milliseconds (gallery #3a)**
 
-Across all 22 successful standard-performance cases:
+![Absolute changes in requests, transferred kilobytes, and time to first byte in milliseconds for five Gumroad pages](images/gumroad-cost-changes-absolute.svg)
 
-- FCP improved in every case, with a mean reduction of 68.3% and a range of 44.3% to 90.8%.
-- LCP improved in every case, with a mean reduction of 71.9% and a range of 52.3% to 91.1%.
-- Total requests improved in every case, with a mean reduction of 36.5% and a range of 19.1% to 60.3%.
-- Total transferred bytes increased in 16 of 22 cases. Across those 16 cases, the mean increase was 62.9 KB, ranging from 7.3 to 190.1 KB.
+Try the [1-5] pages for yourself in the [live deployments below](#try-the-live-deployments-with-lighthouse). · [Throttling settings](#throttling-settings)
 
-These summaries compare the versions’ medians and give each included case equal weight; they are not pooled paired-effect estimates. The FCP, LCP, and request-count improvements held across both cold and warm visits.
+Earlier content did not always mean a smaller download. On Discover, a visit with no files cached in the browser downloaded more JavaScript and more data overall. Even when the browser reused files from a previous visit, the new page response often carried more HTML or Server Component data. Fewer requests can still mean more bytes, And yet with the larger download size. It still loads earlier.
 
-The [generated benchmark summary](latest-results.md) contains the complete case table, correctness checks, classifications, sample counts, and source-file hashes.
+The server also took longer to start responding on several pages. Yet content appeared sooner because the browser no longer had to finish loading and running the page’s JavaScript before displaying it. The benefit came from changing when content could appear, not from making every part of the load smaller or faster.
 
-## The browser painted while JavaScript was still loading
+React on Rails Pro also adds a renderer service to deploy, monitor, and provision. Those costs belong alongside the browser gains in an adoption decision.
 
-The Product timeline makes the delivery change concrete.
+## How we measured the results
 
-In one throttled diagnostic navigation of the Discover-layout Product phone case, the Inertia version requested its Product page module around 4.18 seconds and reached FCP at 10.03 seconds. The React on Rails Pro version requested its generated Product module around 0.23 seconds and painted at 1.23 seconds.
+[ShakaPerf](https://shakaperf.com/) compared the existing Inertia implementation (the **control**) with React on Rails Pro and Server Components (the **experiment**), using matching seeded content in isolated application containers. Each pair started both versions simultaneously in isolated Docker Containers.
 
-The React on Rails Pro document did not finish transferring until about 0.32 seconds. Its first paint happened roughly 0.91 seconds after the response ended.
+We tested 11 scenarios on desktop and phone, repeating each comparison 18 times per device size to reduce the influence of normal run-to-run variation. Cold visits started with an empty browser cache; warm visits reused cached files from an earlier visit but still loaded a full page. The suite also captured visual differences and accessibility checks.
 
-![Simplified Product phone streaming timeline from one diagnostic navigation](images/product-streaming-timeline.svg)
+The [benchmark summary](latest-results.md) includes the complete measurements, visual-check findings, source hashes, and report links.
 
-Both sides requested Product images early, at roughly a quarter of a second. Streamed HTML let the React on Rails Pro page paint while client work continued.
+<a id="throttling-settings"></a>
 
-ShakaPerf filmstrip from one diagnostic page load.
+> Test reference: September 4, 8 a.m. run. The diagnostic Lighthouse profile used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency, and 3× CPU slowdown.
 
-![Report-generated preview of the Product phone diagnostic timeline](images/product-timeline-preview.svg)
+## What changed across all 22 cases
 
-Explore the [side-by-side replay](product-profile-desktop-replay/timeline_replay.html) of a cold desktop visit to the Profile-layout Product page.
+![Median changes in paint times, requests, transferred data, server response time, and blocking time: React on Rails Pro compared with Inertia](images/gumroad-performance-changes.svg)
 
-## The costs belong next to the wins
+[Throttling settings](#throttling-settings)
 
-Warm visits often transferred more document or Flight data. Cold Discover visits transferred more JavaScript and total bytes: on phones, JavaScript grew from 918.7 to 1,376.1 KB. TTFB classified as a regression in four valid cases, an improvement in three, and no classified difference in 15. Total bytes improved in six cases and regressed in 16.
+**Alternative — candlestick-style boxes**
 
-Those costs matter when planning caching and renderer capacity. Even with them, FCP, LCP, Speed Index, total requests, and JavaScript requests improved across every valid performance case. Both Product layouts and Seller Profile transferred less JavaScript. The Product trace shows how a page can become visible while its client JavaScript continues arriving.
+![Distribution of performance changes across 22 cases, with boxes showing the middle 50%, median lines, and minimum-to-maximum whiskers](images/gumroad-performance-changes-boxes.svg)
 
-![Performance classifications across the 22 successful September 4 cases](images/current-metric-classifications.svg)
+[Throttling settings](#throttling-settings)
 
-React on Rails Pro also adds a renderer service to deploy, secure, monitor, and load-test. That operational work belongs in the adoption decision alongside the browser gains.
+The charts summarize the middle change across cases, not an average; the boxes also show how widely those changes varied. FCP, LCP, and total requests improved in every case; download and server costs varied by page. A zero median for JavaScript bytes does not mean every page downloaded the same amount.
 
-These results compare complete implementations under the tested conditions.
+## Try the live deployments with Lighthouse
 
-## Run Lighthouse on the live Gumroad deployments
+Open the same page in each deployment:
 
-Experience the comparison yourself. Our live **gumroad-inertia** and **gumroad-rorp** deployments let you browse matching storefronts and see how each page loads. Start with Discover or the same Product page on both, then run Lighthouse to put numbers behind what you see:
+| Page                                       | Inertia                                                                                                          | React on Rails Pro                                                                                            |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| \[1\] Discover Page (marketplace)          | [Open page](https://gumroad-inertia.reactonrails.com/discover)                                                   | [Open page](https://gumroad-rorp.reactonrails.com/discover)                                                   |
+| \[2\] Discover Page (programming category) | [Open page](https://gumroad-inertia.reactonrails.com/software-development/programming)                           | [Open page](https://gumroad-rorp.reactonrails.com/software-development/programming)                           |
+| \[3\] Product Page (discover layout)       | [Open page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=discover&recommended_by=search) | [Open page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=discover&recommended_by=search) |
+| \[4\] Product Page (profile layout)        | [Open page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)  | [Open page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)  |
+| \[5\] Seller Profile Page                  | [Open page](https://shakaperfprofile.gumroad-inertia.reactonrails.com/)                                          | [Open page](https://shakaperfprofile.gumroad-rorp.reactonrails.com/)                                          |
 
-| Surface              | Inertia                                                                                                             | React on Rails Pro                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Discover marketplace | [Open Discover](https://gumroad-inertia.reactonrails.com/discover)                                                  | [Open Discover](https://gumroad-rorp.reactonrails.com/discover)                                                  |
-| Product page         | [Open Product](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=discover&recommended_by=search) | [Open Product](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=discover&recommended_by=search) |
+In Chrome DevTools, choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a cold visit and keep device and throttling settings identical. Alternate between versions over several runs and compare medians.
 
-For a useful side-by-side comparison:
+These are seeded test deployments. Your results will depend on your machine, location, network, and Lighthouse settings.
 
-1. Choose a matching pair of links above. Test one page at a time
-2. Choose **DevTools → Lighthouse → Navigation**, select **Performance**, and enable **Clear storage** for a cold visit. Keep the device, throttling, and other settings identical on both sides.
-3. Run each side at few times, alternating between Inertia and React on Rails Pro. Compare median FCP, LCP, TBT, and Speed Index, The difference will be significant! We would love to see your paired reports.
+## Why not just enable SSR in Inertia?
 
-These are seeded benchmark deployments. The article’s measurements come from the controlled, throttled ShakaPerf run; your live results will reflect your machine, location, network, and Lighthouse settings.
+We tested an optimized Inertia SSR implementation too. SSR may have narrowed the gap, but React on Rails Pro still achieved a **26% better average Speed Index** on the Product-page tests under tougher throttling. Speed Index measures how quickly visible content fills in; lower is better.
 
-## What I would take from this
+![Average Product-page Speed Index: 5.60 seconds with Inertia SSR versus 4.14 seconds with React on Rails Pro](images/inertia-ssr-speed-index.svg)
 
-Gumroad’s Inertia migration solved real dashboard problems, and I would not tell them to reverse it. I would tell them, and any team running public pages on Inertia, to measure what a buyer waits for on the first visit. In our tests, streaming cut seconds off first paint, and the improvements held on warm visits too. Those gains came with larger downloads on many pages, higher response times in some cases, and another service to operate.
+**[▶ Watch a sample side-by-side loading comparison for the Product page](inertia-ssr-product-phone-replay/timeline_replay.html)**
 
-If you maintain a Rails application on Inertia, start with one public page. Which pages earn their keep on the first visit? Which transitions already feel instant? How much component restructuring would it take to deliver the initial page from the server while keeping interactions in the browser? The answer may be different for your dashboard and your storefronts.
+## What you should take from this
 
-Rails can keep routing and domain logic. Inertia can remain where client navigation works well. React on Rails Pro brings React 19 Server Components and streaming to the pages where you choose to use them. Start with one valuable page, two implementations, and a paired benchmark with [ShakaPerf](https://shakaperf.com/).
+If you build with Rails and React, [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) brings React 19 Server Components and streaming to your application. You can deliver rendered content while JavaScript is still loading.
 
-We will share more on developer experience and navigation separately. For now, I hope this gives you a more useful starting point than a framework verdict. If your team is weighing where server rendering would help, we at ShakaCode would be happy to work with you: choose a page, introduce React on Rails Pro incrementally, and measure the result in your application.
+Already using Inertia? You can introduce this approach on selected pages without replacing it across your app. That is what we did in our Gumroad fork: content appeared sooner on the pages we migrated, while the rest of the application stayed on Inertia. Start where visitors are left waiting, and keep what already works.
+
+Start measuring your app’s performance now with [ShakaPerf](https://shakaperf.com/). Compare changes against your existing app to see what actually makes it faster, while checking for visual differences and accessibility issues. Run tests locally as you optimize, then in CI to catch regressions before they ship. The [ShakaPerf repository](https://github.com/shakacode/shakaperf) shows how to get started.
+
+Want to find that opportunity in your application? We at ShakaCode can help choose the page, set up ShakaPerf, and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally. Bring us a page that feels slow, and let’s measure what we can improve together.
 
 Aloha, Justin
+
+[page-1]: https://gumroad-rorp.reactonrails.com/discover
+[page-2]: https://gumroad-rorp.reactonrails.com/software-development/programming
+[page-3]: https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=discover&recommended_by=search
+[page-4]: https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search
+[page-5]: https://shakaperfprofile.gumroad-rorp.reactonrails.com/
