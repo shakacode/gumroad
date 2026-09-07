@@ -1,5 +1,9 @@
 @CONTRIBUTING.md
 
+## ShakaCode contribution planning
+
+See [the Gumroad action plan](docs/shakacode-gumroad-plan.md) for the two intended contributions and the Google Doc used for weekly Monday meeting notes. Record weekly progress, decisions, owners, and due dates in that shared document.
+
 ## Agent Skills
 
 Project skills live in `.agents/skills/<name>/SKILL.md`. The `.claude/skills/<name>` entries are symlinks for Claude Code compatibility. When adding or updating a project skill, edit `.agents/skills` and keep the matching Claude symlink in place.
@@ -9,7 +13,7 @@ Project skills live in `.agents/skills/<name>/SKILL.md`. The `.claude/skills/<na
 Write comments for a reader who already knows this codebase. They are a colleague, not a
 student — so say the one thing the code cannot say, and stop.
 
-Keep: the non-obvious *why*, ordering constraints, and traps that will bite the next person
+Keep: the non-obvious _why_, ordering constraints, and traps that will bite the next person
 to edit this. Cut: vendor or company history, anything restating the line below it, narration
 of how the bug was found, and re-explanations of a named constant the reader can click
 through to. If a comment runs past about three lines, ask what you would delete.
