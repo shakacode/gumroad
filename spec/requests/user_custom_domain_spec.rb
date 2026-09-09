@@ -22,17 +22,17 @@ describe "UserCustomDomainScenario", type: :system, js: true do
   end
 
   describe "Follow / Unfollow" do
-    it "loads the user profile page and sends create follower request" do
+    it "loads the user profile page and sends create follower request", :product_rsc_renderer do
       visit "http://#{@custom_domain.domain}:#{@port}"
       submit_follow_form(with: "follower@gumroad.com")
       expect(page).to have_alert(text: "Check your inbox to confirm your follow request.")
     end
 
-    it "handles the follow confirmation request" do
+    it "handles the follow confirmation request", :product_rsc_renderer do
       follower = create(:follower, user: @user)
       expect(follower.confirmed_at).to be(nil)
       visit "http://#{@custom_domain.domain}:#{@port}#{confirm_follow_path(follower.external_id)}"
-      expect(page).to have_alert(text: "Thanks for the follow!")
+      expect(page).to have_selector("[role='status'], [role='alert']", text: "Thanks for the follow!", count: 1)
       expect(follower.reload.confirmed_at).not_to be(nil)
     end
 
@@ -49,7 +49,7 @@ describe "UserCustomDomainScenario", type: :system, js: true do
   end
 
   describe "product share_url" do
-    it "contains link to individual product page with custom domain" do
+    it "contains link to individual product page with custom domain", :product_rsc_renderer do
       visit "http://#{@custom_domain.domain}:#{@port}/"
       find_product_card(@product).click
       expect(page).to have_current_path("http://#{@custom_domain.domain}:#{@port}/l/#{@product.unique_permalink}?layout=profile")
@@ -57,7 +57,7 @@ describe "UserCustomDomainScenario", type: :system, js: true do
   end
 
   describe "gumroad logo" do
-    it "links to the homepage via Gumroad logo in the footer" do
+    it "links to the homepage via Gumroad logo in the footer", :product_rsc_renderer do
       visit "http://#{@custom_domain.domain}:#{@port}/"
       expect(find("main > footer")).to have_link("Gumroad", href: "#{UrlService.root_domain_with_protocol}/")
     end

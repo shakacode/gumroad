@@ -16,7 +16,11 @@ describe "Profile page search params", :elasticsearch_wait_for_refresh, type: :r
   end
 
   def get_profile(query = nil)
-    get "#{seller.subdomain_with_protocol}/#{query}", headers: { "X-Inertia" => "true" }
+    get "#{seller.subdomain_with_protocol}/#{query}", headers: {
+      "X-Inertia" => "true",
+      "X-Inertia-Partial-Component" => "Users/Show",
+      "X-Inertia-Partial-Data" => "sections",
+    }
   end
 
   it "renders when a visitor supplies a plain ?search= string" do

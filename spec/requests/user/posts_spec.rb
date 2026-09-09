@@ -33,7 +33,7 @@ describe("Posts on seller profile", type: :system, js: true) do
     create(:follower, user: seller, email: @follower.email, confirmed_at: Time.current)
   end
 
-  it "shows only the published audience profile posts" do
+  it "shows only the published audience profile posts", :product_rsc_renderer do
     def assert_posts
       expect(page).to_not have_link(@visible_product_post.name)
       expect(page).to_not have_link(@hidden_product_post.name)

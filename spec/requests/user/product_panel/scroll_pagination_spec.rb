@@ -2,7 +2,7 @@
 
 require("spec_helper")
 
-describe("Product panel on creator profile - infinite scroll pagination", type: :system, js: true) do
+describe("Product panel on creator profile - infinite scroll pagination", :product_rsc_renderer, type: :system, js: true) do
   before do
     @creator = create(:named_user)
     purchaser_email = "one@gr.test"
