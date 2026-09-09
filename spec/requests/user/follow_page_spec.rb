@@ -2,7 +2,7 @@
 
 require("spec_helper")
 
-describe "/follow page", type: :system, js: true do
+describe "/follow page", :product_rsc_renderer, type: :system, js: true do
   before do
     @email = generate(:email)
     # Reviewed and marked compliant: the subscribe form only accepts a follow

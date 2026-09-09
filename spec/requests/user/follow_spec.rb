@@ -3,7 +3,7 @@
 require "spec_helper"
 require "shared_examples/authorize_called"
 
-describe "User Follow Page Scenario", type: :system, js: true do
+describe "User Follow Page Scenario", :product_rsc_renderer, type: :system, js: true do
   include FillInUserProfileHelpers
 
   # Reviewed and marked compliant, because these examples drive the subscribe
