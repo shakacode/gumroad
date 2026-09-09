@@ -16,6 +16,7 @@ module PageMeta::Analytics
 
     def analytics_enabled?(seller: @user || current_seller)
       return false if @disable_third_party_analytics
+      return false if Rails.env.benchmark?
       return true unless seller.present?
       return false if !Rails.env.production? && !Rails.env.staging?
 
