@@ -1,0 +1,14 @@
+{
+  "case": "product-page-profile-layout-sticky-add-to-cart-phone-23e73d55",
+  "visual": {
+    "selector": "[data-checkout-scope]",
+    "misMatchPercentage": 0,
+    "diffPixels": 0
+  },
+  "sourceHashes": {
+    "ab-tests/product-page.abtest.ts": "cce5617f283e727f6a85f6d89e9eb890b8ee26db87321549da7ba5da3926ff86",
+    "config/shakaperf/prepare-navigation.ts": "9ca52e4ea3b54382a73b56ba2144c05146b3644ff06d7f0db0e7354a1c954cb0"
+  },
+  "scope": "Behavior check against existing twins; not isolated branch before/after statistics",
+  "report": "/tmp/rorp-isolated-behavior/compare-results/full-report.html"
+}
