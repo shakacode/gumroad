@@ -19,12 +19,7 @@ import {
 } from "$app/parsers/product";
 import { SellerReputation } from "$app/parsers/profile";
 import { classNames } from "$app/utils/classNames";
-import {
-  BuyerLocalCurrencyContext,
-  CurrencyCode,
-  formatBuyerLocalOrSetPrice,
-  formatPriceCentsWithCurrencySymbol,
-} from "$app/utils/currency";
+import { BuyerLocalCurrencyContext, CurrencyCode, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
 import { variantLabel } from "$app/utils/labels";
@@ -32,15 +27,7 @@ import { assertResponseError } from "$app/utils/request";
 import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
 import { Button, NavigationButton } from "$app/components/Button";
-import {
-  CartItem,
-  CartItemEnd,
-  CartItemFooter,
-  CartItemList,
-  CartItemMain,
-  CartItemMedia,
-  CartItemTitle,
-} from "$app/components/CartItemList";
+import { CartItemFooter, CartItemTitle } from "$app/components/CartItemList";
 import { CopyToClipboard } from "$app/components/CopyToClipboard";
 import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
@@ -48,11 +35,9 @@ import { Modal } from "$app/components/Modal";
 import { AuthorByline } from "$app/components/Product/AuthorByline";
 import {
   applySelection,
-  buyerLocalPriceCentsForSelection,
   buyerLocalContextFor,
   ConfigurationSelector,
   ConfigurationSelectorHandle,
-  getMaxQuantity,
   Option,
   PriceSelection,
   PurchasingPowerParityDetails,
@@ -63,15 +48,15 @@ import {
 import { Covers as CoversComponent } from "$app/components/Product/Covers";
 import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
-import { PriceTag } from "$app/components/Product/PriceTag";
-import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
+import { getStandalonePrice } from "$app/components/Product/pricing";
+import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import ProductDescription from "$app/components/Product/ProductDescription.client";
+import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
-import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
 import { Review as FormReview, ReviewForm } from "$app/components/ReviewForm";
@@ -229,42 +214,7 @@ export const formatDiscountAmount = (discount: Discount, buyerLocalContext: Buye
   });
 };
 
-export const useSelectionFromUrl = (product: Product) => {
-  const { searchParams } = new URL(useOriginalLocation());
-  return React.useState<PriceSelection>(() => {
-    const recurrence =
-      product.recurrences?.enabled.find(
-        // support legacy ?yearly=true parameters
-        ({ recurrence }) => recurrence === searchParams.get("recurrence") || searchParams.get(recurrence),
-      )?.recurrence ??
-      product.recurrences?.default ??
-      null;
-    const parsedOption = product.options.find(
-      // support legacy variant=name parameter
-      ({ id, name }) => id === searchParams.get("option") || name === searchParams.get("variant"),
-    );
-    const parsedQuantity = Number(searchParams.get("quantity"));
-    const optionId =
-      parsedOption && parsedOption.quantity_left !== 0
-        ? parsedOption.id
-        : (product.options.find(({ quantity_left }) => quantity_left !== 0)?.id ?? null);
-    const parsedPrice = Number(searchParams.get("price") ?? undefined);
-    const parsedCallStartTime = new Date(searchParams.get("call_start_time") ?? "");
-    const parsedPayInInstallments = searchParams.get("pay_in_installments") === "true" && !!product.installment_plan;
-    return {
-      recurrence,
-      rent: product.rental?.rent_only ?? false,
-      optionId,
-      quantity:
-        (product.is_quantity_enabled || product.is_multiseat_license) && parsedQuantity > 0
-          ? Math.min(parsedQuantity, getMaxQuantity(product, parsedOption ?? null) ?? Infinity)
-          : 1,
-      price: { value: parsedPrice >= 0 ? parsedPrice * 100 : null, error: false },
-      callStartTime: isNaN(parsedCallStartTime.getTime()) ? null : parsedCallStartTime.toISOString(),
-      payInInstallments: parsedPayInInstallments,
-    };
-  });
-};
+export { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client";
 
 export type Props = {
   product: Product;
@@ -312,7 +262,7 @@ export const Product = ({
 
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
-  const { priceCents, discountedPriceCents, pppDiscounted, isPWYW, maxQuantity, selectedOption } = selectionAttributes;
+  const { priceCents, discountedPriceCents, pppDiscounted, isPWYW, maxQuantity } = selectionAttributes;
   React.useEffect(() => {
     if (maxQuantity !== null && selection.quantity > maxQuantity)
       setSelection?.({ ...selection, quantity: maxQuantity });
@@ -346,7 +296,6 @@ export const Product = ({
   // that costs extra there is no honest comparison to draw, so this is null
   // and nothing is struck through. Kept separate from basePriceCents, which
   // also drives whether the price tag renders at all.
-  const comparisonPriceCents = isBundle ? getBundleComparisonPriceCents(product, selectedOption) : basePriceCents;
 
   const validate = () => {
     if (isPWYW && (selection.price.value === null || selection.price.value < discountedPriceCents)) {
@@ -414,32 +363,7 @@ export const Product = ({
         {/* Stack on mobile: an inflated price in an auto track leaves the name ~1ch
             wide, and overflow-wrap:anywhere then stacks it one character at a time. */}
         <section className="grid grid-cols-1 gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
-          {showPrice ? (
-            <div className="px-6 py-4 outline outline-offset-0 outline-border">
-              <PriceTag
-                currencyCode={product.currency_code}
-                oldPrice={
-                  comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents
-                    ? comparisonPriceCents
-                    : undefined
-                }
-                price={discountedPriceCents}
-                url={product.long_url}
-                isPayWhatYouWant={!!product.pwyw}
-                isSalesLimited={product.is_sales_limited}
-                creatorName={product.seller?.name}
-                buyerCurrency={product.buyer_currency}
-                buyerLocalCurrencyRate={product.buyer_local_currency_rate}
-                buyerLocalCurrencySubunitToUnit={product.buyer_local_currency_subunit_to_unit}
-                buyerLocalPriceCents={buyerLocalPriceCentsForSelection(
-                  product.buyer_local_price_cents,
-                  discountCode?.valid ? discountCode.discount : null,
-                  selection.quantity,
-                )}
-                buyerLocalOriginalPriceCents={product.buyer_local_original_price_cents}
-              />
-            </div>
-          ) : null}
+          <ProductPrice product={product} selection={selection} discountCode={discountCode} />
           {sellerByline ? (
             <div
               className={classNames(
@@ -482,64 +406,37 @@ export const Product = ({
             hasDownload={!product.is_physical && product.native_type !== "call" && product.native_type !== "commission"}
           />
         ) : null}
-        {isBundle ? (
-          <section className="grid gap-4 border-t border-border p-6">
-            <h2>This bundle contains...</h2>
-            <CartItemList>
-              {product.bundle_products.map((bundleProduct) => {
-                const price =
-                  bundleProduct.currency_code === product.currency_code
-                    ? formatBuyerLocalOrSetPrice(bundleProduct.price, {
-                        currencyCode: product.currency_code,
-                        buyerCurrency: product.buyer_currency,
-                        buyerLocalCurrencyRate: product.buyer_local_currency_rate,
-                        buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
-                      })
-                    : formatPriceCentsWithCurrencySymbol(bundleProduct.currency_code, bundleProduct.price, {
-                        symbolFormat: "long",
-                      });
-                return (
-                  <CartItem key={bundleProduct.id} isBundleItem>
-                    <CartItemMedia className="h-16 w-16 shrink-0 sm:h-28 sm:w-28">
-                      <Thumbnail url={bundleProduct.thumbnail_url} nativeType={bundleProduct.native_type} />
-                    </CartItemMedia>
-                    {/* Checkout's floor: without it a wide price squeezes this to one letter/line. */}
-                    <CartItemMain className="min-h-16 min-w-2/5 sm:h-28">
-                      <CartItemTitle asChild>
-                        <a href={bundleProduct.url}>
-                          <h4 className="font-bold wrap-break-word">{bundleProduct.name}</h4>
-                        </a>
-                      </CartItemTitle>
-                      {bundleProduct.ratings ? (
-                        <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
-                          <Star pack="filled" className="size-5" />
-                          {`${bundleProduct.ratings.average.toFixed(1)} (${bundleProduct.ratings.count})`}
-                        </div>
-                      ) : null}
-                      <span className="sr-only">Qty: {bundleProduct.quantity}</span>
-                      {bundleProduct.variant ? (
-                        <CartItemFooter>
-                          <span className="line-clamp-1">
-                            <strong>{variantLabel(bundleProduct.native_type)}:</strong> {bundleProduct.variant}
-                          </span>
-                        </CartItemFooter>
-                      ) : null}
-                    </CartItemMain>
-                    <CartItemEnd className="max-w-1/2 shrink-0 flex-row items-start gap-4 p-4 text-right">
-                      <span className="current-price whitespace-nowrap" aria-label="Price">
-                        {comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents ? (
-                          <s>{price}</s>
-                        ) : (
-                          price
-                        )}
-                      </span>
-                    </CartItemEnd>
-                  </CartItem>
-                );
-              })}
-            </CartItemList>
-          </section>
-        ) : null}
+        <ProductBundle
+          product={product}
+          selection={selection}
+          discountCode={discountCode}
+          bundleItems={Object.fromEntries(
+            product.bundle_products.map((bundleProduct) => [
+              bundleProduct.id,
+              <>
+                <CartItemTitle asChild>
+                  <a href={bundleProduct.url}>
+                    <h4 className="font-bold wrap-break-word">{bundleProduct.name}</h4>
+                  </a>
+                </CartItemTitle>
+                {bundleProduct.ratings ? (
+                  <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
+                    <Star pack="filled" className="size-5" />
+                    {`${bundleProduct.ratings.average.toFixed(1)} (${bundleProduct.ratings.count})`}
+                  </div>
+                ) : null}
+                <span className="sr-only">Qty: {bundleProduct.quantity}</span>
+                {bundleProduct.variant ? (
+                  <CartItemFooter>
+                    <span className="line-clamp-1">
+                      <strong>{variantLabel(bundleProduct.native_type)}:</strong> {bundleProduct.variant}
+                    </span>
+                  </CartItemFooter>
+                ) : null}
+              </>,
+            ]),
+          )}
+        />
         <section className="border-t border-border p-6">
           <ProductDescription
             descriptionHtml={product.description_html}
