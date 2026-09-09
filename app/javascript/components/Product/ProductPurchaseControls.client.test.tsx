@@ -477,7 +477,7 @@ describe("supporting purchase actions", () => {
       "https://app.example.com/products/product/edit",
     );
 
-    rerender(<ProductLicenseKeyLookup />);
+    rerender(<ProductLicenseKeyLookup isLicensed hasDownload={false} />);
     expect(screen.getByRole("link", { name: "View your information" }).getAttribute("href")).toBe(
       "https://example.com/license-key-lookup",
     );
