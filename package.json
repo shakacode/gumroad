@@ -97,6 +97,7 @@
     "prettier-plugin-tailwindcss": "^0.6.14",
     "rollup-plugin-visualizer": "^7.0.1",
     "sass": "~1.77.0",
+    "shaka-shared": "0.2.4",
     "svgo": "^3.0.2",
     "tailwindcss": "^4.1.14",
     "ts-patch": "^3.3.0",
