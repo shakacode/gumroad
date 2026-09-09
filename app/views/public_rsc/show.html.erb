@@ -1,0 +1,13 @@
+<% component_options = {
+  props: @public_rsc_props,
+  replay_console: false,
+  trace: false,
+  id: @public_rsc_root_id
+} %>
+<% if @public_rsc_async_props.present? %>
+  <%= stream_react_component_with_async_props(@public_rsc_component_name, component_options) do |emit| %>
+    <% @public_rsc_async_props.each { |name, value| emit.call(name.to_s, value.call) } %>
+  <% end %>
+<% else %>
+  <%= stream_react_component(@public_rsc_component_name, component_options) %>
+<% end %>
