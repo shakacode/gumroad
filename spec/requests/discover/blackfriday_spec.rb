@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-describe("Black Friday 2025", js: true, type: :system) do
+describe("Black Friday 2025", :product_rsc_renderer, js: true, type: :system) do
   let(:discover_host) { UrlService.discover_domain_with_protocol }
 
   before do
