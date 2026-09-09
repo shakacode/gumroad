@@ -94,19 +94,19 @@ class Thumbnail < ApplicationRecord
     return unless file.attached?
 
     # Don't post process for gifs
-    return cdn_url_for(file.url) if file.content_type.include?("gif")
+    return cdn_url_for(storage_url_for(file)) if file.content_type.include?("gif")
 
     case variant
     when :default
-      cdn_url_for(thumbnail_variant.url)
+      cdn_url_for(storage_url_for(thumbnail_variant))
     when :original
-      cdn_url_for(file.url)
+      cdn_url_for(storage_url_for(file))
     else
-      cdn_url_for(file.url)
+      cdn_url_for(storage_url_for(file))
     end
   rescue MiniMagick::Error, ActiveStorage::Error, Errno::ENOENT => e
     Rails.logger.warn("Thumbnail#url error (#{id}): #{e.class} => #{e.message}")
-    cdn_url_for(file.url)
+    cdn_url_for(storage_url_for(file))
   end
 
   def thumbnail_variant
