@@ -1,0 +1,4990 @@
+{
+  "comparison": "Inertia control versus Inertia fixes",
+  "run_id": "2026-09-09T21:48:50.397Z",
+  "control_sha": "c8ec0c727b51b6a27d85ba0b904161583ba4dc2e",
+  "experiment_sha": "c08deb5e58b6016cac253f38636489d672d4c620",
+  "cases": [
+    {
+      "case": "discover-showcase-dark-cold-landing-desktop-f758eb28",
+      "stages": {
+        "perf": "skipped",
+        "visreg": "ok",
+        "accessibility": "ok"
+      },
+      "visual": [
+        {
+          "selector": "viewport",
+          "misMatchPercentage": 0,
+          "diffPixels": 0,
+          "savedByRetries": false,
+          "controlImage": "discover-showcase-dark-cold-landing-desktop-f758eb28/artifacts/control_screenshots/Discover_showcase_-_dark_cold_landing_0_viewport_0_desktop__71c981208bad92d2bcd2d8d603ee6463dca54d02.png",
+          "experimentImage": "discover-showcase-dark-cold-landing-desktop-f758eb28/artifacts/experiment_screenshots/Discover_showcase_-_dark_cold_landing_0_viewport_0_desktop__71c981208bad92d2bcd2d8d603ee6463dca54d02.png",
+          "diffImage": null
+        }
+      ],
+      "accessibility_rules": [
+        {
+          "rule": "aria-allowed-attr",
+          "control_nodes": 9,
+          "experiment_nodes": 9,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "aria-required-children",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "aria-roles",
+          "control_nodes": 1,
+          "experiment_nodes": 0,
+          "node_count_delta": -1,
+          "removed_targets": [["div[role=\"nav\"]"]],
+          "added_targets": []
+        },
+        {
+          "rule": "button-name",
+          "control_nodes": 2,
+          "experiment_nodes": 0,
+          "node_count_delta": -2,
+          "removed_targets": [[".gap-2.items-center.flex > button:nth-child(2)"], ["button:nth-child(1)"]],
+          "added_targets": []
+        },
+        {
+          "rule": "color-contrast",
+          "control_nodes": 8,
+          "experiment_nodes": 8,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "heading-order",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "image-alt",
+          "control_nodes": 29,
+          "experiment_nodes": 29,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "landmark-one-main",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "link-name",
+          "control_nodes": 5,
+          "experiment_nodes": 5,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "page-has-heading-one",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "region",
+          "control_nodes": 74,
+          "experiment_nodes": 74,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        }
+      ]
+    },
+    {
+      "case": "discover-showcase-dark-cold-landing-phone-ae6a7a0c",
+      "stages": {
+        "perf": "skipped",
+        "visreg": "ok",
+        "accessibility": "ok"
+      },
+      "visual": [
+        {
+          "selector": "viewport",
+          "misMatchPercentage": 0,
+          "diffPixels": 0,
+          "savedByRetries": false,
+          "controlImage": "discover-showcase-dark-cold-landing-phone-ae6a7a0c/artifacts/control_screenshots/Discover_showcase_-_dark_cold_landing_0_viewport_0_phone__6a35d5dc16fbc6f2a25cc3cc87f3fd95cfaddbbe.png",
+          "experimentImage": "discover-showcase-dark-cold-landing-phone-ae6a7a0c/artifacts/experiment_screenshots/Discover_showcase_-_dark_cold_landing_0_viewport_0_phone__6a35d5dc16fbc6f2a25cc3cc87f3fd95cfaddbbe.png",
+          "diffImage": null
+        }
+      ],
+      "accessibility_rules": [
+        {
+          "rule": "aria-roles",
+          "control_nodes": 1,
+          "experiment_nodes": 0,
+          "node_count_delta": -1,
+          "removed_targets": [["div[role=\"nav\"]"]],
+          "added_targets": []
+        },
+        {
+          "rule": "button-name",
+          "control_nodes": 2,
+          "experiment_nodes": 0,
+          "node_count_delta": -2,
+          "removed_targets": [[".all-unset:nth-child(1)"], [".gap-2.items-center.flex > .all-unset:nth-child(2)"]],
+          "added_targets": []
+        },
+        {
+          "rule": "heading-order",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "image-alt",
+          "control_nodes": 29,
+          "experiment_nodes": 29,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "landmark-one-main",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "link-name",
+          "control_nodes": 5,
+          "experiment_nodes": 5,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "page-has-heading-one",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "region",
+          "control_nodes": 82,
+          "experiment_nodes": 82,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        }
+      ]
+    },
+    {
+      "case": "discover-showcase-light-cold-landing-desktop-613ebe77",
+      "stages": {
+        "perf": "ok",
+        "visreg": "ok",
+        "accessibility": "ok"
+      },
+      "performance": [
+        {
+          "metric": "FCP",
+          "unit": "ms",
+          "control_median": 8042,
+          "experiment_median": 7711,
+          "median_difference": -331,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.1297,
+          "significant": false,
+          "reported_estimator_delta": "-143ms"
+        },
+        {
+          "metric": "LCP",
+          "unit": "ms",
+          "control_median": 9069,
+          "experiment_median": 8642,
+          "median_difference": -427,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.2121,
+          "significant": false,
+          "reported_estimator_delta": "-97ms"
+        },
+        {
+          "metric": "downloads",
+          "unit": "KB",
+          "control_median": 1576.2,
+          "experiment_median": 1462.7,
+          "median_difference": -113.5,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.0002137,
+          "significant": true,
+          "reported_estimator_delta": "-113.4KB"
+        },
+        {
+          "metric": "downloads-count",
+          "unit": "requests",
+          "control_median": 93,
+          "experiment_median": 89,
+          "median_difference": -4,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.0001254,
+          "significant": true,
+          "reported_estimator_delta": "-4"
+        },
+        {
+          "metric": "js",
+          "unit": "KB",
+          "control_median": 911.4,
+          "experiment_median": 912.9,
+          "median_difference": 1.5,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 2.467e-5,
+          "significant": true,
+          "reported_estimator_delta": "1.4KB"
+        },
+        {
+          "metric": "js-count",
+          "unit": "requests",
+          "control_median": 62,
+          "experiment_median": 62,
+          "median_difference": 0,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 1,
+          "significant": false,
+          "reported_estimator_delta": "0"
+        },
+        {
+          "metric": "images",
+          "unit": "KB",
+          "control_median": 50.4,
+          "experiment_median": 50.5,
+          "median_difference": 0.10000000000000142,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 2.467e-5,
+          "significant": true,
+          "reported_estimator_delta": "0.1KB"
+        },
+        {
+          "metric": "images-count",
+          "unit": "requests",
+          "control_median": 4,
+          "experiment_median": 4,
+          "median_difference": 0,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 1,
+          "significant": false,
+          "reported_estimator_delta": "0"
+        }
+      ],
+      "raw_transfer_medians": {
+        "control": {
+          "downloads_bytes": {
+            "median": 1614012.5,
+            "samples": 18
+          },
+          "downloads-count": {
+            "median": 93.0,
+            "samples": 18
+          },
+          "js_bytes": {
+            "median": 933298.0,
+            "samples": 18
+          },
+          "js-count": {
+            "median": 62.0,
+            "samples": 18
+          },
+          "images_bytes": {
+            "median": 51586.0,
+            "samples": 18
+          },
+          "images-count": {
+            "median": 4.0,
+            "samples": 18
+          }
+        },
+        "experiment": {
+          "downloads_bytes": {
+            "median": 1497833.0,
+            "samples": 18
+          },
+          "downloads-count": {
+            "median": 89.0,
+            "samples": 18
+          },
+          "js_bytes": {
+            "median": 934775.0,
+            "samples": 18
+          },
+          "js-count": {
+            "median": 62.0,
+            "samples": 18
+          },
+          "images_bytes": {
+            "median": 51694.0,
+            "samples": 18
+          },
+          "images-count": {
+            "median": 4.0,
+            "samples": 18
+          }
+        }
+      },
+      "transfer_note": "Transfer values retain the report KB unit and rounding; not inferred exact bytes.",
+      "visual": [
+        {
+          "selector": "viewport",
+          "misMatchPercentage": 0,
+          "diffPixels": 0,
+          "savedByRetries": false,
+          "controlImage": "discover-showcase-light-cold-landing-desktop-613ebe77/artifacts/control_screenshots/Discover_showcase_-_light_cold_landing_0_viewport_0_desktop__0da8a65493093da7a7e4950ed7b2e644ceef9910.png",
+          "experimentImage": "discover-showcase-light-cold-landing-desktop-613ebe77/artifacts/experiment_screenshots/Discover_showcase_-_light_cold_landing_0_viewport_0_desktop__0da8a65493093da7a7e4950ed7b2e644ceef9910.png",
+          "diffImage": null
+        }
+      ],
+      "accessibility_rules": [
+        {
+          "rule": "aria-allowed-attr",
+          "control_nodes": 9,
+          "experiment_nodes": 9,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "aria-required-children",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "aria-roles",
+          "control_nodes": 1,
+          "experiment_nodes": 0,
+          "node_count_delta": -1,
+          "removed_targets": [["div[role=\"nav\"]"]],
+          "added_targets": []
+        },
+        {
+          "rule": "button-name",
+          "control_nodes": 2,
+          "experiment_nodes": 0,
+          "node_count_delta": -2,
+          "removed_targets": [[".gap-2.items-center.flex > button:nth-child(2)"], ["button:nth-child(1)"]],
+          "added_targets": []
+        },
+        {
+          "rule": "color-contrast",
+          "control_nodes": 8,
+          "experiment_nodes": 8,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "heading-order",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "image-alt",
+          "control_nodes": 29,
+          "experiment_nodes": 29,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "landmark-one-main",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "link-name",
+          "control_nodes": 5,
+          "experiment_nodes": 5,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "page-has-heading-one",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "region",
+          "control_nodes": 74,
+          "experiment_nodes": 74,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        }
+      ]
+    },
+    {
+      "case": "discover-showcase-light-cold-landing-phone-a3acd65a",
+      "stages": {
+        "perf": "ok",
+        "visreg": "ok",
+        "accessibility": "ok"
+      },
+      "performance": [
+        {
+          "metric": "FCP",
+          "unit": "ms",
+          "control_median": 9285,
+          "experiment_median": 9121,
+          "median_difference": -164,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.5226,
+          "significant": false,
+          "reported_estimator_delta": "-118ms"
+        },
+        {
+          "metric": "LCP",
+          "unit": "ms",
+          "control_median": 10799,
+          "experiment_median": 10481,
+          "median_difference": -318,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.04317,
+          "significant": true,
+          "reported_estimator_delta": "-292ms"
+        },
+        {
+          "metric": "downloads",
+          "unit": "KB",
+          "control_median": 1576.4,
+          "experiment_median": 1463,
+          "median_difference": -113.40000000000009,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.0002137,
+          "significant": true,
+          "reported_estimator_delta": "-113.4KB"
+        },
+        {
+          "metric": "downloads-count",
+          "unit": "requests",
+          "control_median": 93,
+          "experiment_median": 89,
+          "median_difference": -4,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 0.0001286,
+          "significant": true,
+          "reported_estimator_delta": "-4"
+        },
+        {
+          "metric": "js",
+          "unit": "KB",
+          "control_median": 911.4,
+          "experiment_median": 912.9,
+          "median_difference": 1.5,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 2.467e-5,
+          "significant": true,
+          "reported_estimator_delta": "1.4KB"
+        },
+        {
+          "metric": "js-count",
+          "unit": "requests",
+          "control_median": 62,
+          "experiment_median": 62,
+          "median_difference": 0,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 1,
+          "significant": false,
+          "reported_estimator_delta": "0"
+        },
+        {
+          "metric": "images",
+          "unit": "KB",
+          "control_median": 50.4,
+          "experiment_median": 50.5,
+          "median_difference": 0.10000000000000142,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 2.467e-5,
+          "significant": true,
+          "reported_estimator_delta": "0.1KB"
+        },
+        {
+          "metric": "images-count",
+          "unit": "requests",
+          "control_median": 4,
+          "experiment_median": 4,
+          "median_difference": 0,
+          "control_samples": 18,
+          "experiment_samples": 18,
+          "p_value": 1,
+          "significant": false,
+          "reported_estimator_delta": "0"
+        }
+      ],
+      "raw_transfer_medians": {
+        "control": {
+          "downloads_bytes": {
+            "median": 1614191.5,
+            "samples": 18
+          },
+          "downloads-count": {
+            "median": 93.0,
+            "samples": 18
+          },
+          "js_bytes": {
+            "median": 933298.0,
+            "samples": 18
+          },
+          "js-count": {
+            "median": 62.0,
+            "samples": 18
+          },
+          "images_bytes": {
+            "median": 51586.0,
+            "samples": 18
+          },
+          "images-count": {
+            "median": 4.0,
+            "samples": 18
+          }
+        },
+        "experiment": {
+          "downloads_bytes": {
+            "median": 1498083.0,
+            "samples": 18
+          },
+          "downloads-count": {
+            "median": 89.0,
+            "samples": 18
+          },
+          "js_bytes": {
+            "median": 934775.0,
+            "samples": 18
+          },
+          "js-count": {
+            "median": 62.0,
+            "samples": 18
+          },
+          "images_bytes": {
+            "median": 51694.0,
+            "samples": 18
+          },
+          "images-count": {
+            "median": 4.0,
+            "samples": 18
+          }
+        }
+      },
+      "transfer_note": "Transfer values retain the report KB unit and rounding; not inferred exact bytes.",
+      "visual": [
+        {
+          "selector": "viewport",
+          "misMatchPercentage": 0,
+          "diffPixels": 0,
+          "savedByRetries": false,
+          "controlImage": "discover-showcase-light-cold-landing-phone-a3acd65a/artifacts/control_screenshots/Discover_showcase_-_light_cold_landing_0_viewport_0_phone__4fb86f02e4d1e9bf236188876b959a61702bf9c5.png",
+          "experimentImage": "discover-showcase-light-cold-landing-phone-a3acd65a/artifacts/experiment_screenshots/Discover_showcase_-_light_cold_landing_0_viewport_0_phone__4fb86f02e4d1e9bf236188876b959a61702bf9c5.png",
+          "diffImage": null
+        }
+      ],
+      "accessibility_rules": [
+        {
+          "rule": "aria-roles",
+          "control_nodes": 1,
+          "experiment_nodes": 0,
+          "node_count_delta": -1,
+          "removed_targets": [["div[role=\"nav\"]"]],
+          "added_targets": []
+        },
+        {
+          "rule": "button-name",
+          "control_nodes": 2,
+          "experiment_nodes": 0,
+          "node_count_delta": -2,
+          "removed_targets": [[".all-unset:nth-child(1)"], [".gap-2.items-center.flex > .all-unset:nth-child(2)"]],
+          "added_targets": []
+        },
+        {
+          "rule": "heading-order",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "image-alt",
+          "control_nodes": 29,
+          "experiment_nodes": 29,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "landmark-one-main",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "link-name",
+          "control_nodes": 5,
+          "experiment_nodes": 5,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "page-has-heading-one",
+          "control_nodes": 1,
+          "experiment_nodes": 1,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        },
+        {
+          "rule": "region",
+          "control_nodes": 82,
+          "experiment_nodes": 82,
+          "node_count_delta": 0,
+          "removed_targets": [],
+          "added_targets": []
+        }
+      ]
+    }
+  ],
+  "source_sha256": {
+    "discover-showcase-dark-cold-landing-desktop-f758eb28/perf.json": "22d016a7428e27f545696f3fe3a6b28b7f8bf69fe3060eb39875b5c54c73ca5e",
+    "discover-showcase-dark-cold-landing-desktop-f758eb28/visreg.json": "14de45b7beda375a7a7c228a084812b03ca30c11f32353a19e6e90e6ad1c0ca4",
+    "discover-showcase-dark-cold-landing-desktop-f758eb28/accessibility.json": "669bf662d10b712ef02eac6a75befbc530d81cb58242332b9eca931006daf5be",
+    "discover-showcase-dark-cold-landing-phone-ae6a7a0c/perf.json": "0e35334f6d765852327de017276c93b423a037c5f99a507c2238fc056daa9305",
+    "discover-showcase-dark-cold-landing-phone-ae6a7a0c/visreg.json": "d55e05f707594142a9bcdc6f81c3c26c7293af4737ae9c596ca66547bf0628c2",
+    "discover-showcase-dark-cold-landing-phone-ae6a7a0c/accessibility.json": "3b22f46e50f998cb0a46e22acfbff8b238534bcd88a1b7f01aae70ab49b69baf",
+    "discover-showcase-light-cold-landing-desktop-613ebe77/perf.json": "6a48f5a14834cabe151aafe667b509e8dbbc286daa047befe2c21b7d38fadad8",
+    "discover-showcase-light-cold-landing-desktop-613ebe77/visreg.json": "14b6d3fbfdd9e2a205aac2d1979e2a885b7db23c25253d57cc57eb2e0e85a21c",
+    "discover-showcase-light-cold-landing-desktop-613ebe77/accessibility.json": "94121352aed0856f84792b3693f99978574b802bbe013423f7609b6be784a729",
+    "discover-showcase-light-cold-landing-desktop-613ebe77/artifacts/report.json": "55a0c553fb1a15d1dc9179976982de6dad6d638e3da4a910e99902e8cb70ec8d",
+    "discover-showcase-light-cold-landing-desktop-613ebe77/artifacts/ab-measurements.json": "e7567f88e4d617a7f5ca17d007ba11d1f93b6485c15276215ce6c2f33c12c7d0",
+    "discover-showcase-light-cold-landing-phone-a3acd65a/perf.json": "d4e067053e6839bc393d164d1e6ef0463ec4ecc90de90ac9dc804ff69c858294",
+    "discover-showcase-light-cold-landing-phone-a3acd65a/visreg.json": "ea73bf34014cdcbf3d42230888166948f7d24f10620c112e3816d320b3d0e8fe",
+    "discover-showcase-light-cold-landing-phone-a3acd65a/accessibility.json": "2b9fc09018b794f3031533dd4ccfd91ec307ecf5cd1a76b454797fc103c82a3b",
+    "discover-showcase-light-cold-landing-phone-a3acd65a/artifacts/report.json": "9d4bd6481721609f880a727e62e933964096cd88000c2f8dd4d098d1343cde26",
+    "discover-showcase-light-cold-landing-phone-a3acd65a/artifacts/ab-measurements.json": "9af69427a1a59616b8a1d5b63877b42969843cdec3e83a9b577d0167e8b25ced"
+  },
+  "limits": [
+    "Commit labels must be independently tied to the served builds.",
+    "Skipped/error/missing stages are not passes.",
+    "Axe target changes can reflect selector instability; inspect affected nodes."
+  ],
+  "command_exit_code": 1,
+  "regressed_metrics": ["js"],
+  "published_control_sha": "652b994c0b2510b004821b79d4cb6d9244bc42c1",
+  "published_experiment_sha": "deab778216f7343569507ada7f97ebc8b782a7d6",
+  "harness_note": "The published commits differ from measured image commits only in the showcase test path/comment. All application source files match the image provenance audits.",
+  "analysis": {
+    "run_id": "2026-09-09T21:48:50.397Z",
+    "metrics": [
+      {
+        "case": "discover-showcase-light-cold-landing-desktop-613ebe77",
+        "performance": [
+          {
+            "metric": "FCP",
+            "unit": "ms",
+            "control_median": 8042,
+            "experiment_median": 7711,
+            "median_difference": -331,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.1297,
+            "significant": false,
+            "reported_estimator_delta": "-143ms"
+          },
+          {
+            "metric": "LCP",
+            "unit": "ms",
+            "control_median": 9069,
+            "experiment_median": 8642,
+            "median_difference": -427,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.2121,
+            "significant": false,
+            "reported_estimator_delta": "-97ms"
+          },
+          {
+            "metric": "downloads",
+            "unit": "KB",
+            "control_median": 1576.2,
+            "experiment_median": 1462.7,
+            "median_difference": -113.5,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.0002137,
+            "significant": true,
+            "reported_estimator_delta": "-113.4KB"
+          },
+          {
+            "metric": "downloads-count",
+            "unit": "requests",
+            "control_median": 93,
+            "experiment_median": 89,
+            "median_difference": -4,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.0001254,
+            "significant": true,
+            "reported_estimator_delta": "-4"
+          },
+          {
+            "metric": "js",
+            "unit": "KB",
+            "control_median": 911.4,
+            "experiment_median": 912.9,
+            "median_difference": 1.5,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 2.467e-5,
+            "significant": true,
+            "reported_estimator_delta": "1.4KB"
+          },
+          {
+            "metric": "js-count",
+            "unit": "requests",
+            "control_median": 62,
+            "experiment_median": 62,
+            "median_difference": 0,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 1,
+            "significant": false,
+            "reported_estimator_delta": "0"
+          },
+          {
+            "metric": "images",
+            "unit": "KB",
+            "control_median": 50.4,
+            "experiment_median": 50.5,
+            "median_difference": 0.10000000000000142,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 2.467e-5,
+            "significant": true,
+            "reported_estimator_delta": "0.1KB"
+          },
+          {
+            "metric": "images-count",
+            "unit": "requests",
+            "control_median": 4,
+            "experiment_median": 4,
+            "median_difference": 0,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 1,
+            "significant": false,
+            "reported_estimator_delta": "0"
+          }
+        ]
+      },
+      {
+        "case": "discover-showcase-light-cold-landing-phone-a3acd65a",
+        "performance": [
+          {
+            "metric": "FCP",
+            "unit": "ms",
+            "control_median": 9285,
+            "experiment_median": 9121,
+            "median_difference": -164,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.5226,
+            "significant": false,
+            "reported_estimator_delta": "-118ms"
+          },
+          {
+            "metric": "LCP",
+            "unit": "ms",
+            "control_median": 10799,
+            "experiment_median": 10481,
+            "median_difference": -318,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.04317,
+            "significant": true,
+            "reported_estimator_delta": "-292ms"
+          },
+          {
+            "metric": "downloads",
+            "unit": "KB",
+            "control_median": 1576.4,
+            "experiment_median": 1463,
+            "median_difference": -113.40000000000009,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.0002137,
+            "significant": true,
+            "reported_estimator_delta": "-113.4KB"
+          },
+          {
+            "metric": "downloads-count",
+            "unit": "requests",
+            "control_median": 93,
+            "experiment_median": 89,
+            "median_difference": -4,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 0.0001286,
+            "significant": true,
+            "reported_estimator_delta": "-4"
+          },
+          {
+            "metric": "js",
+            "unit": "KB",
+            "control_median": 911.4,
+            "experiment_median": 912.9,
+            "median_difference": 1.5,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 2.467e-5,
+            "significant": true,
+            "reported_estimator_delta": "1.4KB"
+          },
+          {
+            "metric": "js-count",
+            "unit": "requests",
+            "control_median": 62,
+            "experiment_median": 62,
+            "median_difference": 0,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 1,
+            "significant": false,
+            "reported_estimator_delta": "0"
+          },
+          {
+            "metric": "images",
+            "unit": "KB",
+            "control_median": 50.4,
+            "experiment_median": 50.5,
+            "median_difference": 0.10000000000000142,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 2.467e-5,
+            "significant": true,
+            "reported_estimator_delta": "0.1KB"
+          },
+          {
+            "metric": "images-count",
+            "unit": "requests",
+            "control_median": 4,
+            "experiment_median": 4,
+            "median_difference": 0,
+            "control_samples": 18,
+            "experiment_samples": 18,
+            "p_value": 1,
+            "significant": false,
+            "reported_estimator_delta": "0"
+          }
+        ]
+      }
+    ],
+    "low_noise_network": {
+      "discover-showcase-light-cold-landing-phone-a3acd65a": {
+        "control": [
+          {
+            "url": "/software-development",
+            "logged_kib": 16.88,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 28.41,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-BGhdfnG0.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 493.92,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 4.03,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 5.32,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 3.01,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 171.42,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-DaiO-Efb.js",
+            "logged_kib": 28.34,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-Cde5upRw.js",
+            "logged_kib": 25.66,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Index-CeXos5nT.js",
+            "logged_kib": 12.87,
+            "normalized": "/vite/assets/Index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/array-ClnQDgBW.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/array-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Layout-BPrKwM7n.js",
+            "logged_kib": 23.95,
+            "normalized": "/vite/assets/Layout-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartNavigationButton-C2IWh1Fr.js",
+            "logged_kib": 2.6,
+            "normalized": "/vite/assets/CartNavigationButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/cart-BSCaZLOV.js",
+            "logged_kib": 3.17,
+            "normalized": "/vite/assets/cart-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Sheet-94B_B88W.js",
+            "logged_kib": 2.72,
+            "normalized": "/vite/assets/Sheet-HASH.js"
+          },
+          {
+            "url": "/vite/assets/mobile-DAmUKAtR.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/mobile-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnOutsideClick-DO2ha5IL.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/useOnOutsideClick-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useIsAboveBreakpoint-BoWKMuJE.js",
+            "logged_kib": 2.61,
+            "normalized": "/vite/assets/useIsAboveBreakpoint-HASH.js"
+          },
+          {
+            "url": "/vite/assets/styles-DMWAjUbK.js",
+            "logged_kib": 2.74,
+            "normalized": "/vite/assets/styles-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ComboBox-rfGOgAnX.js",
+            "logged_kib": 3.48,
+            "normalized": "/vite/assets/ComboBox-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useDebouncedCallback-BmF7fGz8.js",
+            "logged_kib": 2.44,
+            "normalized": "/vite/assets/useDebouncedCallback-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnChange-BdHxL4LQ.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/useOnChange-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-cover-DTLpjN1o.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/product-cover-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-DXz3peBc.js",
+            "logged_kib": 3.72,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/PriceTag-DVfPOkEE.js",
+            "logged_kib": 3.17,
+            "normalized": "/vite/assets/PriceTag-HASH.js"
+          },
+          {
+            "url": "/vite/assets/recurringPricing-DXePVW59.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/recurringPricing-HASH.js"
+          },
+          {
+            "url": "/vite/assets/AuthorByline-DRn87-Su.js",
+            "logged_kib": 2.97,
+            "normalized": "/vite/assets/AuthorByline-HASH.js"
+          },
+          {
+            "url": "/vite/assets/WithTooltip-B05z6xsS.js",
+            "logged_kib": 2.91,
+            "normalized": "/vite/assets/WithTooltip-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Thumbnail-B_cXkD_U.js",
+            "logged_kib": 14.2,
+            "normalized": "/vite/assets/Thumbnail-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCard-nWT1YtVk.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/ProductCard-HASH.js"
+          },
+          {
+            "url": "/vite/assets/StretchedLink-65XdRsVN.js",
+            "logged_kib": 2.52,
+            "normalized": "/vite/assets/StretchedLink-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCardGrid-BnQje41t.js",
+            "logged_kib": 2.54,
+            "normalized": "/vite/assets/ProductCardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CardGrid-lMZMmQTg.js",
+            "logged_kib": 9.27,
+            "normalized": "/vite/assets/CardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/index-CWrf5qqK.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FollowButton-C7zlyYTa.js",
+            "logged_kib": 2.87,
+            "normalized": "/vite/assets/FollowButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/wishlists-BmmkejqI.js",
+            "logged_kib": 6.35,
+            "normalized": "/vite/assets/wishlists-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-DQ_2k9gx.js",
+            "logged_kib": 2.44,
+            "normalized": "/vite/assets/product-HASH.js"
+          },
+          {
+            "url": "/vite/assets/promise-BfxSSwHN.js",
+            "logged_kib": 2.31,
+            "normalized": "/vite/assets/promise-HASH.js"
+          },
+          {
+            "url": "/vite/assets/LoadingSpinner-C-WCE48R.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/LoadingSpinner-HASH.js"
+          },
+          {
+            "url": "/vite/assets/NumberInput-IgqHt9cv.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/NumberInput-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-17geVfZB.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Details-B2GVLb2V.js",
+            "logged_kib": 2.86,
+            "normalized": "/vite/assets/Details-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Pill-C4S38FMg.js",
+            "logged_kib": 2.68,
+            "normalized": "/vite/assets/Pill-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Placeholder-Cub0hnLK.js",
+            "logged_kib": 2.55,
+            "normalized": "/vite/assets/Placeholder-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Radio-B2t6oD2q.js",
+            "logged_kib": 2.71,
+            "normalized": "/vite/assets/Radio-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Footer-QWsa9vCN.js",
+            "logged_kib": 5.97,
+            "normalized": "/vite/assets/Footer-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FooterCurrencySelector-B6g1Orsi.js",
+            "logged_kib": 2.89,
+            "normalized": "/vite/assets/FooterCurrencySelector-HASH.js"
+          },
+          {
+            "url": "/vite/assets/buyerCurrencyPreference-CMdppq3f.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/buyerCurrencyPreference-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Select-CBZWsZXF.js",
+            "logged_kib": 2.61,
+            "normalized": "/vite/assets/Select-HASH.js"
+          },
+          {
+            "url": "/vite/assets/RatingStars-DFN1xt-F.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/RatingStars-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Tabs-DIx1hLSU.js",
+            "logged_kib": 2.92,
+            "normalized": "/vite/assets/Tabs-HASH.js"
+          },
+          {
+            "url": "/vite/assets/black_friday-D8vakCs9.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/black_friday-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-BoS0O7Ap.css",
+            "logged_kib": 18.02,
+            "normalized": "/vite/assets/vendor-pdf-HASH.css"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 241.4,
+            "normalized": "https://js.stripe.com/v3"
+          },
+          {
+            "url": "/images/pink-icon.png",
+            "logged_kib": 3.59,
+            "normalized": "/images/pink-icon.png"
+          },
+          {
+            "url": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html",
+            "logged_kib": 0.23,
+            "normalized": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html"
+          },
+          {
+            "url": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js",
+            "logged_kib": 0.6,
+            "normalized": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js"
+          },
+          {
+            "url": "https://m.stripe.network/inner.html",
+            "logged_kib": 1.82,
+            "normalized": "https://m.stripe.network/inner.html"
+          },
+          {
+            "url": "https://m.stripe.network/out-4.5.45.js",
+            "logged_kib": 16.7,
+            "normalized": "https://m.stripe.network/out-4.5.45.js"
+          },
+          {
+            "url": "https://m.stripe.com/6",
+            "logged_kib": 0.57,
+            "normalized": "https://m.stripe.com/6"
+          },
+          {
+            "url": "/cart_items_count",
+            "logged_kib": 5.54,
+            "normalized": "/cart_items_count"
+          },
+          {
+            "url": "/images/logo.svg",
+            "logged_kib": 3.11,
+            "normalized": "/images/logo.svg"
+          },
+          {
+            "url": "/fonts/ABCFavorit-Regular.woff2",
+            "logged_kib": 50.83,
+            "normalized": "/fonts/ABCFavorit-Regular.woff2"
+          },
+          {
+            "url": "/images/placeholders/product-cover.png",
+            "logged_kib": 39.46,
+            "normalized": "/images/placeholders/product-cover.png"
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "/images/gumroad-default-avatar-5.png",
+            "logged_kib": 4.22,
+            "normalized": "/images/gumroad-default-avatar-5.png"
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/p4ll7gekhlzuy038uwb85obtfau4",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/rctp4sxtix1m8uxx9a2jmzn3sv19",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/7kh47vx7g91bz8114ylb3kh760wp",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e",
+            "logged_kib": 0.0,
+            "normalized": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e"
+          },
+          {
+            "url": "/software-development",
+            "logged_kib": 5.96,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-BGhdfnG0.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-Cde5upRw.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-DaiO-Efb.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartItemsCount-DulxGbZs.js",
+            "logged_kib": 2.7,
+            "normalized": "/vite/assets/CartItemsCount-HASH.js"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 0.0,
+            "normalized": "https://js.stripe.com/v3"
+          }
+        ],
+        "experiment": [
+          {
+            "url": "/software-development",
+            "logged_kib": 16.92,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 28.43,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-B3ATBO9-.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 493.95,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 4.05,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 5.34,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 3.04,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 2.66,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 171.45,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-Lyx0MXuM.js",
+            "logged_kib": 28.36,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-CH8RFlL4.js",
+            "logged_kib": 25.66,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Index-BKnEXJPf.js",
+            "logged_kib": 12.93,
+            "normalized": "/vite/assets/Index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/array-ClnQDgBW.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/array-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Layout-B27r-EKG.js",
+            "logged_kib": 23.99,
+            "normalized": "/vite/assets/Layout-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartNavigationButton-CayCWXvQ.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/CartNavigationButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/cart-BSCaZLOV.js",
+            "logged_kib": 3.2,
+            "normalized": "/vite/assets/cart-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Sheet-6ZVBN0_0.js",
+            "logged_kib": 2.75,
+            "normalized": "/vite/assets/Sheet-HASH.js"
+          },
+          {
+            "url": "/vite/assets/mobile-DAmUKAtR.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/mobile-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnOutsideClick-CiRihOAQ.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/useOnOutsideClick-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useIsAboveBreakpoint-B823MoqB.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/useIsAboveBreakpoint-HASH.js"
+          },
+          {
+            "url": "/vite/assets/styles-pQ7ySDQ4.js",
+            "logged_kib": 2.77,
+            "normalized": "/vite/assets/styles-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ComboBox-CmnxYK04.js",
+            "logged_kib": 3.51,
+            "normalized": "/vite/assets/ComboBox-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useDebouncedCallback-BW8liAER.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/useDebouncedCallback-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnChange-BdHxL4LQ.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/useOnChange-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-cover-DTLpjN1o.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/product-cover-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-Cr5pt8-T.js",
+            "logged_kib": 3.75,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/PriceTag-CZU9zEf-.js",
+            "logged_kib": 3.2,
+            "normalized": "/vite/assets/PriceTag-HASH.js"
+          },
+          {
+            "url": "/vite/assets/recurringPricing-DXePVW59.js",
+            "logged_kib": 2.65,
+            "normalized": "/vite/assets/recurringPricing-HASH.js"
+          },
+          {
+            "url": "/vite/assets/AuthorByline-DmqLl5-E.js",
+            "logged_kib": 3.0,
+            "normalized": "/vite/assets/AuthorByline-HASH.js"
+          },
+          {
+            "url": "/vite/assets/WithTooltip-BQ3198p-.js",
+            "logged_kib": 2.93,
+            "normalized": "/vite/assets/WithTooltip-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Thumbnail-BIxd3xpt.js",
+            "logged_kib": 14.21,
+            "normalized": "/vite/assets/Thumbnail-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCard-C4OLiKJd.js",
+            "logged_kib": 2.67,
+            "normalized": "/vite/assets/ProductCard-HASH.js"
+          },
+          {
+            "url": "/vite/assets/StretchedLink-DlDCVXc8.js",
+            "logged_kib": 2.55,
+            "normalized": "/vite/assets/StretchedLink-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCardGrid-CfLxsmD2.js",
+            "logged_kib": 2.57,
+            "normalized": "/vite/assets/ProductCardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CardGrid-DjqRPdSo.js",
+            "logged_kib": 9.3,
+            "normalized": "/vite/assets/CardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/index-CEhCiLrB.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FollowButton-q1q5UW2O.js",
+            "logged_kib": 2.9,
+            "normalized": "/vite/assets/FollowButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/wishlists-BRbqefp0.js",
+            "logged_kib": 6.38,
+            "normalized": "/vite/assets/wishlists-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-DQ_2k9gx.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/product-HASH.js"
+          },
+          {
+            "url": "/vite/assets/promise-BfxSSwHN.js",
+            "logged_kib": 2.34,
+            "normalized": "/vite/assets/promise-HASH.js"
+          },
+          {
+            "url": "/vite/assets/LoadingSpinner-Zcml5CHs.js",
+            "logged_kib": 2.51,
+            "normalized": "/vite/assets/LoadingSpinner-HASH.js"
+          },
+          {
+            "url": "/vite/assets/NumberInput-IgqHt9cv.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/NumberInput-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-BjQAB7Iv.js",
+            "logged_kib": 2.66,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Details-BiqFpHVt.js",
+            "logged_kib": 2.89,
+            "normalized": "/vite/assets/Details-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Pill-CzgOZN4i.js",
+            "logged_kib": 2.71,
+            "normalized": "/vite/assets/Pill-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Placeholder-DfBTrdtq.js",
+            "logged_kib": 2.58,
+            "normalized": "/vite/assets/Placeholder-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Radio-Brrkd7Wl.js",
+            "logged_kib": 2.74,
+            "normalized": "/vite/assets/Radio-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Footer-Bu2g3Jtz.js",
+            "logged_kib": 6.0,
+            "normalized": "/vite/assets/Footer-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FooterCurrencySelector-IZMnY349.js",
+            "logged_kib": 2.92,
+            "normalized": "/vite/assets/FooterCurrencySelector-HASH.js"
+          },
+          {
+            "url": "/vite/assets/buyerCurrencyPreference-CMdppq3f.js",
+            "logged_kib": 2.67,
+            "normalized": "/vite/assets/buyerCurrencyPreference-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Select-D7V_3qdB.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/Select-HASH.js"
+          },
+          {
+            "url": "/vite/assets/RatingStars-DFN1xt-F.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/RatingStars-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Tabs-DfcJKZ1U.js",
+            "logged_kib": 2.95,
+            "normalized": "/vite/assets/Tabs-HASH.js"
+          },
+          {
+            "url": "/vite/assets/black_friday-D8vakCs9.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/black_friday-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-BoS0O7Ap.css",
+            "logged_kib": 18.04,
+            "normalized": "/vite/assets/vendor-pdf-HASH.css"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 240.96,
+            "normalized": "https://js.stripe.com/v3"
+          },
+          {
+            "url": "/images/pink-icon.png",
+            "logged_kib": 3.62,
+            "normalized": "/images/pink-icon.png"
+          },
+          {
+            "url": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html",
+            "logged_kib": 0.23,
+            "normalized": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html"
+          },
+          {
+            "url": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js",
+            "logged_kib": 0.6,
+            "normalized": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js"
+          },
+          {
+            "url": "https://m.stripe.network/inner.html",
+            "logged_kib": 1.82,
+            "normalized": "https://m.stripe.network/inner.html"
+          },
+          {
+            "url": "https://m.stripe.network/out-4.5.45.js",
+            "logged_kib": 16.7,
+            "normalized": "https://m.stripe.network/out-4.5.45.js"
+          },
+          {
+            "url": "https://m.stripe.com/6",
+            "logged_kib": 0.57,
+            "normalized": "https://m.stripe.com/6"
+          },
+          {
+            "url": "/cart_items_count",
+            "logged_kib": 5.57,
+            "normalized": "/cart_items_count"
+          },
+          {
+            "url": "/images/logo.svg",
+            "logged_kib": 3.13,
+            "normalized": "/images/logo.svg"
+          },
+          {
+            "url": "/fonts/ABCFavorit-Regular.woff2",
+            "logged_kib": 50.86,
+            "normalized": "/fonts/ABCFavorit-Regular.woff2"
+          },
+          {
+            "url": "/images/placeholders/product-cover.png",
+            "logged_kib": 39.48,
+            "normalized": "/images/placeholders/product-cover.png"
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "/images/gumroad-default-avatar-5.png",
+            "logged_kib": 4.25,
+            "normalized": "/images/gumroad-default-avatar-5.png"
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e",
+            "logged_kib": 0.0,
+            "normalized": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e"
+          },
+          {
+            "url": "/software-development",
+            "logged_kib": 6.0,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-B3ATBO9-.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-CH8RFlL4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-Lyx0MXuM.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartItemsCount-DulxGbZs.js",
+            "logged_kib": 2.72,
+            "normalized": "/vite/assets/CartItemsCount-HASH.js"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 0.0,
+            "normalized": "https://js.stripe.com/v3"
+          }
+        ],
+        "removed_normalized": {
+          "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e": 1,
+          "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5": 1,
+          "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433": 1,
+          "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10": 1
+        },
+        "added_normalized": {},
+        "image_count": {
+          "control": 8,
+          "experiment": 4
+        },
+        "image_logged_kib": {
+          "control": 230.16,
+          "experiment": 115.08
+        }
+      },
+      "discover-showcase-light-cold-landing-desktop-613ebe77": {
+        "control": [
+          {
+            "url": "/software-development",
+            "logged_kib": 16.88,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 28.41,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-BGhdfnG0.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 493.92,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 4.03,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 5.32,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 3.01,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 171.42,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-DaiO-Efb.js",
+            "logged_kib": 28.34,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-Cde5upRw.js",
+            "logged_kib": 25.66,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Index-CeXos5nT.js",
+            "logged_kib": 12.87,
+            "normalized": "/vite/assets/Index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/array-ClnQDgBW.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/array-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Layout-BPrKwM7n.js",
+            "logged_kib": 23.95,
+            "normalized": "/vite/assets/Layout-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartNavigationButton-C2IWh1Fr.js",
+            "logged_kib": 2.6,
+            "normalized": "/vite/assets/CartNavigationButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/cart-BSCaZLOV.js",
+            "logged_kib": 3.17,
+            "normalized": "/vite/assets/cart-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Sheet-94B_B88W.js",
+            "logged_kib": 2.72,
+            "normalized": "/vite/assets/Sheet-HASH.js"
+          },
+          {
+            "url": "/vite/assets/mobile-DAmUKAtR.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/mobile-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnOutsideClick-DO2ha5IL.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/useOnOutsideClick-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useIsAboveBreakpoint-BoWKMuJE.js",
+            "logged_kib": 2.61,
+            "normalized": "/vite/assets/useIsAboveBreakpoint-HASH.js"
+          },
+          {
+            "url": "/vite/assets/styles-DMWAjUbK.js",
+            "logged_kib": 2.74,
+            "normalized": "/vite/assets/styles-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ComboBox-rfGOgAnX.js",
+            "logged_kib": 3.48,
+            "normalized": "/vite/assets/ComboBox-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useDebouncedCallback-BmF7fGz8.js",
+            "logged_kib": 2.44,
+            "normalized": "/vite/assets/useDebouncedCallback-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnChange-BdHxL4LQ.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/useOnChange-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-cover-DTLpjN1o.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/product-cover-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-DXz3peBc.js",
+            "logged_kib": 3.72,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/PriceTag-DVfPOkEE.js",
+            "logged_kib": 3.17,
+            "normalized": "/vite/assets/PriceTag-HASH.js"
+          },
+          {
+            "url": "/vite/assets/recurringPricing-DXePVW59.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/recurringPricing-HASH.js"
+          },
+          {
+            "url": "/vite/assets/AuthorByline-DRn87-Su.js",
+            "logged_kib": 2.97,
+            "normalized": "/vite/assets/AuthorByline-HASH.js"
+          },
+          {
+            "url": "/vite/assets/WithTooltip-B05z6xsS.js",
+            "logged_kib": 2.91,
+            "normalized": "/vite/assets/WithTooltip-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Thumbnail-B_cXkD_U.js",
+            "logged_kib": 14.2,
+            "normalized": "/vite/assets/Thumbnail-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCard-nWT1YtVk.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/ProductCard-HASH.js"
+          },
+          {
+            "url": "/vite/assets/StretchedLink-65XdRsVN.js",
+            "logged_kib": 2.52,
+            "normalized": "/vite/assets/StretchedLink-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCardGrid-BnQje41t.js",
+            "logged_kib": 2.54,
+            "normalized": "/vite/assets/ProductCardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CardGrid-lMZMmQTg.js",
+            "logged_kib": 9.27,
+            "normalized": "/vite/assets/CardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/index-CWrf5qqK.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FollowButton-C7zlyYTa.js",
+            "logged_kib": 2.87,
+            "normalized": "/vite/assets/FollowButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/wishlists-BmmkejqI.js",
+            "logged_kib": 6.35,
+            "normalized": "/vite/assets/wishlists-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-DQ_2k9gx.js",
+            "logged_kib": 2.44,
+            "normalized": "/vite/assets/product-HASH.js"
+          },
+          {
+            "url": "/vite/assets/promise-BfxSSwHN.js",
+            "logged_kib": 2.31,
+            "normalized": "/vite/assets/promise-HASH.js"
+          },
+          {
+            "url": "/vite/assets/LoadingSpinner-C-WCE48R.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/LoadingSpinner-HASH.js"
+          },
+          {
+            "url": "/vite/assets/NumberInput-IgqHt9cv.js",
+            "logged_kib": 2.46,
+            "normalized": "/vite/assets/NumberInput-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-17geVfZB.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Details-B2GVLb2V.js",
+            "logged_kib": 2.86,
+            "normalized": "/vite/assets/Details-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Pill-C4S38FMg.js",
+            "logged_kib": 2.68,
+            "normalized": "/vite/assets/Pill-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Placeholder-Cub0hnLK.js",
+            "logged_kib": 2.55,
+            "normalized": "/vite/assets/Placeholder-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Radio-B2t6oD2q.js",
+            "logged_kib": 2.71,
+            "normalized": "/vite/assets/Radio-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Footer-QWsa9vCN.js",
+            "logged_kib": 5.97,
+            "normalized": "/vite/assets/Footer-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FooterCurrencySelector-B6g1Orsi.js",
+            "logged_kib": 2.89,
+            "normalized": "/vite/assets/FooterCurrencySelector-HASH.js"
+          },
+          {
+            "url": "/vite/assets/buyerCurrencyPreference-CMdppq3f.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/buyerCurrencyPreference-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Select-CBZWsZXF.js",
+            "logged_kib": 2.61,
+            "normalized": "/vite/assets/Select-HASH.js"
+          },
+          {
+            "url": "/vite/assets/RatingStars-DFN1xt-F.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/RatingStars-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Tabs-DIx1hLSU.js",
+            "logged_kib": 2.92,
+            "normalized": "/vite/assets/Tabs-HASH.js"
+          },
+          {
+            "url": "/vite/assets/black_friday-D8vakCs9.js",
+            "logged_kib": 2.36,
+            "normalized": "/vite/assets/black_friday-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-BoS0O7Ap.css",
+            "logged_kib": 18.02,
+            "normalized": "/vite/assets/vendor-pdf-HASH.css"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 241.29,
+            "normalized": "https://js.stripe.com/v3"
+          },
+          {
+            "url": "/images/pink-icon.png",
+            "logged_kib": 3.59,
+            "normalized": "/images/pink-icon.png"
+          },
+          {
+            "url": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html",
+            "logged_kib": 1.05,
+            "normalized": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html"
+          },
+          {
+            "url": "/cart_items_count",
+            "logged_kib": 5.56,
+            "normalized": "/cart_items_count"
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "/images/gumroad-default-avatar-5.png",
+            "logged_kib": 4.22,
+            "normalized": "/images/gumroad-default-avatar-5.png"
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/p4ll7gekhlzuy038uwb85obtfau4",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/rctp4sxtix1m8uxx9a2jmzn3sv19",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/7kh47vx7g91bz8114ylb3kh760wp",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e",
+            "logged_kib": 0.0,
+            "normalized": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e"
+          },
+          {
+            "url": "/images/logo.svg",
+            "logged_kib": 3.11,
+            "normalized": "/images/logo.svg"
+          },
+          {
+            "url": "/fonts/ABCFavorit-Regular.woff2",
+            "logged_kib": 50.83,
+            "normalized": "/fonts/ABCFavorit-Regular.woff2"
+          },
+          {
+            "url": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js",
+            "logged_kib": 0.43,
+            "normalized": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js"
+          },
+          {
+            "url": "/images/placeholders/product-cover.png",
+            "logged_kib": 39.46,
+            "normalized": "/images/placeholders/product-cover.png"
+          },
+          {
+            "url": "https://m.stripe.network/inner.html",
+            "logged_kib": 1.82,
+            "normalized": "https://m.stripe.network/inner.html"
+          },
+          {
+            "url": "/software-development",
+            "logged_kib": 5.97,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "https://m.stripe.network/out-4.5.45.js",
+            "logged_kib": 16.83,
+            "normalized": "https://m.stripe.network/out-4.5.45.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-BGhdfnG0.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-Cde5upRw.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "https://m.stripe.com/6",
+            "logged_kib": 0.57,
+            "normalized": "https://m.stripe.com/6"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-DaiO-Efb.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartItemsCount-DulxGbZs.js",
+            "logged_kib": 2.7,
+            "normalized": "/vite/assets/CartItemsCount-HASH.js"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 0.0,
+            "normalized": "https://js.stripe.com/v3"
+          }
+        ],
+        "experiment": [
+          {
+            "url": "/software-development",
+            "logged_kib": 16.92,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 28.43,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-B3ATBO9-.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 493.95,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 4.05,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 5.34,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 3.04,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 2.66,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 171.45,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-Lyx0MXuM.js",
+            "logged_kib": 28.36,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-CH8RFlL4.js",
+            "logged_kib": 25.66,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Index-BKnEXJPf.js",
+            "logged_kib": 12.93,
+            "normalized": "/vite/assets/Index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/array-ClnQDgBW.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/array-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Layout-B27r-EKG.js",
+            "logged_kib": 23.99,
+            "normalized": "/vite/assets/Layout-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CartNavigationButton-CayCWXvQ.js",
+            "logged_kib": 2.63,
+            "normalized": "/vite/assets/CartNavigationButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/cart-BSCaZLOV.js",
+            "logged_kib": 3.2,
+            "normalized": "/vite/assets/cart-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Sheet-6ZVBN0_0.js",
+            "logged_kib": 2.75,
+            "normalized": "/vite/assets/Sheet-HASH.js"
+          },
+          {
+            "url": "/vite/assets/mobile-DAmUKAtR.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/mobile-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnOutsideClick-CiRihOAQ.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/useOnOutsideClick-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useIsAboveBreakpoint-B823MoqB.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/useIsAboveBreakpoint-HASH.js"
+          },
+          {
+            "url": "/vite/assets/styles-pQ7ySDQ4.js",
+            "logged_kib": 2.77,
+            "normalized": "/vite/assets/styles-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ComboBox-CmnxYK04.js",
+            "logged_kib": 3.51,
+            "normalized": "/vite/assets/ComboBox-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useDebouncedCallback-BW8liAER.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/useDebouncedCallback-HASH.js"
+          },
+          {
+            "url": "/vite/assets/useOnChange-BdHxL4LQ.js",
+            "logged_kib": 2.48,
+            "normalized": "/vite/assets/useOnChange-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-cover-DTLpjN1o.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/product-cover-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-Cr5pt8-T.js",
+            "logged_kib": 3.75,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/PriceTag-CZU9zEf-.js",
+            "logged_kib": 3.2,
+            "normalized": "/vite/assets/PriceTag-HASH.js"
+          },
+          {
+            "url": "/vite/assets/recurringPricing-DXePVW59.js",
+            "logged_kib": 2.65,
+            "normalized": "/vite/assets/recurringPricing-HASH.js"
+          },
+          {
+            "url": "/vite/assets/AuthorByline-DmqLl5-E.js",
+            "logged_kib": 3.0,
+            "normalized": "/vite/assets/AuthorByline-HASH.js"
+          },
+          {
+            "url": "/vite/assets/WithTooltip-BQ3198p-.js",
+            "logged_kib": 2.93,
+            "normalized": "/vite/assets/WithTooltip-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Thumbnail-BIxd3xpt.js",
+            "logged_kib": 14.21,
+            "normalized": "/vite/assets/Thumbnail-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCard-C4OLiKJd.js",
+            "logged_kib": 2.67,
+            "normalized": "/vite/assets/ProductCard-HASH.js"
+          },
+          {
+            "url": "/vite/assets/StretchedLink-DlDCVXc8.js",
+            "logged_kib": 2.55,
+            "normalized": "/vite/assets/StretchedLink-HASH.js"
+          },
+          {
+            "url": "/vite/assets/ProductCardGrid-CfLxsmD2.js",
+            "logged_kib": 2.57,
+            "normalized": "/vite/assets/ProductCardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/CardGrid-DjqRPdSo.js",
+            "logged_kib": 9.3,
+            "normalized": "/vite/assets/CardGrid-HASH.js"
+          },
+          {
+            "url": "/vite/assets/index-CEhCiLrB.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/index-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FollowButton-q1q5UW2O.js",
+            "logged_kib": 2.9,
+            "normalized": "/vite/assets/FollowButton-HASH.js"
+          },
+          {
+            "url": "/vite/assets/wishlists-BRbqefp0.js",
+            "logged_kib": 6.38,
+            "normalized": "/vite/assets/wishlists-HASH.js"
+          },
+          {
+            "url": "/vite/assets/product-DQ_2k9gx.js",
+            "logged_kib": 2.47,
+            "normalized": "/vite/assets/product-HASH.js"
+          },
+          {
+            "url": "/vite/assets/promise-BfxSSwHN.js",
+            "logged_kib": 2.34,
+            "normalized": "/vite/assets/promise-HASH.js"
+          },
+          {
+            "url": "/vite/assets/LoadingSpinner-Zcml5CHs.js",
+            "logged_kib": 2.51,
+            "normalized": "/vite/assets/LoadingSpinner-HASH.js"
+          },
+          {
+            "url": "/vite/assets/NumberInput-IgqHt9cv.js",
+            "logged_kib": 2.49,
+            "normalized": "/vite/assets/NumberInput-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Card-BjQAB7Iv.js",
+            "logged_kib": 2.66,
+            "normalized": "/vite/assets/Card-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Details-BiqFpHVt.js",
+            "logged_kib": 2.89,
+            "normalized": "/vite/assets/Details-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Pill-CzgOZN4i.js",
+            "logged_kib": 2.71,
+            "normalized": "/vite/assets/Pill-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Placeholder-DfBTrdtq.js",
+            "logged_kib": 2.58,
+            "normalized": "/vite/assets/Placeholder-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Radio-Brrkd7Wl.js",
+            "logged_kib": 2.74,
+            "normalized": "/vite/assets/Radio-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Footer-Bu2g3Jtz.js",
+            "logged_kib": 6.0,
+            "normalized": "/vite/assets/Footer-HASH.js"
+          },
+          {
+            "url": "/vite/assets/FooterCurrencySelector-IZMnY349.js",
+            "logged_kib": 2.92,
+            "normalized": "/vite/assets/FooterCurrencySelector-HASH.js"
+          },
+          {
+            "url": "/vite/assets/buyerCurrencyPreference-CMdppq3f.js",
+            "logged_kib": 2.67,
+            "normalized": "/vite/assets/buyerCurrencyPreference-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Select-D7V_3qdB.js",
+            "logged_kib": 2.64,
+            "normalized": "/vite/assets/Select-HASH.js"
+          },
+          {
+            "url": "/vite/assets/RatingStars-DFN1xt-F.js",
+            "logged_kib": 2.5,
+            "normalized": "/vite/assets/RatingStars-HASH.js"
+          },
+          {
+            "url": "/vite/assets/Tabs-DfcJKZ1U.js",
+            "logged_kib": 2.95,
+            "normalized": "/vite/assets/Tabs-HASH.js"
+          },
+          {
+            "url": "/vite/assets/black_friday-D8vakCs9.js",
+            "logged_kib": 2.38,
+            "normalized": "/vite/assets/black_friday-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-BoS0O7Ap.css",
+            "logged_kib": 18.04,
+            "normalized": "/vite/assets/vendor-pdf-HASH.css"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 241.25,
+            "normalized": "https://js.stripe.com/v3"
+          },
+          {
+            "url": "/images/pink-icon.png",
+            "logged_kib": 3.62,
+            "normalized": "/images/pink-icon.png"
+          },
+          {
+            "url": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html",
+            "logged_kib": 1.05,
+            "normalized": "https://js.stripe.com/v3/m-outer-3437aaddcdf6922d623e172c2d6f9278.html"
+          },
+          {
+            "url": "/cart_items_count",
+            "logged_kib": 5.58,
+            "normalized": "/cart_items_count"
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+            "logged_kib": 32.86,
+            "normalized": "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "sha256": "24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e",
+            "body_bytes": 33084
+          },
+          {
+            "url": "/images/gumroad-default-avatar-5.png",
+            "logged_kib": 4.25,
+            "normalized": "/images/gumroad-default-avatar-5.png"
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+            "logged_kib": 20.54,
+            "normalized": "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "sha256": "dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5",
+            "body_bytes": 20464
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+            "logged_kib": 36.92,
+            "normalized": "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "sha256": "21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433",
+            "body_bytes": 37242
+          },
+          {
+            "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+            "logged_kib": 24.76,
+            "normalized": "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "sha256": "eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10",
+            "body_bytes": 24794
+          },
+          {
+            "url": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e",
+            "logged_kib": 0.0,
+            "normalized": "data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20width='81'%20height='81'%20fill='none'%3e%3cpath%20fill='%23000'%20d='M43.741%2080.186c20.455%200%2037.037-16.582%2037.037-37.037S64.196%206.112%2043.741%206.112%206.704%2022.694%206.704%2043.149s16.582%2037.037%2037.037%2037.037'/%3e%3cpath%20fill='%23FF90E8'%20stroke='%23000'%20stroke-width='1.557'%20d='M38.605%2076.433c20.892%200%2037.828-16.936%2037.828-37.828%200-20.89-16.936-37.827-37.828-37.827C17.715.778.779%2017.714.779%2038.606c0%2020.89%2016.936%2037.827%2037.828%2037.827Z'/%3e%3cpath%20fill='%23000'%20d='M35.392%2057.272c-10.849%200-17.23-8.701-17.23-19.526%200-11.249%207.02-20.375%2020.421-20.375%2013.828%200%2018.508%209.339%2018.72%2014.645h-9.998c-.213-2.972-2.765-7.429-8.935-7.429-6.594%200-10.849%205.73-10.849%2012.735s4.255%2012.734%2010.85%2012.734c5.956%200%208.509-4.67%209.572-9.338H38.37v-3.82h20.087v19.525h-8.812v-12.31c-.638%204.458-3.404%2013.16-14.253%2013.16Z'/%3e%3c/svg%3e"
+          },
+          {
+            "url": "/images/logo.svg",
+            "logged_kib": 3.13,
+            "normalized": "/images/logo.svg"
+          },
+          {
+            "url": "/fonts/ABCFavorit-Regular.woff2",
+            "logged_kib": 50.86,
+            "normalized": "/fonts/ABCFavorit-Regular.woff2"
+          },
+          {
+            "url": "/images/placeholders/product-cover.png",
+            "logged_kib": 39.48,
+            "normalized": "/images/placeholders/product-cover.png"
+          },
+          {
+            "url": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js",
+            "logged_kib": 0.43,
+            "normalized": "https://js.stripe.com/v3/fingerprinted/js/m-outer-15a2b40a058ddff1cffdb63779fe3de1.js"
+          },
+          {
+            "url": "https://m.stripe.network/inner.html",
+            "logged_kib": 1.82,
+            "normalized": "https://m.stripe.network/inner.html"
+          },
+          {
+            "url": "/software-development",
+            "logged_kib": 6.0,
+            "normalized": "/software-development"
+          },
+          {
+            "url": "/vite/assets/entrypoints/design-Bc226Pbk.css",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/design-HASH.css"
+          },
+          {
+            "url": "https://m.stripe.network/out-4.5.45.js",
+            "logged_kib": 16.83,
+            "normalized": "https://m.stripe.network/out-4.5.45.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/base.ts-B3ATBO9-.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/base.ts-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-BFEkc7Zk.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-HASH.js"
+          },
+          {
+            "url": "/vite/assets/base_page-C4GNpoRL.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/base_page-HASH.js"
+          },
+          {
+            "url": "/vite/assets/entrypoints/inertia.js-CH8RFlL4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/entrypoints/inertia.js-HASH.js"
+          },
+          {
+            "url": "/vite/assets/third_party_tracking-DqMGxUSU.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/third_party_tracking-HASH.js"
+          },
+          {
+            "url": "/vite/assets/currency-CDNq5oR4.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/currency-HASH.js"
+          },
+          {
+            "url": "/vite/assets/request-DzEC0uyW.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/request-HASH.js"
+          },
+          {
+            "url": "/vite/assets/vendor-pdf-DyrkI9rT.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/vendor-pdf-HASH.js"
+          },
+          {
+            "url": "/vite/assets/DomainSettings-Lyx0MXuM.js",
+            "logged_kib": 0.0,
+            "normalized": "/vite/assets/DomainSettings-HASH.js"
+          },
+          {
+            "url": "https://m.stripe.com/6",
+            "logged_kib": 0.57,
+            "normalized": "https://m.stripe.com/6"
+          },
+          {
+            "url": "/vite/assets/CartItemsCount-DulxGbZs.js",
+            "logged_kib": 2.72,
+            "normalized": "/vite/assets/CartItemsCount-HASH.js"
+          },
+          {
+            "url": "https://js.stripe.com/v3",
+            "logged_kib": 0.0,
+            "normalized": "https://js.stripe.com/v3"
+          }
+        ],
+        "removed_normalized": {
+          "fixture-sha256:24a78ffcaec483039cb0646077dd9d1f9ac4bfc157b18759131408b81e0d323e": 1,
+          "fixture-sha256:dfa5650d086a31c20e97699741b592925332c0c5b5f9abe1dd93e4cbb9a142d5": 1,
+          "fixture-sha256:21e40f4d93c59a0514b8e4cd2d366516a82832de426b1291ce2d53b5277ee433": 1,
+          "fixture-sha256:eb8c922b8faa8a1367fb02ebd5e2a01676a9b60574c26c4f306b43d56ae05c10": 1
+        },
+        "added_normalized": {},
+        "image_count": {
+          "control": 8,
+          "experiment": 4
+        },
+        "image_logged_kib": {
+          "control": 230.16,
+          "experiment": 115.08
+        }
+      }
+    },
+    "limitations": [
+      "Main samples and low-noise trace are different measurements.",
+      "Network text sizes rounded to 0.01 KiB; fixture identity verified by GET body SHA256.",
+      "p values unadjusted for multiple comparisons.",
+      "Command exit1 reflects JavaScript diagnostic regression; not a blanket pass."
+    ],
+    "js_spot_check": {
+      "Pill": {
+        "control": {
+          "asset": "Pill-C4S38FMg.js",
+          "bytes": 808,
+          "sha256": "4d8bdda894a4737c922a2ec53e524e25c3bdd9e0c35e0bf667a9e0b6f0a2975b",
+          "normalized_sha256": "d3e8d8df08d6502e58a89e99a38e77c7a3f4fc10da81cccf023b2cbdc59be5d0"
+        },
+        "experiment": {
+          "asset": "Pill-CzgOZN4i.js",
+          "bytes": 808,
+          "sha256": "594c0d6b256c8af228c303cca96313c26bab9f25396d39f11dd4d96d822b3c5e",
+          "normalized_sha256": "d3e8d8df08d6502e58a89e99a38e77c7a3f4fc10da81cccf023b2cbdc59be5d0"
+        }
+      },
+      "conclusion": "Pill generated source content is identical after normalizing asset hashes. This limited check does not establish cause of total JavaScript transfer increase."
+    },
+    "visual_and_a11y": [
+      {
+        "case": "discover-showcase-dark-cold-landing-desktop-f758eb28",
+        "diff_pixels": [0],
+        "retries": [false],
+        "changed_rules": [
+          {
+            "rule": "aria-roles",
+            "control_nodes": 1,
+            "experiment_nodes": 0,
+            "node_count_delta": -1,
+            "removed_targets": [["div[role=\"nav\"]"]],
+            "added_targets": []
+          },
+          {
+            "rule": "button-name",
+            "control_nodes": 2,
+            "experiment_nodes": 0,
+            "node_count_delta": -2,
+            "removed_targets": [[".gap-2.items-center.flex > button:nth-child(2)"], ["button:nth-child(1)"]],
+            "added_targets": []
+          }
+        ]
+      },
+      {
+        "case": "discover-showcase-dark-cold-landing-phone-ae6a7a0c",
+        "diff_pixels": [0],
+        "retries": [false],
+        "changed_rules": [
+          {
+            "rule": "aria-roles",
+            "control_nodes": 1,
+            "experiment_nodes": 0,
+            "node_count_delta": -1,
+            "removed_targets": [["div[role=\"nav\"]"]],
+            "added_targets": []
+          },
+          {
+            "rule": "button-name",
+            "control_nodes": 2,
+            "experiment_nodes": 0,
+            "node_count_delta": -2,
+            "removed_targets": [[".all-unset:nth-child(1)"], [".gap-2.items-center.flex > .all-unset:nth-child(2)"]],
+            "added_targets": []
+          }
+        ]
+      },
+      {
+        "case": "discover-showcase-light-cold-landing-desktop-613ebe77",
+        "diff_pixels": [0],
+        "retries": [false],
+        "changed_rules": [
+          {
+            "rule": "aria-roles",
+            "control_nodes": 1,
+            "experiment_nodes": 0,
+            "node_count_delta": -1,
+            "removed_targets": [["div[role=\"nav\"]"]],
+            "added_targets": []
+          },
+          {
+            "rule": "button-name",
+            "control_nodes": 2,
+            "experiment_nodes": 0,
+            "node_count_delta": -2,
+            "removed_targets": [[".gap-2.items-center.flex > button:nth-child(2)"], ["button:nth-child(1)"]],
+            "added_targets": []
+          }
+        ]
+      },
+      {
+        "case": "discover-showcase-light-cold-landing-phone-a3acd65a",
+        "diff_pixels": [0],
+        "retries": [false],
+        "changed_rules": [
+          {
+            "rule": "aria-roles",
+            "control_nodes": 1,
+            "experiment_nodes": 0,
+            "node_count_delta": -1,
+            "removed_targets": [["div[role=\"nav\"]"]],
+            "added_targets": []
+          },
+          {
+            "rule": "button-name",
+            "control_nodes": 2,
+            "experiment_nodes": 0,
+            "node_count_delta": -2,
+            "removed_targets": [[".all-unset:nth-child(1)"], [".gap-2.items-center.flex > .all-unset:nth-child(2)"]],
+            "added_targets": []
+          }
+        ]
+      }
+    ]
+  },
+  "browser_checks": {
+    "control-dark-qa": {
+      "dark": true,
+      "background": "rgb(36, 36, 35)"
+    },
+    "control-browser-qa": {
+      "url": "http://control.localhost:3300/software-development",
+      "before": "Featured products\n1 / 8",
+      "next": "Featured products\n2 / 8",
+      "after": "Featured products\n1 / 8",
+      "invalidNavRoles": 1,
+      "buttonNames": [null, null],
+      "visibleImageFailures": 0
+    },
+    "experiment-dark-qa": {
+      "dark": true,
+      "background": "rgb(36, 36, 35)"
+    },
+    "experiment-browser-qa": {
+      "url": "http://experiment.localhost:3400/software-development",
+      "before": "Featured products\n1 / 8",
+      "next": "Featured products\n2 / 8",
+      "after": "Featured products\n1 / 8",
+      "invalidNavRoles": 0,
+      "buttonNames": ["Previous product in Featured products", "Next product in Featured products"],
+      "visibleImageFailures": 0
+    },
+    "scroll-control-phone": {
+      "url": "http://control.localhost:3300/software-development",
+      "viewport": {
+        "width": 375,
+        "height": 667
+      },
+      "title": "Microsoft 365 Core Guide (2027 Edition)",
+      "initial": [
+        {
+          "title": "ShakaPerf Programming Kit 01",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 02",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 03",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 04",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 05",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 06",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 07",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 08",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 09",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1462.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1730.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 10",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1462.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1741.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 11",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1917.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2195.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 12",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1917.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2195.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 13",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2371.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2639.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 14",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2371.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2650.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 15",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2826.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3104.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 16",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2826.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3104.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 17",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3280.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3548.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 18",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3280.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3559.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 19",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3735.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4013.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 20",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3735.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4013.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 21",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4189.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4457.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 22",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4189.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4468.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 23",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4644.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4922.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 24",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4644.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4922.859375
+            }
+          ]
+        },
+        {
+          "title": "Power Platform for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/p4ll7gekhlzuy038uwb85obtfau4",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5098.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5366.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5098.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5388.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft Purview for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/rctp4sxtix1m8uxx9a2jmzn3sv19",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5553.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5842.859375
+            }
+          ]
+        },
+        {
+          "title": "Automating Microsoft 365 with PowerShell (2027 edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/7kh47vx7g91bz8114ylb3kh760wp",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5553.359375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5842.859375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 Core Guide (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+              "loading": "auto",
+              "loaded": true,
+              "y": 6007.859375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 6275.359375
+            }
+          ]
+        }
+      ],
+      "after": [
+        {
+          "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+          "loading": "auto",
+          "loaded": true,
+          "width": 161.5,
+          "height": 160.5
+        },
+        {
+          "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+          "loading": "auto",
+          "loaded": true,
+          "width": 20,
+          "height": 20
+        }
+      ]
+    },
+    "scroll-experiment-desktop": {
+      "url": "http://experiment.localhost:3400/software-development",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "title": "Microsoft 365 Core Guide (2027 Edition)",
+      "initial": [
+        {
+          "title": "ShakaPerf Programming Kit 01",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "eager",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 429.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 02",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "eager",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 03",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "eager",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 04",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 05",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 429.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 06",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 07",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 08",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 09",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "eager",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 10",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "eager",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 11",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "eager",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.34375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 12",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "eager",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1675.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 13",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1664.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 14",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1664.6875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 15",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2185
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 16",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2196
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 17",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2185.015625
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 18",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2361
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2705.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 19",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2361
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2705.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 20",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2361
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2716.34375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 21",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 22",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 23",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.6875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 24",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3735.015625
+            }
+          ]
+        },
+        {
+          "title": "Power Platform for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3jjadkht82ymw5a169lapgphvtpv",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3724.015625
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3780.03125
+            }
+          ]
+        },
+        {
+          "title": "Microsoft Purview for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/wn85x91js214eavehlx9i2s93lh3",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4278.359375
+            }
+          ]
+        },
+        {
+          "title": "Automating Microsoft 365 with PowerShell (2027 edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/rmt523xrqk9xs6nehl1wpfelex2i",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4306.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 Core Guide (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+              "loading": "lazy",
+              "loaded": false,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4278.375
+            }
+          ]
+        }
+      ],
+      "after": [
+        {
+          "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+          "loading": "lazy",
+          "loaded": true,
+          "width": 259.34375,
+          "height": 258.34375
+        },
+        {
+          "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+          "loading": "auto",
+          "loaded": true,
+          "width": 20,
+          "height": 20
+        }
+      ]
+    },
+    "scroll-experiment-phone": {
+      "url": "http://experiment.localhost:3400/software-development",
+      "viewport": {
+        "width": 375,
+        "height": 667
+      },
+      "title": "Microsoft 365 Core Guide (2027 Edition)",
+      "initial": [
+        {
+          "title": "ShakaPerf Programming Kit 01",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "eager",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 02",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "eager",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 03",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "eager",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 04",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 05",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 06",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 07",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 08",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 324.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 639.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 09",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "eager",
+              "loaded": true,
+              "y": 1462.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1730.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 10",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "eager",
+              "loaded": true,
+              "y": 1462.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1741.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 11",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "eager",
+              "loaded": true,
+              "y": 1917.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2195.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 12",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "eager",
+              "loaded": true,
+              "y": 1917.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2195.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 13",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 2371.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2639.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 14",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 2371.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2650.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 15",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 2826.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3104.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 16",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 2826.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3104.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 17",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 3280.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3548.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 18",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 3280.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3559.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 19",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 3735.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4013.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 20",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 3735.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4013.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 21",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/1citnjaujfg6yg0wgxg1aqx8sc2g",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 4189.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4457.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 22",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/eo79ym2864pc0xiexckrd5iciql1",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 4189.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4468.359375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 23",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/qx8r766k6m4pa0cxg7euph8hxgie",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 4644.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4922.859375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 24",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/j3kr4o1ewqesojahl3pmnqylu76z",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 4644.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4922.859375
+            }
+          ]
+        },
+        {
+          "title": "Power Platform for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3jjadkht82ymw5a169lapgphvtpv",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 5098.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5366.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 5098.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5388.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft Purview for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/wn85x91js214eavehlx9i2s93lh3",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 5553.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5842.859375
+            }
+          ]
+        },
+        {
+          "title": "Automating Microsoft 365 with PowerShell (2027 edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/rmt523xrqk9xs6nehl1wpfelex2i",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 5553.359375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 5842.859375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 Core Guide (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+              "loading": "lazy",
+              "loaded": true,
+              "y": 6007.859375
+            },
+            {
+              "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 6275.359375
+            }
+          ]
+        }
+      ],
+      "after": [
+        {
+          "url": "http://minio-experiment.localhost:9201/gumroad-dev-public-storage/3bxjrsv7ivlt5kn6w5vqhixz75xj",
+          "loading": "lazy",
+          "loaded": true,
+          "width": 161.5,
+          "height": 160.5
+        },
+        {
+          "url": "http://experiment.localhost:3400/images/gumroad-default-avatar-5.png",
+          "loading": "auto",
+          "loaded": true,
+          "width": 20,
+          "height": 20
+        }
+      ]
+    },
+    "scroll-control-desktop": {
+      "url": "http://control.localhost:3300/software-development",
+      "viewport": {
+        "width": 1280,
+        "height": 800
+      },
+      "title": "Microsoft 365 Core Guide (2027 Edition)",
+      "initial": [
+        {
+          "title": "ShakaPerf Programming Kit 01",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 429.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 02",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 03",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 04",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 05",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 429.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 06",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 07",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 08",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 318
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 440.1875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 09",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 10",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 11",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 822
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1166.34375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 12",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1675.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 13",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1664.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 14",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1320.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1664.6875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 15",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2185
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 16",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2196
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 17",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 1840.671875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2185.015625
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 18",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2361
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2705.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 19",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2361
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2705.328125
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 20",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2361
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2716.34375
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 21",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/6yxyg6bdi1zgj400s69juthzpzyg",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 22",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/na0cqj5l5ny1q7o8y72nrf017y9u",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.671875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 23",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/b1ewnxwuz4jgxnbjf08zpavkso21",
+              "loading": "auto",
+              "loaded": true,
+              "y": 2881.34375
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3225.6875
+            }
+          ]
+        },
+        {
+          "title": "ShakaPerf Programming Kit 24",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/1hd64llaeb0pfyfpjd17cgj8c5df",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3735.015625
+            }
+          ]
+        },
+        {
+          "title": "Power Platform for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/p4ll7gekhlzuy038uwb85obtfau4",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3724.015625
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 for IT Pros (2027 Edition). The Ultimate Guide to Managing Microsoft 365.",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3379.6875
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3780.03125
+            }
+          ]
+        },
+        {
+          "title": "Microsoft Purview for IT Pros (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/rctp4sxtix1m8uxx9a2jmzn3sv19",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4278.359375
+            }
+          ]
+        },
+        {
+          "title": "Automating Microsoft 365 with PowerShell (2027 edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/7kh47vx7g91bz8114ylb3kh760wp",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4306.359375
+            }
+          ]
+        },
+        {
+          "title": "Microsoft 365 Core Guide (2027 Edition)",
+          "images": [
+            {
+              "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+              "loading": "auto",
+              "loaded": true,
+              "y": 3934.03125
+            },
+            {
+              "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+              "loading": "auto",
+              "loaded": true,
+              "y": 4278.375
+            }
+          ]
+        }
+      ],
+      "after": [
+        {
+          "url": "http://minio-control.localhost:9200/gumroad-dev-public-storage/jteykbo7q3ih4kb0igey1i3wbrhu",
+          "loading": "auto",
+          "loaded": true,
+          "width": 259.34375,
+          "height": 258.34375
+        },
+        {
+          "url": "http://control.localhost:3300/images/gumroad-default-avatar-5.png",
+          "loading": "auto",
+          "loaded": true,
+          "width": 20,
+          "height": 20
+        }
+      ]
+    }
+  }
+}
