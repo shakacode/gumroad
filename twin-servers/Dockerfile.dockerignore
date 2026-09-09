@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+.claude
+twin-servers
+node_modules
+log/*
+tmp/*
+storage/*
+public/vite/
+ssr-generated
+audit-results
+compare-results*
+compare-bisect-results*
