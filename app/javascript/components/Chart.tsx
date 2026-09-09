@@ -24,7 +24,7 @@ export const Chart = ({
   ...props
 }: {
   aspect?: number;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   tooltipPosition: { left: number; top: number } | null;
   tooltip: React.ReactNode;
 } & React.ComponentPropsWithoutRef<typeof ComposedChart>) => (
@@ -64,7 +64,7 @@ export const yAxisProps: YAxisProps = {
 };
 
 export const lineProps = (
-  dotRef: (element: SVGCircleElement) => void,
+  dotRef: (element: SVGCircleElement | null) => void,
   dotCount: number,
 ): React.PropsWithoutRef<LineProps> => ({
   stroke: "rgb(var(--accent))",
