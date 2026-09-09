@@ -4,7 +4,9 @@ import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { SearchResults } from "$app/data/search";
+import { CardProduct } from "$app/parsers/product";
 
+import { LoggedInUserProvider } from "$app/components/LoggedInUser";
 import { Action, CardGrid, State } from "$app/components/Product/CardGrid";
 
 afterEach(cleanup);
@@ -119,5 +121,103 @@ describe("CardGrid taxonomy attribute filters", () => {
       type: "set-params",
       params: { taxonomy: "design/fonts", taxonomy_attribute_filters: undefined },
     });
+  });
+});
+
+describe("CardGrid initial products", () => {
+  const product = (permalink: string, name: string): CardProduct => ({
+    id: `${permalink}-id`,
+    permalink,
+    name,
+    seller: null,
+    ratings: null,
+    price_cents: 100,
+    currency_code: "usd",
+    thumbnail_url: null,
+    native_type: "digital",
+    url: `/l/${permalink}`,
+    is_pay_what_you_want: false,
+    quantity_remaining: null,
+    is_sales_limited: false,
+    duration_in_months: null,
+    recurrence: null,
+  });
+
+  it("renders server-composed initial cards instead of rebuilding them on the client", () => {
+    const initialProduct = product("product", "Client-rendered product");
+    const state: State = {
+      params: {},
+      results: {
+        total: 1,
+        products: [initialProduct],
+        tags_data: [],
+        filetypes_data: [],
+        taxonomy_attributes_data: [],
+      },
+    };
+
+    render(
+      <CardGrid
+        state={state}
+        dispatchAction={() => undefined}
+        currencyCode="usd"
+        initialCards={<article>Server-composed product</article>}
+      />,
+    );
+
+    expect(screen.queryByText("Server-composed product")).not.toBeNull();
+    expect(screen.queryByText("Client-rendered product")).toBeNull();
+  });
+
+  it("keeps initial cards mounted when rendering appended products", () => {
+    const initialProduct = product("server-product", "Server-composed product");
+    const appendedProduct = product("appended-product", "Appended product");
+    const initialCards = (
+      <article>
+        <a href="/l/server-product">Server-composed product</a>
+      </article>
+    );
+    const initialResults: SearchResults = {
+      total: 2,
+      products: [initialProduct],
+      tags_data: [],
+      filetypes_data: [],
+      taxonomy_attributes_data: [],
+    };
+    const initialState: State = { params: {}, results: initialResults };
+    const { rerender } = render(
+      <LoggedInUserProvider value={null}>
+        <CardGrid
+          state={initialState}
+          dispatchAction={() => undefined}
+          currencyCode="usd"
+          initialCards={initialCards}
+        />
+      </LoggedInUserProvider>,
+    );
+    const initialLink = screen.getByText("Server-composed product");
+    initialLink.focus();
+
+    rerender(
+      <LoggedInUserProvider value={null}>
+        <CardGrid
+          state={{
+            ...initialState,
+            results: {
+              ...initialResults,
+              products: [initialProduct, appendedProduct],
+            },
+          }}
+          dispatchAction={() => undefined}
+          currencyCode="usd"
+          initialCards={initialCards}
+          initialCardCount={1}
+        />
+      </LoggedInUserProvider>,
+    );
+
+    expect(screen.getByText("Server-composed product")).toBe(initialLink);
+    expect(document.activeElement).toBe(initialLink);
+    expect(screen.getByText("Appended product")).not.toBeNull();
   });
 });
