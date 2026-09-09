@@ -46,7 +46,7 @@ export const Nav = ({
   const isDesktop = useIsAboveBreakpoint("lg");
 
   return (
-    <div role="nav">
+    <nav aria-label="Product categories">
       <NestedMenu
         type={isDesktop ? "menubar" : "menu"}
         moreLabel="More Categories"
@@ -59,7 +59,7 @@ export const Nav = ({
         footer={footer}
         menuTop="0px"
       />
-    </div>
+    </nav>
   );
 };
 

@@ -69,6 +69,7 @@ const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title:
         <div className="flex items-center gap-2">
           <button
             className="cursor-pointer all-unset"
+            aria-label={`Previous product in ${title}`}
             onClick={() => setActive((active + products.length - 1) % products.length)}
           >
             <ArrowLeft className="size-6" />
@@ -76,6 +77,7 @@ const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title:
           {active + 1} / {products.length}
           <button
             className="cursor-pointer all-unset"
+            aria-label={`Next product in ${title}`}
             onClick={() => setActive((active + products.length + 1) % products.length)}
           >
             <ArrowRight className="size-6" />
