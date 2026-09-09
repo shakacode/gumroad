@@ -4920,6 +4920,15 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal "Products/Show", page["component"]
     assert page["props"]["product"].present?
     assert_equal link.name, page["props"]["product"]["name"]
+    assert_nil response.headers["X-Accel-Buffering"]
+  end
+
+  test "GET show prepares full HTML product documents for streaming" do
+    get :show, params: { id: product.to_param }
+
+    assert_response :success
+    assert response.headers["Last-Modified"].present?
+    assert_equal "no", response.headers["X-Accel-Buffering"]
   end
 
   test "GET show renders Products/Profile/Show with creator_profile for profile layout" do
@@ -6048,6 +6057,108 @@ class LinksControllerShowTest < ActionController::TestCase
       get :show, params: { id: product.to_param }
     end
   end
+end
+
+class PublicRscRenderingConcernTest < ActiveSupport::TestCase
+  TestController = Class.new(ApplicationController) do
+    include PublicRscRendering
+  end
+
+  test "closes the live response after a redirect" do
+    stream = mock
+    stream.expects(:closed?).returns(false)
+    stream.expects(:close)
+    controller = controller_with(stream:)
+    controller.expects(:redirect_to).with("/target").returns(:redirected)
+
+    assert_equal :redirected, controller.send(:close_live_response_stream) { controller.redirect_to("/target") }
+  end
+
+  test "preserves an existing freshness header and disables proxy buffering" do
+    headers = { "Last-Modified" => "existing" }
+    controller = TestController.new
+    controller.stubs(:response).returns(stub(headers:))
+
+    controller.send(:prepare_live_streaming_response)
+
+    assert_equal "existing", headers["Last-Modified"]
+    assert_equal "no", headers["X-Accel-Buffering"]
+  end
+
+  test "upgrades a full Inertia visit before streaming" do
+    controller = TestController.new
+    controller.stubs(:request).returns(stub(inertia?: true, original_url: "https://example.com/page"))
+    stream = mock
+    stream.expects(:closed?).returns(false)
+    stream.expects(:close)
+    response = mock
+    response.expects(:set_header).with("X-Inertia-Location", "https://example.com/page")
+    response.stubs(:stream).returns(stream)
+    controller.stubs(:response).returns(response)
+    controller.expects(:head).with(:conflict).returns(:halted)
+
+    assert_equal :halted, controller.send(:close_live_response_stream) { controller.send(:upgrade_inertia_visit_to_rsc_document) }
+  end
+
+  test "closes the live response and releases connections after an error" do
+    stream = mock
+    stream.expects(:closed?).returns(false)
+    stream.expects(:close)
+    controller = controller_with(stream:)
+
+    assert_raises(RuntimeError) do
+      controller.send(:close_live_response_stream) { raise "stream failed" }
+    end
+
+    pool = mock
+    pool.expects(:reap)
+    handler = mock
+    handler.expects(:clear_active_connections!).with(:all)
+    handler.expects(:each_connection_pool).yields(pool)
+    ActiveRecord::Base.stubs(:connection_handler).returns(handler)
+
+    assert_raises(RuntimeError) do
+      controller.send(:clear_live_active_record_connections) { raise "render failed" }
+    end
+  end
+
+  test "prepares shared streaming props and async values" do
+    controller = controller_with(stream: stub(closed?: true))
+    request = stub(inertia?: false, original_url: "https://example.com/page")
+    controller.stubs(:request).returns(request)
+    controller.stubs(:view_context).returns(:view_context)
+    controller.stubs(:inertia_meta).returns(stub(meta_tags: [{ name: "description" }]))
+    controller.stubs(:inertia_shared_data).returns({ csp_nonce: "secret", locale: "en" })
+    RenderingExtension.stubs(:custom_context).with(:view_context).returns({ csp_nonce: "secret" })
+    controller.expects(:release_live_active_record_connections)
+    controller.expects(:stream_view_containing_react_components).with(
+      template: "public_rsc/show",
+      layout: "inertia",
+      rsc_stream_observability: true
+    ).returns(:streamed)
+
+    result = controller.send(
+      :render_public_rsc_page,
+      component_name: "PublicPage",
+      props: { title: "Page" },
+      root_id: "public-page",
+      async_props: { products: -> { [] } }
+    )
+
+    assert_equal :streamed, result
+    assert_equal "PublicPage", controller.instance_variable_get(:@public_rsc_component_name)
+    assert_equal "public-page", controller.instance_variable_get(:@public_rsc_root_id)
+    assert_equal [:products], controller.instance_variable_get(:@public_rsc_async_props).keys
+    assert_equal "Page", controller.instance_variable_get(:@public_rsc_props)[:title]
+    assert_equal({ locale: "en", href: "https://example.com/page" }, controller.instance_variable_get(:@public_rsc_props)[:global])
+  end
+
+  private
+    def controller_with(stream:)
+      TestController.new.tap do |controller|
+        controller.stubs(:response).returns(stub(stream:))
+      end
+    end
 end
 
 class LinksControllerConsumerTest < ActionController::TestCase
