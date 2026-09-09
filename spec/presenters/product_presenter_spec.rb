@@ -211,6 +211,20 @@ describe ProductPresenter do
                                                                                   main_section_index: 1,
                                                                                 })
     end
+
+    it "allows a public document to suppress the seller editing payload" do
+      owner_context = SellerContext.new(user: seller, seller:)
+      product.update!(sections: [sections.first.id])
+
+      props = described_class.new(product:, request:, pundit_user: owner_context).product_page_props(
+        seller_custom_domain_url: nil,
+        sections_editing: false
+      )
+
+      expect(props).not_to have_key(:products)
+      expect(props).not_to have_key(:posts)
+      expect(props).not_to have_key(:wishlist_options)
+    end
   end
 
   describe "product page storefront catalog" do

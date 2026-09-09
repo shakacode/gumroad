@@ -83,8 +83,13 @@ class ProductPresenter
     product_props(**kwargs)
   end
 
-  def product_page_props(seller_custom_domain_url:, **kwargs)
-    sections_props = ProfileSectionsPresenter.new(seller: user, query: product.seller_profile_sections).props(request:, pundit_user:, seller_custom_domain_url:)
+  def product_page_props(seller_custom_domain_url:, sections_editing: pundit_user.seller == user, **kwargs)
+    sections_props = ProfileSectionsPresenter.new(seller: user, query: product.seller_profile_sections).props(
+      request:,
+      pundit_user:,
+      seller_custom_domain_url:,
+      editing: sections_editing
+    )
     props = {
       **product_props(seller_custom_domain_url:, **kwargs),
       **sections_props,
