@@ -74,6 +74,77 @@ shaka-perf servers stop-containers
 
 The server workflow loads the deterministic benchmark catalogs after twin
 isolation is established, and the compare workflow runs the configured suites.
+Product setup also applies and verifies the seller-scoped RORP flag after the
+`bgfjk` fixture exists. Both sides default to `enabled`, which is required for
+isolated optimization comparisons and is harmless when the control revision
+predates the flag. For the final same-commit flag comparison, recreate the
+twins with only the control side disabled:
+
+```bash
+SHAKAPERF_CONTROL_PRODUCT_PAGE_RORP=disabled \
+  SHAKAPERF_EXPERIMENT_PRODUCT_PAGE_RORP=enabled \
+  shaka-perf servers
+```
+
+The setup fails instead of benchmarking if the stored feature state does not
+match the requested state.
+
+## Refresh running twins without rebuilding containers
+
+Use this loop when the interactive `shaka-perf servers` menu is already running
+and a change only requires new source or RSC assets:
+
+```text
+save experiment changes -> sync control changes -> rebuild both RSC bundles -> restart servers -> compare
+```
+
+The running menu watches the experiment checkout and automatically copies saved
+files into the experiment volume. It does not watch the separate control
+checkout, so control changes still need `servers sync-changes control`.
+ShakaPerf normally proxies commands to the running menu, which rejects manual
+syncs to avoid racing its watcher; the control sync therefore uses
+`SHAKAPERF_NO_PROXY=1`.
+
+Run the complete refresh from the repository root:
+
+```bash
+bin/refresh-shakaperf-twins
+```
+
+The helper:
+
+1. syncs Git-visible control changes into the control volume;
+2. runs `/shakaperf-twin/build-public-rsc` in both containers, preserving each
+   side's benchmark hostname and port;
+3. reapplies and verifies each side's requested product-page feature state;
+4. calls `servers start-servers`, which the live menu interprets as **Restart
+   servers** (the same action as menu option `6`).
+
+It does not rebuild images, restart containers, reset databases, or run a
+comparison. Run the desired comparison after the refresh finishes:
+
+```bash
+shaka-perf compare
+```
+
+Pass `--skip-control-sync` when the control checkout has not changed. Use
+`--dry-run` to print the commands without executing them. Set `CONFIG_PATH` if
+the configuration is not the repository's `abtests.config.ts`:
+
+```bash
+CONFIG_PATH=/path/to/abtests.config.ts bin/refresh-shakaperf-twins --dry-run
+```
+
+`sync-changes` only copies files Git reports as changed. Dependency,
+Dockerfile, or other image-level changes still require a rebuild from the menu.
+Switching a clean checkout to another commit does not copy that commit's files
+into an existing volume. For original-baseline comparisons, rebuild the affected
+image and recreate its application volume from the intended checkout. Verify
+the served source and dependency versions before measuring; a checkout SHA
+alone does not identify the code running in the container. Vite source changes
+also require a Vite build: the refresh helper only rebuilds public RSC assets.
+If the interactive menu is not running, `servers start-servers` starts a new
+foreground server session instead of returning after a restart.
 
 ## Asset and browser cache behavior
 

@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+export RAILS_ENV=benchmark
+export RACK_ENV=benchmark
+
+STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).to_pem')"
+export STRONGBOX_GENERAL
+export STRONGBOX_GENERAL_PASSWORD=""
+
+rorp_state="${SHAKAPERF_PRODUCT_PAGE_RORP:-enabled}"
+case "${rorp_state}" in
+  enabled)
+    feature_method="activate_user"
+    expected="true"
+    ;;
+  disabled)
+    feature_method="deactivate_user"
+    expected="false"
+    ;;
+  *)
+    echo "SHAKAPERF_PRODUCT_PAGE_RORP must be 'enabled' or 'disabled', got '${rorp_state}'" >&2
+    exit 2
+    ;;
+esac
+
+DISABLE_SPRING=1 bundle exec rails runner "
+  product = Link.find_by!(unique_permalink: 'bgfjk')
+  Feature.public_send(:${feature_method}, :product_page_react_on_rails, product.user)
+  actual = Feature.active?(:product_page_react_on_rails, product.user)
+  abort \"Expected product_page_react_on_rails=${expected}, got #{actual}\" unless actual == ${expected}
+  puts \"Verified product_page_react_on_rails=#{actual} for seller #{product.user.id}\"
+"
