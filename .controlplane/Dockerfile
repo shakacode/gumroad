@@ -16,6 +16,7 @@ ENV APP_DIR=/app \
     RAILS_SERVE_STATIC_FILES=true \
     VITE_RUBY_MODE=production \
     VITE_RUBY_AUTO_BUILD=false \
+    RENDERER_SERVER_BUNDLE_CACHE_PATH=/app/.node-renderer-bundles \
     GIT_COMMIT=${GIT_COMMIT}
 
 WORKDIR ${APP_DIR}
@@ -63,6 +64,7 @@ COPY . ./
 # never inherit build placeholders.
 RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     VITE_RUBY_ASSET_HOST='' \
+    RENDERER_PASSWORD=build-placeholder-renderer-password \
     SECRET_KEY_BASE=build-placeholder-secret-key-base \
     DEVISE_SECRET_KEY=build-placeholder-devise-secret-key \
     OBFUSCATE_IDS_CIPHER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
@@ -89,7 +91,7 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     AWS_ACCESS_KEY_ID=build-placeholder \
     AWS_SECRET_ACCESS_KEY=build-placeholder \
     AWS_DEFAULT_REGION=us-east-1 \
-    CUSTOM_DOMAIN=gumroad-inertia.reactonrails.com \
+    CUSTOM_DOMAIN=gumroad-rorp.reactonrails.com \
     BENCHMARK_PROTOCOL=https \
     BENCHMARK_STORAGE_SERVICE=benchmark \
     CONTROL_PLANE_BENCHMARK=true \
@@ -97,17 +99,19 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     BENCHMARK_STORAGE_S3_ACCESS_KEY_ID=build-placeholder \
     BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY=build-placeholder \
     BENCHMARK_STORAGE_S3_REGION=auto \
-    BENCHMARK_STORAGE_S3_BUCKET=gumroad-inertia-public-storage \
-    BENCHMARK_STORAGE_PUBLIC_HOST=public-files.gumroad-inertia.reactonrails.com \
-    BENCHMARK_CACHE_NAMESPACE=gumroad-inertia \
+    BENCHMARK_STORAGE_S3_BUCKET=gumroad-rorp-public-storage \
+    BENCHMARK_STORAGE_PUBLIC_HOST=public-files.gumroad-rorp.reactonrails.com \
+    BENCHMARK_CACHE_NAMESPACE=gumroad-rorp \
     SESSION_COOKIE_DOMAIN='' \
-    BRANCH=gumroad-inertia \
-    REVISION=gumroad-inertia \
-    GUMROAD_RENDERING_SURFACE=inertia \
+    BRANCH=gumroad-rorp \
+    REVISION=gumroad-rorp \
+    GUMROAD_RENDERING_SURFACE=rorp \
     SKIP_BRANCH_APP_ES_INDEX_SETUP=true && \
     npm run setup && \
+    npm run build:public-rsc && \
     npx vite build && \
-    bundle exec rails assets:precompile
+    bundle exec rails assets:precompile && \
+    bundle exec rails react_on_rails_pro:pre_seed_renderer_cache
 
 COPY .controlplane/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh /app/.controlplane/release_script.sh

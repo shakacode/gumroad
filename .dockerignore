@@ -19,8 +19,17 @@ vendor/cache/
 vendor/bundle/
 tmp/
 log/
+node_modules/
+public/vite/
+public/vite-dev/
+public/vite-test/
+public/public-rsc/
+ssr-generated/
+.node-renderer-bundles/
 ci_scripts/
 .githooks/
+docker/tmp/
+compare-results*/
 .env*
 *.key
 *.pem

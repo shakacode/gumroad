@@ -14,7 +14,8 @@ RUN useradd -ms /bin/bash app \
   && mkdir -p $APP_DIR \
   && mkdir -p $BUNDLE_PATH \
   && mkdir -p $APP_DIR/log \
-  && mkdir -p $APP_DIR/tmp
+  && mkdir -p $APP_DIR/tmp \
+  && chown -R app:app $APP_DIR
 
 # Update ImageMagick configuration
 # Set memory limit to 1GiB
@@ -45,19 +46,12 @@ RUN cd $APP_DIR \
   && bundle config set without 'development test' \
   && BUNDLE_GEMS__CONTRIBSYS__COM=$BUNDLE_GEMS__CONTRIBSYS__COM bundle install
 
+COPY --chown=app:app package.json package-lock.json .npmrc $APP_DIR/
+COPY --chown=app:app patches $APP_DIR/patches
+RUN cd $APP_DIR && gosu app npm ci
+
 # Full source tree last: changes here only invalidate the layers below.
-COPY . $APP_DIR/
-
-RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
-  && rmdir /usr/local/share/geoip
-
-# TODO: look into solutions that prevent image bloating and/or avoids --squash
-RUN chmod -R 755 $BUNDLE_PATH \
-  && chmod -R 755 $APP_DIR \
-  && chmod -R 770 $APP_DIR/tmp \
-  && chmod -R 770 $APP_DIR/log \
-  && chown -R app:app $APP_DIR \
-  && chown -R root:app $BUNDLE_PATH
+COPY --chown=app:app . $APP_DIR/
 
 ENV DATABASE_HOST="db" \
   DATABASE_NAME="gumroad_development" \
@@ -80,6 +74,18 @@ ENV DATABASE_HOST="db" \
   ELASTICSEARCH_HOST=http://elasticsearch:9200 \
   MEMCACHE_SERVERS=memcached \
   IN_DOCKER="true"
+
+RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
+  && rmdir /usr/local/share/geoip \
+  && chown app:app $APP_DIR/lib/GeoIP2-City.mmdb \
+  && cd $APP_DIR \
+  && gosu app env DEVISE_SECRET_KEY=asset-build-only RENDERER_PASSWORD=asset-build-only REVISION=asset-build-only SECRET_KEY_BASE_DUMMY=1 RAILS_ENV=production NODE_ENV=production npm run build:public-rsc
+
+# TODO: look into solutions that prevent image bloating and/or avoids --squash
+RUN chmod -R 755 $BUNDLE_PATH \
+  && chmod -R 770 $APP_DIR/tmp \
+  && chmod -R 770 $APP_DIR/log \
+  && chown -R root:app $BUNDLE_PATH
 
 WORKDIR $APP_DIR
 

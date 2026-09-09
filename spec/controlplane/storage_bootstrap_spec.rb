@@ -17,8 +17,8 @@ RSpec.describe "Control Plane benchmark storage verification" do
 
     original_prefix = ENV["BENCHMARK_STORAGE_PREFIX"]
     original_public_host = ENV["BENCHMARK_STORAGE_PUBLIC_HOST"]
-    ENV["BENCHMARK_STORAGE_PREFIX"] = "benchmarks/gumroad-inertia"
-    ENV["BENCHMARK_STORAGE_PUBLIC_HOST"] = "public-files.gumroad-inertia.reactonrails.com"
+    ENV["BENCHMARK_STORAGE_PREFIX"] = "benchmarks/gumroad-rorp"
+    ENV["BENCHMARK_STORAGE_PUBLIC_HOST"] = "public-files.gumroad-rorp.reactonrails.com"
     load root.join("scripts/verify_control_plane_benchmark_storage.rb")
   ensure
     ENV["BENCHMARK_STORAGE_PREFIX"] = original_prefix
@@ -27,7 +27,7 @@ RSpec.describe "Control Plane benchmark storage verification" do
 
   it "verifies private write, existence, read, and delete access through Active Storage" do
     service = double
-    checksum = Base64.strict_encode64(Digest::MD5.digest("gumroad-inertia R2 storage probe\n"))
+    checksum = Base64.strict_encode64(Digest::MD5.digest("gumroad-rorp R2 storage probe\n"))
     expect(service).to receive(:public?).ordered.and_return(false)
     expect(service).to receive(:upload).with(
       "release/storage-probe-test-run",
@@ -35,11 +35,11 @@ RSpec.describe "Control Plane benchmark storage verification" do
       checksum:,
     ).ordered
     expect(service).to receive(:exist?).with("release/storage-probe-test-run").ordered.and_return(true)
-    expect(service).to receive(:download).with("release/storage-probe-test-run").ordered.and_return("gumroad-inertia R2 storage probe\n")
-    public_url = "https://public-files.gumroad-inertia.reactonrails.com/benchmarks/gumroad-inertia/release/storage-probe-test-run"
+    expect(service).to receive(:download).with("release/storage-probe-test-run").ordered.and_return("gumroad-rorp R2 storage probe\n")
+    public_url = "https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/release/storage-probe-test-run"
     expect(service).to receive(:url).with("release/storage-probe-test-run").ordered.and_return(public_url)
     expect(Net::HTTP).to receive(:get_response).with(URI(public_url)).ordered.and_return(
-      double(code: "200", body: "gumroad-inertia R2 storage probe\n")
+      double(code: "200", body: "gumroad-rorp R2 storage probe\n")
     )
     expect(service).to receive(:delete).with("release/storage-probe-test-run").ordered
     expect(Net::HTTP).to receive(:get_response).with(URI(public_url)).ordered.and_return(double(code: "404"))
@@ -55,13 +55,13 @@ RSpec.describe "Control Plane benchmark storage verification" do
   end
 
   it "retries cleanup when the public object remains available after delete" do
-    service = double(public?: false, upload: nil, exist?: true, download: "gumroad-inertia R2 storage probe\n")
-    public_url = "https://public-files.gumroad-inertia.reactonrails.com/benchmarks/gumroad-inertia/release/storage-probe-test-run"
+    service = double(public?: false, upload: nil, exist?: true, download: "gumroad-rorp R2 storage probe\n")
+    public_url = "https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/release/storage-probe-test-run"
     allow(service).to receive(:url).and_return(public_url)
     expect(service).to receive(:delete).with("release/storage-probe-test-run").twice
     allow(Net::HTTP).to receive(:get_response).with(URI(public_url)).and_return(
-      double(code: "200", body: "gumroad-inertia R2 storage probe\n"),
-      double(code: "200", body: "gumroad-inertia R2 storage probe\n"),
+      double(code: "200", body: "gumroad-rorp R2 storage probe\n"),
+      double(code: "200", body: "gumroad-rorp R2 storage probe\n"),
     )
 
     expect { run_verifier(service) }.to raise_error("Benchmark R2 public object remained available after delete")
@@ -81,14 +81,14 @@ RSpec.describe "Control Plane benchmark storage verification" do
     expect(benchmark_config).not_to include("config.active_storage.resolve_model_to_route = :rails_storage_proxy")
     expect(storage_config).not_to include("control_plane_benchmark:")
     expect(storage_config).to match(
-      /benchmark:.*?CONTROL_PLANE_BENCHMARK.*?service: PrefixedS3.*?endpoint: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ENDPOINT"\) %>.*?access_key_id: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ACCESS_KEY_ID"\) %>.*?secret_access_key: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY"\) %>.*?region: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_REGION", "auto"\) %>.*?bucket: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_BUCKET"\) %>.*?public: false.*?force_path_style: true.*?prefix: <%= ENV\.fetch\("BENCHMARK_STORAGE_PREFIX", "benchmarks\/gumroad-inertia"\) %>.*?public_host: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_PUBLIC_HOST"\) %>/m,
+      /benchmark:.*?CONTROL_PLANE_BENCHMARK.*?service: PrefixedS3.*?endpoint: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ENDPOINT"\) %>.*?access_key_id: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_ACCESS_KEY_ID"\) %>.*?secret_access_key: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY"\) %>.*?region: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_REGION", "auto"\) %>.*?bucket: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_S3_BUCKET"\) %>.*?public: false.*?force_path_style: true.*?prefix: <%= ENV\.fetch\("BENCHMARK_STORAGE_PREFIX", "benchmarks\/gumroad-rorp"\) %>.*?public_host: <%= GlobalConfig\.get\("BENCHMARK_STORAGE_PUBLIC_HOST"\) %>/m,
     )
   end
 
   it "preserves the existing local MinIO path independently of benchmark R2" do
     aws_initializer = root.join("config/initializers/aws.rb").read
     benchmark_environment = root.join("config/environments/benchmark.rb").read
-    control_plane_app = root.join(".controlplane/templates/app-inertia.yml").read
+    control_plane_app = root.join(".controlplane/templates/app-rorp.yml").read
     signed_urls = root.join("app/helpers/signed_url_helper.rb").read
     storage_config = root.join("config/storage.yml").read
 
@@ -122,12 +122,26 @@ RSpec.describe "Control Plane benchmark storage verification" do
     )
   end
 
-  it "emits the storage service URL for benchmark attachments" do
-    attachment = double(url: "https://public-files.gumroad-inertia.reactonrails.com/benchmarks/gumroad-inertia/fixture-key")
+  it "emits the storage service URL for Control Plane benchmark attachments" do
+    original_control_plane_benchmark = ENV["CONTROL_PLANE_BENCHMARK"]
+    ENV["CONTROL_PLANE_BENCHMARK"] = "true"
+    allow(Rails).to receive(:env).and_return(double(benchmark?: true))
+    attachment = double(url: "https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/fixture-key")
     helper = Class.new { include CdnUrlHelper }.new
 
     expect(helper.storage_url_for(attachment)).to eq(
-      "https://public-files.gumroad-inertia.reactonrails.com/benchmarks/gumroad-inertia/fixture-key"
+      "https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/fixture-key"
+    )
+  ensure
+    ENV["CONTROL_PLANE_BENCHMARK"] = original_control_plane_benchmark
+  end
+
+  it "emits direct MinIO URLs for local benchmark attachments" do
+    attachment = double(url: "http://minio.localhost:9000/gumroad-dev-public-storage/fixture-key")
+    helper = Class.new { include CdnUrlHelper }.new
+
+    expect(helper.storage_url_for(attachment)).to eq(
+      "http://minio.localhost:9000/gumroad-dev-public-storage/fixture-key"
     )
   end
 

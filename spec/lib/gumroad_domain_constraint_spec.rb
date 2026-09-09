@@ -21,8 +21,8 @@ describe GumroadDomainConstraint do
     end
 
     it "accepts the configured benchmark root host" do
-      stub_const("VALID_REQUEST_HOSTS", ["gumroad-inertia.reactonrails.com"])
-      request = double("request", host: "gumroad-inertia.reactonrails.com")
+      stub_const("VALID_REQUEST_HOSTS", ["gumroad-rorp.reactonrails.com"])
+      request = double("request", host: "gumroad-rorp.reactonrails.com")
 
       expect(described_class.matches?(request)).to eq(true)
     end

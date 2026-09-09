@@ -5,7 +5,7 @@ default: &default
   source_entry_path: packs/public_rsc
   nested_entries: true
   public_root_path: public
-  public_output_path: product-rsc
+  public_output_path: public-rsc
   private_output_path: ssr-generated
   cache_path: tmp/shakapacker
   cache_manifest: false

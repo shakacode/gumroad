@@ -72,8 +72,15 @@ their respective `https://gumroad-inertia.reactonrails.com` and
 `https://gumroad-rorp.reactonrails.com` roots. Static responses allow cross-origin
 module and font loading and retain the benchmark's immutable cache headers.
 Static files run before Rack::Cors to avoid an origin-dependent cache variant.
-Deploy live changes through the baseline branches' GitHub deployment workflows.
-Use local builds for testing; do not upload images or deploy workloads directly.
+RORP compiles its chunk prefix from `BENCHMARK_PROTOCOL` and `CUSTOM_DOMAIN`,
+or the local `BENCHMARK_HOST` and `DEV_LANE_PORT`. Local twin setup rebuilds
+these bundles with its configured host and port. Do not use Rspack's `"auto"`
+public path: the RSC manifest emits an empty prefix and SSR requests chunks
+relative to the seller page. Rebuild when changing the RORP asset origin.
+
+Deploy live changes through the baseline branches' `cpflow-deploy-rorp.yml`
+and `cpflow-deploy-inertia.yml` GitHub workflows. Use local builds for testing;
+do not upload images or deploy workloads directly.
 
 ShakaPerf clears browser data before the navigation hook; caching stays enabled
 during navigation so the cart iframe can reuse the parent's assets. Seller
@@ -87,4 +94,6 @@ Verify with a fresh browser context: both documents must request identical
 shared bundle URLs, iframe responses should reuse the browser cache, and a
 second context must download those assets again. For warm samples, verify the
 measured navigation reuses the warmup assets. Inspect lazy chunks and fonts as
-well as entry scripts, and check for CORS or CSP errors.
+well as entry scripts, and check for CORS or CSP errors. Track all script
+responses and failures, including URLs outside `/vite/` and `/public-rsc/`,
+so malformed chunk URLs cannot escape the check.

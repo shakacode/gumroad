@@ -150,7 +150,7 @@ build_staging:
 		-e REVISION=$(NEW_WEB_TAG) \
 		--label assets_compiled=true \
 		$(NEW_WEB_REPO):web-$(NEW_WEB_TAG) \
-		gosu app bash -c "docker/web/compile_assets.sh && $(call remove_spec_folder)"
+		gosu app bash -c "RENDERER_PASSWORD=asset-build-only docker/web/compile_assets.sh && $(call remove_spec_folder)"
 	$(DOCKER_CMD) ps -lq --filter='name=$(COMPOSE_PROJECT_NAME)_staging-assets' --filter='label=assets_compiled=true' --filter='exited=0' | xargs -I{} $(DOCKER_CMD) commit {} $(NEW_WEB_REPO):staging-$(NEW_WEB_TAG)
 ifeq ($(PUSH_ASSETS),true)
 	set -e; \
@@ -191,7 +191,7 @@ build_production:
 		-e REVISION=$(NEW_WEB_TAG) \
 		--label assets_compiled=true \
 		$(NEW_WEB_REPO):web-$(NEW_WEB_TAG) \
-		gosu app bash -c "docker/web/compile_assets.sh && $(call remove_spec_folder)"
+		gosu app bash -c "RENDERER_PASSWORD=asset-build-only docker/web/compile_assets.sh && $(call remove_spec_folder)"
 	$(DOCKER_CMD) ps -lq --filter='name=$(COMPOSE_PROJECT_NAME)_production-assets' --filter='label=assets_compiled=true' --filter='exited=0' | xargs -I{} $(DOCKER_CMD) commit {} $(NEW_WEB_REPO):production-$(NEW_WEB_TAG)
 ifeq ($(PUSH_ASSETS),true)
 	set -e; \
