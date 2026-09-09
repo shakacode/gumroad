@@ -44,7 +44,7 @@ type PostsSection = BaseSection & {
   posts: Post[];
 };
 
-export type RichTextSection = BaseSection & Pick<SavedRichTextSection, "type" | "text">;
+type RichTextSection = BaseSection & Pick<SavedRichTextSection, "type" | "text">;
 
 type SubscribeSection = BaseSection & Pick<SavedSubscribeSection, "type" | "button_label">;
 
@@ -162,7 +162,14 @@ export const FeaturedProductView = ({ props }: { props: ProductProps }) => {
   return props.product.native_type === "coffee" ? (
     <CoffeeProduct {...props} />
   ) : (
-    <Product {...props} selection={selection} setSelection={setSelection} />
+    <Product
+      product={props.product}
+      purchase={props.purchase}
+      discountCode={props.discount_code}
+      wishlists={props.wishlists}
+      selection={selection}
+      setSelection={setSelection}
+    />
   );
 };
 
