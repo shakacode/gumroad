@@ -32,10 +32,10 @@ RUN useradd -ms /bin/bash app \
 WORKDIR $APP_DIR
 USER app
 
-# Cacheable npm dependencies layer keyed only on package-lock.json + patches/.
+# Cacheable npm dependencies layer keyed on manifests, npm policy, and patches/.
 # Most PRs don't change these — BuildKit reuses this layer (~1m npm ci) on
 # subsequent builds via `--cache-from $REPO:test-cache`.
-COPY --chown=app:app package.json package-lock.json ./
+COPY --chown=app:app package.json package-lock.json .npmrc ./
 COPY --chown=app:app patches ./patches
 RUN npm ci
 

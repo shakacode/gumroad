@@ -14,11 +14,13 @@ import { UserAgentProvider } from "$app/components/UserAgent";
 let containerWidth = 800;
 vi.mock("recharts", async (importOriginal) => {
   const recharts = await importOriginal<typeof import("recharts")>();
-  const ResponsiveContainer = React.forwardRef(({ children }: { children: React.ReactElement }, _ref) => (
-    <div style={{ width: containerWidth, height: 400 }}>
-      {React.cloneElement(children, { width: containerWidth, height: 400 })}
-    </div>
-  ));
+  const ResponsiveContainer = React.forwardRef(
+    ({ children }: { children: React.ReactElement<{ height?: number; width?: number }> }, _ref) => (
+      <div style={{ width: containerWidth, height: 400 }}>
+        {React.cloneElement(children, { width: containerWidth, height: 400 })}
+      </div>
+    ),
+  );
   ResponsiveContainer.displayName = "ResponsiveContainer";
   return { ...recharts, ResponsiveContainer };
 });
