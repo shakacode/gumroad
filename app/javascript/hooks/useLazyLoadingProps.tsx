@@ -15,8 +15,10 @@ const useLazyLoadingProps = (
   const { eager } = options;
   const loggedInUser = useLoggedInUser();
 
+  const lazyLoadingEnabled = loggedInUser == null || loggedInUser.lazyLoadOffscreenDiscoverImages;
+
   return React.useMemo(() => {
-    if (eager == null || !loggedInUser?.lazyLoadOffscreenDiscoverImages) {
+    if (eager == null || !lazyLoadingEnabled) {
       return {};
     }
 
@@ -25,7 +27,7 @@ const useLazyLoadingProps = (
     }
 
     return { fetchPriority: "auto" as const, loading: "lazy" as const };
-  }, [eager, loggedInUser?.lazyLoadOffscreenDiscoverImages]);
+  }, [eager, lazyLoadingEnabled]);
 };
 
 export default useLazyLoadingProps;
