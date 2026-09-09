@@ -4,17 +4,16 @@ import * as React from "react";
 import { CardProduct, Ratings } from "$app/parsers/product";
 import { classNames } from "$app/utils/classNames";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
-import { trackBuyerCurrencyDisplayView } from "$app/utils/user_analytics";
 
 import { AuthorByline } from "$app/components/Product/AuthorByline";
 import { PriceTag } from "$app/components/Product/PriceTag";
+import { ProductCardAnalytics } from "$app/components/Product/ProductCardAnalytics.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { ProductCard, ProductCardFigure, ProductCardFooter, ProductCardHeader } from "$app/components/ui/ProductCard";
 import { StretchedLink } from "$app/components/ui/StretchedLink";
-import { useRunOnce } from "$app/components/useRunOnce";
 
-export const Card = ({
+export function Card({
   product,
   badge,
   footerAction,
@@ -24,11 +23,10 @@ export const Card = ({
   badge?: React.ReactNode;
   footerAction?: React.ReactNode;
   eager?: boolean | undefined;
-}) => {
-  useRunOnce(() => trackBuyerCurrencyDisplayView(product.seller?.id, product.buyer_currency_display));
-
+}) {
   return (
     <ProductCard>
+      <ProductCardAnalytics sellerId={product.seller?.id} buyerCurrencyDisplay={product.buyer_currency_display} />
       <ProductCardFigure>
         <Thumbnail url={product.thumbnail_url} nativeType={product.native_type} eager={eager} />
       </ProductCardFigure>
@@ -78,13 +76,12 @@ export const Card = ({
       {badge}
     </ProductCard>
   );
-};
+}
 
-export const HorizontalCard = ({ product, big, eager }: { product: CardProduct; big?: boolean; eager?: boolean }) => {
-  useRunOnce(() => trackBuyerCurrencyDisplayView(product.seller?.id, product.buyer_currency_display));
-
+export function HorizontalCard({ product, big, eager }: { product: CardProduct; big?: boolean; eager?: boolean }) {
   return (
     <ProductCard className="lg:flex-row">
+      <ProductCardAnalytics sellerId={product.seller?.id} buyerCurrencyDisplay={product.buyer_currency_display} />
       <ProductCardFigure className="lg:h-full lg:rounded-l lg:rounded-tr-none lg:border-r lg:border-b-0 [&_img]:lg:h-0 [&_img]:lg:min-h-full lg:[&_img]:w-auto">
         <Thumbnail url={product.thumbnail_url} nativeType={product.native_type} eager={eager} />
       </ProductCardFigure>
@@ -145,7 +142,7 @@ export const HorizontalCard = ({ product, big, eager }: { product: CardProduct; 
       </section>
     </ProductCard>
   );
-};
+}
 
 const Rating = ({ ratings, style }: { ratings: Ratings; style?: React.CSSProperties }) => (
   <div className="flex shrink-0 items-center gap-1" aria-label="Rating" style={style}>
