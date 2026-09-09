@@ -35,6 +35,14 @@ describe CsrfTokenInjector, type: :controller do
     expect(Nokogiri::HTML(response.body).at_xpath("//meta[@name='csrf-token']/@content").value).to be_present
   end
 
+  it "does not consume an already committed response" do
+    controller.set_response!(response)
+    allow(response).to receive(:committed?).and_return(true)
+    expect(response).not_to receive(:body)
+
+    controller.inject_csrf_token
+  end
+
   describe "CSRF token exfiltration prevention" do
     controller do
       include CsrfTokenInjector
