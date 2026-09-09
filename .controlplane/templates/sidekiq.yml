@@ -1,0 +1,55 @@
+kind: workload
+name: sidekiq
+spec:
+  type: standard
+  containers:
+    - name: sidekiq
+      cpu: 500m
+      memory: 1Gi
+      args:
+        - bundle
+        - exec
+        - sidekiq
+        - -q
+        - critical
+        - -q
+        - default
+        - -q
+        - low
+        - -q
+        - mongo
+      inheritEnv: true
+      image: "{{APP_IMAGE_LINK}}"
+      livenessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - kill -0 1
+        initialDelaySeconds: 30
+        periodSeconds: 15
+        failureThreshold: 3
+      readinessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - kill -0 1
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: true
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc
+  identityLink: "{{APP_IDENTITY_LINK}}"

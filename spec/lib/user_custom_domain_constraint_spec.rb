@@ -30,6 +30,22 @@ describe UserCustomDomainConstraint do
       end
     end
 
+    context "when request comes from the benchmark seller host" do
+      before do
+        @seller_request = double(
+          "request",
+          host: "seller.gumroad-inertia.reactonrails.com",
+          fullpath: "/"
+        )
+        stub_const("ROOT_DOMAIN", "gumroad-inertia.reactonrails.com")
+        create(:user, username: "seller")
+      end
+
+      it "routes to the deterministic seller" do
+        expect(described_class.matches?(@seller_request)).to eq(true)
+      end
+    end
+
     context "when request comes from custom domain" do
       before do
         @custom_domain_request = double("request")

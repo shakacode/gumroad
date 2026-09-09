@@ -8,10 +8,10 @@ AWS_DEFAULT_REGION = GlobalConfig.get("AWS_DEFAULT_REGION", "us-east-1")
 
 USING_MINIO = AWS_S3_ENDPOINT.present? && !AWS_S3_ENDPOINT.include?("amazonaws.com")
 
-aws_config = {
-  region: AWS_DEFAULT_REGION,
-  credentials: Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-}
+aws_config = { region: AWS_DEFAULT_REGION }
+if AWS_ACCESS_KEY.present? && AWS_SECRET_KEY.present?
+  aws_config[:credentials] = Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
+end
 
 # Support for MinIO in development and test environments
 if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
