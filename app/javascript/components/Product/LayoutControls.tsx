@@ -79,7 +79,7 @@ export const CtaBar = ({
         marginTop: hasHero ? "var(--border-width)" : undefined,
       }}
     >
-      <div className="mx-auto flex max-w-product-page items-center justify-between gap-2 p-4 lg:gap-4 lg:px-8">
+      <div className="mx-auto flex max-w-product-page items-center justify-between gap-2 p-4 max-sm:flex-col max-sm:items-stretch lg:gap-4 lg:px-8">
         <PriceTag
           currencyCode={product.currency_code}
           oldPrice={discountedPriceCents < priceCents ? priceCents : undefined}
@@ -110,7 +110,7 @@ export const CtaBar = ({
         {product.ratings != null && product.ratings.count > 0 ? (
           <ProductRatingsSummary className="hidden lg:flex" ratings={product.ratings} />
         ) : null}
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 max-sm:flex-col max-sm:items-stretch">
           <CtaButton
             product={product}
             purchase={purchase}
