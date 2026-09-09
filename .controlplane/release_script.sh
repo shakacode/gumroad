@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-EXPECTED_APP="gumroad-inertia"
-EXPECTED_SURFACE="inertia"
+EXPECTED_APP="gumroad-rorp"
+EXPECTED_SURFACE="rorp"
 
 log() {
   echo "[$(date +%Y-%m-%d:%H:%M:%S)]: $1"
