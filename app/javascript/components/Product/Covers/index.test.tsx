@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AssetPreview } from "$app/parsers/product";
@@ -56,6 +58,43 @@ const renderCovers = (covers: AssetPreview[], activeCoverId = covers[0]?.id ?? n
 const frame = (container: HTMLElement) => container.querySelector<HTMLElement>("figure > div");
 
 describe("Covers", () => {
+  it("keeps the supplied first image node and responsive sources through hydration", async () => {
+    const image = cover({
+      type: "image",
+      filetype: "gif",
+      url: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+      original_url: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==#original",
+    });
+    const srcSet = `${image.url} 1005w, ${image.original_url} 1920w`;
+    const element = (
+      <Covers
+        covers={[image]}
+        activeCoverId={image.id}
+        setActiveCoverId={() => {}}
+        initialCover={{ id: image.id, content: <img src={image.url} srcSet={srcSet} sizes="100vw" alt="Cover" /> }}
+      />
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(element);
+    document.body.append(container);
+    const original = container.querySelector("img");
+    const initialSizes = original?.getAttribute("sizes");
+    const errors: unknown[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, element, { onRecoverableError: (error) => errors.push(error) });
+      });
+      expect(container.querySelector("img")).toBe(original);
+      expect(original?.getAttribute("srcset")).toBe(srcSet);
+      expect(original?.getAttribute("sizes")).toBe(initialSizes);
+      expect(errors).toEqual([]);
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
+  });
+
   it("shapes the frame to a landscape cover's own ratio", () => {
     const { container } = renderCovers([cover()]);
 
