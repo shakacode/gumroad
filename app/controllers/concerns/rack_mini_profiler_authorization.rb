@@ -9,7 +9,7 @@ module RackMiniProfilerAuthorization
 
   private
     def authorize_rack_mini_profiler
-      Rack::MiniProfiler.authorize_request if authorize_rack_mini_profiler?
+      Rack::MiniProfiler.authorize_request if defined?(Rack::MiniProfiler) && authorize_rack_mini_profiler?
     end
 
     def authorize_rack_mini_profiler?
