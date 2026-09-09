@@ -4,8 +4,8 @@ require "spec_helper"
 
 RSpec.shared_context "with Control Plane canonical hosts" do
   before do
-    stub_const("ROOT_DOMAIN", "gumroad-inertia.reactonrails.com")
-    stub_const("VALID_REQUEST_HOSTS", ["gumroad-inertia.reactonrails.com"])
+    stub_const("ROOT_DOMAIN", "gumroad-rorp.reactonrails.com")
+    stub_const("VALID_REQUEST_HOSTS", ["gumroad-rorp.reactonrails.com"])
     @original_branch_deployment = ENV["BRANCH_DEPLOYMENT"]
     ENV["BRANCH_DEPLOYMENT"] = "true"
     @request.host = "rails-example.cpln.app"
@@ -31,11 +31,11 @@ RSpec.describe UsersController do
   end
 
   it "keeps the canonical redirect on the final root host" do
-    @request.host = "gumroad-inertia.reactonrails.com"
+    @request.host = "gumroad-rorp.reactonrails.com"
 
     get :show, params: { username: seller.username }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/")
   end
 
   it "does not exempt a generated host when branch deployment is unset" do
@@ -44,7 +44,7 @@ RSpec.describe UsersController do
 
     get :show, params: { username: seller.username }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/")
   end
 
   it "does not exempt a non-Rails Control Plane host" do
@@ -53,7 +53,7 @@ RSpec.describe UsersController do
 
     get :show, params: { username: seller.username }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/")
   end
 end
 
@@ -73,11 +73,11 @@ RSpec.describe LinksController do
   end
 
   it "keeps the canonical redirect on the final root host" do
-    @request.host = "gumroad-inertia.reactonrails.com"
+    @request.host = "gumroad-rorp.reactonrails.com"
 
     get :show, params: { id: product.unique_permalink, layout: "discover" }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/l/O365IT?layout=discover")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/l/O365IT?layout=discover")
   end
 
   it "does not exempt a generated host when branch deployment is unset" do
@@ -86,7 +86,7 @@ RSpec.describe LinksController do
 
     get :show, params: { id: product.unique_permalink, layout: "discover" }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/l/O365IT?layout=discover")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/l/O365IT?layout=discover")
   end
 
   it "does not exempt a non-Rails Control Plane host" do
@@ -95,6 +95,6 @@ RSpec.describe LinksController do
 
     get :show, params: { id: product.unique_permalink, layout: "discover" }
 
-    expect(response).to redirect_to("http://seller.gumroad-inertia.reactonrails.com/l/O365IT?layout=discover")
+    expect(response).to redirect_to("http://seller.gumroad-rorp.reactonrails.com/l/O365IT?layout=discover")
   end
 end
