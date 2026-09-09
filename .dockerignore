@@ -8,5 +8,6 @@ log/
 ci_scripts/
 .githooks/
 docker/tmp/
+ab-tests/fixtures/media/
 .env
 .env.*.local
