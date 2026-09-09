@@ -8,7 +8,6 @@ import { assertResponseError } from "$app/utils/request";
 import { trackProductEvent } from "$app/utils/user_analytics";
 
 import { NavigationButton } from "$app/components/Button";
-import { getNotForSaleMessage, Product, ProductDiscount, Purchase } from "$app/components/Product";
 import {
   applySelection,
   buyerLocalContextFor,
@@ -16,11 +15,13 @@ import {
   PriceSelection,
   withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
+import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
+import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useRunOnce } from "$app/components/useRunOnce";
 
 type Props = {
-  product: Product;
+  product: ProductData;
   purchase: Purchase | null;
   discountCode: ProductDiscount | null;
   selection: PriceSelection;
