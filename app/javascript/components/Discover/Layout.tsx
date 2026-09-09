@@ -110,6 +110,7 @@ export const Layout: React.FC<{
   className?: string;
   children: React.ReactNode;
   forceDomain?: boolean;
+  renderHeader?: boolean;
 }> = ({
   taxonomiesForNav,
   taxonomyPath,
@@ -120,6 +121,7 @@ export const Layout: React.FC<{
   className,
   children,
   forceDomain = false,
+  renderHeader = true,
 }) => {
   const { discoverDomain, appDomain } = useDomains();
   const isDesktop = useIsAboveBreakpoint("lg");
@@ -186,26 +188,28 @@ export const Layout: React.FC<{
 
   return (
     <div className={className}>
-      <header
-        className="hero relative z-20 border-t-0 border-b border-border bg-body px-4 py-8 lg:ps-16 lg:pe-16"
-        style={showTaxonomy && rootTaxonomy ? getRootTaxonomyCss(rootTaxonomy) : undefined}
-      >
-        <div className="flex w-full flex-col gap-4">
-          {isDesktop ? (
-            <DesktopHeaderRows {...headerRowElementsProps} />
-          ) : (
-            <MobileHeaderRows {...headerRowElementsProps} />
-          )}
-        </div>
+      {renderHeader ? (
+        <header
+          className="hero relative z-20 border-t-0 border-b border-border bg-body px-4 py-8 lg:ps-16 lg:pe-16"
+          style={showTaxonomy && rootTaxonomy ? getRootTaxonomyCss(rootTaxonomy) : undefined}
+        >
+          <div className="flex w-full flex-col gap-4">
+            {isDesktop ? (
+              <DesktopHeaderRows {...headerRowElementsProps} />
+            ) : (
+              <MobileHeaderRows {...headerRowElementsProps} />
+            )}
+          </div>
 
-        {showTaxonomy && taxonomyPath ? (
-          <TaxonomyCategoryBreadcrumbs
-            taxonomyPath={taxonomyPath}
-            taxonomies={taxonomiesForNav}
-            onClickTaxonomy={onTaxonomyChange}
-          />
-        ) : null}
-      </header>
+          {showTaxonomy && taxonomyPath ? (
+            <TaxonomyCategoryBreadcrumbs
+              taxonomyPath={taxonomyPath}
+              taxonomies={taxonomiesForNav}
+              onClickTaxonomy={onTaxonomyChange}
+            />
+          ) : null}
+        </header>
+      ) : null}
       {children}
     </div>
   );

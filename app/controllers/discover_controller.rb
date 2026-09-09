@@ -59,23 +59,30 @@ class DiscoverController < ApplicationController
     prepare_category_seo(search_results:)
 
     curated_product_ids = curated_products.map { _1.product.external_id }
-    render inertia: "Discover/Index", props: {
+    discover_props = {
       search_results:,
       currency_code: logged_in_user&.currency_type || "usd",
       taxonomies_for_nav:,
       curated_product_ids:,
       search_offset: params[:from] || 0,
-      show_black_friday_hero: -> { black_friday_feature_active? },
       is_black_friday_page: params[:offer_code] == SearchProducts::BLACK_FRIDAY_CODE,
       black_friday_offer_code: SearchProducts::BLACK_FRIDAY_CODE,
-      black_friday_stats: -> { black_friday_feature_active? ? BlackFridayStatsService.fetch_stats : nil },
-      recommended_products: InertiaRails.defer { recommendations },
-      recommended_wishlists: InertiaRails.defer { recommended_wishlists_data },
-      recently_viewed: InertiaRails.defer { recently_viewed_data },
     }
+
+    render_discover_page(discover_props)
   end
 
   private
+    def render_discover_page(discover_props)
+      render inertia: "Discover/Index", props: discover_props.merge(
+        show_black_friday_hero: -> { black_friday_feature_active? },
+        black_friday_stats: -> { black_friday_feature_active? ? BlackFridayStatsService.fetch_stats : nil },
+        recommended_products: InertiaRails.defer { recommendations },
+        recommended_wishlists: InertiaRails.defer { recommended_wishlists_data },
+        recently_viewed: InertiaRails.defer { recently_viewed_data },
+      )
+    end
+
     def recently_viewed_data
       return nil if params[:offer_code].present?
       return nil if logged_in_user.blank? && cookies[:_gumroad_guid].blank?
