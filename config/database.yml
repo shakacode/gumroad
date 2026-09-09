@@ -41,6 +41,9 @@ test:
   <<: *development
   database: <%= ENV.fetch("TEST_DATABASE_NAME", "gumroad_test") %>
 
+benchmark:
+  <<: *development
+
 staging: &staging
   <<: *development
 

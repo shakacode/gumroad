@@ -106,6 +106,8 @@ when "production", "staging"
   Rails.application.config.action_mailer.smtp_settings = default_smtp_settings
 when "test"
   Rails.application.config.action_mailer.delivery_method = :test
+when "benchmark"
+  Rails.application.config.action_mailer.delivery_method = :test
 when "development"
   Rails.application.config.action_mailer.delivery_method = :smtp
   Rails.application.config.action_mailer.smtp_settings = default_smtp_settings

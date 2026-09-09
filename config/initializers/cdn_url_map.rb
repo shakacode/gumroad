@@ -15,6 +15,10 @@ public_assets_cdn_hosts = {
     s3_proxy_host: "https://staging-static-2.gumroad.com",
     public_storage_host: AWS_S3_ENDPOINT
   },
+  benchmark: {
+    s3_proxy_host: nil,
+    public_storage_host: nil
+  },
   test: {
     s3_proxy_host: "https://test-static-2.gumroad.com",
     public_storage_host: "https://test-public-files.gumroad.com"

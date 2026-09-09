@@ -86,5 +86,12 @@ describe Subdomain do
 
       expect(Subdomain.send(:subdomain_request?, domain).present?).to eq(false)
     end
+
+    it "strips the configured port in the benchmark environment" do
+      allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new("benchmark"))
+      domain = "test.#{@root_domain_without_port}"
+
+      expect(Subdomain.send(:subdomain_request?, domain).present?).to eq(true)
+    end
   end
 end
