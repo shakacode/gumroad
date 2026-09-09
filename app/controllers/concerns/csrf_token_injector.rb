@@ -17,6 +17,9 @@ module CsrfTokenInjector
   end
 
   def inject_csrf_token
+    # Live layouts emit their token before streaming; reading the body here steals chunks from Puma.
+    return if response.committed?
+
     token = form_authenticity_token
     return if !protect_against_forgery?
 

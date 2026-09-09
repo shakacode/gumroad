@@ -8,7 +8,7 @@ RSpec.describe "benchmark Rails environment" do
     require "json"
 
     storage = ActiveStorage::Blob.services.fetch(:benchmark)
-    storefront_hosts = %w[localhost:3100 o365itpros.localhost:3100]
+    storefront_hosts = %w[control.localhost:3100 o365itpros.control.localhost:3100]
     requests = storefront_hosts.to_h do |host|
       session = ActionDispatch::Integration::Session.new(Rails.application)
       session.host! host
@@ -74,7 +74,7 @@ RSpec.describe "benchmark Rails environment" do
       analytics_enabled: ApplicationController.new.send(:analytics_enabled?, seller: nil),
       middleware: Rails.application.middleware.map { |middleware| middleware.klass.name },
       rack_attack_safelisted: Rack::Attack.configuration.safelisted?(rack_attack_request),
-      seller_subdomain_match: Subdomain.send(:subdomain_request?, "seller.localhost").present?,
+      seller_subdomain_match: Subdomain.send(:subdomain_request?, "seller.control.localhost").present?,
       profiler_constant_loaded: defined?(Rack::MiniProfiler).present?,
       team_member_profiler_authorization_safe:,
       session_key: Rails.application.config.session_options[:key],
@@ -122,7 +122,8 @@ RSpec.describe "benchmark Rails environment" do
         response = Rack::MockRequest.new(Rails.application).get(
           path,
           "HTTP_ACCEPT_ENCODING" => "gzip",
-          "HTTP_HOST" => "localhost:3100",
+          "HTTP_ORIGIN" => "http://o365itpros.control.localhost:3100",
+          "HTTP_HOST" => "control.localhost:3100",
         )
         decoded = if response.headers["content-encoding"] == "gzip"
           Zlib::GzipReader.new(StringIO.new(response.body)).read
@@ -133,12 +134,114 @@ RSpec.describe "benchmark Rails environment" do
           status: response.status,
           content_encoding: response.headers["content-encoding"],
           cache_control: response.headers["cache-control"],
+          allow_origin: response.headers["access-control-allow-origin"],
+          vary: response.headers["vary"],
           decoded: decoded == contents,
         }]
       end
       puts "COMPRESSION_CONFIG=#{JSON.generate(payload)}"
     ensure
       files.each { FileUtils.rm_f(_1) }
+    end
+  RUBY
+
+  STREAMING_COMPRESSION_RUNNER = <<~'RUBY'
+    require "json"
+    require "net/http"
+    require "puma"
+    require "timeout"
+    require "zlib"
+
+    class BenchmarkCompressionController < ActionController::Base
+      include ActionController::Live
+      include LiveStreamingResponseHeaders
+      include CsrfTokenInjector
+
+      class_attribute :release
+
+      prepend_around_action :close_stream
+      before_action { form_authenticity_token }
+
+      def show
+        response.headers["Content-Type"] = { "sse" => "text/event-stream", "ndjson" => "application/x-ndjson; charset=utf-8" }.fetch(params[:mode], "text/html")
+        response.headers["Cache-Control"] = "no-transform" if params[:mode] == "no_transform"
+        prepare_live_streaming_response
+        response.stream.write(params[:mode] == "ndjson" ? "{\"stage\":\"shell-ready\"}\n" : "<main>shell-ready</main>")
+        release.pop
+        response.stream.write(params[:mode] == "ndjson" ? "{\"stage\":\"late-content\"}\n" : "<section>late-content</section>")
+      end
+
+      private
+        def close_stream
+          yield
+        ensure
+          response.stream.close
+        end
+    end
+
+    # Routes and the loopback listener exist only in this runner subprocess.
+    Rails.application.routes.draw do
+      get "/__benchmark_compression/:mode", to: "benchmark_compression#show"
+    end
+    server = Puma::Server.new(Rails.application, nil, force_shutdown_after: 3)
+    server.add_tcp_listener("127.0.0.1", 0)
+    port = server.binder.ios.first.local_address.ip_port
+    server.run
+
+    begin
+      payload = %w[gzip ndjson identity no_transform sse].to_h do |mode|
+        BenchmarkCompressionController.release = Queue.new
+        first_content = Queue.new
+        decoded = +""
+        result = {}
+        reader = Thread.new do
+          decoder = nil
+          request = Net::HTTP::Get.new("/__benchmark_compression/#{mode}", {
+            "Host" => "control.localhost:3100",
+            "Accept" => "text/html",
+            "Accept-Encoding" => mode == "identity" ? "identity" : "gzip",
+          })
+          Net::HTTP.start("127.0.0.1", port, nil, read_timeout: 10) do |http|
+            http.max_retries = 0
+            http.request(request) do |response|
+              result[:status] = response.code.to_i
+              result[:content_encoding] = response["content-encoding"]
+              result[:accel_buffering] = response["x-accel-buffering"]
+              decoder = Zlib::Inflate.new(Zlib::MAX_WBITS + 16) if result[:content_encoding] == "gzip"
+              response.read_body do |chunk|
+                decoded << (decoder ? decoder.inflate(chunk) : chunk)
+                first_content << true if decoded.include?(mode == "ndjson" ? "{\"stage\":\"shell-ready\"}\n" : "<main>shell-ready</main>")
+              end
+              result[:complete_gzip] = decoder&.finished?
+            end
+          end
+        ensure
+          decoder&.close
+        end
+
+        begin
+          result[:incremental] = begin
+            Timeout.timeout(5) { first_content.pop }
+            !decoded.include?("late-content")
+          rescue Timeout::Error
+            false
+          end
+        ensure
+          BenchmarkCompressionController.release << true
+          raise "stream reader did not finish" unless reader.join(10)
+          reader.value
+        end
+        result[:decoded] = if mode == "ndjson"
+          decoded.lines.map { JSON.parse(_1) } == [{ "stage" => "shell-ready" }, { "stage" => "late-content" }]
+        else
+          decoded == "<main>shell-ready</main><section>late-content</section>"
+        end
+        [mode, result]
+      end
+      puts "STREAMING_COMPRESSION=#{JSON.generate(payload)}"
+    ensure
+      BenchmarkCompressionController.release << true
+      server.stop(true)
     end
   RUBY
 
@@ -151,7 +254,8 @@ RSpec.describe "benchmark Rails environment" do
       "RENDERER_PASSWORD" => "benchmark-spec-renderer-password",
       "REACT_RENDERER_URL" => "http://127.0.0.1:3800",
       "VITE_RUBY_MODE" => environment == "benchmark" ? "production" : nil,
-      "VITE_RUBY_ASSET_HOST" => environment == "benchmark" ? "" : nil,
+      "VITE_RUBY_ASSET_HOST" => environment == "benchmark" ? "http://control.localhost:3100" : nil,
+      "BENCHMARK_HOST" => environment == "benchmark" ? "control.localhost" : nil,
       "DEV_LANE_PORT" => environment == "benchmark" ? "3100" : nil,
       "CUSTOM_DOMAIN" => nil,
       "REVISION" => "benchmark-spec",
@@ -184,27 +288,35 @@ RSpec.describe "benchmark Rails environment" do
     )
   end
 
-  it "serves deterministic static files without an asset host or Vite compilation" do
+  it "serves deterministic static files from a shared asset host without Vite compilation" do
     expect(@benchmark_config).to include(
       static_files: true,
-      asset_host: nil,
+      asset_host: "http://control.localhost:3100",
       vite_mode: "production",
-      vite_asset_host: "",
+      vite_asset_host: "http://control.localhost:3100",
       vite_auto_build: false,
       vite_output_dir: "vite",
     )
     expect(@benchmark_config[:middleware]).to include("Rack::Deflater")
   end
 
-  it "resolves initial and lazy Vite assets against each storefront origin" do
+  it "compresses live HTML and NDJSON without waiting for the stream to finish" do
+    streams = payload_from(run_environment("benchmark", STREAMING_COMPRESSION_RUNNER), "STREAMING_COMPRESSION=")
+
+    expect(streams.values).to all(include(status: 200, accel_buffering: "no", incremental: true, decoded: true))
+    expect(streams.values_at(:gzip, :ndjson)).to all(include(content_encoding: "gzip", complete_gzip: true))
+    expect(streams.values_at(:identity, :no_transform, :sse)).to all(include(content_encoding: nil))
+  end
+
+  it "resolves initial and lazy Vite assets against one shared origin" do
     expect(@benchmark_config[:vite_urls]).to eq(
-      "localhost:3100": {
-        entry: "http://localhost:3100/vite/assets/entry.js",
-        lazy_chunk: "http://localhost:3100/vite/assets/lazy-chunk.js",
+      "control.localhost:3100": {
+        entry: "http://control.localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://control.localhost:3100/vite/assets/lazy-chunk.js",
       },
-      "o365itpros.localhost:3100": {
-        entry: "http://o365itpros.localhost:3100/vite/assets/entry.js",
-        lazy_chunk: "http://o365itpros.localhost:3100/vite/assets/lazy-chunk.js",
+      "o365itpros.control.localhost:3100": {
+        entry: "http://control.localhost:3100/vite/assets/entry.js",
+        lazy_chunk: "http://control.localhost:3100/vite/assets/lazy-chunk.js",
       },
     )
     expect(@benchmark_config[:vite_urls].to_json).not_to include("assets.gumroad.com")
@@ -221,6 +333,8 @@ RSpec.describe "benchmark Rails environment" do
     expect(compression.values_at(*compression.keys.reject { _1.end_with?(".png") })).to all(include(status: 200, content_encoding: "gzip", decoded: true))
     expect(compression.values_at(*compression.keys.select { _1.end_with?(".png") })).to all(include(status: 200, content_encoding: nil, decoded: true))
     expect(compression.values).to all(satisfy { _1[:cache_control].include?("immutable") })
+    expect(compression.values).to all(include(allow_origin: "*"))
+    expect(compression.values).to all(satisfy { !_1[:vary].to_s.downcase.include?("origin") })
   end
 
   it "uses disposable local database, Mongo and MinIO configuration" do
@@ -247,12 +361,12 @@ RSpec.describe "benchmark Rails environment" do
   end
 
   it "keeps HTTP localhost and seller subdomains routable" do
-    expect(@benchmark_config).to include(domain: "localhost:3100", protocol: "http")
+    expect(@benchmark_config).to include(domain: "control.localhost:3100", protocol: "http")
     expect(@benchmark_config[:rack_attack_safelisted]).to be(true)
     expect(@benchmark_config).to include(seller_subdomain_match: true)
     expect(@benchmark_config[:requests]).to eq(
-      "localhost:3100": { status: 200, location: nil },
-      "o365itpros.localhost:3100": { status: 200, location: nil },
+      "control.localhost:3100": { status: 200, location: nil },
+      "o365itpros.control.localhost:3100": { status: 200, location: nil },
     )
   end
 
