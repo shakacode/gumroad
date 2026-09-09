@@ -24,6 +24,6 @@
     "allowSyntheticDefaultImports": true,
     "plugins": [{ "transform": "typia/lib/transform" }]
   },
-  "include": ["app/javascript"],
+  "include": ["app/javascript", "ab-tests", "abtests.config.ts"],
   "exclude": ["**/*.spec.ts", "node_modules", "vendor", "public"]
 }
