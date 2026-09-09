@@ -4896,6 +4896,13 @@ class LinksControllerShowTest < ActionController::TestCase
     @product_memo ||= create_product(user: @user)
   end
 
+  def use_product_rsc_controller
+    @controller = ProductRscLinksController.new
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**|
+      self.response_body = "server-rendered product"
+    end
+  end
+
   test "projects main and featured product document content" do
     document_props = @controller.send(
       :product_rsc_document_props,
@@ -4933,16 +4940,16 @@ class LinksControllerShowTest < ActionController::TestCase
 
   # --- layout variants --------------------------------------------------------
 
-  test "GET show renders Products/Show with product props for default layout" do
+  test "GET show server-renders standard products without an opt-in" do
+    use_product_rsc_controller
     link = create_product(user: @user)
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
+
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Show", page["component"]
-    assert page["props"]["product"].present?
-    assert_equal link.name, page["props"]["product"]["name"]
-    assert_nil response.headers["X-Accel-Buffering"]
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal link.name, props.dig(:product, :name)
+    assert_nil props[:page_layout]
+    assert_equal "no", response.headers["X-Accel-Buffering"]
   end
 
   test "GET show prepares full HTML product documents for streaming" do
@@ -4953,61 +4960,90 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal "no", response.headers["X-Accel-Buffering"]
   end
 
-  test "GET show renders Products/Profile/Show with creator_profile for profile layout" do
+  test "GET show server-renders profile products" do
+    use_product_rsc_controller
     link = create_product(user: @user)
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param, layout: "profile" }
+
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Profile/Show", page["component"]
-    assert page["props"]["creator_profile"].present?
-    assert page["props"]["product"].present?
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal Product::Layout::PROFILE, props[:page_layout]
+    assert props[:creator_profile].present?
+    assert_equal link.name, props.dig(:product, :name)
   end
 
-  test "GET show renders Products/Profile/Show when the seller has the product page storefront enabled" do
+  test "GET show server-renders the storefront profile for a public visitor" do
+    use_product_rsc_controller
     seller = create_user(product_page_storefront_enabled: true)
     link = create_product(user: seller)
     @request.host = URI.parse(seller.subdomain_with_protocol).host
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
+
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Profile/Show", page["component"]
-    assert page["props"]["creator_profile"].present?
-    assert page["props"]["product"].present?
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal Product::Layout::PROFILE, props[:page_layout]
+    assert props[:creator_profile].present?
   end
 
   test "GET show keeps the standalone page when the seller turned the product page storefront off" do
+    use_product_rsc_controller
     seller = create_user(product_page_storefront_enabled: false)
     link = create_product(user: seller)
     @request.host = URI.parse(seller.subdomain_with_protocol).host
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
+
     assert_response :success
-    assert_equal "Products/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:page_layout]
   end
 
   test "GET show keeps the standalone page for the storefront-enabled seller's own view" do
+    use_product_rsc_controller
     seller = create_user(product_page_storefront_enabled: true)
     link = create_product(user: seller)
     sign_in seller
     @request.host = URI.parse(seller.subdomain_with_protocol).host
-    @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
+
     assert_response :success
-    assert_equal "Products/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)[:page_layout]
   end
 
-  test "GET show renders Products/Discover/Show with taxonomy props for discover layout" do
+  test "GET show server-renders Discover products" do
+    use_product_rsc_controller
+    link = create_product(user: @user)
+    get :show, params: { id: link.to_param, layout: "discover" }
+
+    assert_response :success
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal Product::Layout::DISCOVER, props[:page_layout]
+    assert props.key?(:taxonomy_path)
+    assert props.key?(:taxonomies_for_nav)
+    assert_equal link.name, props.dig(:product, :name)
+  end
+
+  test "GET show upgrades Inertia navigation to a full RSC document request" do
+    use_product_rsc_controller
     link = create_product(user: @user)
     @request.headers["X-Inertia"] = "true"
-    get :show, params: { id: link.to_param, layout: "discover" }
+
+    get :show, params: { id: link.to_param }
+
+    assert_response :conflict
+    assert_equal @request.original_url, response.headers["X-Inertia-Location"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
+  end
+
+  test "GET show keeps Discover autocomplete partial requests on Inertia" do
+    link = create_product(user: @user)
+    @request.headers["X-Inertia"] = "true"
+    @request.headers["X-Inertia-Partial-Data"] = "autocomplete_results"
+    @request.headers["X-Inertia-Partial-Component"] = "Products/Discover/Show"
+
+    get :show, params: { id: link.to_param, layout: "discover", query: "test" }
+
     assert_response :success
-    page = inertia_page
-    assert_equal "Products/Discover/Show", page["component"]
-    assert page["props"].key?("taxonomy_path")
-    assert page["props"].key?("taxonomies_for_nav")
-    assert page["props"]["product"].present?
+    assert_equal "Products/Discover/Show", inertia_page["component"]
+    assert inertia_page["props"].key?("autocomplete_results")
   end
 
   test "GET show renders Products/Iframe/Show with product props for embed param" do
