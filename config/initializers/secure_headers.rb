@@ -214,6 +214,9 @@ SecureHeaders::Configuration.default do |config|
     config.csp[:script_src] << ROOT_DOMAIN # Required to load gumroad.js for overlay/embed.
     config.csp[:connect_src] << "ws://#{ANYCABLE_HOST}:8080" # Required by AnyCable
     config.csp[:connect_src] << "wss://#{ANYCABLE_HOST}:8080" # Required by AnyCable
+  elsif Rails.env.benchmark?
+    config.csp[:default_src] = ["'self'"]
+    config.csp[:connect_src] << "ws://#{ANYCABLE_HOST}:8080"
   elsif Rails.env.development?
     config.csp[:default_src] = ["'self'"]
     # bin/dev-lane exports VITE_RUBY_PORT/ANYCABLE_PORT per lane; without reading
