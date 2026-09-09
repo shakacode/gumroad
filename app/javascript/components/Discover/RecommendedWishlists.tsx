@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 import { CardWishlist, CardGrid, Card, DummyCardGrid } from "$app/components/Wishlist/Card";
