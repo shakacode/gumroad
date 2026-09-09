@@ -20,6 +20,9 @@ Rails.application.configure do
   config.enable_reloading = false
   config.eager_load = true
 
+  # Stripe fetches its font stylesheet before passing it to the card iframe.
+  config.x.benchmark_csp_connect_src = ["https://fonts.googleapis.com"]
+
   config.consider_all_requests_local = false
   config.action_controller.perform_caching = true
 

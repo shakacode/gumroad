@@ -11,3 +11,6 @@ docker/tmp/
 ab-tests/fixtures/media/
 .env
 .env.*.local
+audit-results
+compare-results*
+compare-bisect-results*

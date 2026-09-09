@@ -3,3 +3,6 @@ app/javascript/utils/routes.*
 public
 vendor
 tmp
+compare-results
+compare-bisect-results
+audit-results

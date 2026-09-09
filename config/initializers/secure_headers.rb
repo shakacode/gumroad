@@ -216,6 +216,7 @@ SecureHeaders::Configuration.default do |config|
     config.csp[:connect_src] << "wss://#{ANYCABLE_HOST}:8080" # Required by AnyCable
   elsif Rails.env.benchmark?
     config.csp[:default_src] = ["'self'"]
+    config.csp[:connect_src].concat(Rails.application.config.x.benchmark_csp_connect_src)
     config.csp[:connect_src] << "ws://#{ANYCABLE_HOST}:8080"
   elsif Rails.env.development?
     config.csp[:default_src] = ["'self'"]
