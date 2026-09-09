@@ -1,3 +1,5 @@
+"use client";
+
 import { Pencil, Star, TwitterX } from "@boxicons/react";
 import * as React from "react";
 
