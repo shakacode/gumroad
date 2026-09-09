@@ -69,6 +69,7 @@ plugin :tmp_restart
 
 root_config = {
   development: File.expand_path("."),
+  benchmark: File.expand_path("."),
   staging: "/app/",
   production: "/app/"
 }
