@@ -2,7 +2,7 @@
 
 require("spec_helper")
 
-describe("Product panel on creator profile - Sort/Filter", type: :system, js: true) do
+describe("Product panel on creator profile - Sort/Filter", :product_rsc_renderer, type: :system, js: true) do
   before do
     @creator = create(:named_user)
     purchaser_email = "one@gr.test"

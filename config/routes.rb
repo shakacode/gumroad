@@ -1319,6 +1319,9 @@ Rails.application.routes.draw do
     # Default the format to html (like /l/:id) so the custom-HTML wrapper renders
     # for Accept: */* crawlers/unfurlers too, not just browsers sending text/html.
     # An explicit .json still serves the public profile API.
+    get "/:username", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: lambda { |request|
+      GumroadDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
+    }
     get "/:username", to: "users#show", as: "user", defaults: { format: "html" }
     # Iframe content endpoint for profiles with custom_html. Subdomain and
     # custom-domain equivalents live in UserCustomDomainConstraint below.
@@ -1521,6 +1524,9 @@ Rails.application.routes.draw do
     get "/:slug/landing/embed", to: "user_pages#landing_iframe_content", constraints: { slug: page_slug }, as: :user_page_landing
     get "/:slug/landing/version", to: "user_pages#landing_version", constraints: { slug: page_slug }, as: :user_page_landing_version
     get "/:slug", to: "user_pages#show", constraints: { slug: page_slug }, as: :user_page
+    get "/", to: "profile_rsc_users#show", defaults: { format: "html" }, constraints: lambda { |request|
+      UserCustomDomainConstraint.matches?(request) && PublicRscDocumentRequestConstraint.matches?(request)
+    }
     get "/", to: "users#show", defaults: { format: "html" }
   end
 

@@ -9,10 +9,11 @@ import MetaTags, { type MetaTag } from "$app/layouts/components/MetaTags";
 
 import { CurrentSellerProvider, parseCurrentSeller } from "$app/components/CurrentSeller";
 import { LoggedInUserProvider, parseLoggedInUser } from "$app/components/LoggedInUser";
-import Alert from "$app/components/server-components/Alert";
+import Alert, { type AlertPayload } from "$app/components/server-components/Alert";
 
 export type GlobalProps = React.ComponentProps<typeof AppWrapper>["global"] & {
   current_seller?: unknown;
+  flash?: AlertPayload | null;
   logged_in_user?: unknown;
 };
 
@@ -48,7 +49,7 @@ export default function PageShell({
           <MetaTags />
           <LoggedInUserProvider value={parseLoggedInUser(global.logged_in_user ?? null)}>
             <CurrentSellerProvider value={parseCurrentSeller(global.current_seller ?? null)}>
-              <Alert initial={null} />
+              <Alert initial={global.flash ?? null} />
               {children}
             </CurrentSellerProvider>
           </LoggedInUserProvider>
