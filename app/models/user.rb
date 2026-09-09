@@ -560,7 +560,7 @@ class User < ApplicationRecord
 
   def resized_avatar_url(size:)
     return ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png") unless avatar.attached?
-    cdn_url_for(stored_avatar_variant(resize_to_limit: [size, size]).url)
+    cdn_url_for(storage_url_for(stored_avatar_variant(resize_to_limit: [size, size])))
   rescue ActiveStorage::FileNotFoundError, Errno::ENOENT, ActiveRecord::InvalidForeignKey => e
     Rails.logger.warn("User#resized_avatar_url error (#{id}): #{e.class} => #{e.message}")
     ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png")
@@ -573,12 +573,12 @@ class User < ApplicationRecord
 
     # Falling back to the original upload, which is the size the seller
     # uploaded but is otherwise correct, beats showing no avatar at all.
-    return avatar.url if variant_url.blank?
+    return storage_url_for(avatar) if variant_url.blank?
 
     cdn_url_for(variant_url)
   rescue => e
     Rails.logger.warn("User#avatar_url error (#{id}): #{e.class} => #{e.message}")
-    avatar.url
+    storage_url_for(avatar)
   end
 
   def avatar_variant(verify_storage: false)
@@ -1454,7 +1454,7 @@ class User < ApplicationRecord
       # is about to be remembered for a day, so it has to be true at the moment
       # we write it.
       variant = avatar_variant(verify_storage: true)
-      url = variant&.url.presence
+      url = storage_url_for(variant).presence if variant
       # Never cache a blank URL — that would hide the avatar until expiry.
       if url && variant.key.present?
         Rails.cache.write(cache_key, { url:, key: variant.key }, expires_in: AVATAR_VARIANT_URL_CACHE_TTL)
