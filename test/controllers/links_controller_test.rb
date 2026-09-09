@@ -5126,6 +5126,7 @@ class LinksControllerShowTest < ActionController::TestCase
     @product_memo ||= create_product(user: @user)
   end
 
+
   test "GET show 404s when link isn't found" do
     assert_raises(ActionController::RoutingError) { get :show, params: { id: "NOT real" } }
   end
