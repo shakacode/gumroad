@@ -23,44 +23,40 @@ import { BuyerLocalCurrencyContext, CurrencyCode, formatBuyerLocalOrSetPrice } f
 import { formatDate } from "$app/utils/date";
 import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
 import { variantLabel } from "$app/utils/labels";
-import { assertResponseError } from "$app/utils/request";
 import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
-import { Button, NavigationButton } from "$app/components/Button";
 import { CartItemFooter, CartItemTitle } from "$app/components/CartItemList";
-import { CopyToClipboard } from "$app/components/CopyToClipboard";
-import { useDomains } from "$app/components/DomainSettings";
-import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
 import { AuthorByline } from "$app/components/Product/AuthorByline";
 import {
   applySelection,
-  buyerLocalContextFor,
-  ConfigurationSelector,
   ConfigurationSelectorHandle,
   Option,
   PriceSelection,
   PurchasingPowerParityDetails,
   Recurrences,
   Rental,
-  withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
 import { Covers as CoversComponent } from "$app/components/Product/Covers";
-import { CtaButton } from "$app/components/Product/CtaButton";
-import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { getStandalonePrice } from "$app/components/Product/pricing";
 import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import ProductDescription from "$app/components/Product/ProductDescription.client";
+import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
+import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
+import {
+  ProductReceiptCopyLicenseKeyAction,
+  ProductReceiptMembershipAction,
+  ProductReceiptReviewAction,
+  ProductReceiptViewContentAction,
+} from "$app/components/Product/ProductReceiptActions.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
+import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
-import { ShareSection } from "$app/components/Product/ShareSection";
-import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
-import { Review as FormReview, ReviewForm } from "$app/components/ReviewForm";
-import { showAlert } from "$app/components/server-components/Alert";
+import { Review as FormReview } from "$app/components/ReviewForm";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
@@ -250,9 +246,6 @@ export const Product = ({
   // already shows the same avatar and name — the byline is redundant there.
   hideSellerByline?: boolean | undefined;
 }) => {
-  const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
-  const loggedInUser = useLoggedInUser();
-
   const notForSaleMessage = getNotForSaleMessage(product);
   const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
 
@@ -262,12 +255,6 @@ export const Product = ({
 
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
-  const { priceCents, discountedPriceCents, pppDiscounted, isPWYW, maxQuantity } = selectionAttributes;
-  React.useEffect(() => {
-    if (maxQuantity !== null && selection.quantity > maxQuantity)
-      setSelection?.({ ...selection, quantity: maxQuantity });
-  }, [maxQuantity, selection.quantity]);
-
   const addThirdPartyAnalytics = useAddThirdPartyAnalytics();
 
   const { searchParams } = new URL(useOriginalLocation());
@@ -296,35 +283,6 @@ export const Product = ({
   // that costs extra there is no honest comparison to draw, so this is null
   // and nothing is struck through. Kept separate from basePriceCents, which
   // also drives whether the price tag renders at all.
-
-  const validate = () => {
-    if (isPWYW && (selection.price.value === null || selection.price.value < discountedPriceCents)) {
-      setSelection?.({ ...selection, price: { ...selection.price, error: true } });
-      if (selection.price.value === null) {
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert("You must input an amount", "warning");
-      } else if (selection.price.value < discountedPriceCents) {
-        const formattedMinPrice = formatBuyerLocalOrSetPrice(
-          discountedPriceCents,
-          {
-            currencyCode: product.currency_code,
-            buyerCurrency: product.buyer_currency,
-            buyerLocalCurrencyRate: product.buyer_local_currency_rate,
-            buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
-          },
-          { symbolFormat: "short" },
-        );
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert(`Minimum price for this product is ${formattedMinPrice}.`, "error");
-      }
-      return false;
-    }
-    if (product.native_type === "call" && !selection.callStartTime) {
-      showAlert("You must select a date and time for the call", "warning");
-      return false;
-    }
-    return true;
-  };
 
   // The storefront-wrapped page's profile header already shows the seller, but not a
   // collaborator — keep the byline when there is one so the "with X" context survives.
@@ -401,7 +359,7 @@ export const Product = ({
             customViewContentButtonText={product.custom_view_content_button_text}
           />
         ) : !product.can_edit ? (
-          <LicenseKeyLookupPrompt
+          <ProductLicenseKeyLookup
             isLicensed={product.is_licensed}
             hasDownload={!product.is_physical && product.native_type !== "call" && product.native_type !== "commission"}
           />
@@ -454,133 +412,44 @@ export const Product = ({
       </section>
       <section>
         <section className="grid gap-4 p-6 not-first:border-t">
-          {notForSaleMessage ? (
-            <Alert role="status" variant="warning">
-              {notForSaleMessage}
-            </Alert>
-          ) : product.native_type === "commission" ? (
-            <Alert role="status" variant="info">
-              Secure your order with a {`${COMMISSION_DEPOSIT_PROPORTION * 100}%`} deposit today; the remaining balance
-              will be charged upon completion.
-            </Alert>
-          ) : null}
-          {discountCode ? (
-            discountCode.valid ? (
-              (discountedPriceCents < priceCents ||
-                discountCode.discount.minimum_quantity ||
-                (discountCode.discount.type === "fixed" && discountCode.discount.once_per_cart)) &&
-              !pppDiscounted ? (
-                <Alert role="status" variant="success">
-                  <div className="flex flex-col gap-4">
-                    {discountCode.discount.minimum_quantity
-                      ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
-                      : `${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
-                    {discountCode.discount.duration_in_billing_cycles && product.is_recurring_billing ? (
-                      <div>This discount will only apply to the first payment of your subscription.</div>
-                    ) : null}
-                    {discountCode.discount.minimum_amount_cents ? (
-                      <div>
-                        {(discountCode.discount.product_ids?.length ?? 0) === 1
-                          ? `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
-                              discountCode.discount.minimum_amount_cents,
-                              buyerLocalContextFor(product),
-                              { symbolFormat: "short" },
-                            )} or more.`
-                          : `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
-                              discountCode.discount.minimum_amount_cents,
-                              buyerLocalContextFor(product),
-                              { symbolFormat: "short" },
-                            )} or more in ${
-                              !discountCode.discount.product_ids && product.seller
-                                ? `${product.seller.name}'s`
-                                : "selected"
-                            } products.`}
-                      </div>
-                    ) : null}
-                    {discountCode.discount.expires_at ? (
-                      <DiscountExpirationCountdown
-                        expiresAt={new Date(discountCode.discount.expires_at)}
-                        onExpiration={() => setDiscountCode({ valid: false, error_code: "inactive" })}
-                      />
-                    ) : null}
-                  </div>
-                </Alert>
-              ) : null
-            ) : (
-              <Alert role="status" variant="danger">
-                {discountCode.error_code === "sold_out"
-                  ? "Sorry, the discount code you wish to use has reached its usage limit."
-                  : discountCode.error_code === "invalid_offer"
-                    ? "Sorry, the discount code you wish to use is invalid."
-                    : discountCode.error_code === "not_existing_customer"
-                      ? "Sorry, this discount code is only for existing customers."
-                      : "Sorry, the discount code you wish to use is inactive."}
-              </Alert>
-            )
-          ) : null}
-          <ConfigurationSelector
-            product={product}
-            selection={selection}
-            setSelection={setSelection}
-            discount={discountCode?.valid ? withConfiguredOncePerCartAmount(discountCode.discount) : null}
-            ref={configurationSelectorRef}
-          />
-          {product.ppp_details && pppDiscounted ? (
-            <Alert role="status" variant="info">
-              This product supports purchasing power parity. Because you're located in{" "}
-              <b>{product.ppp_details.country}</b>, the price has been discounted by{" "}
-              <b>
-                {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(undefined, {
-                  style: "percent",
-                })}
-              </b>{" "}
-              to{" "}
-              <b>
-                {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContextFor(product), {
-                  symbolFormat: "long",
-                })}
-              </b>
-              .
-              {discountCode?.valid
-                ? " This discount will be applied because it is greater than the offer code discount."
-                : null}
-            </Alert>
-          ) : null}
-          {product.free_trial ? (
-            <Alert role="status" variant="info">
-              All memberships include a {product.free_trial.duration.amount} {product.free_trial.duration.unit} free
-              trial
-            </Alert>
-          ) : null}
-          {product.duration_in_months ? (
-            <Alert role="status" variant="info">
-              This membership will automatically end after{" "}
-              {product.duration_in_months === 1 ? "one month" : `${product.duration_in_months} months`}
-            </Alert>
-          ) : null}
-          <CtaButton
-            ref={ctaButtonRef}
+          <ProductPurchaseControls
             product={product}
             purchase={purchase}
-            discountCode={discountCode ?? null}
+            discountCode={discountCode}
             selection={selection}
-            label={ctaLabel}
-            showInstallmentPlanNotes
-            onClick={(e) => {
-              if (!validate()) {
-                e.preventDefault();
-                return;
-              }
-              if (
-                loggedInUser &&
-                purchase &&
-                (purchase.membership || purchase.subscription_has_lapsed) &&
-                product.is_recurring_billing
-              ) {
-                e.preventDefault();
-                setCheckoutUrlForModal(e.currentTarget.href);
-              }
-            }}
+            setSelection={setSelection}
+            ctaButtonRef={ctaButtonRef}
+            configurationSelectorRef={configurationSelectorRef}
+            ctaLabel={ctaLabel}
+            availabilityNotice={
+              notForSaleMessage ? (
+                <Alert role="status" variant="warning">
+                  {notForSaleMessage}
+                </Alert>
+              ) : product.native_type === "commission" ? (
+                <Alert role="status" variant="info">
+                  Secure your order with a {`${COMMISSION_DEPOSIT_PROPORTION * 100}%`} deposit today; the remaining
+                  balance will be charged upon completion.
+                </Alert>
+              ) : null
+            }
+            membershipNotices={
+              <>
+                {product.free_trial ? (
+                  <Alert role="status" variant="info">
+                    All memberships include a {product.free_trial.duration.amount} {product.free_trial.duration.unit}{" "}
+                    free trial
+                  </Alert>
+                ) : null}
+                {product.duration_in_months ? (
+                  <Alert role="status" variant="info">
+                    This membership will automatically end after{" "}
+                    {product.duration_in_months === 1 ? "one month" : `${product.duration_in_months} months`}
+                  </Alert>
+                ) : null}
+              </>
+            }
+            onDiscountExpiration={() => setDiscountCode({ valid: false, error_code: "inactive" })}
           />
           {product.sales_count !== null ? (
             <Alert role="status" variant="info">
@@ -620,7 +489,7 @@ export const Product = ({
               ))}
             </Card>
           ) : null}
-          <ShareSection product={product} selection={selection} wishlists={wishlists} />
+          <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />
           {product.refund_policy ? (
             <RefundPolicyInfo refundPolicy={product.refund_policy} permalink={product.permalink} />
           ) : null}
@@ -634,13 +503,6 @@ export const Product = ({
           />
         ) : null}
       </section>
-      {purchase && (purchase.membership || purchase.subscription_has_lapsed) && product.is_recurring_billing ? (
-        <SubscriptionChoiceModal
-          purchase={purchase}
-          checkoutUrl={checkoutUrlForModal ?? ""}
-          onClose={() => setCheckoutUrlForModal(null)}
-        />
-      ) : null}
     </article>
   );
 };
@@ -683,16 +545,10 @@ const ExistingPurchaseCard = ({
   customViewContentButtonText: string | null;
   purchase: Purchase;
 }) => {
-  const handleViewClick = () =>
-    void trackUserProductAction({
-      name: "product_information_view_product",
-      permalink,
-    }).catch(assertResponseError);
-
   const viewContentButton = purchase.show_view_content_button_on_product_page ? (
-    <NavigationButton color="primary" href={purchase.content_url ?? ""} target="_blank" onClick={handleViewClick}>
+    <ProductReceiptViewContentAction href={purchase.content_url ?? ""} permalink={permalink}>
       {customViewContentButtonText ?? "View content"}
-    </NavigationButton>
+    </ProductReceiptViewContentAction>
   ) : null;
 
   const allowRating = differenceInYears(new Date(), parseISO(purchase.created_at)) < 1;
@@ -709,19 +565,11 @@ const ExistingPurchaseCard = ({
               {purchase.total_price_including_tax_and_shipping}
             </CardContent>
             <CardContent>
-              <NavigationButton
+              <ProductReceiptMembershipAction
                 href={purchase.membership.manage_url}
-                target="_blank"
-                onClick={() =>
-                  void trackUserProductAction({
-                    name: "product_information_manage_membership",
-                    permalink,
-                  }).catch(assertResponseError)
-                }
-                className="grow basis-0"
-              >
-                {purchase.subscription_has_lapsed ? "Restart membership" : "Manage membership"}
-              </NavigationButton>
+                permalink={permalink}
+                subscriptionHasLapsed={purchase.subscription_has_lapsed}
+              />
               {viewContentButton}
             </CardContent>
           </>
@@ -747,7 +595,7 @@ const ExistingPurchaseCard = ({
         )}
         {purchase.license_key ? <LicenseKeyRow licenseKey={purchase.license_key} /> : null}
         {!isPreorder && allowRating ? (
-          <ReviewForm
+          <ProductReceiptReviewAction
             permalink={permalink}
             purchaseId={purchase.id}
             review={purchase.review}
@@ -769,33 +617,9 @@ const LicenseKeyRow = ({ licenseKey }: { licenseKey: string }) => (
       <h5 className="font-bold">License key</h5>
       <div className="break-all">{licenseKey}</div>
     </div>
-    <CopyToClipboard text={licenseKey}>
-      <Button>Copy</Button>
-    </CopyToClipboard>
+    <ProductReceiptCopyLicenseKeyAction licenseKey={licenseKey} />
   </CardContent>
 );
-
-const LicenseKeyLookupPrompt = ({ isLicensed, hasDownload }: { isLicensed: boolean; hasDownload: boolean }) => {
-  // Absolute root-domain URL, not a path: this section renders on the seller's subdomain
-  // and custom domain too, and /license-key-lookup is only drawn under
-  // GumroadDomainConstraint, so a relative href 404s there.
-  const { scheme, rootDomain } = useDomains();
-
-  return (
-    <section className="border-t border-border p-6">
-      <Card>
-        <CardContent asChild>
-          <li>
-            <h3 className="grow">Already bought this?</h3>
-            <NavigationButton href={Routes.license_key_lookup_url({ protocol: scheme, host: rootDomain })}>
-              {isLicensed ? "View your information" : hasDownload ? "Get your download link" : "Resend your receipt"}
-            </NavigationButton>
-          </li>
-        </CardContent>
-      </Card>
-    </section>
-  );
-};
 
 export const RatingsHistogramRow = ({ rating, percentage }: { rating: number; percentage: number }) => {
   const formattedPercentage = `${percentage}%`;
