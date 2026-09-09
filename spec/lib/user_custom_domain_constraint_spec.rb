@@ -34,10 +34,10 @@ describe UserCustomDomainConstraint do
       before do
         @seller_request = double(
           "request",
-          host: "seller.gumroad-inertia.reactonrails.com",
+          host: "seller.gumroad-rorp.reactonrails.com",
           fullpath: "/"
         )
-        stub_const("ROOT_DOMAIN", "gumroad-inertia.reactonrails.com")
+        stub_const("ROOT_DOMAIN", "gumroad-rorp.reactonrails.com")
         create(:user, username: "seller")
       end
 
