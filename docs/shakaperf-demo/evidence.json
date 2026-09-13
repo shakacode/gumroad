@@ -17241,7 +17241,7 @@
     "compare_command": "shaka-perf compare --categories visreg,perf,accessibility",
     "audit_command": "shaka-perf audit --categories audit"
   },
-  "archive_note": "Complete generated comparison artifacts are in evidence.zip; this index retains all case metrics and outcome classifications. Accessibility details and stage logs remain in the archive.",
+  "archive_note": "Complete generated comparison artifacts are split across evidence.zip, evidence-part-2.zip, evidence-part-3.zip, and evidence-part-4.zip. Extract all four into one directory. This index retains all case metrics and classifications; detailed accessibility findings and stage logs remain in those archives.",
   "audit": {
     "run_id": "2026-09-13T23:12:50.788Z",
     "case_count": 27,
