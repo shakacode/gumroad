@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { PLACEHOLDER_CARD_PRODUCT } from "$app/utils/cart";
 
-import { RecentlyViewed, RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed";
+import { RecentlyViewed } from "$app/components/Discover/RecentlyViewed";
+import type { RecentlyViewedProps } from "$app/components/Discover/RecentlyViewed.types";
 import { LoggedInUser, LoggedInUserProvider } from "$app/components/LoggedInUser";
 
 const productAt = (id: string, name: string, viewed_at: string) => ({
