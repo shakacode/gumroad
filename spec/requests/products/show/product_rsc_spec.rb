@@ -117,6 +117,7 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
   it "hydrates without duplicating the profile or product shells" do
     page.visit product.long_url(layout: Product::Layout::PROFILE)
 
+    expect(page.evaluate_script("getComputedStyle(document.body).fontFamily")).to include("ABC Favorit")
     expect(page).to have_selector("header a", text: seller.name, count: 1)
     expect(page).to have_button("Subscribe", count: 1)
     expect(page).to have_selector("article", text: product.name, count: 1)
