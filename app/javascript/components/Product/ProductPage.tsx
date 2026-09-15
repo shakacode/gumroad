@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import type { MetaTag } from "$app/layouts/components/MetaTags";
 import { classNames } from "$app/utils/classNames";
 
 import { Card } from "$app/components/Product/Card";
@@ -41,6 +42,7 @@ import { ProfileWishlists } from "$app/components/Profile/ProfileWishlists.clien
 import ProductPageShell, { type ProductGlobalProps } from "$app/components/PublicPages/ProductPageShell.client";
 
 export type ProductPageProps = ProductInteractionPageProps & {
+  _inertia_meta?: MetaTag[];
   discount_code: ProductDiscount;
   global: ProductGlobalProps;
   rsc_product_content: ProductContentProps;
@@ -48,6 +50,7 @@ export type ProductPageProps = ProductInteractionPageProps & {
 };
 
 export default function ProductPage({
+  _inertia_meta: inertiaMeta,
   global,
   rsc_product_content: rscProductContent,
   rsc_featured_product_content: rscFeaturedProductContent,
@@ -256,11 +259,11 @@ export default function ProductPage({
   return (
     <>
       <ProductCoverPreloads covers={productProps.product.covers} mainCoverId={productProps.product.main_cover_id} />
-    <ProductPageShell global={global}>
-      <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
-        {productContent}
-      </ProductStateProvider>
-    </ProductPageShell>
+      <ProductPageShell global={global} inertiaMeta={inertiaMeta}>
+        <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
+          {productContent}
+        </ProductStateProvider>
+      </ProductPageShell>
     </>
   );
 }

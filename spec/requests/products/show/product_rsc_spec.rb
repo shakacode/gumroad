@@ -102,6 +102,20 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
 
     expect(page).to have_css("#product-rsc-root")
     expect_public_rsc_assets("ProductPage")
+    document = Nokogiri::HTML(page.html)
+    %w[csrf-token csrf-param].each do |name|
+      tags = document.css("meta[name='#{name}']")
+      expect(tags.length).to eq(1)
+      expect(tags.first["inertia"]).to be_nil
+      expect(tags.first["data-inertia"]).to be_nil
+    end
+    %w[stripe:pk stripe:api_version].each do |property|
+      tags = document.css("meta[property='#{property}']")
+      expect(tags.length).to eq(1)
+      expect(tags.first["inertia"]).to be_nil
+      expect(tags.first["data-inertia"]).to be_nil
+      expect(tags.first["value"]).to be_present
+    end
     expect(page).to have_link(seller.name)
     expect(page).to have_button("Subscribe")
     expect(page).to have_text(product.name)
@@ -117,10 +131,17 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
   it "hydrates without duplicating the profile or product shells" do
     page.visit product.long_url(layout: Product::Layout::PROFILE)
 
+    expect(page.evaluate_script("getComputedStyle(document.body).fontFamily")).to include("ABC Favorit")
     expect(page).to have_selector("header a", text: seller.name, count: 1)
     expect(page).to have_button("Subscribe", count: 1)
     expect(page).to have_selector("article", text: product.name, count: 1)
     expect(page).to have_selector("article", text: featured_product.name, count: 1)
+    expect(page.evaluate_script(<<~JS)).to eq(1)
+      document.querySelectorAll('meta[name="csrf-token"]:not([inertia]):not([data-inertia])').length
+    JS
+    expect(page.evaluate_script(<<~JS)).to eq(1)
+      document.querySelectorAll('meta[property="stripe:pk"]:not([inertia]):not([data-inertia])').length
+    JS
     expect(page.evaluate_script(<<~JS)).to be(false)
       performance.getEntriesByType("resource").some(({ name }) => name.includes("/rsc_payload/"))
     JS
