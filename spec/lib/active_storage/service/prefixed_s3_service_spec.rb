@@ -7,8 +7,8 @@ RSpec.describe ActiveStorage::Service::PrefixedS3Service do
   subject(:service) do
     described_class.new(
       bucket: "shaka-perf-demo-storage",
-      prefix: "benchmarks/gumroad-inertia/",
-      public_host: "public-files.gumroad-inertia.reactonrails.com",
+      prefix: "benchmarks/gumroad-rorp/",
+      public_host: "public-files.gumroad-rorp.reactonrails.com",
       access_key_id: "opaque-access-key",
       secret_access_key: "opaque-secret-key",
       endpoint: "https://account.r2.cloudflarestorage.com",
@@ -27,14 +27,14 @@ RSpec.describe ActiveStorage::Service::PrefixedS3Service do
 
   it "scopes object operations to the surface namespace" do
     object = instance_double(Aws::S3::Object, exists?: true)
-    expect(bucket).to receive(:object).with("benchmarks/gumroad-inertia/blob-key").and_return(object)
+    expect(bucket).to receive(:object).with("benchmarks/gumroad-rorp/blob-key").and_return(object)
 
     expect(service.exist?("blob-key")).to be(true)
   end
 
   it "scopes prefix deletion to the surface namespace" do
     objects = double
-    expect(bucket).to receive(:objects).with(prefix: "benchmarks/gumroad-inertia/variants/").and_return(objects)
+    expect(bucket).to receive(:objects).with(prefix: "benchmarks/gumroad-rorp/variants/").and_return(objects)
     expect(objects).to receive(:batch_delete!)
 
     service.delete_prefixed("variants/")
@@ -49,6 +49,6 @@ RSpec.describe ActiveStorage::Service::PrefixedS3Service do
         filename: ActiveStorage::Filename.new("fixture.png"),
         content_type: "image/png",
       )
-    ).to eq("https://public-files.gumroad-inertia.reactonrails.com/benchmarks/gumroad-inertia/blob-key")
+    ).to eq("https://public-files.gumroad-rorp.reactonrails.com/benchmarks/gumroad-rorp/blob-key")
   end
 end
