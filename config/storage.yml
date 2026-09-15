@@ -24,6 +24,18 @@ development:
   force_path_style: true
 
 benchmark:
+<% if ENV["CONTROL_PLANE_BENCHMARK"] == "true" %>
+  service: PrefixedS3
+  endpoint: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_ENDPOINT") %>
+  access_key_id: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_ACCESS_KEY_ID") %>
+  secret_access_key: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY") %>
+  region: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_REGION", "auto") %>
+  bucket: <%= GlobalConfig.get("BENCHMARK_STORAGE_S3_BUCKET") %>
+  public: false
+  force_path_style: true
+  prefix: <%= ENV.fetch("BENCHMARK_STORAGE_PREFIX", "benchmarks/gumroad-inertia") %>
+  public_host: <%= GlobalConfig.get("BENCHMARK_STORAGE_PUBLIC_HOST") %>
+<% else %>
   service: S3
   endpoint: <%= GlobalConfig.get("AWS_S3_ENDPOINT") %>
   access_key_id: <%= GlobalConfig.get("AWS_ACCESS_KEY_ID") %>
@@ -32,6 +44,7 @@ benchmark:
   bucket: <%= PUBLIC_STORAGE_S3_BUCKET %>
   public: true
   force_path_style: true
+<% end %>
 
 # Use rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
 amazon:

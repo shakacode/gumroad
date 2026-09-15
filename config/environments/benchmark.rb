@@ -5,7 +5,17 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Production's CDN compresses assets; keep Slow 4G samples representative when Rails serves them locally.
   config.middleware.insert_before 0, Rack::Deflater,
-                                  if: ->(env, *) { env["PATH_INFO"].start_with?("/vite/", "/product-rsc/") }
+                                  include: %w[
+                                    application/javascript
+                                    application/json
+                                    application/xml
+                                    image/svg+xml
+                                    text/css
+                                    text/html
+                                    text/javascript
+                                    text/plain
+                                    text/xml
+                                  ]
 
   config.enable_reloading = false
   config.eager_load = true
@@ -24,9 +34,13 @@ Rails.application.configure do
 
   # Seller pages and the cart iframe share one cacheable asset origin per stack.
   config.asset_host = "#{PROTOCOL}://#{ROOT_DOMAIN}"
-  config.active_storage.service = :benchmark
+  config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
+  config.active_storage.content_types_allowed_inline += ["image/webp"]
 
-  config.action_cable.allowed_request_origins = [%r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i]
+  config.action_cable.allowed_request_origins = [
+    %r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i,
+    %r{\A#{Regexp.escape(PROTOCOL)}://(?:[a-z0-9-]+\.)?#{Regexp.escape(ROOT_DOMAIN)}\z}io,
+  ]
 
   config.logger = ActiveSupport::Logger.new(STDOUT)
     .tap { |logger| logger.formatter = ::Logger::Formatter.new }
