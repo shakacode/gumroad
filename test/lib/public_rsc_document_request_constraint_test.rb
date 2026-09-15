@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require_relative "../../lib/public_rsc_document_request_constraint"
 
 class PublicRscDocumentRequestConstraintTest < ActiveSupport::TestCase
   test "matches full HTML document requests including Inertia visits" do

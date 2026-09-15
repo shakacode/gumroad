@@ -3,28 +3,28 @@
 require "test_helper"
 
 class ProductRscDocumentRequestConstraintTest < ActiveSupport::TestCase
-  test "matches full HTML product document requests" do
-    assert_matches "/l/product"
-    assert_matches "/l/product?layout=discover"
+  test "matches only explicit profile-layout product requests" do
     assert_matches "/l/product?layout=profile"
-    assert_matches "/l/product", "HTTP_X_INERTIA" => "true"
+    assert_matches "/l/product?layout=profile", "HTTP_X_INERTIA" => "true"
+
+    assert_not_matches "/l/product"
+    assert_not_matches "/l/product?layout=discover"
+    assert_not_matches "/l/product?layout=unknown"
   end
 
-  test "matches root only on product custom domains" do
-    request = build_request("/")
-    ProductCustomDomainConstraint.stubs(:matches?).with(request).returns(true)
-
-    assert ProductRscDocumentRequestConstraint.matches?(request)
-
-    ProductCustomDomainConstraint.stubs(:matches?).with(request).returns(false)
-    assert_not ProductRscDocumentRequestConstraint.matches?(request)
+  test "rejects alternate product URL shapes" do
+    assert_not_matches "/?layout=profile"
+    assert_not_matches "/product?layout=profile"
+    assert_not_matches "/l/product/offer?layout=profile"
+    assert_not_matches "/discover?layout=profile"
+    assert_not_matches "/seller?layout=profile"
   end
 
   test "rejects partial, embedded, overlaid, and non-HTML requests" do
-    assert_not_matches "/l/product", "HTTP_X_INERTIA_PARTIAL_DATA" => "product"
-    assert_not_matches "/l/product?embed=1"
-    assert_not_matches "/l/product?overlay=1"
-    assert_not_matches "/l/product.json"
+    assert_not_matches "/l/product?layout=profile", "HTTP_X_INERTIA_PARTIAL_DATA" => "product"
+    assert_not_matches "/l/product?layout=profile&embed=1"
+    assert_not_matches "/l/product?layout=profile&overlay=1"
+    assert_not_matches "/l/product.json?layout=profile"
   end
 
   private
