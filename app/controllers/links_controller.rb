@@ -62,7 +62,7 @@ class LinksController < ApplicationController
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
   before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
-  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_document_request?
+  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_route_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
@@ -866,7 +866,11 @@ class LinksController < ApplicationController
 
   private
     def product_rsc_document_request?
-      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request) && product_react_on_rails_enabled?
+      product_rsc_route_request? && product_react_on_rails_enabled?
+    end
+
+    def product_rsc_route_request?
+      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
     end
 
     def product_react_on_rails_enabled?
@@ -895,6 +899,7 @@ class LinksController < ApplicationController
         _inertia_meta: inertia_meta.meta_tags,
         global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)
       )
+      @rendering_product_rsc_document = true
       release_live_active_record_connections
 
       stream_view_containing_react_components(
