@@ -5,7 +5,7 @@ require "spec_helper"
 # The footer currency selector needs the IP-detected currency, and computing it costs a GeoIP
 # lookup. Sharing it from every Inertia response put that lookup on every dashboard render too,
 # so controllers opt in with `shares_buyer_currency`. These specs pin both halves of that gate.
-describe "detected_buyer_currency Inertia share", type: :request do
+describe "detected_buyer_currency share", type: :request do
   include Devise::Test::IntegrationHelpers
 
   let(:seller) { create(:user, username: "currencyseller") }
@@ -25,8 +25,20 @@ describe "detected_buyer_currency Inertia share", type: :request do
     JSON.parse(response.body).fetch("props")
   end
 
+  def profile_rsc_props(url)
+    props = nil
+    allow_any_instance_of(ProfileRscUsersController).to receive(:stream_view_containing_react_components) do |controller, **|
+      props = controller.instance_variable_get(:@public_rsc_props)
+      controller.response_body = "server-rendered profile"
+    end
+
+    get url
+    expect(response).to be_successful
+    props
+  end
+
   it "shares the detected currency on a buyer-facing page that mounts the selector" do
-    expect(inertia_props("#{seller.subdomain_with_protocol}/")["detected_buyer_currency"]).to eq("eur")
+    expect(profile_rsc_props("#{seller.subdomain_with_protocol}/").dig(:global, :detected_buyer_currency)).to eq("eur")
   end
 
   it "omits the detected currency from a dashboard page that has no selector" do
@@ -48,6 +60,6 @@ describe "detected_buyer_currency Inertia share", type: :request do
   it "omits the detected currency when the lookup finds no supported currency" do
     allow(GeoIp).to receive(:lookup).and_return(nil)
 
-    expect(inertia_props("#{seller.subdomain_with_protocol}/")["detected_buyer_currency"]).to be_nil
+    expect(profile_rsc_props("#{seller.subdomain_with_protocol}/").dig(:global, :detected_buyer_currency)).to be_nil
   end
 end

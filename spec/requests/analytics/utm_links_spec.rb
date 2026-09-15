@@ -842,7 +842,7 @@ describe "UTM links", :js, type: :system do
       expect(utm_link.reload.unique_clicks).to eq(1)
     end
 
-    it "attributes all qualified purchases to respective UTM link visits when buying multiple products", :elasticsearch_wait_for_refresh do
+    it "attributes all qualified purchases to respective UTM link visits when buying multiple products", :elasticsearch_wait_for_refresh, :product_rsc_renderer do
       seller2 = create(:user)
 
       product1 = create(:product, name: "Product 1 by Seller 1", user: seller)
@@ -923,7 +923,7 @@ describe "UTM links", :js, type: :system do
     expect(utm_link.unique_clicks).to eq(1)
   end
 
-  it "recognizes links with the same UTM parameters for different target resources" do
+  it "recognizes links with the same UTM parameters for different target resources", :product_rsc_renderer do
     product = create(:product, user: seller)
     post = create(:audience_post, :published, seller:, shown_on_profile: true)
     product_utm_link = create(:utm_link, utm_source: "source", utm_medium: "medium", utm_campaign: "campaign", utm_content: "content", utm_term: "term", seller:, target_resource_type: :product_page, target_resource_id: product.id)

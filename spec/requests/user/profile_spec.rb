@@ -6,7 +6,7 @@ require "shared_examples/authorize_called"
 describe "User profile page", type: :system, js: true do
   include FillInUserProfileHelpers
 
-  describe "viewing profile", :sidekiq_inline, :elasticsearch_wait_for_refresh do
+  describe "viewing profile", :product_rsc_renderer, :sidekiq_inline, :elasticsearch_wait_for_refresh do
     let(:creator) { create(:named_user) }
 
     it "formats links in the creator bio" do
@@ -50,7 +50,7 @@ describe "User profile page", type: :system, js: true do
     end
   end
 
-  describe "Profile edit buttons" do
+  describe "Profile edit buttons", :product_rsc_renderer do
     let(:seller) { create(:named_user) }
 
     context "with switching account to user as admin for seller" do
@@ -101,7 +101,7 @@ describe "User profile page", type: :system, js: true do
       @product4 = create(:product, user: seller, name: "Product 4", price_cents: 3000, created_at: time + 3)
     end
 
-    context "without user logged in" do
+    context "without user logged in", :product_rsc_renderer do
       it "displays sections correctly", :elasticsearch_wait_for_refresh do
         create(:seller_profile_products_section, seller:, header: "Section 1", product: @product1)
         create(:seller_profile_products_section, seller:, header: "Section 1", shown_products: [@product1.id, @product2.id, @product3.id, @product4.id], add_new_products: false)

@@ -27,6 +27,48 @@ describe "Public page React on Rails rendering", :product_rsc_renderer, :elastic
       performance.getEntriesByType("resource").some(({ name }) => name.includes("/rsc_payload/"))
     JS
   end
+
+  it "server-renders and hydrates a seller profile" do
+    seller = create(:named_user, username: "rscprofilesmoke")
+    seller.update!(hide_follow_form: true)
+    product = create(:product, user: seller, name: "RSC profile smoke product")
+    about = create(
+      :seller_profile_rich_text_section,
+      seller:,
+      header: "About this RSC profile",
+      text: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Profile RSC content" }] }] }
+    )
+    subscribe = create(:seller_profile_subscribe_section, seller:, header: "Authored profile subscription")
+    catalog = create(
+      :seller_profile_products_section,
+      seller:,
+      header: "RSC catalog",
+      shown_products: [product.id],
+      add_new_products: false
+    )
+    create(
+      :seller_profile,
+      seller:,
+      json_data: {
+        tabs: [
+          { name: "About", sections: [about.id] },
+          { name: "Subscribe", sections: [subscribe.id] },
+          { name: "Catalog", sections: [catalog.id] },
+        ],
+      }
+    )
+    Link.import(force: true, refresh: true)
+
+    page.visit seller.subdomain_with_protocol
+
+    expect_rsc_document(root_id: "profile-rsc-root", component_name: "ProfileRscCompatibilityPage")
+    expect(page).to have_text("Profile RSC content")
+    expect(page).to have_no_css("header form")
+    click_on "Subscribe"
+    expect(page).to have_text("Authored profile subscription")
+    click_on "Catalog"
+    expect(page).to have_selector("a[href*='/l/#{product.unique_permalink}']", text: product.name)
+  end
 end
 
 describe ProductRscRenderer do
