@@ -1,0 +1,6 @@
+{
+  "kind": "skipped",
+  "stage": "perf-warmup",
+  "reason": "perf-warmup does not apply to phone",
+  "runId": "2026-09-15T21:55:43.934Z"
+}

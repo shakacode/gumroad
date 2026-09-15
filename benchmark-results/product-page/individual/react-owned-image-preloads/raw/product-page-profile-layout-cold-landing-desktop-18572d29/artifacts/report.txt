@@ -1,0 +1,22 @@
+Benchmark Results Summary
+
+LH & Vitals
+  FCP no difference [-34ms to 884ms]
+  speed-index no difference [-14ms to 780ms]
+  LCP no difference [-54ms to 869ms]
+  TBT estimated regression +7ms [+2ms to +9ms] OR +17.37% [+5.25% to +23.61%] p=0.01593
+  CLS no difference [0/100 to 0/100]
+  TTFB no difference [-3ms to 152ms]
+  LH Score no difference [-1.5/100 to 0.5/100]
+
+Diagnostics
+  downloads estimated regression +54.2KB [+54.2KB to +54.2KB] OR +2.04% [+2.04% to +2.04%] p=0.0002137
+  downloads-count no difference [0 to 0]
+  downloads-before-LCP estimated regression +5KB [+5KB to +5KB] OR +0.28% [+0.28% to +0.28%] p=0.0002122
+  downloads-count-before-LCP no difference [0 to 0]
+  js no difference [0KB to 0KB]
+  js-count no difference [0 to 0]
+  images no difference [0KB to 0KB]
+  images-count no difference [0 to 0]
+  fonts no difference [0KB to 0KB]
+  fonts-count no difference [0 to 0]

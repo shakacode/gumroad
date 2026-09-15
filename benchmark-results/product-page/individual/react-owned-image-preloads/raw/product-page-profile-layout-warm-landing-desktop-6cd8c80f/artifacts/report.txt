@@ -1,0 +1,22 @@
+Benchmark Results Summary
+
+LH & Vitals
+  FCP no difference [-39ms to 114ms]
+  speed-index no difference [-41ms to 114ms]
+  LCP no difference [-39ms to 114ms]
+  TBT no difference [-2ms to 11ms]
+  CLS no difference [0/100 to 0/100]
+  TTFB no difference [-49ms to 131ms]
+  LH Score no difference [-0.5/100 to 0/100]
+
+Diagnostics
+  downloads no difference [0KB to 0.1KB]
+  downloads-count no difference [0 to 0]
+  downloads-before-LCP no difference [-0.1KB to -0.1KB]
+  downloads-count-before-LCP no difference [-4 to 0]
+  js no difference [0KB to 0KB]
+  js-count no difference [0 to 0]
+  images no difference [0KB to 0KB]
+  images-count no difference [0 to 0]
+  fonts no difference [0KB to 0KB]
+  fonts-count no difference [0 to 0]
