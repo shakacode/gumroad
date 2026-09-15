@@ -221,7 +221,17 @@ class LinksController < ApplicationController
       format.html do
         case params[:layout]
         when Product::Layout::PROFILE
-          render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          unless product_react_on_rails_enabled?
+            return render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          end
+
+          if request.inertia?
+            response.set_header("X-Inertia-Location", request.original_url)
+            return head :conflict
+          end
+
+          product_props = presenter.profile_product_props(sections_editing: false, **presenter_props)
+          render_product_rsc_document(product_rsc_document_props(product_props).merge(page_layout: Product::Layout::PROFILE))
         when Product::Layout::DISCOVER
           if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
             return render inertia: "Products/Discover/Show", props: {
@@ -856,7 +866,11 @@ class LinksController < ApplicationController
 
   private
     def product_rsc_document_request?
-      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request) && product_react_on_rails_enabled?
+    end
+
+    def product_react_on_rails_enabled?
+      is_a?(ProductRscLinksController) && Feature.active?(:product_page_react_on_rails, @product.user)
     end
 
     def product_rsc_document_props(product_props)
@@ -868,6 +882,25 @@ class LinksController < ApplicationController
 
           [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
         end.to_h
+      )
+    end
+
+    def render_product_rsc_document(product_props)
+      # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
+      meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
+        remove_meta_tag(tag[:head_key])
+      end
+      @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
+      @product_rsc_document_props = product_props.merge(
+        _inertia_meta: inertia_meta.meta_tags,
+        global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)
+      )
+      release_live_active_record_connections
+
+      stream_view_containing_react_components(
+        template: "links/rsc_show",
+        layout: "inertia",
+        rsc_stream_observability: true
       )
     end
 
