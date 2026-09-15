@@ -158,6 +158,21 @@ GEM
     archive-zip (0.12.0)
       io-like (~> 0.3.0)
     ast (2.4.3)
+    async (2.46.0)
+      console (~> 1.29)
+      fiber-annotation
+      io-event (~> 1.21)
+    async-http (0.98.0)
+      async (>= 2.35.1)
+      async-pool (~> 0.11)
+      io-endpoint (~> 0.14)
+      io-stream (~> 0.6)
+      protocol-http (~> 0.64)
+      protocol-http1 (~> 0.39)
+      protocol-http2 (~> 0.26)
+      protocol-url (~> 0.2)
+    async-pool (0.12.0)
+      async (>= 2.0)
     attr_extras (7.1.0)
     attr_required (1.0.2)
     aws-eventstream (1.3.0)
@@ -228,8 +243,12 @@ GEM
       with_advisory_lock (>= 4.0.0)
     coderay (1.1.3)
     colorize (1.1.0)
-    concurrent-ruby (1.3.6)
+    concurrent-ruby (1.3.8)
     connection_pool (2.5.5)
+    console (1.38.0)
+      fiber-annotation
+      fiber-local (~> 1.1)
+      json
     cookiejar (0.3.4)
     cose (1.3.1)
       cbor (~> 0.5.9)
@@ -239,7 +258,7 @@ GEM
     crack (1.0.0)
       bigdecimal
       rexml
-    crass (1.0.6)
+    crass (1.0.7)
     css_parser (1.22.0)
       addressable
     csv (3.3.0)
@@ -321,7 +340,7 @@ GEM
       rchardet (>= 1.6.1)
       rexml
     equalizer (0.0.11)
-    erb (6.0.1)
+    erb (6.0.7)
     erubi (1.13.1)
     et-orbi (1.2.11)
       tzinfo
@@ -331,6 +350,8 @@ GEM
     event_stream_parser (1.0.0)
     eventmachine (1.2.7)
     eventmachine_httpserver (0.2.1)
+    execjs (2.10.2)
+      json (>= 2)
     factory_bot (6.4.6)
       activesupport (>= 5.0.0)
     factory_bot_rails (6.4.3)
@@ -367,6 +388,10 @@ GEM
     ffi-compiler (1.3.2)
       ffi (>= 1.15.5)
       rake
+    fiber-annotation (0.2.0)
+    fiber-local (1.1.0)
+      fiber-storage
+    fiber-storage (1.0.1)
     flag_shih_tzu (0.3.23)
     flipper (1.3.0)
       concurrent-ruby (< 2)
@@ -387,7 +412,7 @@ GEM
       raabro (~> 1.4)
     get_process_mem (0.2.7)
       ffi (~> 1.0)
-    globalid (1.3.0)
+    globalid (1.4.0)
       activesupport (>= 6.1)
     google-apis-androidpublisher_v3 (0.68.0)
       google-apis-core (>= 0.15.0, < 2.a)
@@ -459,7 +484,7 @@ GEM
       mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
     httpclient (2.8.3)
-    i18n (1.14.8)
+    i18n (1.15.2)
       concurrent-ruby (~> 1.0)
     ibandit (1.26.1)
       i18n
@@ -468,10 +493,14 @@ GEM
       ruby-vips (>= 2.0.17, < 3)
     inertia_rails (3.15.0)
       railties (>= 6)
-    io-console (0.8.2)
+    io-console (0.9.3)
+    io-endpoint (0.17.2)
+    io-event (1.22.0)
     io-like (0.3.1)
-    irb (1.16.0)
+    io-stream (0.13.1)
+    irb (1.18.0)
       pp (>= 0.6.0)
+      prism (>= 1.3.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     jbuilder (2.12.0)
@@ -480,7 +509,7 @@ GEM
     jmespath (1.6.2)
     js-routes (2.2.8)
       railties (>= 4)
-    json (2.13.2)
+    json (2.21.2)
     json-jwt (1.15.3.1)
       activesupport (>= 4.2)
       aes_key_wrap
@@ -491,7 +520,7 @@ GEM
     json_matchers (0.11.1)
       json_schema
     json_schema (0.21.0)
-    jwt (2.8.2)
+    jwt (2.10.3)
       base64
     kaminari (1.2.2)
       activesupport (>= 4.1.0)
@@ -526,10 +555,10 @@ GEM
       activesupport (>= 4)
       railties (>= 4)
       request_store (~> 1.0)
-    loofah (2.25.1)
+    loofah (2.25.2)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
-    mail (2.9.0)
+    mail (2.9.1)
       logger
       mini_mime (>= 0.1.1)
       net-imap
@@ -577,27 +606,27 @@ GEM
       connection_pool (~> 2.2)
     net-http2 (0.18.5)
       http-2 (~> 0.11)
-    net-imap (0.5.14)
+    net-imap (0.6.7)
       date
       net-protocol
     net-pop (0.1.2)
       net-protocol
-    net-protocol (0.2.2)
+    net-protocol (0.3.0)
       timeout
     net-smtp (0.5.1)
       net-protocol
     netrc (0.11.0)
     nio4r (2.7.5)
-    nokogiri (1.19.3)
+    nokogiri (1.19.4)
       mini_portile2 (~> 2.8.2)
       racc (~> 1.4)
-    nokogiri (1.19.3-arm64-darwin)
+    nokogiri (1.19.4-arm64-darwin)
       racc (~> 1.4)
-    nokogiri (1.19.3-x86_64-darwin)
+    nokogiri (1.19.4-x86_64-darwin)
       racc (~> 1.4)
-    nokogiri (1.19.3-x86_64-linux-gnu)
+    nokogiri (1.19.4-x86_64-linux-gnu)
       racc (~> 1.4)
-    nokogiri (1.19.3-x86_64-linux-musl)
+    nokogiri (1.19.4-x86_64-linux-musl)
       racc (~> 1.4)
     oauth (1.1.0)
       oauth-tty (~> 1.0, >= 1.0.1)
@@ -657,6 +686,7 @@ GEM
     orm_adapter (0.5.0)
     os (1.1.4)
     ostruct (0.6.1)
+    package_json (0.2.0)
     pagy (9.0.5)
     paper_trail (17.0.0)
       activerecord (>= 7.1)
@@ -684,7 +714,7 @@ GEM
       ttfunk
     pdfkit (0.8.7.3)
     phony (2.20.12)
-    pp (0.6.3)
+    pp (0.6.4)
       prettyprint
     prawn (2.5.0)
       matrix (~> 0.4)
@@ -701,6 +731,14 @@ GEM
     prettyprint (0.2.0)
     prism (1.4.0)
     private_address_check (0.5.0)
+    protocol-hpack (1.5.1)
+    protocol-http (0.72.0)
+    protocol-http1 (0.41.0)
+      protocol-http (~> 0.68)
+    protocol-http2 (0.28.0)
+      protocol-hpack (~> 1.4)
+      protocol-http (~> 0.62)
+    protocol-url (0.19.0)
     pry (0.14.2)
       coderay (~> 1.1)
       method_source (~> 1.0)
@@ -728,7 +766,7 @@ GEM
     pwned (2.4.1)
     raabro (1.4.0)
     racc (1.8.1)
-    rack (3.2.6)
+    rack (3.2.7)
     rack-attack (6.7.0)
       rack (>= 1.0, < 4)
     rack-cors (2.0.2)
@@ -744,7 +782,7 @@ GEM
     rack-protection (4.0.0)
       base64 (>= 0.1.0)
       rack (>= 3.0.0, < 4)
-    rack-proxy (0.7.7)
+    rack-proxy (0.8.3)
       rack
     rack-session (2.1.2)
       base64 (>= 0.1.0)
@@ -780,8 +818,8 @@ GEM
       activesupport (>= 5.0.0)
       minitest
       nokogiri (>= 1.6)
-    rails-html-sanitizer (1.6.2)
-      loofah (~> 2.21)
+    rails-html-sanitizer (1.7.1)
+      loofah (~> 2.25, >= 2.25.2)
       nokogiri (>= 1.15.7, != 1.16.7, != 1.16.6, != 1.16.5, != 1.16.4, != 1.16.3, != 1.16.2, != 1.16.1, != 1.16.0.rc1, != 1.16.0)
     railties (8.1.3.1)
       actionpack (= 8.1.3.1)
@@ -798,10 +836,25 @@ GEM
       redis (>= 3.0.0)
       redis-namespace (>= 1.0.0)
     rchardet (1.8.0)
-    rdoc (7.0.2)
+    rdoc (7.2.0)
       erb
       psych (>= 4.0.0)
       tsort
+    react_on_rails (17.1.0.rc.5)
+      addressable
+      connection_pool
+      execjs (~> 2.5)
+      rails (>= 5.2)
+      rainbow (~> 3.0)
+      shakapacker (>= 6.0)
+    react_on_rails_pro (17.1.0.rc.5)
+      async (>= 2.29)
+      async-http (~> 0.95)
+      execjs (~> 2.9)
+      io-endpoint (~> 0.17.0)
+      jwt (>= 2.5, < 4)
+      nokogiri (>= 1.12, < 2)
+      react_on_rails (= 17.1.0.rc.5)
     redcarpet (3.6.0)
     redis (5.2.0)
       redis-client (>= 0.22.0)
@@ -810,7 +863,7 @@ GEM
     redis-namespace (1.11.0)
       redis (>= 4)
     regexp_parser (2.11.1)
-    reline (0.6.3)
+    reline (0.7.0)
       io-console (~> 0.5)
     representable (3.2.0)
       declarative (< 0.1.0)
@@ -944,6 +997,7 @@ GEM
       rexml (~> 3.2, >= 3.2.5)
       rubyzip (>= 1.2.2, < 4.0)
       websocket (~> 1.0)
+    semantic_range (3.1.1)
     sendgrid-ruby (6.7.0)
       ruby_http_client (~> 3.4)
     sentry-rails (6.5.0)
@@ -953,6 +1007,12 @@ GEM
       bigdecimal
       concurrent-ruby (~> 1.0, >= 1.0.2)
       logger
+    shakapacker (10.2.0)
+      activesupport (>= 5.2)
+      package_json
+      rack-proxy (>= 0.6.1)
+      railties (>= 5.2)
+      semantic_range (>= 2.3.0)
     shoulda-matchers (6.3.0)
       activesupport (>= 5.2.0)
     sidekiq (7.3.4)
@@ -1015,7 +1075,7 @@ GEM
       memoizable (~> 0.4.0)
       model_attribute (~> 3.2)
     test-prof (1.6.1)
-    thor (1.4.0)
+    thor (1.5.0)
     thread_safe (0.3.6)
     timeout (0.6.1)
     tpm-key_attestation (0.14.1)
@@ -1093,7 +1153,7 @@ GEM
     websocket-client-simple (0.8.0)
       event_emitter
       websocket
-    websocket-driver (0.8.0)
+    websocket-driver (0.8.2)
       base64
       websocket-extensions (>= 0.1.0)
     websocket-extensions (0.1.5)
@@ -1104,7 +1164,7 @@ GEM
       rexml
     xpath (3.2.0)
       nokogiri (~> 1.8)
-    zeitwerk (2.7.4)
+    zeitwerk (2.8.3)
 
 PLATFORMS
   arm64-darwin
@@ -1228,6 +1288,7 @@ DEPENDENCIES
   rails-controller-testing (~> 1.0)
   rake (= 13.2.1)
   ratelimit (~> 1.0)
+  react_on_rails_pro (= 17.1.0.rc.5)
   redcarpet (~> 3.5)
   redis (~> 5.0)
   redis-namespace (~> 1.10)
@@ -1258,6 +1319,7 @@ DEPENDENCIES
   sendgrid-ruby (~> 6.6)
   sentry-rails
   sentry-ruby
+  shakapacker (~> 10.2.0)
   shoulda-matchers (~> 6.0)
   sidekiq (~> 7.3, >= 7.3.4)
   sidekiq-cron (~> 1.9)
