@@ -72,6 +72,56 @@ shaka-perf servers stop-containers
 The server workflow loads the deterministic benchmark catalogs after twin
 isolation is established, and the compare workflow runs the configured suites.
 
+## Refresh running twins without rebuilding containers
+
+Use this loop when the interactive `shaka-perf servers` menu is already running
+and a change only requires new source or RSC assets:
+
+```text
+save experiment changes -> sync control changes -> rebuild both RSC bundles -> restart servers -> compare
+```
+
+The running menu watches the experiment checkout and automatically copies saved
+files into the experiment volume. It does not watch the separate control
+checkout, so control changes still need `servers sync-changes control`.
+ShakaPerf normally proxies commands to the running menu, which rejects manual
+syncs to avoid racing its watcher; the control sync therefore uses
+`SHAKAPERF_NO_PROXY=1`.
+
+Run the complete refresh from the repository root:
+
+```bash
+bin/refresh-shakaperf-twins
+```
+
+The helper:
+
+1. syncs Git-visible control changes into the control volume;
+2. runs `/shakaperf-twin/build-public-rsc` in both containers, preserving each
+   side's benchmark hostname and port;
+3. calls `servers start-servers`, which the live menu interprets as **Restart
+   servers** (the same action as menu option `6`).
+
+It does not rebuild images, restart containers, reset databases, or run a
+comparison. Run the desired comparison after the refresh finishes:
+
+```bash
+shaka-perf compare
+```
+
+Pass `--skip-control-sync` when the control checkout has not changed. Use
+`--dry-run` to print the commands without executing them. Set `CONFIG_PATH` if
+the configuration is not the repository's `abtests.config.ts`:
+
+```bash
+CONFIG_PATH=/path/to/abtests.config.ts bin/refresh-shakaperf-twins --dry-run
+```
+
+`sync-changes` only copies files Git reports as changed. Dependency,
+Dockerfile, or other image-level changes still require a rebuild from the menu.
+If the interactive menu is not running, `servers start-servers` starts a new
+foreground server session instead of returning after a restart.
+
 ## Asset and browser cache behavior
 
 Each stack serves shared assets from its root origin: `http://control.localhost:3100`

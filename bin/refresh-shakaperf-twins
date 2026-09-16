@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+config_path=${CONFIG_PATH:-"$repo_root/abtests.config.ts"}
+shakaperf_bin=${SHAKAPERF_BIN:-shaka-perf}
+skip_control_sync=false
+dry_run=false
+
+usage() {
+  cat <<'USAGE'
+Usage: bin/refresh-shakaperf-twins [--skip-control-sync] [--dry-run]
+
+Refresh already-running ShakaPerf twins without rebuilding containers:
+  1. sync Git-visible control changes (experiment changes auto-sync),
+  2. rebuild side-specific public RSC assets in both containers,
+  3. restart both server processes through the interactive menu.
+
+Environment:
+  CONFIG_PATH       ShakaPerf config (default: ./abtests.config.ts)
+  SHAKAPERF_BIN     ShakaPerf executable (default: shaka-perf)
+  SHAKAPERF_CONTROL_DIR and SHAKAPERF_EXPERIMENT_DIR are passed through.
+USAGE
+}
+
+while (($# > 0)); do
+  case "$1" in
+    --skip-control-sync)
+      skip_control_sync=true
+      ;;
+    --dry-run)
+      dry_run=true
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if [[ ! -f "$config_path" ]]; then
+  echo "ShakaPerf config not found: $config_path" >&2
+  exit 1
+fi
+
+if ! command -v "$shakaperf_bin" >/dev/null 2>&1; then
+  echo "ShakaPerf executable not found: $shakaperf_bin" >&2
+  exit 1
+fi
+
+run() {
+  printf '+'
+  printf ' %q' "$@"
+  printf '\n'
+  if [[ "$dry_run" == false ]]; then
+    "$@"
+  fi
+}
+
+cd "$repo_root"
+
+if [[ "$skip_control_sync" == false ]]; then
+  run env SHAKAPERF_NO_PROXY=1 \
+    "$shakaperf_bin" servers sync-changes control -c "$config_path"
+fi
+
+run "$shakaperf_bin" servers run-cmd-parallel -c "$config_path" \
+  /shakaperf-twin/build-public-rsc
+
+run "$shakaperf_bin" servers start-servers -c "$config_path"
+
+echo
+echo "Twins refreshed. Run 'shaka-perf compare' when ready."
