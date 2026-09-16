@@ -5,7 +5,6 @@ import * as React from "react";
 
 import AppWrapper from "$app/inertia/app_wrapper";
 import type { MetaTag } from "$app/layouts/components/MetaTags";
-import MetaTags from "$app/layouts/components/MetaTags";
 
 import { CurrentSellerProvider, parseCurrentSeller } from "$app/components/CurrentSeller";
 import { LoggedInUserProvider, parseLoggedInUser } from "$app/components/LoggedInUser";
@@ -26,7 +25,7 @@ export default function ProductPageShell({
 }: {
   children: React.ReactNode;
   global: ProductGlobalProps;
-  inertiaMeta?: MetaTag[];
+  inertiaMeta?: MetaTag[] | undefined;
 }) {
   const initialPage = buildInertiaPage("Products/Profile/Show", global, {}, inertiaMeta);
 
@@ -34,7 +33,6 @@ export default function ProductPageShell({
     <InertiaApp initialPage={initialPage} initialComponent={() => null} resolveComponent={() => () => null}>
       {() => (
         <AppWrapper global={global}>
-          <MetaTags />
           <LoggedInUserProvider value={parseLoggedInUser(global.logged_in_user ?? null)}>
             <CurrentSellerProvider value={parseCurrentSeller(global.current_seller ?? null)}>
               <Alert initial={global.flash ?? null} />

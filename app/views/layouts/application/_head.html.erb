@@ -14,5 +14,10 @@
   <%= vite_entrypoint_stylesheet_tag "design", crossorigin: "anonymous" unless @hide_styles %>
   <%= yield :style %>
   <%= yield :smart_app_banner %>
-  <%= inertia_rendering? ? inertia_meta_tags : erb_meta_tags %>
+  <%# The RSC compatibility wrapper must not remove document metadata while hydrating. %>
+  <% if @product_rsc_document_props %>
+    <%= erb_meta_tags(inertia_managed: false) %>
+  <% else %>
+    <%= inertia_rendering? ? inertia_meta_tags : erb_meta_tags %>
+  <% end %>
 </head>
