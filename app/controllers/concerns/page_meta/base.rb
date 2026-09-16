@@ -77,9 +77,10 @@ module PageMeta::Base
       @meta_tags ||= {}
     end
 
-    def erb_meta_tags
+    def erb_meta_tags(inertia_managed: true)
       tags = meta_tags.each_value.map do |inertia_meta_tag|
-        inertia_meta_tag.to_tag(tag)
+        html = inertia_meta_tag.to_tag(tag)
+        inertia_managed ? html : html.sub(/\s(?:data-)?inertia="[^"]*"/, "").html_safe
       end
 
       safe_join(tags, "\n")
