@@ -8,6 +8,7 @@ describe "layouts/application/_head", type: :view do
   before do
     meta_controller.send(:set_meta_tag, name: "csrf-token", content: 'token"&<escaped>')
     meta_controller.send(:set_meta_tag, property: "stripe:pk", value: "pk_test")
+    meta_controller.send(:set_meta_tag, tag_name: "style", inner_content: 'body{font-family:"ABC Favorit",sans-serif}', head_key: "custom_styles")
     assign(:hide_styles, true)
     allow(view).to receive(:action_cable_meta_tag).and_return("")
     allow(view).to receive(:vite_client_tag).and_return("")
@@ -28,7 +29,19 @@ describe "layouts/application/_head", type: :view do
     expect(document.at_css('meta[name="csrf-token"]')["content"]).to eq('token"&<escaped>')
     expect(document.css('meta[property="stripe:pk"]').length).to eq(1)
     expect(document.css("[inertia], [data-inertia]")).to be_empty
+    expect(document.at_css("style").content).to eq('body{font-family:"ABC Favorit",sans-serif}')
     expect(view).not_to have_received(:inertia_meta_tags)
+  end
+
+  it "keeps a style closing-tag sequence inside the RSC style body" do
+    assign(:product_rsc_document_props, { product: {} })
+    meta_controller.send(:set_meta_tag, tag_name: "style", inner_content: "</style><script>alert(1)</script>", head_key: "custom_styles")
+
+    render partial: "layouts/application/head"
+
+    document = Nokogiri::HTML(rendered)
+    expect(document.css("script")).to be_empty
+    expect(document.at_css("style").content).to eq('<\\/style><script>alert(1)</script>')
   end
 
   it "preserves Inertia head ownership for existing Inertia documents" do
