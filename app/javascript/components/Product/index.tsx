@@ -1,9 +1,7 @@
 import { Star } from "@boxicons/react";
-import { EditorContent } from "@tiptap/react";
 import { differenceInYears, parseISO } from "date-fns";
 import * as React from "react";
 
-import { getReviews, type Review } from "$app/data/product_reviews";
 import { trackUserProductAction } from "$app/data/user_action_event";
 import { incrementProductViews } from "$app/data/view_event";
 import { Wishlist } from "$app/data/wishlists";
@@ -47,9 +45,7 @@ import { CopyToClipboard } from "$app/components/CopyToClipboard";
 import { useDomains } from "$app/components/DomainSettings";
 import { useLoggedInUser } from "$app/components/LoggedInUser";
 import { Modal } from "$app/components/Modal";
-import { PaginationProps } from "$app/components/Pagination";
 import { AuthorByline } from "$app/components/Product/AuthorByline";
-import { CollapsibleDescription } from "$app/components/Product/CollapsibleDescription";
 import {
   applySelection,
   buyerLocalPriceCentsForSelection,
@@ -69,24 +65,19 @@ import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
+import ProductDescription from "$app/components/Product/ProductDescription.client";
 import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
+import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
-import { PublicFilesSettingsContext } from "$app/components/ProductEdit/ProductTab/DescriptionEditor";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { RatingStars } from "$app/components/RatingStars";
-import { Review as ReviewComponent } from "$app/components/Review";
 import { Review as FormReview, ReviewForm } from "$app/components/ReviewForm";
-import { useRichTextEditor } from "$app/components/RichTextEditor";
 import { showAlert } from "$app/components/server-components/Alert";
-import { PublicFileEmbed } from "$app/components/TiptapExtensions/PublicFileEmbed";
-import { ReviewCard } from "$app/components/TiptapExtensions/ReviewCard";
-import { UpsellCard } from "$app/components/TiptapExtensions/UpsellCard";
 import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
-import { LinkButton } from "$app/components/ui/LinkButton";
 import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
 import { useOnChange } from "$app/components/useOnChange";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
@@ -309,15 +300,8 @@ export const Product = ({
   // already shows the same avatar and name — the byline is redundant there.
   hideSellerByline?: boolean | undefined;
 }) => {
-  const [pageLoaded, setPageLoaded] = React.useState(false);
   const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
   const loggedInUser = useLoggedInUser();
-  const descriptionEditor = useRichTextEditor({
-    // delay initialization to avoid errors in SSR
-    initialValue: pageLoaded ? product.description_html : null,
-    extensions: [UpsellCard, PublicFileEmbed, ReviewCard],
-    editable: false,
-  });
 
   const notForSaleMessage = getNotForSaleMessage(product);
   const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
@@ -333,19 +317,11 @@ export const Product = ({
     if (maxQuantity !== null && selection.quantity > maxQuantity)
       setSelection?.({ ...selection, quantity: maxQuantity });
   }, [maxQuantity, selection.quantity]);
-  const publicFilesSettings = React.useMemo(
-    () => ({
-      files: product.public_files,
-    }),
-    [product.public_files],
-  );
 
   const addThirdPartyAnalytics = useAddThirdPartyAnalytics();
 
   const { searchParams } = new URL(useOriginalLocation());
   useRunOnce(() => {
-    setPageLoaded(true);
-
     if (disableAnalytics) return;
     if (product.seller) {
       startTrackingForSeller(product.seller.id, product.analytics);
@@ -565,22 +541,18 @@ export const Product = ({
           </section>
         ) : null}
         <section className="border-t border-border p-6">
-          <CollapsibleDescription>
-            {/* dir="auto" gives the description a base direction from its first strong
-                character; per-block direction for mixed-language content is handled by
-                the unicode-bidi: plaintext rule in _rich_text.scss (gumroad-private#1244). */}
-            {pageLoaded ? (
-              <PublicFilesSettingsContext.Provider value={publicFilesSettings}>
-                <EditorContent className="rich-text" dir="auto" editor={descriptionEditor} />
-              </PublicFilesSettingsContext.Provider>
-            ) : (
+          <ProductDescription
+            descriptionHtml={product.description_html}
+            initialContent={
               <div
                 className="rich-text"
                 dir="auto"
                 dangerouslySetInnerHTML={{ __html: product.description_html ?? "" }}
               />
-            )}
-          </CollapsibleDescription>
+            }
+            needsClientEnhancement
+            publicFiles={product.public_files}
+          />
         </section>
       </section>
       <section>
@@ -953,86 +925,37 @@ const Reviews = ({
   ratings: RatingsWithPercentages;
   seller: Seller | null;
 }) => {
-  const loggedInUser = useLoggedInUser();
-  const [state, setState] = React.useState<{ reviews: Review[]; pagination: PaginationProps }>({
-    reviews: [],
-    pagination: { page: 0, pages: 1 },
-  });
-  const [isLoading, setIsLoading] = React.useState(false);
-  const loadNextPage = async () => {
-    if (ratings.count === 0) return;
-    setIsLoading(true);
-    try {
-      const { reviews, pagination } = await getReviews(productId, state.pagination.page + 1);
-      setState(({ reviews: prevReviews }) => ({ pagination, reviews: [...prevReviews, ...reviews] }));
-    } catch (e) {
-      assertResponseError(e);
-      showAlert(e.message, "error");
-    }
-    setIsLoading(false);
-  };
-  useRunOnce(() => void loadNextPage());
-
   if (ratings.count === 0) return null;
 
   return (
-    <section className="grid gap-4 p-6 not-first:border-t">
-      <header className="flex items-center justify-between">
-        <h3>Ratings</h3>
-        <div className="flex shrink-0 items-center gap-1">
-          <Star pack="filled" className="size-5" />
-          <div className="rating-average">{ratings.average}</div>(
-          {`${formatOrderOfMagnitude(ratings.count, 1)} ${ratings.count === 1 ? "rating" : "ratings"}`})
-        </div>
-      </header>
-      {/* Rating markup lives in the page's JSON-LD (Product::StructuredData), where the
+    <ProductReviews
+      productId={productId}
+      seller={seller}
+      initialContent={
+        <>
+          <header className="flex items-center justify-between">
+            <h3>Ratings</h3>
+            <div className="flex shrink-0 items-center gap-1">
+              <Star pack="filled" className="size-5" />
+              <div className="rating-average">{ratings.average}</div>(
+              {`${formatOrderOfMagnitude(ratings.count, 1)} ${ratings.count === 1 ? "rating" : "ratings"}`})
+            </div>
+          </header>
+          {/* Rating markup lives in the page's JSON-LD (Product::StructuredData), where the
           AggregateRating nests under the Product. Do not re-add microdata here: this section
           has no itemscope Product ancestor, so an itemscope block becomes a standalone
           top-level AggregateRating that Google's Rich Results Test flags as
           "Missing field itemReviewed" (gumroad-private#1875). */}
-      <section className="grid grid-cols-[auto_1fr_auto] gap-3" aria-label="Ratings histogram">
-        {([4, 3, 2, 1, 0] as const).map((rating) => (
-          <RatingsHistogramRow rating={rating + 1} percentage={ratings.percentages[rating]} key={rating} />
-        ))}
-      </section>
-      {state.reviews.length ? (
-        <section className="flex flex-col gap-4" style={{ marginTop: "var(--spacer-2)" }}>
-          {state.reviews.map((review, idx) => (
-            <Review
-              key={review.id}
-              review={review}
-              seller={seller}
-              isLast={idx === state.reviews.length - 1}
-              canRespond={seller?.id === loggedInUser?.id}
-            />
-          ))}
-          {state.pagination.page < state.pagination.pages ? (
-            <LinkButton onClick={() => void loadNextPage()} disabled={isLoading}>
-              Load more
-            </LinkButton>
-          ) : null}
-        </section>
-      ) : null}
-    </section>
+          <section className="grid grid-cols-[auto_1fr_auto] gap-3" aria-label="Ratings histogram">
+            {([4, 3, 2, 1, 0] as const).map((rating) => (
+              <RatingsHistogramRow rating={rating + 1} percentage={ratings.percentages[rating]} key={rating} />
+            ))}
+          </section>
+        </>
+      }
+    />
   );
 };
-
-const Review = ({
-  review,
-  seller,
-  isLast,
-  canRespond,
-}: {
-  review: Review;
-  seller: Seller | null;
-  isLast: boolean;
-  canRespond: boolean;
-}) => (
-  <>
-    <ReviewComponent review={review} seller={seller} canRespond={canRespond} />
-    {isLast ? null : <hr />}
-  </>
-);
 
 // Labelled creator context, never the product's own rating: the two copy
 // states keep an unreviewed product visibly unreviewed, and the count links
