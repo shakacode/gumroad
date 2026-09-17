@@ -111,7 +111,7 @@ export const ProductSalesNotice = ({
 export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (
   <>
     <a className="line-clamp-2 text-base font-medium no-underline sm:text-lg" href={product.url}>
-      <h4 className="font-bold">{product.name}</h4>
+      <h4 className="font-bold wrap-break-word">{product.name}</h4>
     </a>
     {product.ratings ? (
       <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
@@ -214,7 +214,7 @@ export const ProductReceiptContent = ({
 };
 
 export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
-  <h1 itemProp="name" dir="auto">
+  <h1 itemProp="name" dir="auto" className="wrap-break-word">
     {content.name}
   </h1>
 );
@@ -329,7 +329,7 @@ export const ProductSellerAndRatings = ({
       {showSellerByline ? (
         <div
           className={classNames(
-            "flex flex-wrap items-center gap-2 px-6 py-4 outline outline-offset-0 outline-border",
+            "flex min-w-0 flex-wrap items-center gap-2 px-6 py-4 outline outline-offset-0 outline-border",
             !showPrice && "col-span-full sm:col-auto",
             showPrice && !(ratings != null && ratings.count > 0) && "sm:col-[2/-1]",
           )}

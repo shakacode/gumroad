@@ -6,7 +6,7 @@ import { NavigationButton } from "$app/components/Button";
 import { useDomains } from "$app/components/DomainSettings";
 import { Card, CardContent } from "$app/components/ui/Card";
 
-export const ProductLicenseKeyLookup = () => {
+export const ProductLicenseKeyLookup = ({ isLicensed, hasDownload }: { isLicensed: boolean; hasDownload: boolean }) => {
   // This can render on seller and custom domains, where the relative lookup path is not routed.
   const { scheme, rootDomain } = useDomains();
 
@@ -17,7 +17,7 @@ export const ProductLicenseKeyLookup = () => {
           <li>
             <h3 className="grow">Already bought this?</h3>
             <NavigationButton href={Routes.license_key_lookup_url({ protocol: scheme, host: rootDomain })}>
-              View your information
+              {isLicensed ? "View your information" : hasDownload ? "Get your download link" : "Resend your receipt"}
             </NavigationButton>
           </li>
         </CardContent>
