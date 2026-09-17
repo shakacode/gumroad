@@ -1,5 +1,4 @@
-import { Star } from "@boxicons/react";
-import { differenceInYears, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import * as React from "react";
 
 import { incrementProductViews } from "$app/data/view_event";
@@ -9,7 +8,6 @@ import {
   AnalyticsData,
   AssetPreview,
   BuyerCurrencyDisplay,
-  COMMISSION_DEPOSIT_PROPORTION,
   CustomButtonTextOption,
   FreeTrial,
   ProductNativeType,
@@ -17,15 +15,10 @@ import {
   RatingsWithPercentages,
 } from "$app/parsers/product";
 import { SellerReputation } from "$app/parsers/profile";
-import { classNames } from "$app/utils/classNames";
 import { BuyerLocalCurrencyContext, CurrencyCode, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
 import { formatDate } from "$app/utils/date";
-import { formatOrderOfMagnitude } from "$app/utils/formatOrderOfMagnitude";
-import { variantLabel } from "$app/utils/labels";
 import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
-import { CartItemFooter, CartItemTitle } from "$app/components/CartItemList";
-import { AuthorByline } from "$app/components/Product/AuthorByline";
 import {
   applySelection,
   ConfigurationSelectorHandle,
@@ -37,27 +30,33 @@ import {
 } from "$app/components/Product/ConfigurationSelector";
 import { getStandalonePrice } from "$app/components/Product/pricing";
 import { ProductBundle } from "$app/components/Product/ProductBundle.client";
+import {
+  ProductAvailabilityNotice,
+  ProductBundleItemContent,
+  ProductDescriptionContent,
+  ProductDetails,
+  ProductMembershipNotices,
+  ProductQuantityRemaining,
+  ProductReceiptContent,
+  ProductReviewsContent,
+  ProductSalesNotice,
+  ProductSellerAndRatings,
+  ProductSellerReputation,
+  ProductStreamingNotice,
+  ProductTitle,
+} from "$app/components/Product/ProductContent";
 import ProductDescription from "$app/components/Product/ProductDescription.client";
 import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
-import {
-  ProductReceiptCopyLicenseKeyAction,
-  ProductReceiptMembershipAction,
-  ProductReceiptReviewAction,
-  ProductReceiptViewContentAction,
-} from "$app/components/Product/ProductReceiptActions.client";
 import { ProductRefundPolicy } from "$app/components/Product/ProductRefundPolicy.client";
 import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
-import { Ribbon } from "$app/components/Product/Ribbon";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
-import { RatingStars } from "$app/components/RatingStars";
 import { Review as FormReview } from "$app/components/ReviewForm";
 import { Alert } from "$app/components/ui/Alert";
-import { Card, CardContent } from "$app/components/ui/Card";
 import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useRunOnce } from "$app/components/useRunOnce";
@@ -180,14 +179,7 @@ export type ProductDiscount =
   | { valid: true; code: string; discount: Discount }
   | null;
 
-export const getNotForSaleMessage = (product: Product) =>
-  product.is_compliance_blocked
-    ? "Sorry, this item is not available in your location."
-    : product.quantity_remaining === 0
-      ? "Sold out, please go back and pick another option."
-      : !product.is_published
-        ? "This product is not currently for sale."
-        : null;
+export { getNotForSaleMessage } from "$app/components/Product/productAvailability";
 
 export type WishlistForProduct = Wishlist & {
   selections_in_wishlist: { variant_id: string | null; recurrence: string | null; rent: boolean; quantity: number }[];
@@ -243,7 +235,6 @@ export const Product = ({
   // already shows the same avatar and name — the byline is redundant there.
   hideSellerByline?: boolean | undefined;
 }) => {
-  const notForSaleMessage = getNotForSaleMessage(product);
   const [discountCode, setDiscountCode] = React.useState(initialDiscountCode);
 
   React.useEffect(() => {
@@ -275,29 +266,13 @@ export const Product = ({
 
   const isBundle = product.bundle_products.length > 0;
   if (isBundle) basePriceCents = getStandalonePrice(product);
-  // What the price tag and the contents list below strike through as the
-  // "original price". Usually the same standalone sum, but on a bundle tier
-  // that costs extra there is no honest comparison to draw, so this is null
-  // and nothing is struck through. Kept separate from basePriceCents, which
-  // also drives whether the price tag renders at all.
-
-  // The storefront-wrapped page's profile header already shows the seller, but not a
-  // collaborator — keep the byline when there is one so the "with X" context survives.
-  const sellerByline =
-    product.seller && !(hideSellerByline && !product.collaborating_user) ? (
-      <AuthorByline
-        name={product.seller.name}
-        profileUrl={product.seller.profile_url}
-        avatarUrl={product.seller.avatar_url}
-        isTopCreator={product.seller.is_verified}
-      />
-    ) : null;
-
   const showPrice =
     !product.recurrences &&
     product.options.length === 0 &&
     !product.rental?.rent_only &&
     (basePriceCents !== 0 || product.pwyw);
+
+  const productContent = { ...product, show_price: !!showPrice };
 
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
@@ -307,53 +282,19 @@ export const Product = ({
         mainCoverId={product.main_cover_id}
         productName={product.name}
       />
-      {product.quantity_remaining !== null ? <Ribbon>{product.quantity_remaining} left</Ribbon> : null}
+      <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />
       <section className="lg:border-r">
         <header className="grid gap-4 p-6 not-first:border-t">
-          {/* dir="auto" lets an RTL product name (Hebrew, Arabic) render right-to-left
-              instead of inheriting the document's LTR base direction, which misplaces
-              neutral characters like quotes and digits (gumroad-private#1259; same
-              rationale as the description fix in #6138).
-              wrap-break-word overrides the inherited global overflow-wrap: anywhere, which
-              splits titles mid-word in narrow in-app browsers. */}
-          <h1 itemProp="name" dir="auto" className="wrap-break-word">
-            {product.name}
-          </h1>
+          <ProductTitle content={productContent} />
         </header>
         {/* Stack on mobile: an inflated price in an auto track leaves the name ~1ch
             wide, and overflow-wrap:anywhere then stacks it one character at a time. */}
         <section className="grid grid-cols-1 gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
           <ProductPrice product={product} selection={selection} discountCode={discountCode} />
-          {sellerByline ? (
-            <div
-              className={classNames(
-                "flex min-w-0 flex-wrap items-center gap-2 px-6 py-4 outline outline-offset-0 outline-border",
-                !showPrice && "col-span-full sm:col-auto",
-                showPrice && !(product.ratings != null && product.ratings.count > 0) && "sm:col-[2/-1]",
-              )}
-            >
-              {product.collaborating_user ? (
-                <>
-                  {sellerByline} with{" "}
-                  <AuthorByline
-                    name={product.collaborating_user.name}
-                    profileUrl={product.collaborating_user.profile_url}
-                    avatarUrl={product.collaborating_user.avatar_url}
-                  />
-                </>
-              ) : (
-                sellerByline
-              )}
-            </div>
-          ) : null}
-          {product.ratings != null && product.ratings.count > 0 ? (
-            <div className="flex items-center px-6 py-4 outline outline-offset-0 outline-border max-sm:col-span-full">
-              <RatingsSummary ratings={product.ratings} />
-            </div>
-          ) : null}
+          <ProductSellerAndRatings content={productContent} hideSellerByline={hideSellerByline} />
         </section>
         {purchase !== null ? (
-          <ExistingPurchaseCard
+          <ProductReceiptContent
             purchase={purchase}
             permalink={product.permalink}
             isPreorder={product.preorder !== null}
@@ -373,40 +314,14 @@ export const Product = ({
           bundleItems={Object.fromEntries(
             product.bundle_products.map((bundleProduct) => [
               bundleProduct.id,
-              <>
-                <CartItemTitle asChild>
-                  <a href={bundleProduct.url}>
-                    <h4 className="font-bold wrap-break-word">{bundleProduct.name}</h4>
-                  </a>
-                </CartItemTitle>
-                {bundleProduct.ratings ? (
-                  <div className="line-clamp-1 flex shrink-0 items-center gap-1" aria-label="Rating">
-                    <Star pack="filled" className="size-5" />
-                    {`${bundleProduct.ratings.average.toFixed(1)} (${bundleProduct.ratings.count})`}
-                  </div>
-                ) : null}
-                <span className="sr-only">Qty: {bundleProduct.quantity}</span>
-                {bundleProduct.variant ? (
-                  <CartItemFooter>
-                    <span className="line-clamp-1">
-                      <strong>{variantLabel(bundleProduct.native_type)}:</strong> {bundleProduct.variant}
-                    </span>
-                  </CartItemFooter>
-                ) : null}
-              </>,
+              <ProductBundleItemContent key={bundleProduct.id} product={bundleProduct} />,
             ]),
           )}
         />
         <section className="border-t border-border p-6">
           <ProductDescription
             descriptionHtml={product.description_html}
-            initialContent={
-              <div
-                className="rich-text"
-                dir="auto"
-                dangerouslySetInnerHTML={{ __html: product.description_html ?? "" }}
-              />
-            }
+            initialContent={<ProductDescriptionContent content={productContent} />}
             needsClientEnhancement
             publicFiles={product.public_files}
           />
@@ -423,267 +338,39 @@ export const Product = ({
             ctaButtonRef={ctaButtonRef}
             configurationSelectorRef={configurationSelectorRef}
             ctaLabel={ctaLabel}
-            availabilityNotice={
-              notForSaleMessage ? (
-                <Alert role="status" variant="warning">
-                  {notForSaleMessage}
-                </Alert>
-              ) : product.native_type === "commission" ? (
-                <Alert role="status" variant="info">
-                  Secure your order with a {`${COMMISSION_DEPOSIT_PROPORTION * 100}%`} deposit today; the remaining
-                  balance will be charged upon completion.
-                </Alert>
-              ) : null
-            }
-            membershipNotices={
-              <>
-                {product.free_trial ? (
-                  <Alert role="status" variant="info">
-                    All memberships include a {product.free_trial.duration.amount} {product.free_trial.duration.unit}{" "}
-                    free trial
-                  </Alert>
-                ) : null}
-                {product.duration_in_months ? (
-                  <Alert role="status" variant="info">
-                    This membership will automatically end after{" "}
-                    {product.duration_in_months === 1 ? "one month" : `${product.duration_in_months} months`}
-                  </Alert>
-                ) : null}
-              </>
-            }
+            availabilityNotice={<ProductAvailabilityNotice content={productContent} />}
+            membershipNotices={<ProductMembershipNotices content={productContent} />}
             onDiscountExpiration={() => setDiscountCode({ valid: false, error_code: "inactive" })}
           />
-          {product.sales_count !== null ? (
-            <Alert role="status" variant="info">
-              <strong>{product.sales_count.toLocaleString()}</strong>{" "}
-              {product.recurrences
-                ? "member"
-                : product.preorder
-                  ? "pre-order"
-                  : product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)
-                    ? "sale"
-                    : "download"}
-              {product.sales_count === 1 ? "" : "s"}
-            </Alert>
-          ) : null}
+          <ProductSalesNotice
+            salesCount={product.sales_count}
+            isMembership={product.recurrences !== null}
+            isPreorder={product.preorder !== null}
+            hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
+          />
           {product.preorder ? (
             <Alert role="status" variant="info">
               Available on {formatDate(parseISO(product.preorder.release_date))}
             </Alert>
           ) : null}
-          {product.streamable ? (
-            <Alert role="status" variant="info">
-              Watch link provided after purchase
-            </Alert>
-          ) : null}
-          {product.summary || product.attributes.length > 0 ? (
-            <Card>
-              {product.summary ? (
-                <CardContent asChild>
-                  <p>{product.summary}</p>
-                </CardContent>
-              ) : null}
-              {product.attributes.map(({ name, value }, idx) => (
-                <CardContent key={idx}>
-                  <h5 className="grow font-bold">{name}</h5>
-                  <div>{value}</div>
-                </CardContent>
-              ))}
-            </Card>
-          ) : null}
+          <ProductStreamingNotice content={productContent} />
+          <ProductDetails content={productContent} />
           <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />
           {product.refund_policy ? (
             <ProductRefundPolicy refundPolicy={product.refund_policy} permalink={product.permalink} />
           ) : null}
         </section>
-        {product.ratings ? <Reviews ratings={product.ratings} productId={product.id} seller={product.seller} /> : null}
-        {product.seller_reputation ? (
-          <SellerReputationSection
-            reputation={product.seller_reputation}
-            hasOwnReviews={product.ratings != null && product.ratings.count > 0}
+        {product.ratings && product.ratings.count > 0 ? (
+          <ProductReviews
+            initialContent={<ProductReviewsContent ratings={product.ratings} />}
+            productId={product.id}
             seller={product.seller}
           />
         ) : null}
+        <ProductSellerReputation content={productContent} />
       </section>
     </article>
   );
 };
-
-const ExistingPurchaseCard = ({
-  permalink,
-  isPreorder,
-  isBundle,
-  customViewContentButtonText,
-  purchase,
-}: {
-  permalink: string;
-  isPreorder: boolean;
-  isBundle: boolean;
-  customViewContentButtonText: string | null;
-  purchase: Purchase;
-}) => {
-  const viewContentButton = purchase.show_view_content_button_on_product_page ? (
-    <ProductReceiptViewContentAction href={purchase.content_url ?? ""} permalink={permalink}>
-      {customViewContentButtonText ?? "View content"}
-    </ProductReceiptViewContentAction>
-  ) : null;
-
-  const allowRating = differenceInYears(new Date(), parseISO(purchase.created_at)) < 1;
-
-  if (!purchase.should_show_receipt) return null;
-
-  return (
-    <section className="border-t border-border p-6">
-      <Card>
-        {purchase.membership ? (
-          <>
-            <CardContent>
-              <h5 className="grow font-bold">{purchase.membership.tier_name}</h5>
-              {purchase.total_price_including_tax_and_shipping}
-            </CardContent>
-            <CardContent>
-              <ProductReceiptMembershipAction
-                href={purchase.membership.manage_url}
-                permalink={permalink}
-                subscriptionHasLapsed={purchase.subscription_has_lapsed}
-              />
-              {viewContentButton}
-            </CardContent>
-          </>
-        ) : (
-          <CardContent asChild>
-            <li>
-              <h3 className="grow">
-                {isBundle
-                  ? purchase.is_gift_receiver_purchase
-                    ? "You've received this bundle as a gift"
-                    : purchase.was_paid
-                      ? "You've purchased this bundle"
-                      : "You already own this bundle"
-                  : purchase.is_gift_receiver_purchase
-                    ? "You've received this product as a gift"
-                    : purchase.was_paid
-                      ? "You've purchased this product"
-                      : "You already own this product"}
-              </h3>
-              {viewContentButton}
-            </li>
-          </CardContent>
-        )}
-        {purchase.license_key ? <LicenseKeyRow licenseKey={purchase.license_key} /> : null}
-        {!isPreorder && allowRating ? (
-          <ProductReceiptReviewAction
-            permalink={permalink}
-            purchaseId={purchase.id}
-            review={purchase.review}
-            purchaseEmailDigest={purchase.email_digest}
-            className="flex flex-wrap items-center justify-between gap-4 p-4"
-          />
-        ) : null}
-      </Card>
-    </section>
-  );
-};
-
-// Shows the buyer's license key inline in the "you already own this" card so a returning
-// buyer does not have to open the content page (or email the seller) to find it. Only
-// rendered when the backend included the key, which it does only for identified visitors.
-const LicenseKeyRow = ({ licenseKey }: { licenseKey: string }) => (
-  <CardContent>
-    <div className="grid grow gap-1">
-      <h5 className="font-bold">License key</h5>
-      <div className="break-all">{licenseKey}</div>
-    </div>
-    <ProductReceiptCopyLicenseKeyAction licenseKey={licenseKey} />
-  </CardContent>
-);
-
-export const RatingsHistogramRow = ({ rating, percentage }: { rating: number; percentage: number }) => {
-  const formattedPercentage = `${percentage}%`;
-  const label = `${rating} ${rating === 1 ? "star" : "stars"}`;
-  return (
-    <>
-      <div>{label}</div>
-      <meter
-        aria-label={label}
-        value={percentage / 100}
-        className="h-[1lh] w-full appearance-none rounded border border-border bg-none [&::-moz-meter-bar]:rounded [&::-moz-meter-bar]:[background:var(--color-accent)] [&::-webkit-meter-bar]:contents [&::-webkit-meter-inner-element]:contents [&::-webkit-meter-optimum-value]:rounded [&::-webkit-meter-optimum-value]:[background:var(--color-accent)]"
-      />
-      <div>{formattedPercentage}</div>
-    </>
-  );
-};
-
-const Reviews = ({
-  productId,
-  ratings,
-  seller,
-}: {
-  productId: string;
-  ratings: RatingsWithPercentages;
-  seller: Seller | null;
-}) => {
-  if (ratings.count === 0) return null;
-
-  return (
-    <ProductReviews
-      productId={productId}
-      seller={seller}
-      initialContent={
-        <>
-          <header className="flex items-center justify-between">
-            <h3>Ratings</h3>
-            <div className="flex shrink-0 items-center gap-1">
-              <Star pack="filled" className="size-5" />
-              <div className="rating-average">{ratings.average}</div>(
-              {`${formatOrderOfMagnitude(ratings.count, 1)} ${ratings.count === 1 ? "rating" : "ratings"}`})
-            </div>
-          </header>
-          {/* Rating markup lives in the page's JSON-LD (Product::StructuredData), where the
-          AggregateRating nests under the Product. Do not re-add microdata here: this section
-          has no itemscope Product ancestor, so an itemscope block becomes a standalone
-          top-level AggregateRating that Google's Rich Results Test flags as
-          "Missing field itemReviewed" (gumroad-private#1875). */}
-          <section className="grid grid-cols-[auto_1fr_auto] gap-3" aria-label="Ratings histogram">
-            {([4, 3, 2, 1, 0] as const).map((rating) => (
-              <RatingsHistogramRow rating={rating + 1} percentage={ratings.percentages[rating]} key={rating} />
-            ))}
-          </section>
-        </>
-      }
-    />
-  );
-};
-
-// Labelled creator context, never the product's own rating: the two copy
-// states keep an unreviewed product visibly unreviewed, and the count links
-// through to the seller's profile so the aggregate's composition is inspectable.
-const SellerReputationSection = ({
-  reputation,
-  hasOwnReviews,
-  seller,
-}: {
-  reputation: SellerReputation;
-  hasOwnReviews: boolean;
-  seller: Seller | null;
-}) => (
-  <section className="grid gap-2 p-6 not-first:border-t" aria-label="Creator rating">
-    {!hasOwnReviews ? <div>This product has no reviews yet.</div> : null}
-    <div className="flex flex-wrap items-center gap-1">
-      <RatingStars rating={reputation.average} />
-      <span>
-        Creator rating: {reputation.average} from{" "}
-        {seller ? (
-          <a href={seller.profile_url}>
-            {reputation.count} verified {reputation.count === 1 ? "review" : "reviews"}
-          </a>
-        ) : (
-          `${reputation.count} verified ${reputation.count === 1 ? "review" : "reviews"}`
-        )}{" "}
-        across {reputation.products_count} other products.
-      </span>
-    </div>
-  </section>
-);
 
 export { RatingsSummary };
