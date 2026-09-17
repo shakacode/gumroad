@@ -69,6 +69,7 @@ import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
+import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 import { Ribbon } from "$app/components/Product/Ribbon";
 import { ShareSection } from "$app/components/Product/ShareSection";
 import { SubscriptionChoiceModal } from "$app/components/Product/SubscriptionChoiceModal";
@@ -1064,14 +1065,7 @@ const SellerReputationSection = ({
   </section>
 );
 
-export const RatingsSummary = ({ ratings, className }: { ratings: Ratings; className?: string }) => (
-  <div className={classNames("flex shrink-0 items-center", className)}>
-    <RatingStars rating={ratings.average} />
-    <span className="rating-number ml-1">
-      {ratings.count} {ratings.count === 1 ? "rating" : "ratings"}
-    </span>
-  </div>
-);
+export { RatingsSummary };
 
 const RefundPolicyInfo = ({ refundPolicy, permalink }: { refundPolicy: RefundPolicy; permalink: string }) => {
   const HASH = "#refund-policy";
