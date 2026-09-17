@@ -1,4 +1,3 @@
-import { parseISO } from "date-fns";
 import * as React from "react";
 
 import { incrementProductViews } from "$app/data/view_event";
@@ -16,7 +15,6 @@ import {
 } from "$app/parsers/product";
 import { SellerReputation } from "$app/parsers/profile";
 import { BuyerLocalCurrencyContext, CurrencyCode, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
-import { formatDate } from "$app/utils/date";
 import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
 import {
@@ -48,6 +46,7 @@ import {
 import ProductDescription from "$app/components/Product/ProductDescription.client";
 import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
+import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductPrice } from "$app/components/Product/ProductPrice.client";
 import { ProductPurchaseControls } from "$app/components/Product/ProductPurchaseControls.client";
 import { ProductRatingsSummary as RatingsSummary } from "$app/components/Product/ProductRatingsSummary";
@@ -56,7 +55,6 @@ import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { Review as FormReview } from "$app/components/ReviewForm";
-import { Alert } from "$app/components/ui/Alert";
 import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useRunOnce } from "$app/components/useRunOnce";
@@ -348,11 +346,7 @@ export const Product = ({
             isPreorder={product.preorder !== null}
             hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
           />
-          {product.preorder ? (
-            <Alert role="status" variant="info">
-              Available on {formatDate(parseISO(product.preorder.release_date))}
-            </Alert>
-          ) : null}
+          <ProductPreorderNotice releaseDate={product.preorder?.release_date ?? null} />
           <ProductStreamingNotice content={productContent} />
           <ProductDetails content={productContent} />
           <ProductSecondaryActions product={product} selection={selection} wishlists={wishlists} />
