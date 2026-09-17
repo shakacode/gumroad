@@ -8,6 +8,7 @@ import {
   ProductReceiptContent,
   productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
+import { ProductFooter } from "$app/components/Product/ProductFooter";
 
 afterEach(() => {
   cleanup();
@@ -136,3 +137,13 @@ describe("ProductDescriptionContent", () => {
   });
 });
 
+describe("ProductFooter", () => {
+  it("uses the server-detected currency when no buyer cookie exists", () => {
+    vi.stubGlobal("Routes", { root_url: () => "https://gumroad.test/" });
+
+    render(<ProductFooter rootDomain="gumroad.test" detectedCurrency="cad" shownCurrency="cad" />);
+
+    expect(screen.getByRole<HTMLSelectElement>("combobox").value).toBe("cad");
+    expect(screen.getByRole("option", { name: "CAD$ (Canadian Dollars) — detected" })).toBeTruthy();
+  });
+});
