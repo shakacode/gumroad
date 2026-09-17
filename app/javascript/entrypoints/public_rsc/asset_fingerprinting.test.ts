@@ -54,7 +54,7 @@ const pushAssetsScript = read("docker/web/push_assets_to_s3.sh");
 
 describe("public RSC asset fingerprinting", () => {
   it.each([
-    [{ BENCHMARK_HOST: "experiment.localhost", DEV_LANE_PORT: "3101" }, "http://experiment.localhost:3101/public-rsc/"],
+    [{ BENCHMARK_HOST: "experim.localhost", DEV_LANE_PORT: "3101" }, "http://experim.localhost:3101/public-rsc/"],
     [{ CUSTOM_DOMAIN: "rorp.example.com", BENCHMARK_PROTOCOL: "https" }, "https://rorp.example.com/public-rsc/"],
   ])("serializes the benchmark chunk origin for both SSR and the browser (%j)", async (environment, prefix) => {
     const root = mkdtempSync(fileURLToPath(new URL("./.public-rsc-prefix-probe-", import.meta.url)));
