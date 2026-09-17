@@ -20,7 +20,9 @@ const useChartTooltip = () => {
       : null,
 
     containerRef,
-    dotRef: (element: SVGCircleElement) => dots.push(element),
+    dotRef: (element: SVGCircleElement | null) => {
+      if (element) dots.push(element);
+    },
 
     events: {
       onMouseMove: (e: { activeTooltipIndex?: number }) => {
