@@ -9,6 +9,8 @@ rescue LoadError
   warn "sidekiq-pro is not installed"
 end
 
+require Rails.root.join("lib", "extras", "control_plane_benchmark_sidekiq_client_middleware")
+
 Sidekiq.configure_server do |config|
   config.redis = { url: "redis://#{ENV["SIDEKIQ_REDIS_HOST"]}" }
 
@@ -21,6 +23,7 @@ Sidekiq.configure_server do |config|
   end
 
   config.client_middleware do |chain|
+    chain.add ControlPlaneBenchmarkSidekiqClientMiddleware
     chain.add SidekiqUniqueJobs::Middleware::Client
   end
 
@@ -38,6 +41,7 @@ Sidekiq.configure_client do |config|
   config.redis = { url: "redis://#{ENV["SIDEKIQ_REDIS_HOST"]}" }
 
   config.client_middleware do |chain|
+    chain.add ControlPlaneBenchmarkSidekiqClientMiddleware
     chain.add SidekiqUniqueJobs::Middleware::Client
   end
 end
