@@ -1,4 +1,4 @@
-# The Server Components path cut cold Product-page First Contentful Paint by 8.4 seconds
+# Server Components cut cold Product-page First Contentful Paint by 8.4 seconds in our test
 
 By Justin Gordon, CEO of ShakaCode · September 2026
 
@@ -30,21 +30,23 @@ This single diagnostic load shows the sequence: React on Rails Pro reached FCP a
 | Rollout and rollback | A seller feature flag selects the profile-layout route; disabling it restores Inertia |
 | Out of scope | Seller profiles, Discover, and the Product page’s Discover layout |
 
-Both paths share the Product content, state, purchase controls, Profile sections, and rich-text components used by the profile layout.
-
 On a fresh visit, the tested Inertia path sent page data and then relied on browser JavaScript to render the Product content. The new path could show server-rendered content while JavaScript continued loading. This took a server/client split in the Product components, not just a rendering switch. [React documents Server Components](https://react.dev/reference/rsc/server-components) and the [React 19 release](https://react.dev/blog/2024/12/05/react-19). Streaming server rendering also existed before React 19; the benchmark does not attribute the entire gain to the React version.
 
-Inertia can reuse already-running JavaScript during client-side navigation. Our warm test still used a **full page navigation** with cached files, not an Inertia client-side transition. Discover pages, seller profiles, and the Product page’s Discover layout are outside this result.
+Inertia can reuse already-running JavaScript during client-side navigation. Our warm test still used a **full page navigation** with cached files, not an Inertia client-side transition.
 
-## Trade-offs and unverified areas
+## Measured trade-offs
 
 ![Median browser-observed time to first byte, transferred data, and network requests for the four profile-layout Product landing cases.](images/product-page-tradeoffs.svg)
 
-On cold visits, median browser-observed Time to First Byte (TTFB) rose from 131 to 156 milliseconds on Desktop and from 129 to 162 milliseconds on Mobile. Total transferred data rose by about 4.8%, from about 2.60 MB to 2.72 MB. With a prepopulated cache, transferred data fell from about 196 KB to 36 KB, or about 81%. Requests fell from 143 to 96 on cold visits and from 142 to 95 with a prepopulated cache. TTFB does not measure renderer CPU time or total server cost; a production rollout must also operate the renderer service.
+On cold visits, median browser-observed Time to First Byte (TTFB) rose from 131 to 156 milliseconds on Desktop and from 129 to 162 milliseconds on Mobile. Total transferred data rose by about 4.8%, from about 2.60 MB to 2.72 MB. With a prepopulated cache, transferred data fell from about 196 KB to 36 KB, or about 81%. Requests fell from 143 to 96 on cold visits and from 142 to 95 with a prepopulated cache.
 
 Total Blocking Time also increased. On cold visits, the median rose from 11 to 119 milliseconds on Desktop and from 12 to 121 milliseconds on Mobile; ShakaPerf classified both as regressions. On warm visits, it rose from 0 to 50 milliseconds on Desktop and from 0 to 42 milliseconds on Mobile, although ShakaPerf did not classify those changes as regressions. This run did not measure time to interactive.
 
+## What this run could not establish
+
 The source report classified JavaScript-specific transferred bytes as zero on both sides despite visible JavaScript requests. We make no JavaScript-byte claim from that category. Cold visual checks found zero differing pixels in the Product article area on Desktop and Mobile. Warm visual comparisons were not captured. The automated accessibility diff did not classify any findings as new or fixed, but it marked 20 findings on each viewport as changed: 19 critical and one serious. We have not adjudicated those changes, so this run does not establish accessibility parity.
+
+TTFB does not measure renderer CPU time or total server cost. The report also does not include time-aligned memory or swap telemetry, so it cannot prove that the host was free of memory pressure during every measurement. A production rollout must measure renderer capacity and memory.
 
 ## How we measured the results
 
@@ -57,8 +59,6 @@ The [benchmark summary](benchmark-data/latest-results.md) reports medians and pa
 <a id="throttling-settings"></a>
 
 > Test reference: September 23, 2026 run 2026-09-23T18:01:58.195Z. Lighthouse used DevTools throttling: 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and a 3× CPU slowdown.
-
-The report does not include time-aligned memory or swap telemetry, so it cannot prove that the host was free of memory pressure during every measurement.
 
 ## How consistent were the FCP results?
 
@@ -74,7 +74,7 @@ To run a new comparison, keep the viewport, user agent, network, CPU profile, ca
 
 ## Conclusion
 
-This experiment shows that one direct-entry Product page can move to Server Components without replacing Inertia elsewhere. The improvement held on Desktop and Mobile, with empty and prepopulated caches. Before production rollout, we would still review the accessibility diffs, measure renderer capacity and memory, and record immutable source commits in the benchmark.
+In this test, the Server Components implementation made one direct-entry Product page appear sooner than the Inertia control. The result held on Desktop and Mobile, with empty and prepopulated caches. Before production rollout, we would still review the accessibility diffs, measure renderer capacity and memory, and record immutable source commits in the benchmark.
 
 To evaluate this approach in your application, [ShakaCode](https://www.shakacode.com/) can help select the page, set up the comparison, and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally.
 
