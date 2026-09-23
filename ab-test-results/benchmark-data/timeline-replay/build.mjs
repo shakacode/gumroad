@@ -7,12 +7,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Product-only revision of the earlier article's replay builder. The replay
-// is a diagnostic load, never a replacement for the 18-pair performance result.
+// is a diagnostic load, never a replacement for the 20-pair performance result.
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../..");
 const snapshotOnly = process.argv.includes("--snapshot-only");
 const positional = process.argv.slice(2).filter((argument) => argument !== "--snapshot-only");
-const source = resolve(positional[0] ?? join(repo, "compare-results"));
+const source = resolve(positional[0] ?? join(repo, "compare-results-sep23"));
 const output = resolve(positional[1] ?? join(repo, "ab-test-results/product-profile-phone-replay.html"));
 const caseId = "product-page-profile-layout-cold-landing-phone-031456e8";
 const caseDir = join(source, caseId);
@@ -43,7 +43,7 @@ if (snapshotOnly) {
   const capture = replay.match(/<script id="capture-data" type="application\/json">([^<]+)<\/script>/u);
   assert.ok(capture, "Saved replay has no capture data");
   ({ sides, metadata } = JSON.parse(capture[1]));
-  assert.equal(metadata.runId, "2026-09-17T13:21:25.405Z");
+  assert.equal(metadata.runId, "2026-09-23T18:01:58.195Z");
   assert.equal(metadata.caseId, caseId);
   assert.deepEqual(metadata.frameCounts, {
     control: sides.control.frames.length,
@@ -58,7 +58,7 @@ if (snapshotOnly) {
   const original = await input("artifacts/timeline_comparison.html");
   assert.equal(perf.kind, "ok");
   assert.equal(lowNoise.kind, "ok");
-  assert.equal(perf.runId, "2026-09-17T13:21:25.405Z");
+  assert.equal(perf.runId, "2026-09-23T18:01:58.195Z");
   assert.equal(lowNoise.runId, perf.runId);
   assert.equal(visual.measurement.find((entry) => entry.selector === "article")?.diffPixels, 0);
   assert.ok(original.includes("Timeline Comparison: Control vs Experiment"));
@@ -132,13 +132,13 @@ if (snapshotOnly) {
     caseId,
     scenario: "Product page · profile layout · Mobile · empty cache",
     diagnosticStage: "perf-low-noise",
-    note: "One diagnostic load, not an 18-sample median.",
+    note: "One diagnostic load, not a 20-sample median.",
     durationMs,
     throttling,
     fcpMs: { control: sides.control.fcpMs, experiment: sides.experiment.fcpMs },
     frameCounts: { control: sides.control.frames.length, experiment: sides.experiment.frames.length },
     originalTimeline: {
-      href: `../compare-results/${caseId}/artifacts/timeline_comparison.html`,
+      sourcePath: `compare-results-sep23/${caseId}/artifacts/timeline_comparison.html`,
       sha256: sha256(original),
     },
     visualDiffPixels: 0,
@@ -154,7 +154,7 @@ if (snapshotOnly) {
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1060px;margin:auto;padding:24px}h1{line-height:1.15;margin:0 0 10px}p{margin:8px 0;color:var(--muted)}.takeaway{font-size:1.15rem;color:var(--ink)}.control{color:var(--blue)}.experiment{color:var(--green)}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:25px 0;padding:14px;background:var(--card);border-radius:12px}button{border:1px solid var(--muted);border-radius:8px;padding:8px 14px;color:var(--ink);background:var(--page);cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid var(--green);outline-offset:2px}input[type=range]{flex:1;min-width:230px}.screens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.screen{min-width:0;padding:14px;background:var(--card);border-radius:12px}.screen h2{margin:0 0 12px;font-size:1rem}.screen img{display:block;width:100%;aspect-ratio:375/667;object-fit:contain;object-position:top;background:white;border:1px solid #bcc7cf}.links{margin-top:22px}.links a{color:var(--blue)}@media(max-width:720px){.screens{grid-template-columns:1fr}main{padding:14px}}
 </style></head><body><main>
 <h1>One Product page, two loading paths</h1>
-<p>Profile layout · Mobile · empty cache · one diagnostic load, not the 18-pair median.</p>
+<p>Profile layout · Mobile · empty cache · one diagnostic load, not the 20-pair median.</p>
 <p class="takeaway">First paint in this capture: <strong class="control">${(sides.control.fcpMs / 1000).toFixed(2)} s with Inertia</strong>; <strong class="experiment">${(sides.experiment.fcpMs / 1000).toFixed(2)} s with React on Rails Pro</strong>.</p>
 <div class="controls"><button id="play" type="button">Play</button><button id="back" type="button">−0.5 s</button><button id="forward" type="button">+0.5 s</button><input id="timeline" type="range" min="0" max="${durationMs}" step="50" value="0" aria-label="Elapsed time since navigation"><output id="clock" for="timeline">0.00 s</output></div>
 <div class="screens"><section class="screen"><h2 class="control">Inertia control</h2><img id="control" alt="Inertia Product page at the selected replay time"></section><section class="screen"><h2 class="experiment">React on Rails Pro / RSC</h2><img id="experiment" alt="React Server Components Product page at the selected replay time"></section></div>
@@ -230,7 +230,7 @@ preview.push(
   ).toFixed(2)} s · React on Rails Pro ${(sides.experiment.fcpMs / 1000).toFixed(2)} s</text>`,
 );
 preview.push(
-  '<text x="44" y="526" fill="#4d5a66" font-size="16">The filmstrip is one load, not the median of 18 measurements per side.</text>',
+  '<text x="44" y="526" fill="#4d5a66" font-size="16">The filmstrip is one load, not the median of 20 measurements per side.</text>',
 );
 const previewSvg = imageDocument(
   "Four moments from a Product page loading comparison",
@@ -282,7 +282,7 @@ for (const [side, y, color, label] of [
   );
 }
 timeline.push(
-  '<text x="44" y="431" fill="#4d5a66" font-size="16">Bars end at first paint; dots mark largest paint. One diagnostic load, not 18-run medians or paired intervals.</text>',
+  '<text x="44" y="431" fill="#4d5a66" font-size="16">Bars end at first paint; dots mark largest paint. One diagnostic load, not 20-run medians or paired intervals.</text>',
 );
 const timelineSvg = imageDocument(
   "First and largest paint in one Product page loading comparison",

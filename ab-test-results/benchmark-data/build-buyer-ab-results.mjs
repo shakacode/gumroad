@@ -11,12 +11,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const snapshotOnly = process.argv.includes("--snapshot-only");
 const positional = process.argv.slice(2).filter((argument) => argument !== "--snapshot-only");
-const source = resolve(positional[0] ?? join(repo, "compare-results"));
+const source = resolve(positional[0] ?? join(repo, "compare-results-sep23"));
 const images = resolve(positional[1] ?? join(here, "../images"));
 const data = JSON.parse(await readFile(join(here, "latest-results.json"), "utf8"));
-assert.equal(data.runId, "2026-09-17T13:21:25.405Z");
+assert.equal(data.runId, "2026-09-23T18:01:58.195Z");
 assert.equal(data.results.length, 4);
-assert.ok(data.results.every((result) => result.sampleCountPerSide === 18));
+assert.ok(data.results.every((result) => result.sampleCountPerSide === 20));
 assert.ok(data.results.every((result) => !result.id.includes("sticky")));
 for (const input of data.inputs) {
   assert.match(input.sha256, /^[a-f0-9]{64}$/u);
@@ -43,7 +43,7 @@ const svg = (title, description, body, width = 1400, height = 750) =>
   `${[
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title description" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">`,
     `<title id="title">${xml(title)}</title><desc id="description">${xml(description)}</desc>`,
-    `<metadata>${xml(JSON.stringify({ runId: data.runId, source: data.source, cases: data.results.map((result) => result.id), samplesPerSide: 18, inputHashes: data.inputs }))}</metadata>`,
+    `<metadata>${xml(JSON.stringify({ runId: data.runId, source: data.source, cases: data.results.map((result) => result.id), samplesPerSide: 20, inputHashes: data.inputs }))}</metadata>`,
     `<rect width="${width}" height="${height}" fill="${background}"/>`,
     body,
     "</svg>",
@@ -93,7 +93,7 @@ function chart(metricDefinitions, title, subtitle, filename) {
     text(
       48,
       713,
-      "ShakaPerf · September 17, 2026 · median of 18 measurements per side · lower is better",
+      "ShakaPerf · September 23, 2026 · median of 20 measurements per side · lower is better",
       15,
       `fill="${muted}"`,
     ),
@@ -102,7 +102,7 @@ function chart(metricDefinitions, title, subtitle, filename) {
     filename,
     svg(
       title,
-      `${subtitle}. Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 18 measurements, not the paired performance estimate.`,
+      `${subtitle}. Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 20 measurements, not the paired performance estimate.`,
       parts.join("\n"),
     ),
   ];
@@ -112,7 +112,7 @@ function distributionByCache() {
   const title = "First paint times: cold and warm ranges";
   const parts = [
     text(48, 57, title, 29, 'font-weight="700"'),
-    text(48, 91, "Profile-layout Product landings · 18 measurements per side", 17),
+    text(48, 91, "Profile-layout Product landings · 20 measurements per side", 17),
     legend(),
   ];
   const startX = 340,
@@ -192,7 +192,7 @@ function distributionByCache() {
     "product-fcp-distributions.svg",
     svg(
       title,
-      "Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 18 raw first-contentful-paint measurements; each circle shows the median.",
+      "Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.",
       parts.join("\n"),
       1400,
       850,

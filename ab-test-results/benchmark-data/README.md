@@ -1,32 +1,31 @@
 # Product page article data and graphs
 
 The article is `ab-test-results/index.md`. Its main comparison uses the
-September 17 Product run, not the current top commit. The original case
-directories were overwritten by later ShakaPerf runs. The saved
-`latest-results.json` has the extracted samples, estimates, user agents, and
-SHA-256 hashes of the source files. The two saved Lighthouse reports and the
-diagnostic replay are from that run.
+September 23 Product run in `compare-results-sep23/full-report.html` and the
+four cold/warm profile-layout case directories beside it. The generated
+`latest-results.json` records the extracted samples, estimates, user agents,
+accessibility summaries, and SHA-256 hashes of every source file used.
 
-From the Gumroad repository root, regenerate all five graphs from the saved
-measurement snapshot and replay:
+From the Gumroad repository root, regenerate the data, replay, and all five
+graphs:
 
 ```sh
-node ab-test-results/benchmark-data/build-buyer-ab-results.mjs --snapshot-only
-node ab-test-results/benchmark-data/timeline-replay/build.mjs --snapshot-only
+node ab-test-results/benchmark-data/extract-latest-results.mjs
+node ab-test-results/benchmark-data/build-buyer-ab-results.mjs
+node ab-test-results/benchmark-data/timeline-replay/build.mjs
 ```
 
-The snapshot option checks the stored run ID, sample counts, and replay frame
-counts. It does not recheck the original input hashes because those source
-files are no longer present. If the September 17 case directories are restored,
-run the extractor first, then run both graph builders without the snapshot
-option. That path checks all input hashes against the source files.
+The extractor checks the full report, run ID, selected artifact directories,
+sample counts, paired statistics, viewport/user-agent alignment, cold visual
+results, and accessibility summaries. The graph builder then checks every
+recorded source hash before it writes the SVG files.
 
 The scripts select four profile-layout Product landings: cold and warm on
-Desktop and Mobile, with 18 measurements per side. Sticky add-to-cart is
-excluded. The replay is one diagnostic Mobile load, not the 18-pair result.
-The chart builder generates the paint, cost, and FCP-range graphs from the
-saved measurements. The replay builder generates the filmstrip and FCP/LCP
-timeline from its saved frames. Green is the RORP series in all five graphs.
+Desktop and Mobile, with 20 measurements per side. Sticky add-to-cart is
+excluded. The replay is one diagnostic Mobile load, not the 20-pair result.
+The chart builder generates the paint, cost, and FCP-range graphs from all four
+cases. The replay builder generates the filmstrip and FCP/LCP timeline from
+the source traces. Green is the RORP series in all five graphs.
 
 The meeting proposal included URL-parameter switching on one server. The
 current route selects the RSC response by seller feature flag (and profile
@@ -34,13 +33,10 @@ layout); this article does not claim a separate override parameter exists.
 The older Inertia SSR TTI/video observation is historical context, not a
 measurement from this run, so the article does not claim a new TTI result.
 
-The September 17 report did not embed immutable at-run Git identities.
-Preserved container files matched an earlier Inertia baseline and an earlier
-RORP Product implementation. That RORP implementation did not include the
-final React-owned Product cover preloads. The article makes no claim that its
-large Inertia-versus-RORP estimates apply to the final stack.
+The September 23 report does not embed immutable at-run Git identities. The
+article therefore describes the measured behavior without claiming exact
+source commits for the two running servers.
 
-No time-aligned memory or swap telemetry was saved for the selected run. The
-source report also has accessibility finding changes that need review. The
-article states both limits. The later RORP-versus-RORP checks are summarized
-in `later-checks.md` with their saved report summaries.
+The report contains no time-aligned memory or swap telemetry. Its cold
+accessibility comparisons have no new or fixed findings, but they classify 20
+findings as changed on each viewport. The article states both limits.
