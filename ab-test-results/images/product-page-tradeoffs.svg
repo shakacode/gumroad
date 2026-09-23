@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 750" role="img" aria-labelledby="title description" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<title id="title">The cost of earlier paint: response time and downloads</title><desc id="description">Same four cases and run · TTFB does not measure renderer CPU or server resource use. Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 18 measurements, not the paired performance estimate.</desc>
+<metadata>{&quot;runId&quot;:&quot;2026-09-17T13:21:25.405Z&quot;,&quot;source&quot;:&quot;compare-results&quot;,&quot;cases&quot;:[&quot;product-page-profile-layout-cold-landing-desktop-6fad3788&quot;,&quot;product-page-profile-layout-cold-landing-phone-031456e8&quot;,&quot;product-page-profile-layout-warm-landing-desktop-266c1124&quot;,&quot;product-page-profile-layout-warm-landing-phone-87ad03a9&quot;],&quot;samplesPerSide&quot;:18,&quot;inputHashes&quot;:[{&quot;path&quot;:&quot;report.json&quot;,&quot;sha256&quot;:&quot;73894f106219a60ab698ca17eb0dadab4724d4de1af44381c134c9da3dbaf19f&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/perf.json&quot;,&quot;sha256&quot;:&quot;4db5c5049a55202711ef3d4745f10c7145ef5531f22506ee89b39582bcd9ec43&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;c49c3d4af6a92c58eff4cda05d41476740587fe718314fb451d1b26562cfb0f2&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;c31e21a2d6fb2ba6e6c6d52f33ab3676ee6d315594b10f18753db485c40da714&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/visreg.json&quot;,&quot;sha256&quot;:&quot;22d47cecd207e4b69baf85167da21b101b6a9324fb32c509c89bc9d2e97b9df8&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;bf47f79568655f399b9ea65a2233ed0005e70661a013f4c2dc68844cbb7e28e8&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;ae179710cc140ed4debd76903c9d7aa82a87d13e8bfbb4291349f43226794a62&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/perf.json&quot;,&quot;sha256&quot;:&quot;8468430ac1119b0456f6af75182fca073b93c5433324f479b0b8b52a71493f26&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;e227cec751ee650a85588d958320db21d75267b0e0a1fbdd6d711c21b25a61c4&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;f2feb0e18b8bce28007c51e2c351f5fb792d1d0d805c37dd71d1fe7f7c2e45da&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/visreg.json&quot;,&quot;sha256&quot;:&quot;47d002da825e377212f401230432f11abaee8d0e8ba46ae1090770ef5f8bd42a&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;8b542a86322def2ea0c0671492adcfc81372be5a87fd1db8c4086444af9a9621&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;b8baaf8ee081a2b8cabea5e4ec035cb6b1ad7fd5a7fac70b05c9e760493fcc4d&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/perf.json&quot;,&quot;sha256&quot;:&quot;9fb1eeda5315b238d54aeadda4cffcb885a23999e65ccac97d3b84bad8d4e4b9&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;c5d74b31df747019d95e2b0836e7e7fb2311a5010d3e194fc40ccb3694c30565&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;9193fa54f027e6327bdddd50c3146e47c4170b7184b9cca161eeda7f2919fbad&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/visreg.json&quot;,&quot;sha256&quot;:&quot;1efc7cb84e8f1e81d6c4ebaa2ae4456a06e67f09427be82fb9b55bc3d9ea953a&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;03f0fc4b4f0071d14ca27a3dd06b24ecb6dcd5e10dbb4c6eef88a45ff15fdcec&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;4583822cf00fc0ffcf01d3835f18a3ad0569a025b43dcb4bcb32e3b281b4a5a3&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/perf.json&quot;,&quot;sha256&quot;:&quot;e33767743a072056d18e12ccb35ebb990864a006231586f8ca5d456226030868&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;ea81a5c757216f87d8e3232155b637159db098017638ed5bd00464d2eadd8e10&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;9d3f1a512ab51678394c237b0e70fac0ae7bf5d23d523b2ebdac1e9aa2b3d3d2&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/visreg.json&quot;,&quot;sha256&quot;:&quot;dabb0c2d8c442b34362793791b82717a88648c9dd14b492637cd1e9d456cff98&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;44745b07da18df2e676daba6bcbe4c1fdb70fa31b5f60d661878af5aef1a79d7&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;4171d9cdb581cccb44be71a89aadb9e1ada482038dc298890ad20565aea7c90b&quot;}]}</metadata>
+<rect width="1400" height="750" fill="#ffffff"/>
+<text x="48" y="57" font-size="29" fill="#162334" font-weight="700">The cost of earlier paint: response time and downloads</text>
+<text x="48" y="91" font-size="17" fill="#162334" >Same four cases and run · TTFB does not measure renderer CPU or server resource use</text>
+<rect x="48" y="120" width="16" height="16" rx="3" fill="#215da8"/><text x="73" y="133" font-size="16" fill="#162334" >Inertia control</text><rect x="260" y="120" width="16" height="16" rx="3" fill="#147a46"/><text x="285" y="133" font-size="16" fill="#162334" >React on Rails Pro / RSC</text>
+<text x="245" y="195" font-size="21" fill="#162334" font-weight="700">Browser-observed TTFB</text>
+<line x1="245" y1="221" x2="245" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="TTFB" data-side="control" data-median="500">
+<rect x="245" y="235" width="164.44" height="24" rx="4" fill="#215da8"/>
+<text x="417.4350481559784" y="253" font-size="15" fill="#162334" >500 ms</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="TTFB" data-side="experiment" data-median="645">
+<rect x="245" y="267" width="212.12" height="24" rx="4" fill="#147a46"/>
+<text x="465.1212121212121" y="285" font-size="15" fill="#162334" >645 ms</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="TTFB" data-side="control" data-median="377">
+<rect x="245" y="344" width="123.98" height="24" rx="4" fill="#215da8"/>
+<text x="376.98402630960766" y="362" font-size="15" fill="#162334" >377 ms</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="TTFB" data-side="experiment" data-median="605">
+<rect x="245" y="376" width="198.97" height="24" rx="4" fill="#147a46"/>
+<text x="451.96640826873386" y="394" font-size="15" fill="#162334" >605 ms</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="TTFB" data-side="control" data-median="145">
+<rect x="245" y="453" width="47.69" height="24" rx="4" fill="#215da8"/>
+<text x="300.68616396523373" y="471" font-size="15" fill="#162334" >145 ms</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="TTFB" data-side="experiment" data-median="195">
+<rect x="245" y="485" width="64.13" height="24" rx="4" fill="#147a46"/>
+<text x="317.1296687808316" y="503" font-size="15" fill="#162334" >195 ms</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="TTFB" data-side="control" data-median="117">
+<rect x="245" y="562" width="38.48" height="24" rx="4" fill="#215da8"/>
+<text x="291.4778012684989" y="580" font-size="15" fill="#162334" >117 ms</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="TTFB" data-side="experiment" data-median="159">
+<rect x="245" y="594" width="52.29" height="24" rx="4" fill="#147a46"/>
+<text x="305.2903453136011" y="612" font-size="15" fill="#162334" >159 ms</text>
+</g>
+<text x="625" y="195" font-size="21" fill="#162334" font-weight="700">Total transferred data</text>
+<line x1="625" y1="221" x2="625" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="downloads" data-side="control" data-median="2506.8">
+<rect x="625" y="235" width="188.99" height="24" rx="4" fill="#215da8"/>
+<text x="821.9911339726523" y="253" font-size="15" fill="#162334" >2506.8 KB</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="downloads" data-side="experiment" data-median="2813.6">
+<rect x="625" y="267" width="212.12" height="24" rx="4" fill="#147a46"/>
+<text x="845.1212121212121" y="285" font-size="15" fill="#162334" >2813.6 KB</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="downloads" data-side="control" data-median="2506.8">
+<rect x="625" y="344" width="188.99" height="24" rx="4" fill="#215da8"/>
+<text x="821.9911339726523" y="362" font-size="15" fill="#162334" >2506.8 KB</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="downloads" data-side="experiment" data-median="2812.8">
+<rect x="625" y="376" width="212.06" height="24" rx="4" fill="#147a46"/>
+<text x="845.0608990100034" y="394" font-size="15" fill="#162334" >2812.8 KB</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="downloads" data-side="control" data-median="196.5">
+<rect x="625" y="453" width="14.81" height="24" rx="4" fill="#215da8"/>
+<text x="647.8144079406519" y="471" font-size="15" fill="#162334" >196.5 KB</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="downloads" data-side="experiment" data-median="37.3">
+<rect x="625" y="485" width="2.81" height="24" rx="4" fill="#147a46"/>
+<text x="635.8120988101085" y="503" font-size="15" fill="#162334" >37.3 KB</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="downloads" data-side="control" data-median="196.5">
+<rect x="625" y="562" width="14.81" height="24" rx="4" fill="#215da8"/>
+<text x="647.8144079406519" y="580" font-size="15" fill="#162334" >196.5 KB</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="downloads" data-side="experiment" data-median="37.3">
+<rect x="625" y="594" width="2.81" height="24" rx="4" fill="#147a46"/>
+<text x="635.8120988101085" y="612" font-size="15" fill="#162334" >37.3 KB</text>
+</g>
+<text x="1005" y="195" font-size="21" fill="#162334" font-weight="700">Network requests</text>
+<line x1="1005" y1="221" x2="1005" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="downloads-count" data-side="control" data-median="131">
+<rect x="1005" y="235" width="212.12" height="24" rx="4" fill="#215da8"/>
+<text x="1225.121212121212" y="253" font-size="15" fill="#162334" >131</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="downloads-count" data-side="experiment" data-median="106">
+<rect x="1005" y="267" width="171.64" height="24" rx="4" fill="#147a46"/>
+<text x="1184.6400647698358" y="285" font-size="15" fill="#162334" >106</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="downloads-count" data-side="control" data-median="131">
+<rect x="1005" y="344" width="212.12" height="24" rx="4" fill="#215da8"/>
+<text x="1225.121212121212" y="362" font-size="15" fill="#162334" >131</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="downloads-count" data-side="experiment" data-median="105">
+<rect x="1005" y="376" width="170.02" height="24" rx="4" fill="#147a46"/>
+<text x="1183.0208188757806" y="394" font-size="15" fill="#162334" >105</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="downloads-count" data-side="control" data-median="130">
+<rect x="1005" y="453" width="210.50" height="24" rx="4" fill="#215da8"/>
+<text x="1223.501966227157" y="471" font-size="15" fill="#162334" >130</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="downloads-count" data-side="experiment" data-median="104">
+<rect x="1005" y="485" width="168.40" height="24" rx="4" fill="#147a46"/>
+<text x="1181.4015729817256" y="503" font-size="15" fill="#162334" >104</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="downloads-count" data-side="control" data-median="130">
+<rect x="1005" y="562" width="210.50" height="24" rx="4" fill="#215da8"/>
+<text x="1223.501966227157" y="580" font-size="15" fill="#162334" >130</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="downloads-count" data-side="experiment" data-median="104">
+<rect x="1005" y="594" width="168.40" height="24" rx="4" fill="#147a46"/>
+<text x="1181.4015729817256" y="612" font-size="15" fill="#162334" >104</text>
+</g>
+<text x="48" y="266" font-size="18" fill="#162334" font-weight="600">Cold Desktop</text>
+<text x="48" y="288" font-size="14"  fill="#4d5a66">empty cache</text>
+<line x1="48" y1="317" x2="1350" y2="317" stroke="#e1e6ea"/>
+<text x="48" y="375" font-size="18" fill="#162334" font-weight="600">Cold Mobile</text>
+<text x="48" y="397" font-size="14"  fill="#4d5a66">empty cache</text>
+<line x1="48" y1="426" x2="1350" y2="426" stroke="#e1e6ea"/>
+<text x="48" y="484" font-size="18" fill="#162334" font-weight="600">Warm Desktop</text>
+<text x="48" y="506" font-size="14"  fill="#4d5a66">prepopulated cache</text>
+<line x1="48" y1="535" x2="1350" y2="535" stroke="#e1e6ea"/>
+<text x="48" y="593" font-size="18" fill="#162334" font-weight="600">Warm Mobile</text>
+<text x="48" y="615" font-size="14"  fill="#4d5a66">prepopulated cache</text>
+<text x="48" y="713" font-size="15"  fill="#4d5a66">ShakaPerf · September 17, 2026 · median of 18 measurements per side · lower is better</text>
+</svg>
