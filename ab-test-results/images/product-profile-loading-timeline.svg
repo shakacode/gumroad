@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 470" role="img" aria-labelledby="title description" font-family="Arial,Helvetica,sans-serif">
+<title id="title">First and largest paint in one Product page loading comparison</title>
+<desc id="description">In a single cold Mobile diagnostic load, Inertia first painted at 9.60 seconds and React on Rails Pro at 1.14 seconds.</desc>
+<metadata>{&quot;runId&quot;:&quot;2026-09-17T13:21:25.405Z&quot;,&quot;caseId&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8&quot;,&quot;diagnosticStage&quot;:&quot;perf-low-noise&quot;,&quot;sourceHashes&quot;:[{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/perf.json&quot;,&quot;sha256&quot;:&quot;8468430ac1119b0456f6af75182fca073b93c5433324f479b0b8b52a71493f26&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/perf-low-noise.json&quot;,&quot;sha256&quot;:&quot;28f04935b0f0c4698d092bd107fbef0a1a2c2601e866bbc74cf5783423692c7e&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/visreg.json&quot;,&quot;sha256&quot;:&quot;47d002da825e377212f401230432f11abaee8d0e8ba46ae1090770ef5f8bd42a&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/timeline_comparison.html&quot;,&quot;sha256&quot;:&quot;44a96d8961edc491d6c143777ed7013a4a90073e885f7837f4e99c5765944106&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;8b542a86322def2ea0c0671492adcfc81372be5a87fd1db8c4086444af9a9621&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_performance_profile.json&quot;,&quot;sha256&quot;:&quot;c93c8575cc99b06557ba52f0ee94998de2abfc501173c7e9e6e6e0a1007bd55f&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;b8baaf8ee081a2b8cabea5e4ec035cb6b1ad7fd5a7fac70b05c9e760493fcc4d&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_performance_profile.json&quot;,&quot;sha256&quot;:&quot;d8912814eb492e709ca70202080fc7368e33e443f80847a8a281c03d43b3a52d&quot;}]}</metadata>
+<rect width="1400" height="470" fill="#ffffff"/>
+<text x="44" y="55" fill="#162334" font-size="30" font-weight="700">Product page paint timeline: one Mobile load</text>
+<text x="44" y="88" fill="#4d5a66" font-size="18">Profile layout · empty cache · seconds since target navigation</text>
+<line x1="288" y1="151" x2="288" y2="378" stroke="#dfe6eb"/>
+<text x="288" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">0 s</text>
+<line x1="456.66666666666663" y1="151" x2="456.66666666666663" y2="378" stroke="#dfe6eb"/>
+<text x="456.66666666666663" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">2 s</text>
+<line x1="625.3333333333333" y1="151" x2="625.3333333333333" y2="378" stroke="#dfe6eb"/>
+<text x="625.3333333333333" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">4 s</text>
+<line x1="794" y1="151" x2="794" y2="378" stroke="#dfe6eb"/>
+<text x="794" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">6 s</text>
+<line x1="962.6666666666666" y1="151" x2="962.6666666666666" y2="378" stroke="#dfe6eb"/>
+<text x="962.6666666666666" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">8 s</text>
+<line x1="1131.3333333333335" y1="151" x2="1131.3333333333335" y2="378" stroke="#dfe6eb"/>
+<text x="1131.3333333333335" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">10 s</text>
+<line x1="1300" y1="151" x2="1300" y2="378" stroke="#dfe6eb"/>
+<text x="1300" y="139" text-anchor="middle" fill="#4d5a66" font-size="16">12 s</text>
+<text x="44" y="239" fill="#215da8" font-size="19" font-weight="700">Inertia control</text>
+<rect x="288" y="222" width="809.8486990000001" height="24" rx="5" fill="#215da8" opacity="0.22"/>
+<line x1="1097.8486990000001" y1="199" x2="1097.8486990000001" y2="258" stroke="#215da8" stroke-width="3"/>
+<circle cx="1101.9014216666665" cy="258" r="6" fill="#215da8"/>
+<text x="1085.8486990000001" y="214" text-anchor="end" fill="#215da8" font-size="18" font-weight="700">FCP 9.60 s</text>
+<text x="1085.8486990000001" y="283" text-anchor="end" fill="#4d5a66" font-size="16">LCP 9.65 s</text>
+<text x="44" y="339" fill="#147a46" font-size="19" font-weight="700">React on Rails Pro</text>
+<rect x="288" y="322" width="96.26304233333337" height="24" rx="5" fill="#147a46" opacity="0.22"/>
+<line x1="384.2630423333334" y1="299" x2="384.2630423333334" y2="358" stroke="#147a46" stroke-width="3"/>
+<circle cx="464.32885600000003" cy="358" r="6" fill="#147a46"/>
+<text x="396.2630423333334" y="314" text-anchor="start" fill="#147a46" font-size="18" font-weight="700">FCP 1.14 s</text>
+<text x="396.2630423333334" y="383" text-anchor="start" fill="#4d5a66" font-size="16">LCP 2.09 s</text>
+<text x="44" y="431" fill="#4d5a66" font-size="16">Bars end at first paint; dots mark largest paint. One diagnostic load, not 18-run medians or paired intervals.</text>
+</svg>
