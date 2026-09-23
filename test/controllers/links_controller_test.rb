@@ -5150,6 +5150,15 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_equal "Products/Show", page["component"]
     assert page["props"]["product"].present?
     assert_equal link.name, page["props"]["product"]["name"]
+    assert_nil response.headers["X-Accel-Buffering"]
+  end
+
+  test "GET show prepares full HTML product documents for streaming" do
+    get :show, params: { id: product.to_param }
+
+    assert_response :success
+    assert response.headers["Last-Modified"].present?
+    assert_equal "no", response.headers["X-Accel-Buffering"]
   end
 
   test "GET show renders Products/Profile/Show with creator_profile for profile layout" do
