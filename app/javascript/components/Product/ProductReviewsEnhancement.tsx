@@ -8,6 +8,7 @@ import { PaginationProps } from "$app/components/Pagination";
 import type { Seller } from "$app/components/Product";
 import { Review as ReviewComponent } from "$app/components/Review";
 import { showAlert } from "$app/components/server-components/Alert";
+import { LinkButton } from "$app/components/ui/LinkButton";
 
 const ProductReviewsEnhancement = ({ productId, seller }: { productId: string; seller: Seller | null }) => {
   const loggedInUser = useLoggedInUser();
@@ -49,13 +50,9 @@ const ProductReviewsEnhancement = ({ productId, seller }: { productId: string; s
         </React.Fragment>
       ))}
       {state.pagination.page < state.pagination.pages ? (
-        <button
-          className="cursor-pointer underline all-unset"
-          onClick={() => void loadPage(state.pagination.page + 1)}
-          disabled={isLoading}
-        >
+        <LinkButton onClick={() => void loadPage(state.pagination.page + 1)} disabled={isLoading}>
           Load more
-        </button>
+        </LinkButton>
       ) : null}
     </section>
   );
