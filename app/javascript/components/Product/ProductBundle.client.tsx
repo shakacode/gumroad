@@ -52,12 +52,12 @@ export const ProductBundle = ({
 
           return (
             <CartItem key={bundleProduct.id} isBundleItem>
-              <CartItemMedia className="h-28 w-28">
+              <CartItemMedia className="h-16 w-16 shrink-0 sm:h-28 sm:w-28">
                 <Thumbnail url={bundleProduct.thumbnail_url} nativeType={bundleProduct.native_type} />
               </CartItemMedia>
-              <CartItemMain className="h-28">{bundleItems[bundleProduct.id]}</CartItemMain>
-              <CartItemEnd className="flex-row items-start gap-4 p-4">
-                <span className="current-price" aria-label="Price">
+              <CartItemMain className="min-h-16 min-w-2/5 sm:h-28">{bundleItems[bundleProduct.id]}</CartItemMain>
+              <CartItemEnd className="max-w-1/2 shrink-0 flex-row items-start gap-4 p-4 text-right">
+                <span className="current-price whitespace-nowrap" aria-label="Price">
                   {comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents ? (
                     <s>{price}</s>
                   ) : (
