@@ -1,45 +1,32 @@
-# Product-page article regeneration
+# Product page article data and graphs
 
-The article source is `ab-test-results/index.md` from
-`codex/rorp-cpln-baseline` (tip `ef3e4a7676e2bec00004ccf96ab3f5b91f083daf`,
-article blob `ea1c0c28b9f2bb828cbd07e9be682c68066b10c9`). The article
-and tracked assets on this branch happen to have the same Git blobs as those
-on `ramez/cpln/rorp-baseline`; the requested branch is nevertheless the
-reference for this revision.
-This product-only revision keeps its section order, clearer titles, replay-first
-presentation, measurement detail, and closing takeaway. It replaces every
-retained result visual with a graph from the selected Product run.
-The two scripts here adapt the sibling article's
-`benchmark-data/extract-latest-results.mjs` and
-`benchmark-data/build-buyer-ab-results.mjs` to the September 17 Product run.
-The replay builder adapts the sibling article's
-`benchmark-data/timeline-replay/build.mjs`. The sibling article and its
-existing scripts were not changed.
+The article is `ab-test-results/index.md`. Its main comparison uses the
+September 17 Product run, not the current top commit. The original case
+directories were overwritten by later ShakaPerf runs. The saved
+`latest-results.json` has the extracted samples, estimates, user agents, and
+SHA-256 hashes of the source files. The two saved Lighthouse reports and the
+diagnostic replay are from that run.
 
-From the Gumroad repository root, regenerate the data and all retained graphs:
+From the Gumroad repository root, regenerate all five graphs from the saved
+measurement snapshot and replay:
 
 ```sh
-node ab-test-results/benchmark-data/extract-latest-results.mjs
-node ab-test-results/benchmark-data/build-buyer-ab-results.mjs
-node ab-test-results/benchmark-data/timeline-replay/build.mjs
+node ab-test-results/benchmark-data/build-buyer-ab-results.mjs --snapshot-only
+node ab-test-results/benchmark-data/timeline-replay/build.mjs --snapshot-only
 ```
 
-The extractor accepts an optional source directory and output directory. The
-chart script accepts an optional source directory and image directory. By
-default, both read `compare-results` and write under `ab-test-results`.
+The snapshot option checks the stored run ID, sample counts, and replay frame
+counts. It does not recheck the original input hashes because those source
+files are no longer present. If the September 17 case directories are restored,
+run the extractor first, then run both graph builders without the snapshot
+option. That path checks all input hashes against the source files.
 
-The scripts select exactly four cases: cold and warm profile-layout Product
-landings on Desktop and Mobile. They assert 18 measurements per side, matching
-run IDs, aligned viewport user agents, and the cold visual results. The chart
-script verifies every source hash recorded by the extractor before writing SVGs.
-The sticky add-to-cart case from the same run is deliberately excluded.
-The replay uses one low-noise Mobile diagnostic load from the selected cold
-case. It verifies the target navigation, shared throttling, Lighthouse/trace
-time origin, source hashes, and that the original timeline was not changed.
-The same replay builder generates the four-moment filmstrip and FCP/LCP timeline
-SVGs. These diagnostic visuals must not be treated as the 18-pair performance
-result. The other script generates the paint, cost, and split-scale FCP-range
-charts from all four selected cases. Green is the experiment series throughout.
+The scripts select four profile-layout Product landings: cold and warm on
+Desktop and Mobile, with 18 measurements per side. Sticky add-to-cart is
+excluded. The replay is one diagnostic Mobile load, not the 18-pair result.
+The chart builder generates the paint, cost, and FCP-range graphs from the
+saved measurements. The replay builder generates the filmstrip and FCP/LCP
+timeline from its saved frames. Green is the RORP series in all five graphs.
 
 The meeting proposal included URL-parameter switching on one server. The
 current route selects the RSC response by seller feature flag (and profile
@@ -47,16 +34,13 @@ layout); this article does not claim a separate override parameter exists.
 The older Inertia SSR TTI/video observation is historical context, not a
 measurement from this run, so the article does not claim a new TTI result.
 
-The report was generated at `2026-09-17T13:47:16.128Z`. The current source
-checkouts at article preparation time were `a689ac7ec5fe5b708efe4ddff5388e72fc4ce06d`
-for control and `97d21db7ebf8cfb50264f7a1af2380d81b730e59` for experiment.
-Their exact at-run identities were not embedded in the ShakaPerf report, so
-these checkout observations should not be treated as an immutable run manifest.
-Current HTTP responses show `Products/Profile/Show` for control and
-`product-rsc-root` for experiment.
+The September 17 report did not embed immutable at-run Git identities.
+Preserved container files matched an earlier Inertia baseline and an earlier
+RORP Product implementation. That RORP implementation did not include the
+final React-owned Product cover preloads. The article makes no claim that its
+large Inertia-versus-RORP estimates apply to the final stack.
 
-No time-aligned memory/swap telemetry was saved for the selected run. It is
-not certified against the previously specified swap gate. Also, the source
-report has accessibility finding changes that need separate review. The
-article states both limitations; its numerical results are the measured
-snapshot, not a claim of clean final validation.
+No time-aligned memory or swap telemetry was saved for the selected run. The
+source report also has accessibility finding changes that need review. The
+article states both limits. The later RORP-versus-RORP checks are summarized
+in `later-checks.md` with their saved report summaries.

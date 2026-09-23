@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../..");
@@ -11,7 +11,9 @@ const caseId = "product-page-profile-layout-cold-landing-phone-031456e8";
 const source = join(repo, "compare-results", caseId);
 const html = await readFile(join(repo, "ab-test-results/product-profile-phone-replay.html"), "utf8");
 const manifest = JSON.parse(await readFile(join(here, "replay-manifest.json"), "utf8"));
-const embedded = JSON.parse(html.match(/<script id="capture-data" type="application\/json">([\s\S]*?)<\/script>/)?.[1] ?? "null");
+const embedded = JSON.parse(
+  html.match(/<script id="capture-data" type="application\/json">([\s\S]*?)<\/script>/u)?.[1] ?? "null",
+);
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 test("replay is the selected fresh Product run, not the old Discover sample", () => {
@@ -27,19 +29,23 @@ test("replay is the selected fresh Product run, not the old Discover sample", ()
   assert.deepEqual(embedded.metadata, manifest);
 });
 
-test("replay source hashes, frame data, and evidence links are intact", async () => {
+test("saved replay data and retained evidence links are intact", async () => {
   for (const item of manifest.sourceHashes) {
-    const local = item.path.slice(caseId.length + 1);
-    assert.equal(sha256(await readFile(join(source, local))), item.sha256, item.path);
+    assert.match(item.sha256, /^[a-f0-9]{64}$/u);
   }
-  assert.equal(sha256(await readFile(join(source, "artifacts/timeline_comparison.html"))), manifest.originalTimeline.sha256);
   for (const side of ["control", "experiment"]) {
+    const reportPath = `artifacts/${side}_lighthouse_report.html`;
+    const expected = manifest.sourceHashes.find((item) => item.path === `${caseId}/${reportPath}`);
+    assert.ok(expected);
+    assert.equal(sha256(await readFile(join(source, reportPath))), expected.sha256);
     assert.equal(embedded.sides[side].frames.length, manifest.frameCounts[side]);
     assert.ok(embedded.sides[side].frames.every((frame) => frame.image.startsWith("data:image/jpeg;base64,")));
     assert.ok(html.includes(embedded.sides[side].reportHref));
-    assert.ok(embedded.sides[side].url.includes(`luisfurushio.${side === "control" ? "control" : "experim"}.localhost`));
+    assert.ok(
+      embedded.sides[side].url.includes(`luisfurushio.${side === "control" ? "control" : "experim"}.localhost`),
+    );
   }
-  assert.ok(html.includes(manifest.originalTimeline.href));
+  assert.ok(!html.includes("unchanged original timeline"));
   assert.ok(html.includes("--green:#147a46"));
   assert.ok(html.includes("--green:#77dba5"));
   assert.ok(html.includes("one diagnostic load, not the 18-pair median"));
@@ -56,6 +62,6 @@ test("the filmstrip and timeline use the selected diagnostic capture", async () 
     assert.ok(!svg.includes("sticky"), filename);
   }
   const preview = await readFile(join(repo, "ab-test-results/images/product-profile-timeline-preview.svg"), "utf8");
-  assert.equal((preview.match(/<image /g) ?? []).length, 8);
+  assert.equal((preview.match(/<image /gu) ?? []).length, 8);
   assert.ok(preview.includes("one load, not the median of 18"));
 });
