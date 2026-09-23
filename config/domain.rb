@@ -80,7 +80,7 @@ configuration_by_env = {
     anycable_host: "cable.localhost",
   },
   benchmark: {
-    protocol: "http",
+    protocol: ENV.fetch("BENCHMARK_PROTOCOL", "http"),
     domain: "#{benchmark_host}:#{dev_lane_port}",
     asset_domain: "#{benchmark_host}:#{dev_lane_port}",
     root_domain: "#{benchmark_host}:#{dev_lane_port}",
