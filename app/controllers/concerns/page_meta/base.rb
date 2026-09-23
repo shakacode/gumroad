@@ -77,9 +77,16 @@ module PageMeta::Base
       @meta_tags ||= {}
     end
 
-    def erb_meta_tags
+    def erb_meta_tags(inertia_managed: true)
       tags = meta_tags.each_value.map do |inertia_meta_tag|
-        inertia_meta_tag.to_tag(tag)
+        html = if !inertia_managed && inertia_meta_tag[:tag_name] == :style
+          # Style bodies are raw text: escaping quotes invalidates font declarations.
+          css = inertia_meta_tag[:inner_content].to_s.gsub(/<\/style/i, '<\\/style')
+          tag.style(css.html_safe)
+        else
+          inertia_meta_tag.to_tag(tag)
+        end
+        inertia_managed ? html : html.sub(/\s(?:data-)?inertia="[^"]*"/, "").html_safe
       end
 
       safe_join(tags, "\n")

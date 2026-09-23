@@ -3,7 +3,7 @@ import typia from "typia";
 import { ProfileSettings, Tab } from "$app/parsers/profile";
 import { request, ResponseError } from "$app/utils/request";
 
-import { Props as ProductProps } from "$app/components/Product";
+import type { Props as ProductProps } from "$app/components/Product/Interactive";
 
 export type Section = {
   id: string;

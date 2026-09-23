@@ -62,7 +62,7 @@ class LinksController < ApplicationController
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
   before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
-  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_document_request?
+  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_route_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
 
@@ -221,7 +221,17 @@ class LinksController < ApplicationController
       format.html do
         case params[:layout]
         when Product::Layout::PROFILE
-          render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          unless product_react_on_rails_enabled?
+            return render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          end
+
+          if request.inertia?
+            response.set_header("X-Inertia-Location", request.original_url)
+            return head :conflict
+          end
+
+          product_props = presenter.profile_product_props(sections_editing: false, **presenter_props)
+          render_product_rsc_document(product_rsc_document_props(product_props).merge(page_layout: Product::Layout::PROFILE))
         when Product::Layout::DISCOVER
           if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
             return render inertia: "Products/Discover/Show", props: {
@@ -854,7 +864,15 @@ class LinksController < ApplicationController
 
   private
     def product_rsc_document_request?
-      !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+      product_rsc_route_request? && product_react_on_rails_enabled?
+    end
+
+    def product_rsc_route_request?
+      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+    end
+
+    def product_react_on_rails_enabled?
+      is_a?(ProductRscLinksController) && Feature.active?(:product_page_react_on_rails, @product.user)
     end
 
     def product_rsc_document_props(product_props)
@@ -866,6 +884,26 @@ class LinksController < ApplicationController
 
           [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
         end.to_h
+      )
+    end
+
+    def render_product_rsc_document(product_props)
+      # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
+      meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
+        remove_meta_tag(tag[:head_key])
+      end
+      @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
+      @product_rsc_document_props = product_props.merge(
+        _inertia_meta: inertia_meta.meta_tags,
+        global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)
+      )
+      @rendering_product_rsc_document = true
+      release_live_active_record_connections
+
+      stream_view_containing_react_components(
+        template: "links/rsc_show",
+        layout: "inertia",
+        rsc_stream_observability: true
       )
     end
 
