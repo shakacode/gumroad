@@ -217,7 +217,7 @@ const outputs = [
       { key: "downloads", heading: "Total transferred data" },
       { key: "downloads-count", heading: "Network requests" },
     ],
-    "The cost of earlier paint: response time and downloads",
+    "Product-page trade-offs: response time, transfer size, and requests",
     "Same four cases and run · TTFB does not measure renderer CPU or server resource use",
     "product-page-tradeoffs.svg",
   ),

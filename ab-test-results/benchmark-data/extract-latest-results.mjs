@@ -20,7 +20,7 @@ const cases = [
   { id: "product-page-profile-layout-warm-landing-desktop-266c1124", cache: "Prepopulated cache", viewport: "Desktop" },
   { id: "product-page-profile-layout-warm-landing-phone-87ad03a9", cache: "Prepopulated cache", viewport: "Mobile" },
 ];
-const labels = ["FCP", "LCP", "speed-index", "TTFB", "downloads", "downloads-count", "CLS"];
+const labels = ["FCP", "LCP", "speed-index", "TBT", "TTFB", "downloads", "downloads-count", "CLS"];
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const inputs = [];
 async function input(path) {
@@ -43,6 +43,11 @@ function median(values) {
 }
 function displayMs(value) {
   return value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${Math.round(value)} ms`;
+}
+function displayMetric(label, value) {
+  if (["FCP", "LCP", "speed-index", "TBT", "TTFB"].includes(label)) return displayMs(value);
+  if (label === "downloads") return `${value.toFixed(1)} KB`;
+  return `${Math.round(value)}`;
 }
 
 const reportHtml = await input("full-report.html");
@@ -100,7 +105,7 @@ for (const entry of cases) {
       samples[side] = sides[side].map((sample) => {
         const phase = sample.phases.find((part) => part.phase === label);
         assert.ok(phase, `${prefix}: missing ${side} ${label} sample`);
-        return ["FCP", "LCP", "speed-index", "TTFB"].includes(label) ? phase.duration / 1000 : phase.duration;
+        return ["FCP", "LCP", "speed-index", "TBT", "TTFB"].includes(label) ? phase.duration / 1000 : phase.duration;
       });
       assert.ok(samples[side].every(Number.isFinite));
       assert.ok(Math.abs(median(samples[side]) - item[`${side}Value`]) <= (label === "CLS" ? 0.11 : 1), `${prefix}: ${label} median mismatch`);
@@ -113,6 +118,7 @@ for (const entry of cases) {
       pairedPercent: item.deltaPercent,
       percentConfidenceInterval: [statistics.asPercent.percentMin, statistics.asPercent.percentMax],
       pValue: item.pValue,
+      direction: item.direction,
       samples,
     };
   }
@@ -177,6 +183,26 @@ for (const result of results) {
   for (const label of ["FCP", "LCP", "speed-index"]) {
     const metric = result.metrics[label];
     lines.push(`| ${result.cache} | ${result.viewport} | ${label === "speed-index" ? "Speed Index" : label} | ${displayMs(metric.controlMedian)} | ${displayMs(metric.experimentMedian)} | ${metric.pairedDelta} (${metric.pairedConfidenceInterval.join(" to ")}) | ${metric.pairedPercent.toFixed(1)}% (${metric.percentConfidenceInterval.map((value) => `${value.toFixed(1)}%`).join(" to ")}) |`);
+  }
+}
+lines.push(
+  "",
+  "## Trade-offs",
+  "",
+  "| Navigation | Viewport | Metric | Inertia median | RORP median | Paired estimate (95% CI) |",
+  "| --- | --- | --- | ---: | ---: | ---: |",
+);
+for (const result of results) {
+  for (const [label, name] of [
+    ["TBT", "Total Blocking Time"],
+    ["TTFB", "Browser-observed TTFB"],
+    ["downloads", "Transferred data"],
+    ["downloads-count", "Network requests"],
+  ]) {
+    const metric = result.metrics[label];
+    lines.push(
+      `| ${result.cache} | ${result.viewport} | ${name} | ${displayMetric(label, metric.controlMedian)} | ${displayMetric(label, metric.experimentMedian)} | ${metric.pairedDelta} (${metric.pairedConfidenceInterval.join(" to ")}) |`,
+    );
   }
 }
 lines.push(
