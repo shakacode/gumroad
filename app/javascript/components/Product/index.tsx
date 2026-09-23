@@ -1,6 +1,5 @@
 import * as React from "react";
 
-import { incrementProductViews } from "$app/data/view_event";
 import { Wishlist } from "$app/data/wishlists";
 import { Discount } from "$app/parsers/checkout";
 import {
@@ -15,7 +14,6 @@ import {
 } from "$app/parsers/product";
 import { SellerReputation } from "$app/parsers/profile";
 import { BuyerLocalCurrencyContext, CurrencyCode, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
-import { startTrackingForSeller, trackBuyerCurrencyDisplayView, trackProductEvent } from "$app/utils/user_analytics";
 
 import {
   applySelection,
@@ -27,6 +25,7 @@ import {
   Rental,
 } from "$app/components/Product/ConfigurationSelector";
 import { getStandalonePrice } from "$app/components/Product/pricing";
+import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import { ProductBundle } from "$app/components/Product/ProductBundle.client";
 import {
   ProductAvailabilityNotice,
@@ -55,9 +54,6 @@ import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 import { ProductSecondaryActions } from "$app/components/Product/ProductSecondaryActions.client";
 import { InstallmentPlan } from "$app/components/ProductEdit/state";
 import { Review as FormReview } from "$app/components/ReviewForm";
-import { useAddThirdPartyAnalytics } from "$app/components/useAddThirdPartyAnalytics";
-import { useOriginalLocation } from "$app/components/useOriginalLocation";
-import { useRunOnce } from "$app/components/useRunOnce";
 
 export type Seller = { id: string; name: string; avatar_url: string; profile_url: string; is_verified: boolean };
 
@@ -241,27 +237,6 @@ export const Product = ({
 
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
-  const addThirdPartyAnalytics = useAddThirdPartyAnalytics();
-
-  const { searchParams } = new URL(useOriginalLocation());
-  useRunOnce(() => {
-    if (disableAnalytics) return;
-    if (product.seller) {
-      startTrackingForSeller(product.seller.id, product.analytics);
-      trackBuyerCurrencyDisplayView(product.seller.id, product.buyer_currency_display);
-      trackProductEvent(product.seller.id, {
-        permalink: product.permalink,
-        action: "viewed",
-        product_name: product.name,
-      });
-    } else {
-      trackBuyerCurrencyDisplayView(undefined, product.buyer_currency_display);
-    }
-    void incrementProductViews({ permalink: product.permalink, recommendedBy: searchParams.get("recommended_by") });
-    if (product.has_third_party_analytics)
-      addThirdPartyAnalytics({ permalink: product.permalink, location: "product" });
-  });
-
   const isBundle = product.bundle_products.length > 0;
   if (isBundle) basePriceCents = getStandalonePrice(product);
   const showPrice =
@@ -274,6 +249,15 @@ export const Product = ({
 
   return (
     <article className="relative grid rounded border border-border bg-background lg:grid-cols-[2fr_1fr]">
+      <ProductAnalytics
+        analytics={product.analytics}
+        buyerCurrencyDisplay={product.buyer_currency_display}
+        disabled={disableAnalytics}
+        hasThirdPartyAnalytics={product.has_third_party_analytics}
+        permalink={product.permalink}
+        productName={product.name}
+        sellerId={product.seller?.id}
+      />
       <ProductMedia
         covers={product.covers}
         initialCover={null}
