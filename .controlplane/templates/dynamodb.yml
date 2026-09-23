@@ -1,0 +1,66 @@
+kind: volumeset
+name: "{{APP_NAME}}-dynamodb-vs"
+spec:
+  autoscaling:
+    maxCapacity: 20
+    minFreePercentage: 1
+    scalingFactor: 1.1
+  fileSystemType: ext4
+  initialCapacity: 10
+  performanceClass: general-purpose-ssd
+  snapshots:
+    createFinalSnapshot: true
+    retentionDuration: 7d
+
+---
+kind: workload
+name: dynamodb
+spec:
+  type: stateful
+  securityOptions:
+    filesystemGroupId: 1000
+  containers:
+    - name: dynamodb
+      cpu: 300m
+      memory: 512Mi
+      image: amazon/dynamodb-local:3.3.1
+      inheritEnv: false
+      args:
+        - -jar
+        - DynamoDBLocal.jar
+        - -sharedDb
+        - -dbPath
+        - ./data
+      ports:
+        - number: 8000
+          protocol: http
+      volumes:
+        - uri: "cpln://volumeset/{{APP_NAME}}-dynamodb-vs"
+          path: /home/dynamodblocal/data
+          recoveryPolicy: retain
+      livenessProbe:
+        tcpSocket:
+          port: 8000
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        failureThreshold: 6
+      readinessProbe:
+        tcpSocket:
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        failureThreshold: 6
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc

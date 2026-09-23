@@ -37,9 +37,13 @@ Rails.application.configure do
 
   # Seller pages and the cart iframe share one cacheable asset origin per stack.
   config.asset_host = "#{PROTOCOL}://#{ROOT_DOMAIN}"
-  config.active_storage.service = :benchmark
+  config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
+  config.active_storage.content_types_allowed_inline += ["image/webp"]
 
-  config.action_cable.allowed_request_origins = [%r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i]
+  config.action_cable.allowed_request_origins = [
+    %r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i,
+    %r{\A#{Regexp.escape(PROTOCOL)}://(?:[a-z0-9-]+\.)?#{Regexp.escape(ROOT_DOMAIN)}\z}io,
+  ]
 
   config.logger = ActiveSupport::Logger.new(STDOUT)
     .tap { |logger| logger.formatter = ::Logger::Formatter.new }

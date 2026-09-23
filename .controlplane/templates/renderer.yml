@@ -1,0 +1,62 @@
+kind: workload
+name: renderer
+spec:
+  type: standard
+  containers:
+    - name: renderer
+      cpu: 500m
+      memory: 1Gi
+      inheritEnv: false
+      image: "{{APP_IMAGE_LINK}}"
+      args:
+        - node
+        - client/node-renderer.cjs
+      env:
+        - name: RAILS_ENV
+          value: benchmark
+        - name: NODE_ENV
+          value: production
+        - name: RENDERER_HOST
+          value: 0.0.0.0
+        - name: RENDERER_PORT
+          value: "3800"
+        - name: RENDERER_LOG_LEVEL
+          value: info
+        - name: RENDERER_WORKERS_COUNT
+          value: "1"
+        - name: RENDERER_PASSWORD
+          value: "cpln://secret/{{APP_SECRETS}}.RENDERER_PASSWORD"
+      ports:
+        - number: 3800
+          protocol: http2
+      livenessProbe:
+        exec:
+          command:
+            - node
+            - scripts/check_renderer_health.cjs
+        initialDelaySeconds: 30
+        periodSeconds: 15
+        failureThreshold: 3
+      readinessProbe:
+        exec:
+          command:
+            - node
+            - scripts/check_renderer_health.cjs
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 6
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc
+  identityLink: "{{APP_IDENTITY_LINK}}"

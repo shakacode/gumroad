@@ -1,0 +1,46 @@
+kind: workload
+name: rails
+spec:
+  type: standard
+  containers:
+    - name: rails
+      cpu: "1"
+      memory: 2Gi
+      env:
+        - name: PORT
+          value: "3000"
+      inheritEnv: true
+      image: "{{APP_IMAGE_LINK}}"
+      ports:
+        - number: 3000
+          protocol: http
+      livenessProbe:
+        httpGet:
+          path: /healthcheck
+          port: 3000
+        initialDelaySeconds: 60
+        periodSeconds: 15
+        failureThreshold: 3
+      readinessProbe:
+        httpGet:
+          path: /healthcheck
+          port: 3000
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        failureThreshold: 6
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: true
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR:
+        - 0.0.0.0/0
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc
+  identityLink: "{{APP_IDENTITY_LINK}}"

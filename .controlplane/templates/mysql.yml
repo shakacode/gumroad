@@ -1,0 +1,89 @@
+kind: volumeset
+name: "{{APP_NAME}}-mysql-vs"
+spec:
+  autoscaling:
+    maxCapacity: 20
+    minFreePercentage: 1
+    scalingFactor: 1.1
+  fileSystemType: ext4
+  initialCapacity: 10
+  performanceClass: general-purpose-ssd
+  snapshots:
+    createFinalSnapshot: true
+    retentionDuration: 7d
+
+---
+kind: identity
+name: "{{APP_NAME}}-mysql-identity"
+
+---
+kind: policy
+name: "{{APP_NAME}}-mysql-access"
+bindings:
+  - permissions:
+      - reveal
+    principalLinks:
+      - "//gvc/{{APP_NAME}}/identity/{{APP_NAME}}-mysql-identity"
+      - "{{APP_IDENTITY_LINK}}"
+targetKind: secret
+targetLinks:
+  - "//secret/{{APP_NAME}}-mysql"
+
+---
+kind: workload
+name: mysql
+spec:
+  type: stateful
+  containers:
+    - name: mysql
+      cpu: 250m
+      memory: 768Mi
+      image: mysql:8.0.32
+      inheritEnv: false
+      env:
+        - name: MYSQL_DATABASE
+          value: "cpln://secret/{{APP_NAME}}-mysql.database"
+        - name: MYSQL_USER
+          value: "cpln://secret/{{APP_NAME}}-mysql.username"
+        - name: MYSQL_PASSWORD
+          value: "cpln://secret/{{APP_NAME}}-mysql.password"
+        - name: MYSQL_ROOT_PASSWORD
+          value: "cpln://secret/{{APP_NAME}}-mysql.root_password"
+      args:
+        - --default-authentication-plugin=mysql_native_password
+        - --collation-server=utf8mb4_unicode_ci
+        - --character-set-server=utf8mb4
+      ports:
+        - number: 3306
+          protocol: tcp
+      volumes:
+        - uri: "cpln://volumeset/{{APP_NAME}}-mysql-vs"
+          path: /var/lib/mysql
+          recoveryPolicy: retain
+      livenessProbe:
+        tcpSocket:
+          port: 3306
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        failureThreshold: 3
+      readinessProbe:
+        tcpSocket:
+          port: 3306
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 3
+  identityLink: "//identity/{{APP_NAME}}-mysql-identity"
+  defaultOptions:
+    autoscaling:
+      metric: disabled
+      minScale: 1
+      maxScale: 1
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR: []
+      outboundAllowCIDR:
+        - 0.0.0.0/0
+    internal:
+      inboundAllowType: same-gvc
