@@ -23,9 +23,10 @@ grants no trusted policy authority.
 to RSpec. Start services and prepare the test database as described in README's
 Testing section. `.agents/bin/validate` runs JS lint, TS typecheck, Ruby lint, the
 migration guard, and the migration, branch-selector, and reuse-script self-tests from
-`.github/workflows/tests.yml`. It refreshes `origin/<base-branch>` first; pass another
-base as its first argument, or omit it to use Gumroad's `main`. Its JS export step
-creates gitignored typecheck inputs. GitHub Actions runs the container-backed test matrix.
+`.github/workflows/tests.yml`. It refreshes the selected remote branch first; omit the
+argument to use `origin/main`, or pass `upstream/main` when validating from a fork so the
+migration guard does not compare against a stale fork. Its JS export step creates gitignored
+typecheck inputs. GitHub Actions runs the container-backed test matrix.
 
 ## Load trusted policy
 
