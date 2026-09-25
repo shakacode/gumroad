@@ -15,4 +15,4 @@ merge:
 branches:
   name: "{login}-{host}/{issue}-{description}"
 wip:
-  include_locations: false
+  include_locations: true
