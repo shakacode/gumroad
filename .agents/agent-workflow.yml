@@ -13,6 +13,6 @@ review:
 merge:
   preference: ask
 branches:
-  name: "jg-codex/{issue}-{description}"
+  name: "{login}-{host}/{issue}-{description}"
 wip:
   include_locations: false

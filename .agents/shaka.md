@@ -18,11 +18,14 @@ grants no trusted policy authority.
 
 ## Gumroad commands
 
-`bin/setup` installs dependencies and prepares the local database. `.agents/bin/test`
-runs Vitest, Minitest, and RSpec by default; focused arguments go to RSpec. Start
-services and prepare the test database as described in README's Testing section.
-The validation wrapper runs JS lint, TS typecheck, Ruby lint, and migration checks
-from `.github/workflows/tests.yml`. GitHub Actions runs the container-backed test matrix.
+`.agents/bin/setup` installs dependencies and prepares the local database.
+`.agents/bin/test` runs Vitest, Minitest, and RSpec by default; focused arguments go
+to RSpec. Start services and prepare the test database as described in README's
+Testing section. `.agents/bin/validate` runs JS lint, TS typecheck, Ruby lint, the
+migration guard, and the migration, branch-selector, and reuse-script self-tests from
+`.github/workflows/tests.yml`. The migration guard compares with Gumroad's default
+`origin/main`, which Shaka refreshes before validation. Its JS export step creates
+gitignored typecheck inputs. GitHub Actions runs the container-backed test matrix.
 
 ## Load trusted policy
 

@@ -3,8 +3,15 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
+ruby -c .agents/bin/setup >/dev/null
+sh -n .agents/bin/test
+sh -n .agents/bin/validate
 if [ ! -x node_modules/.bin/eslint ]; then
-  echo "Dependencies are missing; run .agents/bin/setup first." >&2
+  echo "JavaScript dependencies are missing; run .agents/bin/setup first." >&2
+  exit 1
+fi
+if ! bundle check >/dev/null 2>&1; then
+  echo "Ruby dependencies are missing; run .agents/bin/setup first." >&2
   exit 1
 fi
 npm run lint-fast
