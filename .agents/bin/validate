@@ -3,9 +3,21 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
+if [ "$#" -gt 1 ]; then
+  echo "Usage: .agents/bin/validate [base-branch]" >&2
+  exit 2
+fi
+base_branch=${1:-main}
+if ! git check-ref-format --branch "$base_branch" >/dev/null 2>&1; then
+  echo "Invalid base branch: $base_branch" >&2
+  exit 2
+fi
+if ! git fetch --no-tags --quiet origin "refs/heads/$base_branch:refs/remotes/origin/$base_branch"; then
+  echo "Could not refresh origin/$base_branch; check the remote and branch." >&2
+  exit 1
+fi
 ruby -c .agents/bin/setup >/dev/null
 sh -n .agents/bin/test
-sh -n .agents/bin/validate
 if [ ! -x node_modules/.bin/eslint ]; then
   echo "JavaScript dependencies are missing; run .agents/bin/setup first." >&2
   exit 1
@@ -18,7 +30,7 @@ npm run lint-fast
 RAILS_ENV=test bundle exec rails js:export
 npm run typecheck
 bundle exec rubocop --format github
-ruby bin/check-migration-versions origin/main HEAD
+ruby bin/check-migration-versions "origin/$base_branch" HEAD
 ruby spec/bin/check_migration_versions_test.rb
 ruby spec/bin/branch_specs_test.rb
 bash script/test-reuse-full-suite

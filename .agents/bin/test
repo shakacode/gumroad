@@ -14,6 +14,7 @@ if [ ! -x node_modules/.bin/vitest ]; then
   echo "JavaScript dependencies are missing; run .agents/bin/setup first." >&2
   exit 1
 fi
+# Match the locale configured on the JS test step in CI.
 LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npm test
 RAILS_ENV=test bundle exec rails test
 exec bin/rspec
