@@ -12,7 +12,7 @@ if ! git check-ref-format --branch "$base_branch" >/dev/null 2>&1; then
   echo "Invalid base branch: $base_branch" >&2
   exit 2
 fi
-if ! git fetch --no-tags --quiet origin "refs/heads/$base_branch:refs/remotes/origin/$base_branch"; then
+if ! git fetch --no-tags --quiet origin "+refs/heads/$base_branch:refs/remotes/origin/$base_branch"; then
   echo "Could not refresh origin/$base_branch; check the remote and branch." >&2
   exit 1
 fi
