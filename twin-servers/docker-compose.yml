@@ -9,6 +9,7 @@ services:
       NODE_ENV: production
       VITE_RUBY_MODE: production
       BENCHMARK_HOST: control.localhost
+      SHAKAPERF_PRODUCT_PAGE_RORP: "${SHAKAPERF_CONTROL_PRODUCT_PAGE_RORP:-enabled}"
       VITE_RUBY_ASSET_HOST: "http://control.localhost:${CONTROL_PORT}"
       VITE_RUBY_AUTO_BUILD: "false"
       DEV_LANE_PORT: ${CONTROL_PORT}
@@ -54,6 +55,7 @@ services:
     environment:
       <<: *control-environment
       BENCHMARK_HOST: experim.localhost
+      SHAKAPERF_PRODUCT_PAGE_RORP: "${SHAKAPERF_EXPERIMENT_PRODUCT_PAGE_RORP:-enabled}"
       VITE_RUBY_ASSET_HOST: "http://experim.localhost:${EXPERIMENT_PORT}"
       DEV_LANE_PORT: ${EXPERIMENT_PORT}
       DATABASE_HOST: mysql-experiment
