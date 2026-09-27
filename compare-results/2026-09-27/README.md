@@ -14,15 +14,14 @@ Open the [self-contained report](self-contained-performance-report.html) locally
 
 Warm loads were also faster in most cases: about 4–8% for Discover, 5% for the Product Discover layout, and 7% for seller Profile. The Product Profile layout was 5–6% faster in the measured medians, but this difference was not statistically significant. No meaningful CLS, TBT, or TTFB regression appeared. Product desktop CLS was about 0.001–0.002.
 
-The report flags `+186%` downloads before LCP for seller Profile on a phone after Product warmup. Total transfer was 229.4 KB for both sides. A 180 KB `cart_items_count` response moved across the LCP timing boundary: median transfer before LCP was 48.5 KB for control and 228.9 KB for experiment. This flag does not show added network transfer.
+## Report preview
 
-## Limits
+The screenshots below show the report interface from the self-contained HTML file. Open the images at full size to read the metric tables.
 
-- This run used 10 paired samples per case, although the current repository configuration specifies 18.
-- Three cold visual cases first differed and then matched on retry. Marketplace phone performance also needed a successful retry.
-- Accessibility showed changed findings, but no new or fixed violations. Different catalog products appeared in equivalent positions in some Discover captures. Discover timing estimates therefore do not fully control for page content.
-- The HTML report was regenerated in report-only mode at `2026-09-27T16:04:16.846Z` from measurements made earlier that day. The report does not record the server Git SHAs.
+### Comparison overview
 
-## Screenshots
+![ShakaPerf comparison overview with visual and performance results for seller Profile and Discover](report-screenshots/overview.png)
 
-The `screenshots` folder contains before and after captures extracted from this self-contained report for cold Discover, Product, and seller Profile loads on desktop and phone. The source report embeds the captures as AVIF data; these copies are PNGs for direct viewing in GitHub.
+### Discover comparison
+
+![Full Discover comparison with visual diff, desktop and phone metrics, timelines, and accessibility results](report-screenshots/discover-detail.png)
