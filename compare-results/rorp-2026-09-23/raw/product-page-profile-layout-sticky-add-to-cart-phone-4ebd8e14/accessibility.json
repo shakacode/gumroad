@@ -1,0 +1,2492 @@
+{
+  "kind": "ok",
+  "stage": "accessibility",
+  "measurement": {
+    "control": {
+      "side": "control",
+      "url": "http://control.localhost:3100/checkout",
+      "rawArtifactHref": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/control-accessibility-report.json",
+      "screenshot": {
+        "width": 375,
+        "height": 1463,
+        "imageHref": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/control-accessibility-screenshot.png"
+      },
+      "violations": [
+        {
+          "ruleId": "aria-allowed-attr",
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 33,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(2)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(3)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 33,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(4)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-hidden-focus",
+          "impact": "serious",
+          "help": "ARIA hidden element must not be focusable or contain focusable elements",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-hidden-focus?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-10.8.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".__PrivateStripeElement-input"
+              ],
+              "html": "<input class=\"__PrivateStripeEleme...\" aria-hidden=\"true\" aria-label=\" \" autocomplete=\"false\" maxlength=\"1\" style=\"border: none !import...\">",
+              "failureSummary": "Fix all of the following:\n  Focusable content should be disabled or be removed from the DOM",
+              "bounds": {
+                "x": 67,
+                "y": 1235.59,
+                "width": 241,
+                "height": 1
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-required-children",
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag131",
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAAv4",
+            "RGAA-9.3.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: h4[tabindex], [role=switch]",
+              "bounds": {
+                "x": 16,
+                "y": 64,
+                "width": 343,
+                "height": 231
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: div[aria-busy], footer[aria-busy], h4[tabindex], [role=radiogroup], fieldset[tabindex]",
+              "bounds": {
+                "x": 16,
+                "y": 319,
+                "width": 343,
+                "height": 352
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "frame-title",
+          "impact": "serious",
+          "help": "Frames must have an accessible name",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/frame-title?application=playwright",
+          "tags": [
+            "cat.text-alternatives",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.i",
+            "TTv5",
+            "TT12.d",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-2.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "#benchmark-stripe-card-button-0"
+              ],
+              "html": "<iframe name=\"cardButton0958\" frameborder=\"0\" allowtransparency=\"true\" scrolling=\"no\" src=\"https://js.stripe.co...\" style=\"margin: 0px !importa...\" id=\"benchmark-stripe-car...\">",
+              "failureSummary": "Fix any of the following:\n  Element has no title attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        },
+        {
+          "ruleId": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "label",
+          "impact": "critical",
+          "help": "Form elements must have labels",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/label?application=playwright",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".min-h-5"
+              ],
+              "html": "<input role=\"switch\" class=\"cursor-pointer appea...\" type=\"checkbox\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 33,
+                "y": 257,
+                "width": 34,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "link-name",
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag244",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-6.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "figure > a"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\"><img alt=\"\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/yjm03948pad8k87z3zp2vhf92gys\"></a>",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 34,
+                "y": 123,
+                "width": 62,
+                "height": 19
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "region",
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "cat.keyboard",
+            "best-practice",
+            "RGAAv4",
+            "RGAA-9.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".flex-row > .relative.inline-flex"
+              ],
+              "html": "<div class=\"relative inline-flex\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 33,
+                "y": 81,
+                "width": 64,
+                "height": 142
+              }
+            },
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".mt-auto > span"
+              ],
+              "html": "<span><strong>Version:</strong> ENGLISH</span>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 157,
+                "width": 160.63,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".ml-auto"
+              ],
+              "html": "<section class=\"ml-auto flex flex-col items-end gap-1 max-w-1/2 text-right\"><span class=\"current-price text-base font-bold sm:text-lg\" aria-label=\"Price\">US$40</span></section>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 289.63,
+                "y": 81,
+                "width": 52.38,
+                "height": 142
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1) > .border-t.p-4.border-border"
+              ],
+              "html": "<div class=\"border-t border-border p-4\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 239,
+                "width": 341,
+                "height": 55
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2) > .sm\\:p-5.p-4"
+              ],
+              "html": "<div class=\"p-4 sm:p-5\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 320,
+                "width": 341,
+                "height": 236
+              }
+            },
+            {
+              "target": [
+                "div[data-checkout-price-rows=\"true\"]"
+              ],
+              "html": "<div class=\"grid gap-4 p-4 sm:px-5 border-t border-border\" data-checkout-price-rows=\"true\" aria-busy=\"false\"><div class=\"grid grid-flow-col justify-between gap-4\"><h4 class=\"inline-flex flex-wrap gap-2 text-sm sm:text-base\">Subtotal</h4><div class=\"text-base sm:text-lg\">US$40</div></div></div>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 556,
+                "width": 341,
+                "height": 57
+              }
+            },
+            {
+              "target": [
+                "div[aria-label=\"Payment form\"]"
+              ],
+              "html": "<div class=\"flex flex-col gap-6 undefined\" aria-label=\"Payment form\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 703,
+                "width": 343,
+                "height": 664
+              }
+            },
+            {
+              "target": [
+                ".\\@\\[64rem\\]\\:hidden"
+              ],
+              "html": "<a href=\"http://luisfurushio....\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 1399,
+                "width": 343,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "target-size",
+          "impact": "serious",
+          "help": "All touch targets must be 24px large, or leave sufficient space",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/target-size?application=playwright",
+          "tags": [
+            "cat.sensory-and-visual-cues",
+            "wcag22aa",
+            "wcag258"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Target has insufficient size (160.6px by 20px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 3px instead of at least 24px.",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        }
+      ],
+      "blocked": false
+    },
+    "experiment": {
+      "side": "experiment",
+      "url": "http://experim.localhost:3200/checkout",
+      "rawArtifactHref": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/experiment-accessibility-report.json",
+      "screenshot": {
+        "width": 375,
+        "height": 1463,
+        "imageHref": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/experiment-accessibility-screenshot.png"
+      },
+      "violations": [
+        {
+          "ruleId": "aria-allowed-attr",
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 33,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(2)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(3)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 33,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(4)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-hidden-focus",
+          "impact": "serious",
+          "help": "ARIA hidden element must not be focusable or contain focusable elements",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-hidden-focus?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-10.8.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".__PrivateStripeElement-input"
+              ],
+              "html": "<input class=\"__PrivateStripeEleme...\" aria-hidden=\"true\" aria-label=\" \" autocomplete=\"false\" maxlength=\"1\" style=\"border: none !import...\">",
+              "failureSummary": "Fix all of the following:\n  Focusable content should be disabled or be removed from the DOM",
+              "bounds": {
+                "x": 67,
+                "y": 1235.59,
+                "width": 241,
+                "height": 1
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-required-children",
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag131",
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAAv4",
+            "RGAA-9.3.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: h4[tabindex], [role=switch]",
+              "bounds": {
+                "x": 16,
+                "y": 64,
+                "width": 343,
+                "height": 231
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: div[aria-busy], footer[aria-busy], h4[tabindex], [role=radiogroup], fieldset[tabindex]",
+              "bounds": {
+                "x": 16,
+                "y": 319,
+                "width": 343,
+                "height": 352
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "frame-focusable-content",
+          "impact": "serious",
+          "help": "Frames with focusable content must not have tabindex=-1",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/frame-focusable-content?application=playwright",
+          "tags": [
+            "cat.keyboard",
+            "wcag2a",
+            "wcag211",
+            "TTv5",
+            "TT4.a",
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "RGAAv4",
+            "RGAA-7.3.2"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "#benchmark-stripe-card-button-0",
+                "html"
+              ],
+              "html": "<html lang=\"en\" style=\"--logoWidth: 29.25px; --buttonHeight: 28px; --fontSize: 14px; --logoHeight: 13px; --buttonRadius: 6px; --checkboxSize: 14px; --checkboxRightArmWidth: 9px; --checkboxBorderRadius: 4px; --clearOffsetLeft: 144px;\">",
+              "failureSummary": "Fix any of the following:\n  Element has focusable descendants"
+            }
+          ]
+        },
+        {
+          "ruleId": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "label",
+          "impact": "critical",
+          "help": "Form elements must have labels",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/label?application=playwright",
+          "tags": [
+            "cat.forms",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.n",
+            "TTv5",
+            "TT5.c",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".min-h-5"
+              ],
+              "html": "<input role=\"switch\" class=\"cursor-pointer appea...\" type=\"checkbox\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 33,
+                "y": 257,
+                "width": 34,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "link-name",
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag244",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-6.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "figure > a"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\"><img alt=\"\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/jqxmh7dre0r9oebyz8q8l2jf82kh\"></a>",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 34,
+                "y": 123,
+                "width": 62,
+                "height": 19
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "region",
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "cat.keyboard",
+            "best-practice",
+            "RGAAv4",
+            "RGAA-9.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".flex-row > .relative.inline-flex"
+              ],
+              "html": "<div class=\"relative inline-flex\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 33,
+                "y": 81,
+                "width": 64,
+                "height": 142
+              }
+            },
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            },
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".mt-auto > span"
+              ],
+              "html": "<span><strong>Version:</strong> ENGLISH</span>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 157,
+                "width": 160.63,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".ml-auto"
+              ],
+              "html": "<section class=\"ml-auto flex flex-col items-end gap-1 max-w-1/2 text-right\"><span class=\"current-price text-base font-bold sm:text-lg\" aria-label=\"Price\">US$40</span></section>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 289.63,
+                "y": 81,
+                "width": 52.38,
+                "height": 142
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1) > .border-t.p-4.border-border"
+              ],
+              "html": "<div class=\"border-t border-border p-4\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 239,
+                "width": 341,
+                "height": 55
+              }
+            },
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2) > .sm\\:p-5.p-4"
+              ],
+              "html": "<div class=\"p-4 sm:p-5\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 320,
+                "width": 341,
+                "height": 236
+              }
+            },
+            {
+              "target": [
+                "div[data-checkout-price-rows=\"true\"]"
+              ],
+              "html": "<div class=\"grid gap-4 p-4 sm:px-5 border-t border-border\" data-checkout-price-rows=\"true\" aria-busy=\"false\"><div class=\"grid grid-flow-col justify-between gap-4\"><h4 class=\"inline-flex flex-wrap gap-2 text-sm sm:text-base\">Subtotal</h4><div class=\"text-base sm:text-lg\">US$40</div></div></div>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 556,
+                "width": 341,
+                "height": 57
+              }
+            },
+            {
+              "target": [
+                "div[aria-label=\"Payment form\"]"
+              ],
+              "html": "<div class=\"flex flex-col gap-6 undefined\" aria-label=\"Payment form\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 703,
+                "width": 343,
+                "height": 664
+              }
+            },
+            {
+              "target": [
+                ".\\@\\[64rem\\]\\:hidden"
+              ],
+              "html": "<a href=\"http://luisfurushio....\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 1399,
+                "width": 343,
+                "height": 48
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "target-size",
+          "impact": "serious",
+          "help": "All touch targets must be 24px large, or leave sufficient space",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/target-size?application=playwright",
+          "tags": [
+            "cat.sensory-and-visual-cues",
+            "wcag22aa",
+            "wcag258"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Target has insufficient size (160.6px by 20px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 3px instead of at least 24px.",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        }
+      ],
+      "blocked": false
+    },
+    "effectiveConfig": {
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21a",
+        "wcag21aa",
+        "wcag22a",
+        "wcag22aa",
+        "best-practice"
+      ],
+      "disableRules": [],
+      "includeRules": null
+    },
+    "failOnViolation": true,
+    "findings": [
+      {
+        "status": "unchanged",
+        "signature": "aria-allowed-attr|[\".border-indicator\\\\!\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 33,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 33,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-allowed-attr|[\".text-left.not-active\\\\:hover\\\\:-translate-1.not-active\\\\:hover\\\\:shadow:nth-child(2)\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(2)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(2)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 368,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-allowed-attr|[\".text-left.not-active\\\\:hover\\\\:-translate-1.not-active\\\\:hover\\\\:shadow:nth-child(3)\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(3)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 33,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(3)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 33,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-allowed-attr|[\".text-left.not-active\\\\:hover\\\\:-translate-1.not-active\\\\:hover\\\\:shadow:nth-child(4)\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(4)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".text-left.not-active\\:hover\\:-translate-1.not-active\\:hover\\:shadow:nth-child(4)"
+              ],
+              "html": "<button class=\"justify-center curso...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 193.5,
+                "y": 428,
+                "width": 148.5,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-hidden-focus|[\".__PrivateStripeElement-input\"]",
+        "ruleId": "aria-hidden-focus",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-10.8.1",
+          "RGAAv4",
+          "TT6.a",
+          "TTv5",
+          "cat.name-role-value",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "ARIA hidden element must not be focusable or contain focusable elements",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-hidden-focus?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-10.8.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".__PrivateStripeElement-input"
+              ],
+              "html": "<input class=\"__PrivateStripeEleme...\" aria-hidden=\"true\" aria-label=\" \" autocomplete=\"false\" maxlength=\"1\" style=\"border: none !import...\">",
+              "failureSummary": "Fix all of the following:\n  Focusable content should be disabled or be removed from the DOM",
+              "bounds": {
+                "x": 67,
+                "y": 1235.59,
+                "width": 241,
+                "height": 1
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "ARIA hidden element must not be focusable or contain focusable elements",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-hidden-focus?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-10.8.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".__PrivateStripeElement-input"
+              ],
+              "html": "<input class=\"__PrivateStripeEleme...\" aria-hidden=\"true\" aria-label=\" \" autocomplete=\"false\" maxlength=\"1\" style=\"border: none !import...\">",
+              "failureSummary": "Fix all of the following:\n  Focusable content should be disabled or be removed from the DOM",
+              "bounds": {
+                "x": 67,
+                "y": 1235.59,
+                "width": 241,
+                "height": 1
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-required-children|[\".rounded-sm.bg-background[role=\\\"list\\\"]:nth-child(1)\"]",
+        "ruleId": "aria-required-children",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.1.3.1",
+          "RGAA-9.3.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag131",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: h4[tabindex], [role=switch]",
+              "bounds": {
+                "x": 16,
+                "y": 64,
+                "width": 343,
+                "height": 231
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: h4[tabindex], [role=switch]",
+              "bounds": {
+                "x": 16,
+                "y": 64,
+                "width": 343,
+                "height": 231
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-required-children|[\".rounded-sm.bg-background[role=\\\"list\\\"]:nth-child(2)\"]",
+        "ruleId": "aria-required-children",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.1.3.1",
+          "RGAA-9.3.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag131",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: div[aria-busy], footer[aria-busy], h4[tabindex], [role=radiogroup], fieldset[tabindex]",
+              "bounds": {
+                "x": 16,
+                "y": 319,
+                "width": 343,
+                "height": 352
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Certain ARIA roles must contain particular children",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-required-children?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2)"
+              ],
+              "html": "<div role=\"list\" class=\"rounded-sm border border-border bg-background\">",
+              "failureSummary": "Fix any of the following:\n  Element has children which are not allowed: div[aria-busy], footer[aria-busy], h4[tabindex], [role=radiogroup], fieldset[tabindex]",
+              "bounds": {
+                "x": 16,
+                "y": 319,
+                "width": 343,
+                "height": 352
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "new",
+        "signature": "frame-focusable-content|[\"#benchmark-stripe-card-button-0\",\"html\"]",
+        "ruleId": "frame-focusable-content",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.2.1.1",
+          "RGAA-7.3.2",
+          "RGAAv4",
+          "TT4.a",
+          "TTv5",
+          "cat.keyboard",
+          "wcag211",
+          "wcag2a"
+        ],
+        "experiment": {
+          "impact": "serious",
+          "help": "Frames with focusable content must not have tabindex=-1",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/frame-focusable-content?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "RGAA-7.3.2",
+            "RGAAv4",
+            "TT4.a",
+            "TTv5",
+            "cat.keyboard",
+            "wcag211",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "#benchmark-stripe-card-button-0",
+                "html"
+              ],
+              "html": "<html lang=\"en\" style=\"--logoWidth: 29.25px; --buttonHeight: 28px; --fontSize: 14px; --logoHeight: 13px; --buttonRadius: 6px; --checkboxSize: 14px; --checkboxRightArmWidth: 9px; --checkboxBorderRadius: 4px; --clearOffsetLeft: 144px;\">",
+              "failureSummary": "Fix any of the following:\n  Element has focusable descendants"
+            }
+          ]
+        }
+      },
+      {
+        "status": "fixed",
+        "signature": "frame-title|[\"#benchmark-stripe-card-button-0\"]",
+        "ruleId": "frame-title",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-2.1.1",
+          "RGAAv4",
+          "TT12.d",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.i",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Frames must have an accessible name",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/frame-title?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-2.1.1",
+            "RGAAv4",
+            "TT12.d",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.i",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "#benchmark-stripe-card-button-0"
+              ],
+              "html": "<iframe name=\"cardButton0958\" frameborder=\"0\" allowtransparency=\"true\" scrolling=\"no\" src=\"https://js.stripe.co...\" style=\"margin: 0px !importa...\" id=\"benchmark-stripe-car...\">",
+              "failureSummary": "Fix any of the following:\n  Element has no title attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "heading-order|[\".font-medium.line-clamp-2\"]",
+        "ruleId": "heading-order",
+        "impact": "moderate",
+        "tags": [
+          "best-practice",
+          "cat.semantics"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "label|[\".min-h-5\"]",
+        "ruleId": "label",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-11.1.1",
+          "RGAAv4",
+          "TT5.c",
+          "TTv5",
+          "cat.forms",
+          "section508",
+          "section508.22.n",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Form elements must have labels",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/label?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-11.1.1",
+            "RGAAv4",
+            "TT5.c",
+            "TTv5",
+            "cat.forms",
+            "section508",
+            "section508.22.n",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".min-h-5"
+              ],
+              "html": "<input role=\"switch\" class=\"cursor-pointer appea...\" type=\"checkbox\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 33,
+                "y": 257,
+                "width": 34,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Form elements must have labels",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/label?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-11.1.1",
+            "RGAAv4",
+            "TT5.c",
+            "TTv5",
+            "cat.forms",
+            "section508",
+            "section508.22.n",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".min-h-5"
+              ],
+              "html": "<input role=\"switch\" class=\"cursor-pointer appea...\" type=\"checkbox\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element has no placeholder attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 33,
+                "y": 257,
+                "width": 34,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "link-name|[\"figure > a\"]",
+        "ruleId": "link-name",
+        "impact": "serious",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.2.4.4",
+          "EN-9.4.1.2",
+          "RGAA-6.2.1",
+          "RGAAv4",
+          "TT6.a",
+          "TTv5",
+          "cat.name-role-value",
+          "section508",
+          "section508.22.a",
+          "wcag244",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "RGAA-6.2.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "section508",
+            "section508.22.a",
+            "wcag244",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "figure > a"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\"><img alt=\"\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/yjm03948pad8k87z3zp2vhf92gys\"></a>",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 34,
+                "y": 123,
+                "width": 62,
+                "height": 19
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "RGAA-6.2.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "section508",
+            "section508.22.a",
+            "wcag244",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "figure > a"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\"><img alt=\"\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/jqxmh7dre0r9oebyz8q8l2jf82kh\"></a>",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 34,
+                "y": 123,
+                "width": 62,
+                "height": 19
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".\\\\@\\\\[64rem\\\\]\\\\:hidden\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".\\@\\[64rem\\]\\:hidden"
+              ],
+              "html": "<a href=\"http://luisfurushio....\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 1399,
+                "width": 343,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".\\@\\[64rem\\]\\:hidden"
+              ],
+              "html": "<a href=\"http://luisfurushio....\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 1399,
+                "width": 343,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".flex-row > .relative.inline-flex\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".flex-row > .relative.inline-flex"
+              ],
+              "html": "<div class=\"relative inline-flex\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 33,
+                "y": 81,
+                "width": 64,
+                "height": 142
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".flex-row > .relative.inline-flex"
+              ],
+              "html": "<div class=\"relative inline-flex\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 33,
+                "y": 81,
+                "width": 64,
+                "height": 142
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "region|[\".font-medium.line-clamp-2\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.control.localhost:3100/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".font-medium.line-clamp-2"
+              ],
+              "html": "<h4 class=\"line-clamp-2 text-base font-medium no-underline sm:text-lg\"><a href=\"http://luisfurushio.experim.localhost:3200/l/bgfjk\" class=\"no-underline\" dir=\"auto\">Graphic Guide to Residential Design (PDF Ebook)</a></h4>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 81,
+                "width": 160.63,
+                "height": 48
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "region|[\".line-clamp-2.text-sm\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".ml-auto\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".ml-auto"
+              ],
+              "html": "<section class=\"ml-auto flex flex-col items-end gap-1 max-w-1/2 text-right\"><span class=\"current-price text-base font-bold sm:text-lg\" aria-label=\"Price\">US$40</span></section>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 289.63,
+                "y": 81,
+                "width": 52.38,
+                "height": 142
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".ml-auto"
+              ],
+              "html": "<section class=\"ml-auto flex flex-col items-end gap-1 max-w-1/2 text-right\"><span class=\"current-price text-base font-bold sm:text-lg\" aria-label=\"Price\">US$40</span></section>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 289.63,
+                "y": 81,
+                "width": 52.38,
+                "height": 142
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".mt-auto > span\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".mt-auto > span"
+              ],
+              "html": "<span><strong>Version:</strong> ENGLISH</span>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 157,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".mt-auto > span"
+              ],
+              "html": "<span><strong>Version:</strong> ENGLISH</span>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 113,
+                "y": 157,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".rounded-sm.bg-background[role=\\\"list\\\"]:nth-child(1) > .border-t.p-4.border-border\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1) > .border-t.p-4.border-border"
+              ],
+              "html": "<div class=\"border-t border-border p-4\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 239,
+                "width": 341,
+                "height": 55
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(1) > .border-t.p-4.border-border"
+              ],
+              "html": "<div class=\"border-t border-border p-4\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 239,
+                "width": 341,
+                "height": 55
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\".rounded-sm.bg-background[role=\\\"list\\\"]:nth-child(2) > .sm\\\\:p-5.p-4\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2) > .sm\\:p-5.p-4"
+              ],
+              "html": "<div class=\"p-4 sm:p-5\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 320,
+                "width": 341,
+                "height": 236
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".rounded-sm.bg-background[role=\"list\"]:nth-child(2) > .sm\\:p-5.p-4"
+              ],
+              "html": "<div class=\"p-4 sm:p-5\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 320,
+                "width": 341,
+                "height": 236
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\"div[aria-label=\\\"Payment form\\\"]\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "div[aria-label=\"Payment form\"]"
+              ],
+              "html": "<div class=\"flex flex-col gap-6 undefined\" aria-label=\"Payment form\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 703,
+                "width": 343,
+                "height": 664
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "div[aria-label=\"Payment form\"]"
+              ],
+              "html": "<div class=\"flex flex-col gap-6 undefined\" aria-label=\"Payment form\">",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 16,
+                "y": 703,
+                "width": 343,
+                "height": 664
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "region|[\"div[data-checkout-price-rows=\\\"true\\\"]\"]",
+        "ruleId": "region",
+        "impact": "moderate",
+        "tags": [
+          "RGAA-9.2.1",
+          "RGAAv4",
+          "best-practice",
+          "cat.keyboard"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "div[data-checkout-price-rows=\"true\"]"
+              ],
+              "html": "<div class=\"grid gap-4 p-4 sm:px-5 border-t border-border\" data-checkout-price-rows=\"true\" aria-busy=\"false\"><div class=\"grid grid-flow-col justify-between gap-4\"><h4 class=\"inline-flex flex-wrap gap-2 text-sm sm:text-base\">Subtotal</h4><div class=\"text-base sm:text-lg\">US$40</div></div></div>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 556,
+                "width": 341,
+                "height": 57
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "tags": [
+            "RGAA-9.2.1",
+            "RGAAv4",
+            "best-practice",
+            "cat.keyboard"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "div[data-checkout-price-rows=\"true\"]"
+              ],
+              "html": "<div class=\"grid gap-4 p-4 sm:px-5 border-t border-border\" data-checkout-price-rows=\"true\" aria-busy=\"false\"><div class=\"grid grid-flow-col justify-between gap-4\"><h4 class=\"inline-flex flex-wrap gap-2 text-sm sm:text-base\">Subtotal</h4><div class=\"text-base sm:text-lg\">US$40</div></div></div>",
+              "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks",
+              "bounds": {
+                "x": 17,
+                "y": 556,
+                "width": 341,
+                "height": 57
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "target-size|[\".line-clamp-2.text-sm\"]",
+        "ruleId": "target-size",
+        "impact": "serious",
+        "tags": [
+          "cat.sensory-and-visual-cues",
+          "wcag22aa",
+          "wcag258"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "All touch targets must be 24px large, or leave sufficient space",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/target-size?application=playwright",
+          "tags": [
+            "cat.sensory-and-visual-cues",
+            "wcag22aa",
+            "wcag258"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.control.localhost:3100?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Target has insufficient size (160.6px by 20px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 3px instead of at least 24px.",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "All touch targets must be 24px large, or leave sufficient space",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/target-size?application=playwright",
+          "tags": [
+            "cat.sensory-and-visual-cues",
+            "wcag22aa",
+            "wcag258"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".line-clamp-2.text-sm"
+              ],
+              "html": "<a href=\"http://luisfurushio.experim.localhost:3200?recommended_by=search\" class=\"line-clamp-2 text-sm\">Luis Furushio</a>",
+              "failureSummary": "Fix any of the following:\n  Target has insufficient size (160.6px by 20px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 3px instead of at least 24px.",
+              "bounds": {
+                "x": 113,
+                "y": 133,
+                "width": 160.63,
+                "height": 20
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "summary": {
+      "new": 1,
+      "fixed": 1,
+      "changed": 5,
+      "unchanged": 16,
+      "blocked": 0,
+      "newByImpact": {
+        "serious": 1
+      },
+      "fixedByImpact": {
+        "serious": 1
+      },
+      "changedByImpact": {
+        "moderate": 3,
+        "serious": 2
+      }
+    },
+    "comparisonArtifactHref": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/accessibility-comparison.json"
+  },
+  "logs": "\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4368.6s>\u001b[22m to troubleshoot this line run \u001b[32mshaka-perf troubleshoot --filter '^Product Page - Profile layout sticky add to cart$' --viewport phone\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4377.0s>\u001b[22m[ experiment ] \u001b[2m[installRequestBlocking] blocking 5 URL pattern(s): www.google.com/recaptcha/, www.google-analytics.com/, www.googletagmanager.com/, www.gstatic.com/recaptcha/, www.recaptcha.net/recaptcha/\u001b[22m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4377.0s>\u001b[22m[  control   ] \u001b[2m[installRequestBlocking] blocking 5 URL pattern(s): www.google.com/recaptcha/, www.google-analytics.com/, www.googletagmanager.com/, www.gstatic.com/recaptcha/, www.recaptcha.net/recaptcha/\u001b[22m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4378.7s>\u001b[22m[  control   ] annotate: Click sticky Add to cart without scrolling\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4378.8s>\u001b[22m[  control   ] annotate: Add product to cart\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4378.8s>\u001b[22m[ experiment ] annotate: Click sticky Add to cart without scrolling\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4378.8s>\u001b[22m[ experiment ] annotate: Add product to cart\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.1s>\u001b[22m[ experiment ] \u001b[32m[waitForAllImages] 1 visible images loaded for http://experim.localhost:3200/checkout (1 ms)\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.1s>\u001b[22m[ experiment ] \u001b[32m[waitForFontsReady] fonts ready for http://experim.localhost:3200/checkout (1 ms)\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.1s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=1 text=0 child=0 :: attr iframe style=\"border: 0px !important; margin-top: 0.00\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.1s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children body.group/body.mac +1[iframe]\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.8s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children body.group/body.mac +1[iframe]\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4381.8s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div.__PrivateStripeElement +1[div]\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4382.3s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=17 attr=15 text=0 child=2 :: attr input.cursor-pointer.appearance-none name=\"\" | attr input.cursor-pointer.appearance-none type=\"checkbox\" | attr input.cursor-pointer.appearance-none name=\"\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4382.4s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=1 text=0 child=0 :: attr iframe data-initialized=\"true\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4382.7s>\u001b[22m[  control   ] \u001b[32m[waitForAllImages] 1 visible images loaded for http://control.localhost:3100/checkout (2 ms)\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4382.7s>\u001b[22m[  control   ] \u001b[32m[waitForFontsReady] fonts ready for http://control.localhost:3100/checkout (2 ms)\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4382.7s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=17 attr=15 text=0 child=2 :: attr input.cursor-pointer.appearance-none name=\"\" | attr input.cursor-pointer.appearance-none type=\"checkbox\" | attr input.cursor-pointer.appearance-none name=\"\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.0s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=1 text=0 child=0 :: attr div.__PrivateStripeElement style=\"margin: 0px !important; padding: 0px !im\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.0s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children body.group/body.mac +1[iframe]\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.0s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div.__PrivateStripeElement +1[div]\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.5s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=1 text=0 child=0 :: attr iframe data-initialized=\"true\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.5s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=2 text=0 child=0 :: attr div style=\"display: block !important; position: abs\" | attr iframe style=\"margin: 0px !important; user-select: non\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4383.5s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=2 text=0 child=0 :: attr input.__PrivateStripeElement-input style=\"border: none !important; display: block \" | attr iframe tabindex=\"-1\"\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4384.2s>\u001b[22m[  control   ] \u001b[32m[waitForNoMutations] quiet for 700 ms, settled in 1538 ms for http://control.localhost:3100/checkout\u001b[39m\n\u001b[32mab-tests/product-page.abtest.ts:220\u001b[39m:\u001b[32mphone\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4384.2s>\u001b[22m[ experiment ] \u001b[32m[waitForNoMutations] quiet for 700 ms, settled in 3112 ms for http://experim.localhost:3200/checkout\u001b[39m",
+  "runId": "2026-09-23T18:01:58.195Z"
+}

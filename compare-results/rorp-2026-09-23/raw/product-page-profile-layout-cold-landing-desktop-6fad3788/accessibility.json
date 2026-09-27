@@ -1,0 +1,4001 @@
+{
+  "kind": "ok",
+  "stage": "accessibility",
+  "measurement": {
+    "control": {
+      "side": "control",
+      "url": "http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search",
+      "rawArtifactHref": "product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/control-accessibility-report.json",
+      "screenshot": {
+        "width": 1280,
+        "height": 6208,
+        "imageHref": "product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/control-accessibility-screenshot.png"
+      },
+      "violations": [
+        {
+          "ruleId": "aria-allowed-attr",
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-label=\"ENGLISH\" aria-describedby=\"_r_1_-price\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 859,
+                "y": 1083.41,
+                "width": 342,
+                "height": 66
+              }
+            },
+            {
+              "target": [
+                "button[aria-label=\"ESPAÑOL\"]"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-label=\"ESPAÑOL\" aria-describedby=\"_r_2_-price\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 859,
+                "y": 1161.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-prohibited-attr",
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 1919.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2052.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2185.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2318.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2451.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2584.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2717.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2850.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2983.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 3116.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4 > .grow"
+              ],
+              "html": "<h3 class=\"grow\">Already bought this?</h3>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 96,
+                "y": 1311.75,
+                "width": 480.17,
+                "height": 25.3
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > h5"
+              ],
+              "html": "<h5>Benchmark Reader 231</h5>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 887,
+                "y": 2000.61,
+                "width": 146.63,
+                "height": 18.19
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "cat.text-alternatives",
+            "wcag2a",
+            "wcag111",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT7.a",
+            "TT7.b",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "ACT",
+            "RGAAv4",
+            "RGAA-1.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(13) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/9zcol1imgit9ugf5rtx6p1k5rf1d\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 2437.59,
+                "width": 731,
+                "height": 731
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(14) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/jdpt8odugwlsfl2455fgrgml7pe3\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3192.59,
+                "width": 731,
+                "height": 345.14
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(15) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/46slnjq2gcb0wph87zu7d4anau2o\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3561.73,
+                "width": 731,
+                "height": 397.77
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(16) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/evxbsgqzztllvbqmpqr4s0io6h91\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3983.5,
+                "width": 731,
+                "height": 326.36
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(17) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/redcphvsufb28sbwqi5vxtye9mnb\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4333.86,
+                "width": 731,
+                "height": 329.97
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(18) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/aewhoiqvm5bnuygzroedp7cscckn\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4687.83,
+                "width": 731,
+                "height": 496.67
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(19) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/4l5fp7cubpc4fflrcifccg5ijyn6\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 5208.5,
+                "width": 731,
+                "height": 338.83
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 1999.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2132.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2265.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2398.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2531.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2664.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2797.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2930.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3063.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3196.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "link-name",
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag244",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-6.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".bg-transparent.text-current[target=\"_blank\"]"
+              ],
+              "html": "<a href=\"https://twitter.com/...\" target=\"_blank\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 1162,
+                "y": 25,
+                "width": 54,
+                "height": 46
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "listitem",
+          "impact": "serious",
+          "help": "<li> elements must be contained in a <ul> or <ol>",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/listitem?application=playwright",
+          "tags": [
+            "cat.structure",
+            "wcag2a",
+            "wcag131",
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAAv4",
+            "RGAA-9.3.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4"
+              ],
+              "html": "<li class=\"flex flex-wrap items-center justify-between gap-4 p-4\">",
+              "failureSummary": "Fix any of the following:\n  List item does not have a <ul>, <ol> parent element",
+              "bounds": {
+                "x": 80,
+                "y": 1284.41,
+                "width": 729,
+                "height": 80
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": "serious",
+          "help": "Scrollable region must have keyboard access",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/scrollable-region-focusable?application=playwright",
+          "tags": [
+            "cat.keyboard",
+            "wcag2a",
+            "wcag211",
+            "wcag213",
+            "TTv5",
+            "TT4.a",
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "EN-9.2.1.3",
+            "RGAAv4",
+            "RGAA-7.3.2"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".snap-x"
+              ],
+              "html": "<div class=\"flex h-full snap-x snap-mandatory items-center overflow-x-scroll overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden\" style=\"width: 100%; aspect-ratio: 1005 / 770;\">",
+              "failureSummary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable",
+              "bounds": {
+                "x": 55,
+                "y": 162,
+                "width": 1170,
+                "height": 896.41
+              }
+            }
+          ]
+        }
+      ],
+      "blocked": false
+    },
+    "experiment": {
+      "side": "experiment",
+      "url": "http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search",
+      "rawArtifactHref": "product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/experiment-accessibility-report.json",
+      "screenshot": {
+        "width": 1280,
+        "height": 6208,
+        "imageHref": "product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/experiment-accessibility-screenshot.png"
+      },
+      "violations": [
+        {
+          "ruleId": "aria-allowed-attr",
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-label=\"ENGLISH\" aria-describedby=\"_product-rsc-rootR_i...\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 859,
+                "y": 1083.41,
+                "width": 342,
+                "height": 66
+              }
+            },
+            {
+              "target": [
+                "button[aria-label=\"ESPAÑOL\"]"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-label=\"ESPAÑOL\" aria-describedby=\"_product-rsc-rootR_1...\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 859,
+                "y": 1161.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "aria-prohibited-attr",
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "cat.aria",
+            "wcag2a",
+            "wcag412",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAAv4",
+            "RGAA-7.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 1919.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2052.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2185.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2318.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2451.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2584.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2717.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2850.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2983.7,
+                "width": 342,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 3116.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "heading-order",
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "cat.semantics",
+            "best-practice"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4 > .grow"
+              ],
+              "html": "<h3 class=\"grow\">Already bought this?</h3>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 96,
+                "y": 1311.75,
+                "width": 480.17,
+                "height": 25.3
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > h5"
+              ],
+              "html": "<h5>Benchmark Reader 231</h5>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 887,
+                "y": 2000.61,
+                "width": 146.63,
+                "height": 18.19
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "image-alt",
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "cat.text-alternatives",
+            "wcag2a",
+            "wcag111",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT7.a",
+            "TT7.b",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "ACT",
+            "RGAAv4",
+            "RGAA-1.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(13) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/1wwzv2r8xhjytkmq23xkz9ylbuoa\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 2437.59,
+                "width": 731,
+                "height": 731
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(14) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/wngbo5d0cfdzuar4dbn61bb48019\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3192.59,
+                "width": 731,
+                "height": 345.14
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(15) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/jv78dr8ushq5uvz48drwlc1v6e62\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3561.73,
+                "width": 731,
+                "height": 397.77
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(16) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/m3zqnuupnxtmtzkze7uhmhg0txvl\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3983.5,
+                "width": 731,
+                "height": 326.36
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(17) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/m4tkh84x84qd8o8kbe4nphdb1k1u\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4333.86,
+                "width": 731,
+                "height": 329.97
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(18) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/nrforbs1nf01vqbywhdja34wzu6q\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4687.83,
+                "width": 731,
+                "height": 496.67
+              }
+            },
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(19) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/5epmmgkafl31tcl0gtw7sxhglunx\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 5208.5,
+                "width": 731,
+                "height": 338.83
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 1999.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2132.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2265.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2398.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2531.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2664.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2797.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2930.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3063.7,
+                "width": 20,
+                "height": 20
+              }
+            },
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3196.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "link-name",
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag244",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-6.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".bg-transparent.text-current[target=\"_blank\"]"
+              ],
+              "html": "<a href=\"https://twitter.com/...\" target=\"_blank\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 1162,
+                "y": 25,
+                "width": 54,
+                "height": 46
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "listitem",
+          "impact": "serious",
+          "help": "<li> elements must be contained in a <ul> or <ol>",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/listitem?application=playwright",
+          "tags": [
+            "cat.structure",
+            "wcag2a",
+            "wcag131",
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAAv4",
+            "RGAA-9.3.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4"
+              ],
+              "html": "<li class=\"flex flex-wrap items-center justify-between gap-4 p-4\">",
+              "failureSummary": "Fix any of the following:\n  List item does not have a <ul>, <ol> parent element",
+              "bounds": {
+                "x": 80,
+                "y": 1284.41,
+                "width": 729,
+                "height": 80
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "scrollable-region-focusable",
+          "impact": "serious",
+          "help": "Scrollable region must have keyboard access",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/scrollable-region-focusable?application=playwright",
+          "tags": [
+            "cat.keyboard",
+            "wcag2a",
+            "wcag211",
+            "wcag213",
+            "TTv5",
+            "TT4.a",
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "EN-9.2.1.3",
+            "RGAAv4",
+            "RGAA-7.3.2"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".snap-x"
+              ],
+              "html": "<div class=\"flex h-full snap-x snap-mandatory items-center overflow-x-scroll overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden\" style=\"width:100%;aspect-ratio:1005 / 770\">",
+              "failureSummary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable",
+              "bounds": {
+                "x": 55,
+                "y": 162,
+                "width": 1170,
+                "height": 896.41
+              }
+            }
+          ]
+        }
+      ],
+      "blocked": false
+    },
+    "effectiveConfig": {
+      "tags": [
+        "wcag2a",
+        "wcag2aa",
+        "wcag21a",
+        "wcag21aa",
+        "wcag22a",
+        "wcag22aa",
+        "best-practice"
+      ],
+      "disableRules": [],
+      "includeRules": null
+    },
+    "failOnViolation": true,
+    "findings": [
+      {
+        "status": "changed",
+        "signature": "aria-allowed-attr|[\".border-indicator\\\\!\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-label=\"ENGLISH\" aria-describedby=\"_r_1_-price\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 859,
+                "y": 1083.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-indicator\\!"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"true\" aria-label=\"ENGLISH\" aria-describedby=\"_product-rsc-rootR_i...\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"true\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"true\"",
+              "bounds": {
+                "x": 859,
+                "y": 1083.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "aria-allowed-attr|[\"button[aria-label=\\\"ESPAÑOL\\\"]\"]",
+        "ruleId": "aria-allowed-attr",
+        "impact": "critical",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "button[aria-label=\"ESPAÑOL\"]"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-label=\"ESPAÑOL\" aria-describedby=\"_r_2_-price\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 859,
+                "y": 1161.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Elements must only use supported ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-allowed-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "button[aria-label=\"ESPAÑOL\"]"
+              ],
+              "html": "<button class=\"cursor-pointer text-...\" type=\"button\" role=\"radio\" aria-checked=\"false\" aria-label=\"ESPAÑOL\" aria-describedby=\"_product-rsc-rootR_1...\" itemprop=\"offer\" itemtype=\"https://schema.org/O...\" itemscope=\"\" aria-selected=\"false\">",
+              "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-selected=\"false\"",
+              "bounds": {
+                "x": 859,
+                "y": 1161.41,
+                "width": 342,
+                "height": 66
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(1) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 1919.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 1919.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(11) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2584.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2584.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(13) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2717.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2717.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(15) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2850.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2850.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(17) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2983.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2983.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(19) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 3116.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 3116.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(3) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2052.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2052.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(5) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2185.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2185.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(7) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2318.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2318.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "aria-prohibited-attr|[\".grid.gap-2:nth-child(9) > .shrink-0[aria-label=\\\"5 stars\\\"]\"]",
+        "ruleId": "aria-prohibited-attr",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.4.1.2",
+          "RGAA-7.1.1",
+          "RGAAv4",
+          "cat.aria",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2451.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Elements must only use permitted ARIA attributes",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-prohibited-attr?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "RGAA-7.1.1",
+            "RGAAv4",
+            "cat.aria",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .shrink-0[aria-label=\"5 stars\"]"
+              ],
+              "html": "<span class=\"flex shrink-0 items-center\" aria-label=\"5 stars\">",
+              "failureSummary": "Fix all of the following:\n  aria-label attribute cannot be used on a span with no valid role attribute.",
+              "bounds": {
+                "x": 859,
+                "y": 2451.7,
+                "width": 342,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "heading-order|[\".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4 > .grow\"]",
+        "ruleId": "heading-order",
+        "impact": "moderate",
+        "tags": [
+          "best-practice",
+          "cat.semantics"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4 > .grow"
+              ],
+              "html": "<h3 class=\"grow\">Already bought this?</h3>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 96,
+                "y": 1311.75,
+                "width": 480.17,
+                "height": 25.3
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4 > .grow"
+              ],
+              "html": "<h3 class=\"grow\">Already bought this?</h3>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 96,
+                "y": 1311.75,
+                "width": 480.17,
+                "height": 25.3
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "heading-order|[\".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > h5\"]",
+        "ruleId": "heading-order",
+        "impact": "moderate",
+        "tags": [
+          "best-practice",
+          "cat.semantics"
+        ],
+        "control": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > h5"
+              ],
+              "html": "<h5>Benchmark Reader 231</h5>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 887,
+                "y": 2000.61,
+                "width": 146.63,
+                "height": 18.19
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "moderate",
+          "help": "Heading levels should only increase by one",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/heading-order?application=playwright",
+          "tags": [
+            "best-practice",
+            "cat.semantics"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > h5"
+              ],
+              "html": "<h5>Benchmark Reader 231</h5>",
+              "failureSummary": "Fix any of the following:\n  Heading order invalid",
+              "bounds": {
+                "x": 887,
+                "y": 2000.61,
+                "width": 146.63,
+                "height": 18.19
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 1999.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(1) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 1999.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(11) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2664.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(11) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2664.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(13) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2797.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(13) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2797.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(15) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2930.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(15) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2930.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(17) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3063.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(17) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3063.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(19) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3196.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(19) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 3196.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(3) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2132.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(3) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2132.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(5) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2265.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(5) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2265.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(7) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2398.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(7) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2398.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".grid.gap-2:nth-child(9) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://control.localhost:3100/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2531.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".grid.gap-2:nth-child(9) > .gap-1.flex-wrap > .gap-2 > .aspect-square.w-5.rounded-full"
+              ],
+              "html": "<img class=\"aspect-square w-5 shrink-0 rounded-full border border-border\" src=\"http://experim.localhost:3200/images/gumroad-default-avatar-5.png\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 859,
+                "y": 2531.7,
+                "width": 20,
+                "height": 20
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(13) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(13) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/9zcol1imgit9ugf5rtx6p1k5rf1d\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 2437.59,
+                "width": 731,
+                "height": 731
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(13) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/1wwzv2r8xhjytkmq23xkz9ylbuoa\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 2437.59,
+                "width": 731,
+                "height": 731
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(14) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(14) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/jdpt8odugwlsfl2455fgrgml7pe3\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3192.59,
+                "width": 731,
+                "height": 345.14
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(14) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/wngbo5d0cfdzuar4dbn61bb48019\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3192.59,
+                "width": 731,
+                "height": 345.14
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(15) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(15) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/46slnjq2gcb0wph87zu7d4anau2o\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3561.73,
+                "width": 731,
+                "height": 397.77
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(15) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/jv78dr8ushq5uvz48drwlc1v6e62\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3561.73,
+                "width": 731,
+                "height": 397.77
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(16) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(16) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/evxbsgqzztllvbqmpqr4s0io6h91\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3983.5,
+                "width": 731,
+                "height": 326.36
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(16) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/m3zqnuupnxtmtzkze7uhmhg0txvl\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 3983.5,
+                "width": 731,
+                "height": 326.36
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(17) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(17) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/redcphvsufb28sbwqi5vxtye9mnb\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4333.86,
+                "width": 731,
+                "height": 329.97
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(17) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/m4tkh84x84qd8o8kbe4nphdb1k1u\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4333.86,
+                "width": 731,
+                "height": 329.97
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(18) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(18) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/aewhoiqvm5bnuygzroedp7cscckn\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4687.83,
+                "width": 731,
+                "height": 496.67
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(18) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/nrforbs1nf01vqbywhdja34wzu6q\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 4687.83,
+                "width": 731,
+                "height": 496.67
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "image-alt|[\".node-image.react-renderer:nth-child(19) > div[data-node-view-wrapper=\\\"\\\"] > figure > .selection\\\\:bg-muted[data-drag-handle=\\\"true\\\"][contenteditable=\\\"false\\\"]\"]",
+        "ruleId": "image-alt",
+        "impact": "critical",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.1.1.1",
+          "RGAA-1.1.1",
+          "RGAAv4",
+          "TT7.a",
+          "TT7.b",
+          "TTv5",
+          "cat.text-alternatives",
+          "section508",
+          "section508.22.a",
+          "wcag111",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(19) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-control.localhost:9100/gumroad-dev-public-storage/4l5fp7cubpc4fflrcifccg5ijyn6\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 5208.5,
+                "width": 731,
+                "height": 338.83
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "RGAA-1.1.1",
+            "RGAAv4",
+            "TT7.a",
+            "TT7.b",
+            "TTv5",
+            "cat.text-alternatives",
+            "section508",
+            "section508.22.a",
+            "wcag111",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".node-image.react-renderer:nth-child(19) > div[data-node-view-wrapper=\"\"] > figure > .selection\\:bg-muted[data-drag-handle=\"true\"][contenteditable=\"false\"]"
+              ],
+              "html": "<img class=\"selection:bg-muted\" data-drag-handle=\"true\" contenteditable=\"false\" src=\"http://minio-experim.localhost:9101/gumroad-dev-public-storage/5epmmgkafl31tcl0gtw7sxhglunx\">",
+              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "bounds": {
+                "x": 79,
+                "y": 5208.5,
+                "width": 731,
+                "height": 338.83
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "link-name|[\".bg-transparent.text-current[target=\\\"_blank\\\"]\"]",
+        "ruleId": "link-name",
+        "impact": "serious",
+        "tags": [
+          "ACT",
+          "EN-301-549",
+          "EN-9.2.4.4",
+          "EN-9.4.1.2",
+          "RGAA-6.2.1",
+          "RGAAv4",
+          "TT6.a",
+          "TTv5",
+          "cat.name-role-value",
+          "section508",
+          "section508.22.a",
+          "wcag244",
+          "wcag2a",
+          "wcag412"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "RGAA-6.2.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "section508",
+            "section508.22.a",
+            "wcag244",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".bg-transparent.text-current[target=\"_blank\"]"
+              ],
+              "html": "<a href=\"https://twitter.com/...\" target=\"_blank\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 1162,
+                "y": 25,
+                "width": 54,
+                "height": 46
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Links must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/link-name?application=playwright",
+          "tags": [
+            "ACT",
+            "EN-301-549",
+            "EN-9.2.4.4",
+            "EN-9.4.1.2",
+            "RGAA-6.2.1",
+            "RGAAv4",
+            "TT6.a",
+            "TTv5",
+            "cat.name-role-value",
+            "section508",
+            "section508.22.a",
+            "wcag244",
+            "wcag2a",
+            "wcag412"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".bg-transparent.text-current[target=\"_blank\"]"
+              ],
+              "html": "<a href=\"https://twitter.com/...\" target=\"_blank\" class=\"inline-flex items-ce...\">",
+              "failureSummary": "Fix all of the following:\n  Element is in tab order and does not have accessible text\n\nFix any of the following:\n  Element does not have text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute",
+              "bounds": {
+                "x": 1162,
+                "y": 25,
+                "width": 54,
+                "height": 46
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "unchanged",
+        "signature": "listitem|[\".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4\"]",
+        "ruleId": "listitem",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.1.3.1",
+          "RGAA-9.3.1",
+          "RGAAv4",
+          "cat.structure",
+          "wcag131",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "<li> elements must be contained in a <ul> or <ol>",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/listitem?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.structure",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4"
+              ],
+              "html": "<li class=\"flex flex-wrap items-center justify-between gap-4 p-4\">",
+              "failureSummary": "Fix any of the following:\n  List item does not have a <ul>, <ol> parent element",
+              "bounds": {
+                "x": 80,
+                "y": 1284.41,
+                "width": 729,
+                "height": 80
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "<li> elements must be contained in a <ul> or <ol>",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/listitem?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.1.3.1",
+            "RGAA-9.3.1",
+            "RGAAv4",
+            "cat.structure",
+            "wcag131",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".border-t.p-6:nth-child(3) > .divide-y.divide-solid.divide-border > .justify-between.p-4.gap-4"
+              ],
+              "html": "<li class=\"flex flex-wrap items-center justify-between gap-4 p-4\">",
+              "failureSummary": "Fix any of the following:\n  List item does not have a <ul>, <ol> parent element",
+              "bounds": {
+                "x": 80,
+                "y": 1284.41,
+                "width": 729,
+                "height": 80
+              }
+            }
+          ]
+        }
+      },
+      {
+        "status": "changed",
+        "signature": "scrollable-region-focusable|[\".snap-x\"]",
+        "ruleId": "scrollable-region-focusable",
+        "impact": "serious",
+        "tags": [
+          "EN-301-549",
+          "EN-9.2.1.1",
+          "EN-9.2.1.3",
+          "RGAA-7.3.2",
+          "RGAAv4",
+          "TT4.a",
+          "TTv5",
+          "cat.keyboard",
+          "wcag211",
+          "wcag213",
+          "wcag2a"
+        ],
+        "control": {
+          "impact": "serious",
+          "help": "Scrollable region must have keyboard access",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/scrollable-region-focusable?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "EN-9.2.1.3",
+            "RGAA-7.3.2",
+            "RGAAv4",
+            "TT4.a",
+            "TTv5",
+            "cat.keyboard",
+            "wcag211",
+            "wcag213",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".snap-x"
+              ],
+              "html": "<div class=\"flex h-full snap-x snap-mandatory items-center overflow-x-scroll overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden\" style=\"width: 100%; aspect-ratio: 1005 / 770;\">",
+              "failureSummary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable",
+              "bounds": {
+                "x": 55,
+                "y": 162,
+                "width": 1170,
+                "height": 896.41
+              }
+            }
+          ]
+        },
+        "experiment": {
+          "impact": "serious",
+          "help": "Scrollable region must have keyboard access",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/scrollable-region-focusable?application=playwright",
+          "tags": [
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "EN-9.2.1.3",
+            "RGAA-7.3.2",
+            "RGAAv4",
+            "TT4.a",
+            "TTv5",
+            "cat.keyboard",
+            "wcag211",
+            "wcag213",
+            "wcag2a"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".snap-x"
+              ],
+              "html": "<div class=\"flex h-full snap-x snap-mandatory items-center overflow-x-scroll overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden\" style=\"width:100%;aspect-ratio:1005 / 770\">",
+              "failureSummary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable",
+              "bounds": {
+                "x": 55,
+                "y": 162,
+                "width": 1170,
+                "height": 896.41
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "summary": {
+      "new": 0,
+      "fixed": 0,
+      "changed": 20,
+      "unchanged": 14,
+      "blocked": 0,
+      "newByImpact": {},
+      "fixedByImpact": {},
+      "changedByImpact": {
+        "critical": 19,
+        "serious": 1
+      }
+    },
+    "comparisonArtifactHref": "product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/accessibility-comparison.json"
+  },
+  "logs": "\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4368.6s>\u001b[22m to troubleshoot this line run \u001b[32mshaka-perf troubleshoot --filter '^Product Page - Profile layout cold landing$' --viewport desktop\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4369.0s>\u001b[22m[ experiment ] \u001b[2m[installRequestBlocking] blocking 5 URL pattern(s): www.google.com/recaptcha/, www.google-analytics.com/, www.googletagmanager.com/, www.gstatic.com/recaptcha/, www.recaptcha.net/recaptcha/\u001b[22m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4369.0s>\u001b[22m[ experiment ] \u001b[2m[installRequestBlocking] blocking 1 URL pattern(s): js.stripe.com/v3\u001b[22m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4369.0s>\u001b[22m[  control   ] \u001b[2m[installRequestBlocking] blocking 5 URL pattern(s): www.google.com/recaptcha/, www.google-analytics.com/, www.googletagmanager.com/, www.gstatic.com/recaptcha/, www.recaptcha.net/recaptcha/\u001b[22m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4369.0s>\u001b[22m[  control   ] \u001b[2m[installRequestBlocking] blocking 1 URL pattern(s): js.stripe.com/v3\u001b[22m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.0s>\u001b[22m[ experiment ] \u001b[32m[waitForAllImages] 9 visible images loaded for http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search (1 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.0s>\u001b[22m[ experiment ] \u001b[32m[waitForFontsReady] fonts ready for http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search (2 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.2s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div#product-rsc-root -1[script]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.2s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div#product-rsc-root -1[script]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.4s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div#product-rsc-root -1[script]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.4s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div#product-rsc-root -1[script]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.4s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=2 text=0 child=0 :: attr input.font-[inherit].py-3 type=\"email\" | attr input.font-[inherit].py-3 value=\"\"\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children div#product-rsc-root -1[script]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=2 text=0 child=0 :: attr input.font-[inherit].py-3 type=\"email\" | attr input.font-[inherit].py-3 value=\"\"\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children body#product_page.group/body.mac +1[iframe]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=10 attr=5 text=0 child=5 :: children div#native-page-bgfjk-2.mt-0!.flex +1[img.max-h-full.w-full] | children div#native-page-bgfjk-3.mt-0!.flex +1[img.max-h-full.w-full] | children div#native-page-bgfjk-4.mt-0!.flex +1[img.max-h-full.w-full]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=7 attr=2 text=0 child=5 :: children svg +1[path] -1[path] | children svg +1[path] -1[path] | children svg +1[path] -1[path]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.6s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=3 attr=0 text=0 child=3 :: children svg +1[path] -1[path] | children div.grid -1[button.inline-flex.items-center] | children div.grid +1[button.inline-flex.items-center]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.7s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=3 attr=0 text=0 child=3 :: children div -1[div.rich-text] | children div +1[div.rich-text] | children svg +1[path] -1[path]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4370.7s>\u001b[22m[  control   ] \u001b[32m[waitForFontsReady] fonts ready for http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search (2 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.0s>\u001b[22m[  control   ] \u001b[32m[waitForAllImages] 13 visible images loaded for http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search (300 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.2s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=0 text=0 child=2 :: children div -1[div.rich-text] | children div +1[div.rich-text]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.2s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=66 attr=12 text=0 child=54 :: children div -1[div.rich-text] | children div +1[div.rich-text] | children div.rich-text +1[div.tiptap.ProseMirror]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.2s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=2 attr=0 text=0 child=2 :: children div -1[div.rich-text] | children div +1[div.rich-text]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.3s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=66 attr=12 text=0 child=54 :: children div -1[div.rich-text] | children div +1[div.rich-text] | children div.rich-text +1[div.tiptap.ProseMirror]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.3s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children body#product_page.group/body.mac -1[iframe]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.3s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=1 attr=0 text=0 child=1 :: children svg +1[path] -1[path]\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.4s>\u001b[22m[ experiment ] \u001b[33m[waitForNoMutations] mutation batch size=11 attr=10 text=0 child=1 :: children section.grid.gap-4 +1[section.flex.flex-col] | attr img.aspect-square.w-5 src=\"http://experim.localhost:3200/images/gum\" | attr img.aspect-square.w-5 src=\"http://experim.localhost:3200/images/gum\"\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.5s>\u001b[22m[  control   ] \u001b[33m[waitForNoMutations] mutation batch size=11 attr=10 text=0 child=1 :: children section.grid.gap-4 +1[section.flex.flex-col] | attr img.aspect-square.w-5 src=\"http://control.localhost:3100/images/gum\" | attr img.aspect-square.w-5 src=\"http://control.localhost:3100/images/gum\"\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4371.9s>\u001b[22m[ experiment ] \u001b[32m[waitForNetworkSettle] network idle for http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search (1876 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4372.0s>\u001b[22m[  control   ] \u001b[32m[waitForNetworkSettle] network idle for http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search (1332 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4372.1s>\u001b[22m[ experiment ] \u001b[32m[waitForNoMutations] quiet for 700 ms, settled in 2079 ms for http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4372.1s>\u001b[22m[ experiment ] \u001b[34m[waitUntilPageSettled] all checks complete for http://luisfurushio.experim.localhost:3200/l/bgfjk?layout=profile&recommended_by=search (2080 ms)\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4372.2s>\u001b[22m[  control   ] \u001b[32m[waitForNoMutations] quiet for 700 ms, settled in 1534 ms for http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search\u001b[39m\n\u001b[36mab-tests/product-page.abtest.ts:118\u001b[39m:\u001b[36mdesktop\u001b[39m:\u001b[34maccessibility\u001b[39m:\u001b[2m<4372.2s>\u001b[22m[  control   ] \u001b[34m[waitUntilPageSettled] all checks complete for http://luisfurushio.control.localhost:3100/l/bgfjk?layout=profile&recommended_by=search (1534 ms)\u001b[39m",
+  "runId": "2026-09-23T18:01:58.195Z"
+}
