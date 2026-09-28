@@ -1,6 +1,6 @@
-name: Deploy RORP to Control Plane
+name: Deploy Inertia to Control Plane
 
-run-name: Deploy RORP staging app
+run-name: Deploy Inertia staging app
 
 on:
   push:
@@ -11,12 +11,12 @@ permissions:
   contents: read
 
 env:
-  APP_NAME: gumroad-rorp
+  APP_NAME: gumroad-inertia
   CPLN_ORG: ${{ vars.CPLN_ORG_STAGING }}
   STAGING_APP_BRANCH: ramez/cpln/cpflow
 
 concurrency:
-  group: cpflow-deploy-rorp-${{ github.ref_name }}
+  group: cpflow-deploy-inertia-${{ github.ref_name }}
   # A cancelled deploy-image can leave some workloads on the new image and others on the old.
   cancel-in-progress: false
 
@@ -143,7 +143,7 @@ jobs:
         run: ruby .controlplane/prepare_renderer_secret.rb
 
       - name: Apply benchmark app and renderer configuration
-        run: cpflow apply-template app-rorp renderer -a "${APP_NAME}" --org "${CPLN_ORG}" --yes
+        run: cpflow apply-template app-inertia renderer -a "${APP_NAME}" --org "${CPLN_ORG}" --yes
 
       - name: Deploy staging image and verify rendering flag
         run: cpflow deploy-image -a "${APP_NAME}" --org "${CPLN_ORG}" --run-release-phase --verbose

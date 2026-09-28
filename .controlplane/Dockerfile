@@ -5,6 +5,7 @@ FROM docker.io/library/node:${NODE_VERSION}-bookworm-slim AS node
 FROM docker.io/library/ruby:${RUBY_VERSION}-slim-bookworm
 
 ARG GIT_COMMIT
+ARG BENCHMARK_APP=gumroad-rorp
 
 ENV APP_DIR=/app \
     BUNDLE_PATH=/usr/local/bundle \
@@ -87,7 +88,7 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     AWS_ACCESS_KEY_ID=build-placeholder \
     AWS_SECRET_ACCESS_KEY=build-placeholder \
     AWS_DEFAULT_REGION=us-east-1 \
-    CUSTOM_DOMAIN=gumroad-rorp.reactonrails.com \
+    CUSTOM_DOMAIN=${BENCHMARK_APP}.reactonrails.com \
     BENCHMARK_PROTOCOL=https \
     BENCHMARK_STORAGE_SERVICE=benchmark \
     CONTROL_PLANE_BENCHMARK=true \
@@ -95,13 +96,13 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     BENCHMARK_STORAGE_S3_ACCESS_KEY_ID=build-placeholder \
     BENCHMARK_STORAGE_S3_SECRET_ACCESS_KEY=build-placeholder \
     BENCHMARK_STORAGE_S3_REGION=auto \
-    BENCHMARK_STORAGE_S3_BUCKET=gumroad-rorp-public-storage \
-    BENCHMARK_STORAGE_PUBLIC_HOST=public-files.gumroad-rorp.reactonrails.com \
-    BENCHMARK_CACHE_NAMESPACE=gumroad-rorp \
+    BENCHMARK_STORAGE_S3_BUCKET=${BENCHMARK_APP}-public-storage \
+    BENCHMARK_STORAGE_PUBLIC_HOST=public-files.${BENCHMARK_APP}.reactonrails.com \
+    BENCHMARK_CACHE_NAMESPACE=${BENCHMARK_APP} \
     SESSION_COOKIE_DOMAIN='' \
-    BRANCH=gumroad-rorp \
-    REVISION=gumroad-rorp \
-    GUMROAD_RENDERING_SURFACE=rorp \
+    BRANCH=${BENCHMARK_APP} \
+    REVISION=${BENCHMARK_APP} \
+    GUMROAD_RENDERING_SURFACE=${BENCHMARK_APP#gumroad-} \
     SKIP_BRANCH_APP_ES_INDEX_SETUP=true && \
     npm run setup && \
     npm run build:public-rsc && \
