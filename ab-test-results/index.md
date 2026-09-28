@@ -25,6 +25,8 @@ On first visits, the First Contentful Paint (FCP) estimate improved by **8.4 sec
 | Rollout and rollback       | Added a seller feature flag for the profile-layout Product page route; toggling it restores switches back to inertia              |
 | Scope                      | Product pages using the profile layout; seller profiles, checkout and other pages remain on inertia                               |
 
+Explore the implementation in [PR #103: Optimize Product page with React Server Components](https://github.com/shakacode/gumroad/pull/103).
+
 On a fresh visit, the tested Inertia path sent page data and then relied on browser JavaScript to render the Product content. The new path could show server-rendered content while JavaScript continued loading. This was done through a server/client split in the Product components.
 
 Inertia can reuse already-running JavaScript during client-side navigation. Our Product-page repeat-visit test used a **full page navigation** with cached JavaScript files.
@@ -58,6 +60,8 @@ If you don't want to run the tests yourself, see thse PageSpeed Insights reports
 
 For each measurement pair, ShakaPerf sampled both versions simultaneously so they encountered the same period of host activity. It analyzed the differences within those pairs, reporting paired performance estimates and confidence intervals alongside the medians. This reduces sensitivity to shared timing noise.
 
+The Shakaperf setup is in [PR #102: Make Gumroad performance measurable and visual changes detectable with ShakaPerf](https://github.com/shakacode/gumroad/pull/102)
+
 ## What you should take from this
 
 Already using Inertia? You can introduce React Server Componets using [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) on selected pages without replacing it across your app. That is what we did in our Gumroad fork making Product content appear 8× faster on first visits.
@@ -65,12 +69,6 @@ Already using Inertia? You can introduce React Server Componets using [React on 
 Start measuring your app’s performance now with [ShakaPerf](https://shakaperf.com/). Compare changes against your existing app to see what actually makes it faster, while checking for visual regressions. Run tests locally as you optimize, then in CI to catch regressions before they ship. The [ShakaPerf repository](https://github.com/shakacode/shakaperf) shows how to get started.
 
 Want to find that opportunity in your application? We at ShakaCode can help choose the page, set up ShakaPerf, and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally. Bring us a page that feels slow, and let’s measure what we can improve together.
-
----
-
-<a id="throttling-settings"></a>
-
-> Test reference: September 23, 2026 run 2026-09-23T18:01:58.195Z. Lighthouse used DevTools throttling: 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and a 3× CPU slowdown.
 
 ## Appendix
 
