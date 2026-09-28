@@ -1,5 +1,4 @@
-# This fixed app is the production-shaped RORP experiment for the public
-# storefront benchmark. Surface-specific settings live in app-rorp.yml.
+# Both benchmark apps deploy the same source with opposite product-page flags.
 
 allow_org_override_by_env: true
 allow_app_override_by_env: false
@@ -22,6 +21,44 @@ apps:
 
     secrets_name: gumroad-rorp-secrets
     secrets_policy_name: gumroad-rorp-secrets-policy
+
+    one_off_workload: rails
+    app_workloads:
+      - rails
+      - sidekiq
+      - renderer
+    additional_workloads:
+      - mysql
+      - dynamodb
+      - redis
+      - elasticsearch
+      - memcached
+
+    release_script: ALLOW_BENCHMARK_SEED=true .controlplane/release_script.sh
+    use_digest_image_ref: true
+    fix_terminal_size: true
+    runner_job_default_cpu: "1"
+    runner_job_default_memory: 2Gi
+    runner_job_timeout: 3600
+    image_retention_days: 14
+
+  gumroad-inertia:
+    cpln_org: shakacode-open-source-examples-staging
+    default_location: aws-us-east-2
+    setup_app_templates:
+      - app-inertia
+      - r2
+      - mysql
+      - dynamodb
+      - redis
+      - elasticsearch
+      - memcached
+      - rails
+      - sidekiq
+      - renderer
+
+    secrets_name: gumroad-inertia-secrets
+    secrets_policy_name: gumroad-inertia-secrets-policy
 
     one_off_workload: rails
     app_workloads:

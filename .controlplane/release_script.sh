@@ -1,8 +1,11 @@
 #!/bin/sh
 set -eu
 
-EXPECTED_APP="gumroad-rorp"
-EXPECTED_SURFACE="rorp"
+case "${CPLN_GVC:-${BRANCH:-}}" in
+  gumroad-rorp) EXPECTED_APP="gumroad-rorp"; EXPECTED_SURFACE="rorp" ;;
+  gumroad-inertia) EXPECTED_APP="gumroad-inertia"; EXPECTED_SURFACE="inertia" ;;
+  *) echo "Refusing release outside the benchmark apps" >&2; exit 1 ;;
+esac
 
 log() {
   echo "[$(date +%Y-%m-%d:%H:%M:%S)]: $1"
@@ -67,5 +70,8 @@ if [ "${ALLOW_BENCHMARK_SEED:-}" = "true" ]; then
 else
   log "Skipping benchmark seeds; set ALLOW_BENCHMARK_SEED=true on an explicitly guarded release"
 fi
+
+log "Applying and verifying the product-page rendering flag"
+./bin/rails runner scripts/configure_control_plane_product_page.rb || error_exit "Product-page flag configuration failed"
 
 log "Release completed for ${EXPECTED_APP}/${EXPECTED_SURFACE}"
