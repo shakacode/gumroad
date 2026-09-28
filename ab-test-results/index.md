@@ -39,14 +39,6 @@ The test successfully clicked Add to cart **3.5 seconds earlier with React Serve
 
 [Open the interactive add-to-cart replay](product-profile-phone-add-to-cart-replay.html).
 
-<!-- ## Measured trade-offs
-
-![Median browser-observed time to first byte, transferred data, and network requests for the four profile-layout Product landing cases.](images/product-page-tradeoffs.svg)
-
-On cold visits, median browser-observed Time to First Byte (TTFB) rose from 131 to 156 milliseconds on Desktop and from 129 to 162 milliseconds on Mobile. Total transferred data rose by about 4.8%, from about 2.60 MB to 2.72 MB. With a prepopulated cache, transferred data fell from about 196 KB to 36 KB, or about 81%. Requests fell from 143 to 96 on cold visits and from 142 to 95 with a prepopulated cache.
-
-Total Blocking Time also increased. On cold visits, the median rose from 11 to 119 milliseconds on Desktop and from 12 to 121 milliseconds on Mobile; ShakaPerf classified both as regressions. On warm visits, it rose from 0 to 50 milliseconds on Desktop and from 0 to 42 milliseconds on Mobile, although ShakaPerf did not classify those changes as regressions. This run did not measure time to interactive. -->
-
 ## Want to test performance for yourself?
 
 Open the same profile-layout Product page in each test deployment, or explore the page on Gumroad production:
@@ -77,4 +69,8 @@ Want to find that opportunity in your application? We at ShakaCode can help choo
 
 > Test reference: September 23, 2026 run 2026-09-23T18:01:58.195Z. Lighthouse used DevTools throttling: 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and a 3× CPU slowdown.
 
-Historical note: An earlier run compared an optimized Inertia SSR implementation with React on Rails Pro under different code and throttling, so its numbers are not comparable with this run. Its video suggested earlier interactivity with Server Components, but the September 23 benchmark did not measure time to interactive; we make no TTI claim here.
+## Appendix
+
+- [Measured trade-offs](appendix.md#measured-trade-offs)
+- [Earlier comparisons across Gumroad pages](appendix.md#earlier-comparisons-across-gumroad-pages)
+- [What about Inertia SSR?](appendix.md#what-about-inertia-ssr)

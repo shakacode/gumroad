@@ -31,6 +31,16 @@ This replay starts at product navigation and includes test readiness waits,
 the add-to-cart action, and checkout loading. Its displayed FCP comes from
 the initial product trace; the linked Lighthouse reports measure checkout.
 
+Regenerate the historical September 4 Inertia SSR GIF from its saved capture:
+
+```sh
+node ab-test-results/benchmark-data/timeline-replay/build-gif.mjs --inertia-ssr
+```
+
+The capture JSON retains the original frames, timings, throttling, source
+hashes, and the SHA-256 of the historical replay HTML. To import that HTML
+again, pass its path after `--inertia-ssr`.
+
 The extractor checks the full report, run ID, selected artifact directories,
 sample counts, paired statistics, viewport/user-agent alignment, cold visual
 results, and accessibility summaries. The graph builder then checks every

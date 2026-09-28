@@ -1,0 +1,25 @@
+{
+  "source": "inertia-ssr-capture.json",
+  "sourceReplaySha256": "038e6e2edd66128aa2cc0da58751ec2870c2933bef2ce5b8eecd83a6aad0f195",
+  "method": "Visual inspection of the original screenshot sequence, using zero-based frame indices and elapsed milliseconds since product navigation.",
+  "element": "Sticky Add to cart bar",
+  "control": {
+    "label": "Inertia SSR",
+    "lastAbsentFrame": 51,
+    "lastAbsentMs": 21365.49,
+    "firstPartiallyVisibleFrame": 52,
+    "firstPartiallyVisibleMs": 21382.142,
+    "firstFullyVisibleFrame": 55,
+    "firstFullyVisibleMs": 21432.104
+  },
+  "experiment": {
+    "label": "React on Rails Pro / RSC",
+    "lastAbsentFrame": 54,
+    "lastAbsentMs": 10949.198,
+    "firstPartiallyVisibleFrame": 55,
+    "firstPartiallyVisibleMs": 10966.065,
+    "firstFullyVisibleFrame": 58,
+    "firstFullyVisibleMs": 11016.17
+  },
+  "limitations": "Visible appearance is a signal of client UI initialization, not a direct hydration-completion mark or a successful interaction test. Screenshot intervals bound the observed transition."
+}
