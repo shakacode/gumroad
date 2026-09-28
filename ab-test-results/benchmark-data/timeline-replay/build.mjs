@@ -11,10 +11,18 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../..");
 const snapshotOnly = process.argv.includes("--snapshot-only");
-const positional = process.argv.slice(2).filter((argument) => argument !== "--snapshot-only");
+const addToCart = process.argv.includes("--add-to-cart");
+const positional = process.argv.slice(2).filter((argument) => !["--snapshot-only", "--add-to-cart"].includes(argument));
 const source = resolve(positional[0] ?? join(repo, "compare-results-sep23"));
-const output = resolve(positional[1] ?? join(repo, "ab-test-results/product-profile-phone-replay.html"));
-const caseId = "product-page-profile-layout-cold-landing-phone-031456e8";
+const output = resolve(
+  positional[1] ?? join(repo, `ab-test-results/product-profile-phone${addToCart ? "-add-to-cart" : ""}-replay.html`),
+);
+const caseId = addToCart
+  ? "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14"
+  : "product-page-profile-layout-cold-landing-phone-031456e8";
+const title = addToCart
+  ? "Add to cart: Inertia vs React Server Components"
+  : "Product page loading: Inertia vs React Server Components";
 const caseDir = join(source, caseId);
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const sourceHashes = [];
@@ -60,7 +68,11 @@ if (snapshotOnly) {
   assert.equal(lowNoise.kind, "ok");
   assert.equal(perf.runId, "2026-09-23T18:01:58.195Z");
   assert.equal(lowNoise.runId, perf.runId);
-  assert.equal(visual.measurement.find((entry) => entry.selector === "article")?.diffPixels, 0);
+  assert.equal(
+    visual.measurement.find((entry) => entry.selector === (addToCart ? "[data-checkout-scope]" : "article"))
+      ?.diffPixels,
+    0,
+  );
   assert.ok(original.includes("Timeline Comparison: Control vs Experiment"));
   const lighthouseStarts = [...lowNoise.logs.matchAll(/Lighthouse start at (\S+)/gu)].map((match) => match[1]);
   assert.equal(lighthouseStarts.length, 2);
@@ -72,9 +84,9 @@ if (snapshotOnly) {
     const raw = JSON.parse(await input(`artifacts/${side}_performance_profile.json`));
     const events = raw.traceEvents ?? raw;
     const expectedHost = side === "control" ? "control.localhost:3100" : "experim.localhost:3200";
-    assert.equal(new URL(report.finalDisplayedUrl).host, `luisfurushio.${expectedHost}`);
-    assert.equal(new URL(report.finalDisplayedUrl).pathname, "/l/bgfjk");
-    assert.equal(new URL(report.finalDisplayedUrl).searchParams.get("layout"), "profile");
+    assert.equal(new URL(report.finalDisplayedUrl).host, addToCart ? expectedHost : `luisfurushio.${expectedHost}`);
+    assert.equal(new URL(report.finalDisplayedUrl).pathname, addToCart ? "/checkout" : "/l/bgfjk");
+    if (!addToCart) assert.equal(new URL(report.finalDisplayedUrl).searchParams.get("layout"), "profile");
     assert.ok(
       lighthouseStarts.some((start) => {
         const offset = Date.parse(report.fetchTime) - Date.parse(start);
@@ -89,7 +101,10 @@ if (snapshotOnly) {
       (event) =>
         event.name === "navigationStart" &&
         event.args?.data?.isOutermostMainFrame &&
-        event.args.data.documentLoaderURL === report.finalDisplayedUrl,
+        (addToCart
+          ? event.args.data.documentLoaderURL ===
+            `http://luisfurushio.${expectedHost}/l/bgfjk?layout=profile&recommended_by=search`
+          : event.args.data.documentLoaderURL === report.finalDisplayedUrl),
     );
     assert.ok(navigation, `${side}: missing target navigation`);
     const traceFcp = events.find(
@@ -99,7 +114,51 @@ if (snapshotOnly) {
         event.tid === navigation.tid &&
         event.ts >= navigation.ts,
     );
-    const fcpMs = report.audits["first-contentful-paint"].numericValue;
+    const fcpMs = addToCart
+      ? (traceFcp.ts - navigation.ts) / 1000
+      : report.audits["first-contentful-paint"].numericValue;
+    const checkout =
+      addToCart &&
+      events.find(
+        (event) =>
+          event.name === "navigationStart" &&
+          event.args?.data?.isOutermostMainFrame &&
+          event.args.data.documentLoaderURL.startsWith(`http://${expectedHost}/checkout`),
+      );
+    let addToCartClickMs;
+    if (addToCart) {
+      assert.ok(checkout, `${side}: missing checkout navigation`);
+      const checkoutPaint = events.find(
+        (event) =>
+          event.name === "firstContentfulPaint" &&
+          event.pid === checkout.pid &&
+          event.tid === checkout.tid &&
+          event.ts >= checkout.ts,
+      );
+      assert.ok(
+        checkoutPaint &&
+          Math.abs((checkoutPaint.ts - checkout.ts) / 1000 - report.audits["first-contentful-paint"].numericValue) < 1,
+        `${side}: checkout trace/Lighthouse origin mismatch`,
+      );
+      const annotation = events.find(
+        (event) =>
+          event.name === "shaka-perf-annotation: Click sticky Add to cart without scrolling" &&
+          event.pid === navigation.pid &&
+          event.tid === navigation.tid,
+      );
+      assert.ok(annotation, `${side}: missing sticky add-to-cart annotation`);
+      const click = events.find(
+        (event) =>
+          event.name === "EventDispatch" &&
+          event.args?.data?.type === "click" &&
+          event.pid === navigation.pid &&
+          event.tid === navigation.tid &&
+          event.ts >= annotation.ts &&
+          event.ts < checkout.ts,
+      );
+      assert.ok(click, `${side}: missing sticky add-to-cart click`);
+      addToCartClickMs = (click.ts - navigation.ts) / 1000;
+    }
     assert.ok(
       traceFcp && Math.abs((traceFcp.ts - navigation.ts) / 1000 - fcpMs) < 1,
       `${side}: trace/Lighthouse origin mismatch`,
@@ -119,9 +178,29 @@ if (snapshotOnly) {
       url: report.finalDisplayedUrl,
       fetchTime: report.fetchTime,
       fcpMs,
-      lcpMs: report.audits["largest-contentful-paint"].numericValue,
+      lcpMs: addToCart
+        ? Math.max(
+            ...events
+              .filter(
+                (event) =>
+                  event.name === "largestContentfulPaint::Candidate" &&
+                  event.pid === navigation.pid &&
+                  event.tid === navigation.tid &&
+                  event.ts >= navigation.ts &&
+                  event.ts < checkout.ts,
+              )
+              .map((event) => (event.ts - navigation.ts) / 1000),
+          )
+        : report.audits["largest-contentful-paint"].numericValue,
+      ...(addToCart
+        ? {
+            addToCartClickMs,
+            checkoutStartedMs: (checkout.ts - navigation.ts) / 1000,
+            checkoutFcpMs: report.audits["first-contentful-paint"].numericValue,
+          }
+        : {}),
       frames,
-      reportHref: `../compare-results/${caseId}/artifacts/${side}_lighthouse_report.html`,
+      reportHref: `../compare-results-sep23/${caseId}/artifacts/${side}_lighthouse_report.html`,
     };
   }
   durationMs =
@@ -130,7 +209,9 @@ if (snapshotOnly) {
   metadata = {
     runId: perf.runId,
     caseId,
-    scenario: "Product page · profile layout · Mobile · empty cache",
+    scenario: addToCart
+      ? "Product page · profile layout · Mobile · sticky add to cart"
+      : "Product page · profile layout · Mobile · empty cache",
     diagnosticStage: "perf-low-noise",
     note: "One diagnostic load, not a 20-sample median.",
     durationMs,
@@ -147,33 +228,45 @@ if (snapshotOnly) {
   const data = JSON.stringify({ metadata, sides }).replaceAll("<", "\\u003c");
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Profile-layout Product page: one diagnostic replay</title>
+<title>${title}</title>
 <style>
 :root{color-scheme:light dark;--page:#fff;--ink:#162334;--muted:#4d5a66;--card:#f4f7f9;--blue:#215da8;--green:#147a46}
 @media(prefers-color-scheme:dark){:root{--page:#101820;--ink:#f3f7f9;--muted:#b9c8d2;--card:#1d2b35;--blue:#80b9ff;--green:#77dba5}}
 *{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}main{max-width:1060px;margin:auto;padding:24px}h1{line-height:1.15;margin:0 0 10px}p{margin:8px 0;color:var(--muted)}.takeaway{font-size:1.15rem;color:var(--ink)}.control{color:var(--blue)}.experiment{color:var(--green)}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:25px 0;padding:14px;background:var(--card);border-radius:12px}button{border:1px solid var(--muted);border-radius:8px;padding:8px 14px;color:var(--ink);background:var(--page);cursor:pointer}button:focus-visible,input:focus-visible{outline:3px solid var(--green);outline-offset:2px}input[type=range]{flex:1;min-width:230px}.screens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.screen{min-width:0;padding:14px;background:var(--card);border-radius:12px}.screen h2{margin:0 0 12px;font-size:1rem}.screen img{display:block;width:100%;aspect-ratio:375/667;object-fit:contain;object-position:top;background:white;border:1px solid #bcc7cf}.links{margin-top:22px}.links a{color:var(--blue)}@media(max-width:720px){.screens{grid-template-columns:1fr}main{padding:14px}}
+.screen img{height:min(40dvh,400px);aspect-ratio:auto;object-position:center;background:var(--card);border:0}
+@media(max-width:720px){.screens{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.screen{padding:8px}.screen h2{font-size:13px;min-height:3em;margin-bottom:8px}.controls{gap:8px;padding:10px;margin:14px 0}input[type=range]{min-width:0;flex-basis:100%;order:1}button{min-height:44px}h1{font-size:26px}.takeaway{font-size:16px}}
 </style></head><body><main>
-<h1>One Product page, two loading paths</h1>
-<p>Profile layout · Mobile · empty cache · one diagnostic load, not the 20-pair median.</p>
-<p class="takeaway">First paint in this capture: <strong class="control">${(sides.control.fcpMs / 1000).toFixed(2)} s with Inertia</strong>; <strong class="experiment">${(sides.experiment.fcpMs / 1000).toFixed(2)} s with React on Rails Pro</strong>.</p>
-<div class="controls"><button id="play" type="button">Play</button><button id="back" type="button">−0.5 s</button><button id="forward" type="button">+0.5 s</button><input id="timeline" type="range" min="0" max="${durationMs}" step="50" value="0" aria-label="Elapsed time since navigation"><output id="clock" for="timeline">0.00 s</output></div>
+<h1>${title}</h1>
+<p>${addToCart ? "Profile layout · Mobile · product loading → add to cart → checkout · one recorded flow." : "Profile layout · Mobile · empty cache · one diagnostic load, not the 20-pair median."}</p>
+<p class="takeaway">${addToCart ? "Product-page " : ""}FCP (First Contentful Paint) in this sample: <strong class="control">${(sides.control.fcpMs / 1000).toFixed(2)} s with Inertia</strong>; <strong class="experiment">${(sides.experiment.fcpMs / 1000).toFixed(2)} s with React on Rails Pro</strong>.</p>
+${addToCart ? `<p class="takeaway">Add-to-cart interaction confirmed at: <strong class="control">${(sides.control.addToCartClickMs / 1000).toFixed(2)} s with Inertia</strong>; <strong class="experiment">${(sides.experiment.addToCartClickMs / 1000).toFixed(2)} s with React on Rails Pro</strong>.</p>` : ""}
+<div class="controls"><button id="play" type="button">Play</button><button id="speed" type="button" aria-label="Playback speed: 3×. Change speed">3×</button><button id="back" type="button">−0.5 s</button><button id="forward" type="button">+0.5 s</button><input id="timeline" type="range" min="0" max="${durationMs}" step="50" value="0" aria-label="Elapsed time since navigation"><output id="clock" for="timeline">0.00 s</output></div>
 <div class="screens"><section class="screen"><h2 class="control">Inertia control</h2><img id="control" alt="Inertia Product page at the selected replay time"></section><section class="screen"><h2 class="experiment">React on Rails Pro / RSC</h2><img id="experiment" alt="React Server Components Product page at the selected replay time"></section></div>
-  <p class="links">Evidence: <a href="${sides.control.reportHref}">control Lighthouse report</a> · <a href="${sides.experiment.reportHref}">experiment Lighthouse report</a>. Both captures use the same throttle profile and target-navigation time origin.</p>
+  <p class="links">Evidence: <a href="${sides.control.reportHref}">control Lighthouse report</a> · <a href="${sides.experiment.reportHref}">experiment Lighthouse report</a>. Both captures use the same throttle profile; replay time starts at the initial product navigation.</p>
 <script id="capture-data" type="application/json">${data}</script>
 <script>
 const capture=JSON.parse(document.getElementById('capture-data').textContent);
 const slider=document.getElementById('timeline'),clock=document.getElementById('clock'),play=document.getElementById('play');
-let playing=false,lastFrame=0,previous=0;
+let playing=false,lastFrame=0,previous=0,selectedTime=0,playbackRate=3;
+// Range inputs round to their step; keep playback time independent of the slider.
 function frameAt(frames,time){let frame=frames[0];for(const next of frames){if(next.timeMs>time)break;frame=next}return frame}
-function show(time){const value=Math.max(0,Math.min(capture.metadata.durationMs,time));slider.value=String(value);clock.value=(value/1000).toFixed(2)+' s';for(const side of ['control','experiment'])document.getElementById(side).src=frameAt(capture.sides[side].frames,value).image}
-function tick(now){if(!playing)return;if(previous)show(Number(slider.value)+now-previous);previous=now;if(Number(slider.value)>=capture.metadata.durationMs){playing=false;play.textContent='Play';return}lastFrame=requestAnimationFrame(tick)}
-play.addEventListener('click',()=>{playing=!playing;play.textContent=playing?'Pause':'Play';previous=0;if(playing){if(Number(slider.value)>=capture.metadata.durationMs)show(0);lastFrame=requestAnimationFrame(tick)}else cancelAnimationFrame(lastFrame)});
+function show(time){const value=Math.max(0,Math.min(capture.metadata.durationMs,time));selectedTime=value;slider.value=String(value);clock.value=(value/1000).toFixed(2)+' s';for(const side of ['control','experiment'])document.getElementById(side).src=frameAt(capture.sides[side].frames,value).image}
+function tick(now){if(!playing)return;if(previous)show(selectedTime+(now-previous)*playbackRate);previous=now;if(selectedTime>=capture.metadata.durationMs){playing=false;play.textContent='Play';return}lastFrame=requestAnimationFrame(tick)}
+play.addEventListener('click',()=>{playing=!playing;play.textContent=playing?'Pause':'Play';previous=0;if(playing){if(selectedTime>=capture.metadata.durationMs)show(0);lastFrame=requestAnimationFrame(tick)}else cancelAnimationFrame(lastFrame)});
 slider.addEventListener('input',()=>show(Number(slider.value)));
-document.getElementById('back').addEventListener('click',()=>show(Number(slider.value)-500));
-document.getElementById('forward').addEventListener('click',()=>show(Number(slider.value)+500));
+document.getElementById('speed').addEventListener('click',event=>{playbackRate=playbackRate%3+1;event.currentTarget.textContent=playbackRate+'×';event.currentTarget.setAttribute('aria-label','Playback speed: '+playbackRate+'×. Change speed');previous=0});
+document.getElementById('back').addEventListener('click',()=>show(selectedTime-500));
+document.getElementById('forward').addEventListener('click',()=>show(selectedTime+500));
 show(0);
 </script></main></body></html>\n`;
   await writeFile(output, html);
+}
+if (addToCart) {
+  await writeFile(join(here, "add-to-cart-replay-manifest.json"), `${JSON.stringify(metadata, null, 2)}\n`);
+  process.stdout.write(
+    `Generated ${output}: ${metadata.frameCounts.control}/${metadata.frameCounts.experiment} frames, ${durationMs} ms\n`,
+  );
+  process.exit(0);
 }
 const imageDir = resolve(here, "../../images");
 await mkdir(imageDir, { recursive: true });

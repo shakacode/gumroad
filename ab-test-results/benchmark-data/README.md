@@ -13,7 +13,23 @@ graphs:
 node ab-test-results/benchmark-data/extract-latest-results.mjs
 node ab-test-results/benchmark-data/build-buyer-ab-results.mjs
 node ab-test-results/benchmark-data/timeline-replay/build.mjs
+node ab-test-results/benchmark-data/timeline-replay/build-gif.mjs
 ```
+
+The GIF builder requires `rsvg-convert` and ImageMagick (`magick`). It uses the
+replay's recorded frames, plays both sides on the same clock at 3× speed, and
+holds the final frame for 1.5 seconds before looping.
+
+Generate the separate September 23 sticky add-to-cart replay and GIF:
+
+```sh
+node ab-test-results/benchmark-data/timeline-replay/build.mjs --add-to-cart
+node ab-test-results/benchmark-data/timeline-replay/build-gif.mjs --add-to-cart
+```
+
+This replay starts at product navigation and includes test readiness waits,
+the add-to-cart action, and checkout loading. Its displayed FCP comes from
+the initial product trace; the linked Lighthouse reports measure checkout.
 
 The extractor checks the full report, run ID, selected artifact directories,
 sample counts, paired statistics, viewport/user-agent alignment, cold visual

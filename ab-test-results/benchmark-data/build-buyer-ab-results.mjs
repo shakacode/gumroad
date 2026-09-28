@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const snapshotOnly = process.argv.includes("--snapshot-only");
-const positional = process.argv.slice(2).filter((argument) => argument !== "--snapshot-only");
+const paintOnly = process.argv.includes("--paint-only");
+const positional = process.argv.slice(2).filter((argument) => !["--snapshot-only", "--paint-only"].includes(argument));
 const source = resolve(positional[0] ?? join(repo, "compare-results-sep23"));
 const images = resolve(positional[1] ?? join(here, "../images"));
 const data = JSON.parse(await readFile(join(here, "latest-results.json"), "utf8"));
@@ -48,14 +49,16 @@ const svg = (title, description, body, width = 1400, height = 750) =>
     body,
     "</svg>",
   ].join("\n")}\n`;
-function legend(y = 132) {
+function legend(y = 132, inertiaLabel = "Inertia control") {
   return (
-    `<rect x="48" y="${y - 12}" width="16" height="16" rx="3" fill="${blue}"/>${text(73, y + 1, "Inertia control", 16)}` +
+    `<rect x="48" y="${y - 12}" width="16" height="16" rx="3" fill="${blue}"/>${text(73, y + 1, inertiaLabel, 16)}` +
     `<rect x="260" y="${y - 12}" width="16" height="16" rx="3" fill="${green}"/>${text(285, y + 1, "React on Rails Pro / RSC", 16)}`
   );
 }
-function chart(metricDefinitions, title, subtitle, filename) {
-  const parts = [text(48, 57, title, 29, 'font-weight="700"'), text(48, 91, subtitle, 17), legend()];
+function chart(metricDefinitions, title, subtitle, filename, { visitLabels = false } = {}) {
+  const parts = [text(48, 57, title, 29, 'font-weight="700"')];
+  if (subtitle) parts.push(text(48, 91, subtitle, 17));
+  parts.push(legend(132, visitLabels ? "Inertia" : "Inertia control"));
   const panelX = [245, 625, 1005];
   metricDefinitions.forEach(({ key, heading }, index) => {
     const x = panelX[index];
@@ -85,8 +88,11 @@ function chart(metricDefinitions, title, subtitle, filename) {
   });
   data.results.forEach((result, row) => {
     const top = 235 + row * 109;
-    parts.push(text(48, top + 31, label(result), 18, 'font-weight="600"'));
-    parts.push(text(48, top + 53, result.cache.toLowerCase(), 14, `fill="${muted}"`));
+    const rowLabel = visitLabels
+      ? `${result.viewport} - ${result.cache === "Empty cache" ? "First visit" : "Repeat visit"}`
+      : label(result);
+    parts.push(text(48, top + 31, rowLabel, visitLabels ? 16 : 18, 'font-weight="600"'));
+    if (!visitLabels) parts.push(text(48, top + 53, result.cache.toLowerCase(), 14, `fill="${muted}"`));
     if (row < 3) parts.push(`<line x1="48" y1="${top + 82}" x2="1350" y2="${top + 82}" stroke="#e1e6ea"/>`);
   });
   parts.push(
@@ -102,7 +108,7 @@ function chart(metricDefinitions, title, subtitle, filename) {
     filename,
     svg(
       title,
-      `${subtitle}. Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 20 measurements, not the paired performance estimate.`,
+      `${subtitle ? `${subtitle}. ` : ""}Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 20 measurements, not the paired performance estimate.`,
       parts.join("\n"),
     ),
   ];
@@ -203,13 +209,14 @@ function distributionByCache() {
 const outputs = [
   chart(
     [
-      { key: "FCP", heading: "First contentful paint" },
-      { key: "LCP", heading: "Largest contentful paint" },
+      { key: "FCP", heading: "First contentful paint (FCP)" },
+      { key: "LCP", heading: "Largest contentful paint (LCP)" },
       { key: "speed-index", heading: "Speed Index" },
     ],
-    "Product page loading times: Inertia vs Server Components",
-    "Desktop and Mobile · empty and prepopulated cache · lower is better",
+    "Product page loading times: Inertia vs React Server Components with React on Rails",
+    "",
     "product-page-paint.svg",
+    { visitLabels: true },
   ),
   chart(
     [
@@ -225,6 +232,7 @@ const outputs = [
 ];
 await mkdir(images, { recursive: true });
 for (const [filename, content] of outputs) {
+  if (paintOnly && filename !== "product-page-paint.svg") continue;
   await writeFile(join(images, filename), content);
   process.stdout.write(`Regenerated ${join(images, filename)}\n`);
 }
