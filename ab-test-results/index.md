@@ -49,21 +49,23 @@ Total Blocking Time also increased. On cold visits, the median rose from 11 to 1
 
 ## How we measured the results
 
-[ShakaPerf](https://shakaperf.com/) compared the Inertia control at `control.localhost:3100` with the React on Rails Pro experiment at `experim.localhost:3200`, using the same Product URL and query parameters. The report does not embed immutable at-run Git identities, so it proves the measured page behavior but not the exact source commits behind the two servers.
+[ShakaPerf](https://github.com/shakacode/shakaperf/) runs the same Playwright scenario against two versions of an application, collecting Lighthouse performance measurements, visual comparisons, accessibility checks, and network activity. We compared the existing Inertia implementation (the **control**) with React on Rails Pro and Server Components (the **experiment**), using matching seeded Product content in separate Docker containers.
 
-We measured the profile-layout Product cold and warm landing on Desktop (1280 × 800) and Mobile (375 × 667). Each of the four cases has 20 measurements per side. Cold visits started with an empty browser cache; warm visits reused cached files but still loaded a full page. The hostnames have equal length, so they do not introduce different URL byte counts. The Lighthouse reports show a Desktop user agent on Desktop and a Mobile user agent on Mobile.
-
-The [benchmark summary](benchmark-data/latest-results.md) reports medians and paired 95% confidence intervals for FCP, Largest Contentful Paint (LCP), and Speed Index. The [machine-readable data](benchmark-data/latest-results.json) contains the raw samples, user agents, and artifact hashes. The sticky add-to-cart scenario is shown separately in the purchase-flow replay and is excluded from these landing comparisons.
+For each measurement pair, ShakaPerf sampled both versions simultaneously so they encountered the same period of host activity. It analyzed the differences within those pairs, reporting paired performance estimates and confidence intervals alongside the medians. This reduces sensitivity to shared timing noise.
 
 <a id="throttling-settings"></a>
 
 > Test reference: September 23, 2026 run 2026-09-23T18:01:58.195Z. Lighthouse used DevTools throttling: 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and a 3× CPU slowdown.
 
-## Inspect and reproduce the test
+## Want to test performance for yourself?
 
-Open the [control Lighthouse report](../compare-results/product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html) and the [experiment Lighthouse report](../compare-results/product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html) for the diagnostic Mobile capture. This run used local twin servers, not the public demo deployments.
+Open the same profile-layout Product page in each test deployment, or explore the page on Gumroad production:
 
-To run a new comparison, keep the viewport, user agent, network, CPU profile, cache state, and product content the same on both sides. Before interpreting it, verify independently that the control serves the intended Inertia page and that the experiment contains `product-rsc-root`. Repeat runs and compare distributions as well as medians.
+| Page                          | Inertia                                                                                                         | React on Rails Pro                                                                                           | Gumroad production                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| Product page (profile layout) | [Open page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) | [Open page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) | [Open page](https://luisfurushio.gumroad.com/l/bgfjk?layout=profile&recommended_by=search) |
+
+Open each page variant, then open Chrome DevTools, choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a first visit (on by default) and click on "Analyze page load" to test. Run multiple times to limit machine/network noise.
 
 ## Conclusion
 
