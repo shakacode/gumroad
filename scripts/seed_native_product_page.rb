@@ -11,7 +11,6 @@ require Rails.root.join("scripts/benchmark_seed_media").to_s
 #
 # Product metadata and cover art are a stable snapshot of the public Office 365
 # for IT Pros storefront. Buyer accounts and review messages are synthetic.
-# See public/native-product-page-fixture/SOURCES.md for source URLs and hashes.
 
 module NativeProductPageSeed
   ALLOWED_ENVIRONMENTS = %w[development test benchmark].freeze
