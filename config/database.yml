@@ -72,6 +72,9 @@ test:
   database: <%= test_database %>
 <% end %>
 
+benchmark:
+  <<: *default
+
 <%# Production Sidekiq/rpush/anycable set USE_DB_WORKER_REPLICAS=true (nomad).
     Makara used to SQL-route SELECTs to those replicas. Rails 7.2 cannot keep
     mysql2_makara, so the same flag now expands a native primary + replica pair

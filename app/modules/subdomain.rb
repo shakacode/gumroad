@@ -34,8 +34,8 @@ module Subdomain
 
     private
       def subdomain_request?(hostname)
-        # Strip port from ROOT_DOMAIN in development and test environments since request.host doesn't contain port.
-        domain = if Rails.env.development? || Rails.env.test?
+        # Strip port from ROOT_DOMAIN in local environments since request.host doesn't contain port.
+        domain = if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
           URI("#{PROTOCOL}://#{ROOT_DOMAIN}").host
         else
           ROOT_DOMAIN

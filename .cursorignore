@@ -22,3 +22,7 @@ db/migrate/
 
 # Schema is auto-generated
 db/schema.rb
+
+# Generated ShakaPerf comparison artifacts
+compare-results/
+compare-bisect-results/

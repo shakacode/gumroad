@@ -21,6 +21,8 @@ session_cookie_name =
     end
   when :development
     "#{base_cookie_name}_development"
+  when :benchmark
+    "#{base_cookie_name}_benchmark"
   else
     "#{base_cookie_name}_#{Rails.env}"
   end

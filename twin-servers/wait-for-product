@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  control)
+    port="${SHAKAPERF_CONTROL_PORT:-3100}"
+    ;;
+  experiment)
+    port="${SHAKAPERF_EXPERIMENT_PORT:-3200}"
+    ;;
+  *)
+    echo "Usage: $0 <control|experiment>" >&2
+    exit 2
+    ;;
+esac
+
+url="http://localhost:${port}/healthcheck"
+attempt=0
+echo "Waiting for twin server: ${url}"
+until curl --fail --silent --output /dev/null "${url}"; do
+  attempt=$((attempt + 1))
+  if [ "${attempt}" -ge 90 ]; then
+    echo "Timed out waiting for twin server: ${url}" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "Twin server ready: ${url}"
+exec tail -f /dev/null

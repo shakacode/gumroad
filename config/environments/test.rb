@@ -41,6 +41,7 @@ Rails.application.configure do
   # config.asset_host = "#{PROTOCOL}://#{ASSET_DOMAIN}"
 
   config.active_storage.service = :test
+  config.active_storage.content_types_allowed_inline += ["image/webp"]
 
   config.action_mailer.perform_caching = true
 
