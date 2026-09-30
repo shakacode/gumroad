@@ -74,6 +74,11 @@ shaka-perf servers stop-containers
 
 The server workflow loads the deterministic benchmark catalogs after twin
 isolation is established, and the compare workflow runs the configured suites.
+On the Product RORP branch, Product setup also sets and verifies the seller flag
+after seeding `bgfjk`: control defaults to disabled, experiment to enabled. To
+override either side, set `SHAKAPERF_CONTROL_PRODUCT_PAGE_RORP` or
+`SHAKAPERF_EXPERIMENT_PRODUCT_PAGE_RORP` to `enabled` or `disabled` when starting
+`shaka-perf servers`.
 
 ## Asset and browser cache behavior
 
