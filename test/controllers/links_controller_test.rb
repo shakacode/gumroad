@@ -5126,6 +5126,13 @@ class LinksControllerShowTest < ActionController::TestCase
     @product_memo ||= create_product(user: @user)
   end
 
+  def use_product_rsc_controller
+    @controller = ProductRscLinksController.new
+    @controller.define_singleton_method(:stream_view_containing_react_components) do |**|
+      self.response_body = "server-rendered product"
+    end
+  end
+
   test "GET show 404s when link isn't found" do
     assert_raises(ActionController::RoutingError) { get :show, params: { id: "NOT real" } }
   end
@@ -5172,6 +5179,91 @@ class LinksControllerShowTest < ActionController::TestCase
     assert page["props"]["product"].present?
   end
 
+  test "GET show keeps profile products on Inertia when the seller flag is off" do
+    link = create_product(user: @user)
+    use_product_rsc_controller
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param, layout: "profile" }
+
+    assert_response :success
+    assert_equal "Products/Profile/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
+  end
+
+  test "GET show server-renders profile products when the seller flag is on" do
+    link = create_product(user: @user)
+    Feature.activate_user(:product_page_react_on_rails, link.user)
+    use_product_rsc_controller
+
+    get :show, params: { id: link.to_param, layout: "profile" }
+
+    assert_response :success
+    assert_equal "server-rendered product", response.body
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal Product::Layout::PROFILE, props[:page_layout]
+    assert_equal link.name, props.dig(:product, :name)
+    assert props[:creator_profile].present?
+  end
+
+  test "GET show server-renders the default storefront product page when the seller flag is on" do
+    seller = create_user(product_page_storefront_enabled: true)
+    link = create_product(user: seller)
+    @request.host = URI.parse(seller.subdomain_with_protocol).host
+    Feature.stubs(:active?).with { |feature, *_| feature != :product_page_react_on_rails }.returns(false)
+    Feature.stubs(:active?).with(:product_page_react_on_rails, seller).returns(true)
+    use_product_rsc_controller
+
+    get :show, params: { id: link.to_param }
+
+    assert_response :success
+    assert_equal "server-rendered product", response.body
+    props = @controller.instance_variable_get(:@product_rsc_document_props)
+    assert_equal Product::Layout::PROFILE, props[:page_layout]
+    assert props[:creator_profile].present?
+  end
+
+  test "GET show upgrades flagged Inertia visits to the default storefront product page" do
+    seller = create_user(product_page_storefront_enabled: true)
+    link = create_product(user: seller)
+    @request.host = URI.parse(seller.subdomain_with_protocol).host
+    Feature.stubs(:active?).with { |feature, *_| feature != :product_page_react_on_rails }.returns(false)
+    Feature.stubs(:active?).with(:product_page_react_on_rails, seller).returns(true)
+    use_product_rsc_controller
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param }
+
+    assert_response :conflict
+    assert_equal @request.original_url, response.headers["X-Inertia-Location"]
+  end
+
+  test "GET show evaluates the RORP flag against the product seller" do
+    link = create_product(user: @user)
+    use_product_rsc_controller
+    Feature.stubs(:active?).with { |feature, *_| feature != :product_page_react_on_rails }.returns(false)
+    Feature.expects(:active?).with(:product_page_react_on_rails, link.user).returns(false)
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param, layout: "profile" }
+
+    assert_response :success
+    assert_equal "Products/Profile/Show", inertia_page["component"]
+  end
+
+  test "GET show upgrades flagged Inertia profile visits to a full RORP document" do
+    link = create_product(user: @user)
+    Feature.activate_user(:product_page_react_on_rails, link.user)
+    use_product_rsc_controller
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param, layout: "profile" }
+
+    assert_response :conflict
+    assert_equal @request.original_url, response.headers["X-Inertia-Location"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
+  end
+
   test "GET show renders Products/Profile/Show when the seller has the product page storefront enabled" do
     seller = create_user(product_page_storefront_enabled: true)
     link = create_product(user: seller)
@@ -5188,22 +5280,30 @@ class LinksControllerShowTest < ActionController::TestCase
   test "GET show keeps the standalone page when the seller turned the product page storefront off" do
     seller = create_user(product_page_storefront_enabled: false)
     link = create_product(user: seller)
+    Feature.stubs(:active?).with { |feature, *_| feature != :product_page_react_on_rails }.returns(false)
+    Feature.stubs(:active?).with(:product_page_react_on_rails, seller).returns(true)
+    use_product_rsc_controller
     @request.host = URI.parse(seller.subdomain_with_protocol).host
     @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
     assert_response :success
     assert_equal "Products/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
   end
 
   test "GET show keeps the standalone page for the storefront-enabled seller's own view" do
     seller = create_user(product_page_storefront_enabled: true)
     link = create_product(user: seller)
+    Feature.stubs(:active?).with { |feature, *_| feature != :product_page_react_on_rails }.returns(false)
+    Feature.stubs(:active?).with(:product_page_react_on_rails, seller).returns(true)
+    use_product_rsc_controller
     sign_in seller
     @request.host = URI.parse(seller.subdomain_with_protocol).host
     @request.headers["X-Inertia"] = "true"
     get :show, params: { id: link.to_param }
     assert_response :success
     assert_equal "Products/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
   end
 
   test "GET show renders Products/Discover/Show with taxonomy props for discover layout" do
@@ -5216,6 +5316,19 @@ class LinksControllerShowTest < ActionController::TestCase
     assert page["props"].key?("taxonomy_path")
     assert page["props"].key?("taxonomies_for_nav")
     assert page["props"]["product"].present?
+  end
+
+  test "GET show keeps Discover-layout products on Inertia when the seller flag is on" do
+    link = create_product(user: @user)
+    Feature.activate_user(:product_page_react_on_rails, link.user)
+    use_product_rsc_controller
+    @request.headers["X-Inertia"] = "true"
+
+    get :show, params: { id: link.to_param, layout: "discover" }
+
+    assert_response :success
+    assert_equal "Products/Discover/Show", inertia_page["component"]
+    assert_nil @controller.instance_variable_get(:@product_rsc_document_props)
   end
 
   test "GET show renders Products/Iframe/Show with product props for embed param" do
