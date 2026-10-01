@@ -6,6 +6,7 @@ require "user_custom_domain_constraint"
 require "gumroad_domain_constraint"
 require "discover_domain_constraint"
 require "discover_taxonomy_constraint"
+require "product_rsc_document_request_constraint"
 require "sidekiq/cron/web"
 require "sidekiq_unique_jobs/web"
 
@@ -25,6 +26,8 @@ Rails.application.routes.draw do
   get "/healthcheck/purchases" => "healthcheck#purchases"
   get "/healthcheck/apple_pay_domain" => "healthcheck#apple_pay_domain"
   get "/healthcheck/abandoned_cart_emails" => "healthcheck#abandoned_cart_emails"
+
+  rsc_payload_route path: "rsc_payload", controller: "rsc_payload"
 
   # IndexNow key verification file (https://www.indexnow.org/documentation).
   # Deliberately unconstrained by host: the spec requires the key file to be
@@ -1055,6 +1058,7 @@ Rails.application.routes.draw do
 
     get "/products", to: "links#index", as: :products
 
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }, as: :short_link
     # Iframe content endpoint for products with custom_html. The two-segment
     # path can't collide with the single-segment offer-code route below, so a
@@ -1395,6 +1399,7 @@ Rails.application.routes.draw do
     end
 
     get "/", to: "links#show", defaults: { format: "html" }
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"
@@ -1421,6 +1426,7 @@ Rails.application.routes.draw do
     get "/affiliates", to: "affiliate_requests#new", as: :custom_domain_new_affiliate_request
     post "/affiliate_requests", to: "affiliate_requests#create", as: :custom_domain_create_affiliate_request
     get "/updates", to: redirect("/posts")
+    get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
     get "/l/:id/landing/version", to: "links#landing_version"

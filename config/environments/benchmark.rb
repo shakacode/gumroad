@@ -4,8 +4,21 @@ require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
   # Production's CDN compresses assets; keep Slow 4G samples representative when Rails serves them locally.
+  # Flush each chunk so Live HTML and RSC payloads stay incrementally decodable through gzip.
   config.middleware.insert_before 0, Rack::Deflater,
-                                  if: ->(env, *) { env["PATH_INFO"].start_with?("/vite/", "/product-rsc/") }
+                                  sync: true,
+                                  include: %w[
+                                    application/javascript
+                                    application/json
+                                    application/x-ndjson
+                                    application/xml
+                                    image/svg+xml
+                                    text/css
+                                    text/html
+                                    text/javascript
+                                    text/plain
+                                    text/xml
+                                  ]
 
   config.enable_reloading = false
   config.eager_load = true
