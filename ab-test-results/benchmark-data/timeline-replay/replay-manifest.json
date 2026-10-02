@@ -1,0 +1,64 @@
+{
+  "runId": "2026-09-23T18:01:58.195Z",
+  "caseId": "product-page-profile-layout-cold-landing-phone-031456e8",
+  "scenario": "Product page · profile layout · Mobile · empty cache",
+  "diagnosticStage": "perf-low-noise",
+  "note": "One diagnostic load, not a 20-sample median.",
+  "durationMs": 12000,
+  "throttling": {
+    "method": "devtools",
+    "rttMs": 100,
+    "throughputKbps": 2700,
+    "requestLatencyMs": 200,
+    "downloadThroughputKbps": 2700,
+    "uploadThroughputKbps": 2700,
+    "cpuSlowdownMultiplier": 3
+  },
+  "fcpMs": {
+    "control": 9461.355,
+    "experiment": 1138.019
+  },
+  "frameCounts": {
+    "control": 17,
+    "experiment": 43
+  },
+  "originalTimeline": {
+    "sourcePath": "compare-results-sep23/product-page-profile-layout-cold-landing-phone-031456e8/artifacts/timeline_comparison.html",
+    "sha256": "65cf11e36cd91dc9864d4eb48e8760f6e44e12493555005c7ecc3d885729d2ec"
+  },
+  "visualDiffPixels": 0,
+  "sourceHashes": [
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/perf.json",
+      "sha256": "912b91b6d63f4a762862ebded6c63d4be16589abb81b695b6003b38b8b098bde"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/perf-low-noise.json",
+      "sha256": "38133c7c83bffe95fca804b7f543aee1c9873ca4314435978723936588d678ae"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/visreg.json",
+      "sha256": "de49fece289d95b2d8c95a74e72bb4b2ae691f3a0752d13a9138cc9801793ffe"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/artifacts/timeline_comparison.html",
+      "sha256": "65cf11e36cd91dc9864d4eb48e8760f6e44e12493555005c7ecc3d885729d2ec"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html",
+      "sha256": "5f435c35c311c9091710fb23fc19625741b8a81920a8b0cbd9d7a78fceb68378"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_performance_profile.json",
+      "sha256": "2e7bde6619c3925bd21d23b4edcf0ab063a1e11dcbbe3e6543912a96d41b8f31"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html",
+      "sha256": "c2770725bb633faae437cf7d625de67f68863053592b964993deaa6e87b9b7df"
+    },
+    {
+      "path": "product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_performance_profile.json",
+      "sha256": "60dfcc738960a039e447e4a4c1605a160f96be35c28a81c96d7b0f2c836c2ae7"
+    }
+  ]
+}
