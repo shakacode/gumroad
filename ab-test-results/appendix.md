@@ -52,6 +52,9 @@ The cold desktop and mobile screenshot comparisons recorded zero differing pixel
 
 The extracted September 23 summary identifies input artifacts with SHA-256 hashes, but does not record the exact at-run application commit for each side. The archival repository commit identifies the stored evidence, not those tested application revisions. No time-aligned memory or swap telemetry is included, so this evidence cannot rule out host memory pressure. The sticky Add to cart replay is a separate recorded interaction, excluded from the 20-pair landing table.
 
+<a id="earlier-comparisons-across-gumroad-pages"></a>
+<a id="what-about-inertia-ssr"></a>
+
 ## Historical context
 
 [Earlier page comparisons and the separate Inertia SSR experiment](historical-comparisons.md) used different implementations or conditions. They are retained for context and are not additional samples for the article's headline.

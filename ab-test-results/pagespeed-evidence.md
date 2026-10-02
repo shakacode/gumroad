@@ -35,3 +35,9 @@ The local ShakaPerf comparison uses a different date, environment and method: 20
 Do not attach the local 3× CPU conditions to the PageSpeed score, merge the two datasets or use the local confidence intervals to describe PageSpeed variability. The PageSpeed evidence supports **53 → 80 mobile** and **66 → 98 desktop** for these individual captures. It does not establish a repeated-run range.
 
 Live demo URLs are mutable. Archived reports describe their recorded runs and do not establish that the current deployments match the benchmark builds or each other in every dependency. For a new comparison, record each deployed revision, use matching conditions, and retain all runs rather than selecting the best score.
+
+## Later deployment inspection
+
+A later inspection, on October 1 at approximately 22:00 HST, identified Inertia source revision `5df1b6827002108389e337bbe308896d49da30a1` and RSC source revision `a01f734c288f5b59c05f02b38f82f8bc6477ff36` in the live deployments. Their public [Inertia package manifest](https://github.com/shakacode/gumroad/blob/5df1b6827002108389e337bbe308896d49da30a1/package.json) and [RSC package manifest](https://github.com/shakacode/gumroad/blob/a01f734c288f5b59c05f02b38f82f8bc6477ff36/package.json) declare `react-on-rails-rsc` 19.3.0 and 19.3.0-rc.4, respectively.
+
+Those immutable source files verify the package-version difference, not which versions were deployed during the earlier PageSpeed captures. The later inspection cannot establish parity at capture time.

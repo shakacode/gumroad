@@ -1,4 +1,4 @@
-# Gumroad fork: mobile PageSpeed 80 with RSC, 53 with Inertia
+# Gumroad fork: mobile PageSpeed snapshots score 80 with RSC, 53 with Inertia
 
 By Justin Gordon and Ramez Weissa · October 2026
 
@@ -23,13 +23,15 @@ These are individual lab captures, not averages, a repeated-run range or real-us
 | Desktop  | Inertia                  |                66 | 1.4 s |  2.3 s | 00:52:11           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) |
 | Desktop  | React on Rails Pro / RSC |                98 | 0.6 s |  0.8 s | 00:50:37           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop)    |
 
-These snapshots do not establish a controlled before/after result. We cannot verify their at-run source parity, and the current live variants have different RSC package versions.
+These snapshots do not establish a controlled before/after result. We cannot verify their at-run source parity. A [later deployment inspection](pagespeed-evidence.md#later-deployment-inspection) found different RSC package versions in the live variants.
 
 PageSpeed is a convenient independent way to inspect these hosted pages. Scores vary with the run and deployment state. The [PageSpeed evidence notes](pagespeed-evidence.md) record the exact timestamps and settings; the repeated local measurements below provide a separate view of the change.
 
+<a id="throttling-settings"></a>
+
 ## What the repeated comparison measured
 
-The September 23 ShakaPerf run compared matching seeded Product content in separate Docker environments. Each row below contains 20 measurements per side. The browser used the same DevTools network and CPU throttling for first and repeat visits.
+The September 23 ShakaPerf run compared matching seeded Product content in separate Docker environments. Each row below contains 20 measurements per side. The browser used the [same DevTools network and CPU throttling](appendix.md#measured-trade-offs) for first and repeat visits.
 
 | Navigation         | Viewport | Median FCP: Inertia → RSC | Median LCP: Inertia → RSC | Paired FCP reduction (95% CI) |
 | ------------------ | -------- | ------------------------: | ------------------------: | ----------------------------: |
