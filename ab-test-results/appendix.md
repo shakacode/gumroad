@@ -1,49 +1,57 @@
 # Gumroad Product performance appendix
 
-Supporting measurements and historical comparisons for the [Product-page article](index.md).
+Supporting evidence for the [Product-page article](index.md). The September 23 local comparison and October 1 hosted PageSpeed reports are separate measurements.
 
 ## Measured trade-offs
 
-These results are from the September 23 profile-layout Product comparison used in the main article.
+The September 23 run covers profile-layout Product landings on desktop and mobile, with 20 paired measurements per case. Both empty-cache and prepopulated-cache cases used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency and 3× CPU slowdown. The warm cases are full-page navigations, not Inertia client-side navigations.
 
-![Median browser-observed time to first byte, transferred data, and network requests for the four profile-layout Product landing cases.](images/product-page-tradeoffs.svg)
+![Median browser-observed time to first byte, transferred data and network requests for the four profile-layout Product landing cases. Blue is Inertia; green is React on Rails Pro.](images/product-page-tradeoffs.svg)
 
-[See the September 23 measurements](benchmark-data/latest-results.md).
+| Navigation         | Viewport | Metric                | Inertia median | RSC median |          Paired change (95% CI) |
+| ------------------ | -------- | --------------------- | -------------: | ---------: | ------------------------------: |
+| Empty cache        | Desktop  | Total Blocking Time   |          11 ms |     119 ms |       +109 ms (+107 to +111 ms) |
+| Empty cache        | Desktop  | Browser-observed TTFB |         131 ms |     156 ms |          +28 ms (+20 to +32 ms) |
+| Empty cache        | Desktop  | Transferred data      |     2,597.9 KB | 2,722.8 KB | +124.5 KB (+124.4 to +124.9 KB) |
+| Empty cache        | Desktop  | Requests              |            143 |         96 |                −47 (−47 to −47) |
+| Empty cache        | Mobile   | Total Blocking Time   |          12 ms |     121 ms |       +110 ms (+106 to +115 ms) |
+| Empty cache        | Mobile   | Browser-observed TTFB |         129 ms |     162 ms |          +25 ms (+19 to +35 ms) |
+| Empty cache        | Mobile   | Transferred data      |     2,597.9 KB | 2,722.0 KB | +124.4 KB (+124.0 to +124.5 KB) |
+| Empty cache        | Mobile   | Requests              |            143 |         96 |                −47 (−47 to −47) |
+| Prepopulated cache | Desktop  | Total Blocking Time   |           0 ms |      50 ms |          +46 ms (+41 to +51 ms) |
+| Prepopulated cache | Desktop  | Browser-observed TTFB |         117 ms |     139 ms |          +20 ms (+17 to +24 ms) |
+| Prepopulated cache | Desktop  | Transferred data      |       196.4 KB |    36.4 KB |       −160 KB (−160 to −160 KB) |
+| Prepopulated cache | Desktop  | Requests              |            142 |         95 |                −47 (−47 to −47) |
+| Prepopulated cache | Mobile   | Total Blocking Time   |           0 ms |      42 ms |          +41 ms (+36 to +46 ms) |
+| Prepopulated cache | Mobile   | Browser-observed TTFB |         101 ms |     125 ms |          +23 ms (+18 to +46 ms) |
+| Prepopulated cache | Mobile   | Transferred data      |       196.4 KB |    36.5 KB |       −160 KB (−160 to −160 KB) |
+| Prepopulated cache | Mobile   | Requests              |            142 |         95 |                −47 (−47 to −47) |
 
-## Earlier comparisons across Gumroad pages
+Paired estimates are computed from within-pair differences, so they need not equal a subtraction of the displayed medians. [See the complete paint and trade-off measurements](benchmark-data/latest-results.md).
 
-Earlier work covered Discover page, both Product layouts, and seller profiles. Its September 7 snapshot tested 11 scenarios on Desktop and Mobile, with 18 paired measurements per case. These graphs are copied from that worktsream; their scope and code differ from the September 23 Product-only comparison, later on we isolated the changes to the product page only to minimize code changes.
+## Accessibility findings
 
-![Time to first and largest content on five Gumroad pages, comparing Inertia with React on Rails Pro.](images/historical/gumroad-page-paint.svg)
+The archived cold desktop and mobile reports each record 0 new, 0 fixed, 20 changed and 14 unchanged findings. The changed group contains 19 critical and 1 serious finding. For all 20 changed findings, the recorded failure description is the same on both sides; only the node's captured HTML differs:
 
-### Loading sequence
+| Rule                          | Changed findings per viewport | Difference in captured HTML                                      |
+| ----------------------------- | ----------------------------: | ---------------------------------------------------------------- |
+| `image-alt`                   |                            17 | Image URLs use different deployment hosts or seeded asset paths. |
+| `aria-allowed-attr`           |                             2 | Generated `aria-describedby` IDs differ.                         |
+| `scrollable-region-focusable` |                             1 | Inline-style whitespace and serialization differ.                |
 
-![Loading filmstrip for the Product page with Discover layout: Inertia, visual differences, and React on Rails Pro.](images/historical/product-timeline-preview.svg)
+These are existing violations, not a clean accessibility audit or proof of compliance. Warm accessibility checks were not captured. Inspect the raw [desktop accessibility report](https://github.com/shakacode/gumroad/blob/f533e7ca1fb9e3cb21a296b8835d373a1858ca9b/compare-results/rorp-2026-09-23/raw/product-page-profile-layout-cold-landing-desktop-6fad3788/accessibility.json) and [mobile accessibility report](https://github.com/shakacode/gumroad/blob/f533e7ca1fb9e3cb21a296b8835d373a1858ca9b/compare-results/rorp-2026-09-23/raw/product-page-profile-layout-cold-landing-phone-031456e8/accessibility.json).
 
-![Performance profile comparing Inertia and React Server Components for the Product page with Discover layout.](images/historical/product-streaming-timeline.svg)
+The cold desktop and mobile screenshot comparisons recorded zero differing pixels. Warm visual checks were not captured. These results describe the captured states only.
 
-Both versions started downloading images early, but Inertia still had to load and run its page JavaScript before showing content. React on Rails Pro began streaming server-rendered content while JavaScript continued downloading, bringing first paint forward from 10.10 seconds to 1.16 seconds in this sample.
+## Raw measurements
 
-### Transfer and server-response costs
+- [September 23 tables](benchmark-data/latest-results.md) and [extracted samples, input-file hashes and user agents](benchmark-data/latest-results.json).
+- [Archived September 23 raw artifacts](https://github.com/shakacode/gumroad/tree/f533e7ca1fb9e3cb21a296b8835d373a1858ca9b/compare-results/rorp-2026-09-23).
+- [Self-contained September 23 performance report](https://github.com/shakacode/gumroad/blob/f533e7ca1fb9e3cb21a296b8835d373a1858ca9b/compare-results/rorp-2026-09-23/self-contained-performance-report.html), which can be downloaded and opened locally.
+- [October 1 PageSpeed report links, timestamps and settings](pagespeed-evidence.md).
 
-![Requests, transferred data, and time to first byte for five Gumroad pages.](images/historical/buyer-ab-requests-bytes-ttfb.svg)
+The extracted September 23 summary identifies input artifacts with SHA-256 hashes, but does not record the exact at-run application commit for each side. The archival repository commit identifies the stored evidence, not those tested application revisions. No time-aligned memory or swap telemetry is included, so this evidence cannot rule out host memory pressure. The sticky Add to cart replay is a separate recorded interaction, excluded from the 20-pair landing table.
 
-Earlier content did not always mean a smaller download. On Discover, a visit with no files cached in the browser downloaded more JavaScript and more data overall. The server also took longer to start responding on several pages. React on Rails Pro adds a renderer service to deploy, monitor, and provision.
+## Historical context
 
-### Results across the historical suite
-
-![Distribution of performance changes across 22 cases, showing the middle 50%, median, and minimum-to-maximum range.](images/historical/gumroad-performance-changes-boxes.svg)
-
-The chart summarizes the middle change across cases, not an average; the boxes also show how widely those changes varied. FCP, LCP, and total requests improved in every case; download and server costs varied by page. A zero median for JavaScript bytes does not mean every page downloaded the same amount.
-
-The diagnostic Lighthouse profile used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency, and a 3× CPU slowdown.
-
-[Inspect the historical measurements and correctness findings](https://github.com/shakacode/gumroad/blob/c3ccc2090dc6e31fff2985d5d9cb881faa526221/ab-test-results/latest-results.md).
-
-## What about Inertia SSR?
-
-We tested an optimized Inertia SSR implementation too. Both approaches could show server-rendered content early but the difference in hydration speed was significant. In this test, the sticky **Add to cart** bar began appearing at **10.97 seconds with React Server Components** and **21.38 seconds with Inertia SSR**. It was fully visible at **11.02 seconds** and **21.43 seconds**, respectively—about **10.4 seconds earlier with RSC**.
-
-This was a separate September 4 comparison for a cold visit. Both versions used the same DevTools throttling: 150 ms RTT, 562.5 ms request latency, 1,474.56 Kbps download, 675 Kbps upload, and a 4× CPU slowdown. These settings were stricter than the September 23 run, and the implementation also differed, so the numbers are not directly comparable.
-
-![Historical Product-page loading comparison with Discover layout: Inertia SSR and React on Rails Pro with React Server Components, played side by side at 3× speed.](images/historical/inertia-ssr-product-phone-replay.gif)
+[Earlier page comparisons and the separate Inertia SSR experiment](historical-comparisons.md) used different implementations or conditions. They are retained for context and are not additional samples for the article's headline.
