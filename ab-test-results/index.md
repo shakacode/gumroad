@@ -2,7 +2,7 @@
 
 By Justin Gordon and Ramez Weissa · October 2026
 
-Gumroad recently switched from React on Rails to Inertia. Their [migration article](https://x.com/gumroad/status/2034374288007188817) describes seven months of work to simplify their application: Rails owns routing and data loading, while Inertia improves navigation between pages. They removed separate build machinery and patterns that had accumulated in their previous implementation. Those are worthwhile gains.
+In March 2026, Gumroad completed its switch from React on Rails to Inertia. Their [migration article](https://x.com/gumroad/status/2034374288007188817) describes seven months of work to simplify their application: Rails owns routing and data loading, while Inertia improves navigation between pages. They removed separate build machinery and patterns that had accumulated in their previous implementation. Those are worthwhile gains.
 
 We maintain React on Rails at ShakaCode. Reading that story raises a follow-up question: **could React on Rails complement Inertia where performance matters most?** We explored that in a public Gumroad fork, adding React Server Components through [React on Rails Pro](https://reactonrails.com/pro) to one kind of Product page. The rest of the application, including checkout, keeps Inertia.
 
@@ -34,7 +34,7 @@ This creates an opportunity to change how much work the browser must do and when
 
 ![Mobile, first visit: Inertia and React on Rails Pro with React Server Components loading side by side at 3× playback speed.](images/product-profile-phone-replay.gif)
 
-On the tested Inertia path, the browser received page data and relied on JavaScript to render Product content. This comparison concerns that implementation, rather than every possible Inertia setup. The [implementation PR](https://github.com/shakacode/gumroad/pull/103) shows the route we changed.
+On the tested Inertia path, the browser received page data and relied on JavaScript to render Product content. The September 23 comparison did not test Inertia SSR, so it does not establish an RSC advantage over Inertia SSR. An [earlier Inertia SSR experiment](historical-comparisons.md#what-about-inertia-ssr) used different code and conditions; its results are kept separate. The [implementation PR](https://github.com/shakacode/gumroad/pull/103) shows the route we changed.
 
 <a id="throttling-settings"></a>
 
