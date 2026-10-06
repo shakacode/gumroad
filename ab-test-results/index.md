@@ -1,4 +1,4 @@
-# 80 vs 53 on mobile PageSpeed: React Server Components in a Gumroad fork
+# From 53 to 80 on mobile PageSpeed: a Gumroad product-page experiment
 
 By Justin Gordon (CEO of ShakaCode) and Ramez Weissa · October 2026
 
@@ -8,22 +8,34 @@ Gumroad's [Inertia migration story](https://x.com/gumroad/status/203437428800718
 
 Gumroad's job is to help creators sell products. Someone following a link from another site, a Google search, or an AI chat lands directly on the product page. They need the product details to load quickly and Add to cart to work when they click it.
 
-We migrated the profile-layout Product page in our [Gumroad fork](https://github.com/shakacode/gumroad) to React Server Components through [React on Rails Pro](https://reactonrails.com/pro/), keeping Inertia elsewhere. We used [ShakaPerf](https://github.com/shakacode/shakaperf/) to measure the result.
+We migrated the profile-layout Product page in our [Gumroad fork](https://github.com/shakacode/gumroad) to React Server Components through [React on Rails Pro](https://reactonrails.com/pro/), keeping Inertia elsewhere.
 
 <a id="what-the-pagespeed-reports-show"></a>
 
-## Compare the PageSpeed reports
+<a id="inspect-the-evidence-or-try-the-pages"></a>
 
-Our October 1 mobile PageSpeed reports scored **80 with React Server Components and 53 with Inertia**. On desktop, the scores were **98 and 66**. Open the reports and inspect the pages yourself:
+<a id="try-the-pages"></a>
 
-| Variant                 | Mobile performance | Desktop performance | Saved reports                                                                                                                                                                                                                                                                     |
-| ----------------------- | -----------------: | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inertia                 |             **53** |              **66** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) |
-| React Server Components |             **80** |              **98** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop)       |
+<a id="want-to-test-performance-for-yourself"></a>
+
+<a id="compare-the-pagespeed-reports"></a>
+
+## Compare the pages and PageSpeed reports
+
+Our October 1 mobile PageSpeed reports scored **80 with React Server Components and 53 with Inertia**. On desktop, the scores were **98 and 66**. The live pages below use the RSC feature flag in one deployment and Inertia in the other. Open both pages, then compare their reports:
+
+|                   | Inertia                                                                                                                                                                                                                                                                           | React Server Components                                                                                                                                                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live product page | [Open Inertia page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)                                                                                                                                                           | [Open RSC page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)                                                                                                                                                            |
+| Mobile PageSpeed  | **53**                                                                                                                                                                                                                                                                            | **80**                                                                                                                                                                                                                                                                      |
+| Desktop PageSpeed | **66**                                                                                                                                                                                                                                                                            | **98**                                                                                                                                                                                                                                                                      |
+| Saved reports     | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop) |
 
 Click **Analyze** again on either report to test that URL now. Use the same device tab for both and run each several times. We saved these reports from separate runs, not a controlled before/after test. We couldn't verify that both deployments used matching source versions at the time. The scores can vary, and the deployments may have changed since. [Report details](reference.md#what-the-pagespeed-reports-show).
 
 ## 8× faster first paint on cold visits
+
+We also used [ShakaPerf](https://github.com/shakacode/shakaperf/) for repeated tests under the same throttling settings.
 
 ![Median first contentful paint, largest contentful paint, and Speed Index for the profile-layout Product page on Desktop and Mobile, with empty and prepopulated caches. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-paint.svg)
 
@@ -71,20 +83,6 @@ In that recording, the test clicked Add to cart **3.5 seconds earlier with React
 ![One recorded Mobile purchase flow, from Product loading through the sticky Add to cart interaction to checkout, with Inertia and React on Rails Pro side by side at 3× speed.](images/product-profile-phone-add-to-cart-replay.gif)
 
 [Open the interactive add-to-cart replay](product-profile-phone-add-to-cart-replay.html).
-
-<a id="inspect-the-evidence-or-try-the-pages"></a>
-
-<a id="try-the-pages"></a>
-
-## Want to test performance for yourself?
-
-We deployed the Product page twice, with the RSC feature flag on in one deployment and off in the other. Try both:
-
-| Inertia                                                                                                         | React on Rails Pro / RSC                                                                                     |
-| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [Open page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) | [Open page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) |
-
-Open each page variant, then open Chrome DevTools, choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a first visit (on by default) and click on "Analyze page load" to test. Run each version several times, since your machine and network can affect the result.
 
 ## How we measure the results
 
