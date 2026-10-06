@@ -1,79 +1,113 @@
-# Gumroad chose Inertia. We explored adding React Server Components to one page.
+# We made Gumroad’s Product page appear sooner using React Server Components
 
-By Justin Gordon and Ramez Weissa · October 2026
+By Justin Gordon (CEO of ShakaCode) and Ramez Weissa · October 2026
 
-In March 2026, Gumroad completed its switch from React on Rails to Inertia. Their [migration story](https://x.com/gumroad/status/2034374288007188817) describes a simpler Rails application and smoother navigation. We wanted to explore a follow-up: **could React on Rails complement Inertia on the page where performance matters most?**
-
-Gumroad helps creators sell products. Buyers arrive from a creator's website, Google search or a link in an AI chat—often without any application JavaScript already loaded. They need to see the offer, use its purchase controls and reach checkout. That makes the Product page a natural place to optimize.
-
-We maintain React on Rails at ShakaCode. In our [public Gumroad fork](https://github.com/shakacode/gumroad), we moved profile-layout Product pages to React Server Components through [React on Rails Pro](https://reactonrails.com/pro). The rest of the application, including checkout, keeps Inertia.
+Gumroad's [Inertia migration story](https://x.com/gumroad/status/2034374288007188817) describes a simpler application and smoother navigation. We wanted to explore a follow-up: **could React Server Components complement the client-side React used by Inertia?**
 
 <a id="start-with-the-buyer"></a>
+
+Product pages are where Gumroad helps creators sell. Buyers arrive from other websites, search results or AI chats, and need to both see the offer and use its purchase controls.
+
+We migrated the profile-layout Product page in our [Gumroad fork](https://github.com/shakacode/gumroad) to React Server Components through [React on Rails Pro](https://reactonrails.com/pro), keeping Inertia elsewhere. We used [ShakaPerf](https://github.com/shakacode/shakaperf/) to measure the result.
+
+![Median first contentful paint, largest contentful paint, and Speed Index for the profile-layout Product page on Desktop and Mobile, with empty and prepopulated caches. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-paint.svg)
+
 <a id="what-the-repeated-comparison-measured"></a>
 
-## The product appeared sooner
+<a id="the-product-appeared-sooner"></a>
 
-![Median first contentful paint, largest contentful paint and Speed Index for desktop and mobile first and repeat visits. Blue is Inertia; green is React on Rails Pro.](images/product-page-paint.svg)
+On first visits, First Contentful Paint (FCP) improved by **8.4 seconds**, or **87.8%**, on desktop and mobile. With cached JavaScript, the paired improvement was **52.6% on desktop and 53.7% on mobile**. Each case used 20 paired measurements under these [throttling settings](#throttling-settings).
 
-In the September 23 comparison, first content appeared **8.4 seconds sooner**, an **87.8% reduction**, on desktop and mobile with empty caches. With cached JavaScript, the paired reduction was **52.6% on desktop and 53.7% on mobile**.
+## Watch both versions load
 
-[ShakaPerf](https://github.com/shakacode/shakaperf/) ran 20 paired measurements per case with matching seeded content, network throttling and a 3× CPU slowdown. Repeat visits were full-page loads with cached files, not Inertia's client-side navigation. These are lab results for this implementation; [conditions and evidence limits](appendix.md) matter when interpreting them.
+![Mobile first-visit sample: Inertia and React on Rails Pro with React Server Components loading side by side at 3× speed.](images/product-profile-phone-replay.gif)
 
-## Watch a purchase interaction
-
-The important next step is using the page. In one recorded mobile purchase flow, the test clicked the sticky **Add to cart** button **3.5 seconds earlier with RSC**, measured from initial navigation, then continued toward checkout.
-
-![One recorded mobile purchase flow through Add to cart to checkout, with Inertia and React on Rails Pro side by side at 3× playback speed.](images/product-profile-phone-add-to-cart-replay.gif)
-
-[Open the interactive replay](product-profile-phone-add-to-cart-replay.html). This is a single interaction recording, separate from the repeated landing measurements. It illustrates the opportunity; it does not establish a typical interaction improvement or increased sales.
-
-<a id="early-html-is-only-part-of-the-job"></a>
 <a id="what-changed-and-what-the-checks-cover"></a>
 
-## What changed
+<a id="what-changed"></a>
 
-Traditional React SSR can deliver HTML early, but React purchase controls still need JavaScript and [hydration](https://react.dev/reference/react-dom/client/hydrateRoot). Showing the product is only part of making it usable.
+## What changed on the Product page
 
-[Server Components](https://react.dev/reference/rsc/server-components) keep content-rendering code on the server; interactive controls remain Client Components. Our fork streams server-rendered content while their JavaScript loads. RSC does not automatically guarantee faster interaction—the component boundaries and loading work still matter.
+| Area                       | What we changed                                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Product React tree         | Refactored the existing component tree into Server Components and client components, introducing boundaries around interactive UI |
+| Product content and layout | Moved rendering to Server Components, streamed through React on Rails Pro                                                         |
+| Purchase interactions      | Kept interactive purchase controls in client components                                                                           |
+| Business logic             | Kept in Rails                                                                                                                     |
+| Rollout and rollback       | Added a seller feature flag for the profile-layout Product page route; disabling it restores the Inertia route                    |
+| Scope                      | Product pages using the profile layout; seller profiles, checkout and other pages remain on Inertia                               |
 
-Rails retains the business logic. A seller-scoped flag enables the profile-layout Product route; turning it off restores Inertia. [PR #103](https://github.com/shakacode/gumroad/pull/103) shows the implementation.
+Explore the implementation in [PR #103: Optimize Product page with React Server Components](https://github.com/shakacode/gumroad/pull/103).
 
-The September baseline used client-rendered Inertia. It does **not** establish an advantage over Inertia SSR; our [earlier SSR experiment](historical-comparisons.md#what-about-inertia-ssr) used different code and conditions.
+<a id="early-html-is-only-part-of-the-job"></a>
+
+On a fresh visit, the tested Inertia path sent page data and then relied on browser JavaScript to render the Product content. The new path could show server-rendered content while JavaScript continued loading. This was done through a server/client split in the Product components.
+
+Inertia can reuse already-running JavaScript during client-side navigation. Our Product-page repeat-visit test used a **full page navigation** with cached JavaScript files.
+
+<a id="watch-a-purchase-interaction"></a>
+
+We also tested the purchase flow on Mobile: open the Product page, click the sticky **Add to cart** button without scrolling, then use the purchase controls it reveals to continue to checkout. Both versions kept checkout on Inertia.
+
+In that recording, the test successfully clicked Add to cart **3.5 seconds earlier with React Server Components**, measured from the initial Product navigation. This is one recorded interaction, separate from the repeated landing measurements; it does not establish a typical interaction improvement or increased sales.
+
+![One recorded Mobile purchase flow, from Product loading through the sticky Add to cart interaction to checkout, with Inertia and React on Rails Pro side by side at 3× speed.](images/product-profile-phone-add-to-cart-replay.gif)
+
+[Open the interactive add-to-cart replay](product-profile-phone-add-to-cart-replay.html).
+
+<a id="inspect-the-evidence-or-try-the-pages"></a>
+
+<a id="try-the-pages"></a>
+
+## Want to test performance for yourself?
+
+We deployed the Product page twice: one deployment has the feature flag on to render it with React Server Components, and the other uses Inertia. Open the page in either deployment to compare them yourself, and inspect the recorded results:
+
+| Inertia                                                                                                         | React on Rails Pro / RSC                                                                                     |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [Open page](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) | [Open page](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) |
+
+Open each page variant, then open Chrome DevTools, choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a first visit (on by default) and click on "Analyze page load" to test. Run multiple times to limit machine/network noise.
+
+<a id="what-the-pagespeed-reports-show"></a>
+
+Or inspect these October 1 PageSpeed snapshots. They are individual reports, not a controlled before/after comparison; live deployments can change. [Capture and deployment details](pagespeed-evidence.md).
+
+- [React Server Components report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)
+- [Inertia report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile)
+
+## How we measure the results
+
+[ShakaPerf](https://github.com/shakacode/shakaperf/) runs the same Playwright scenario against both versions, collecting performance, visual, accessibility and network results. We used matching seeded Product content in separate Docker containers, sampling both sides concurrently and analyzing paired differences.
 
 <a id="the-costs-sit-alongside-the-faster-paint"></a>
 
-## Is the extra complexity worth it?
+<a id="is-the-extra-complexity-worth-it"></a>
 
-RSC adds a Node renderer to deploy and monitor. In the cold-visit measurements, blocking time, time to first byte and transferred data increased even as content appeared sooner. The [trade-off tables](appendix.md#measured-trade-offs) show those costs alongside fewer requests and smaller repeat-visit transfers.
+The [companion reference](reference.md) covers the methodology, rendering choices, operational costs and evidence limits. The September baseline used client-rendered Inertia, not Inertia SSR. RSC added renderer operations and increased some cold-load costs; [see the trade-offs](reference.md#the-costs-sit-alongside-the-faster-paint). The setup is in [PR #102](https://github.com/shakacode/gumroad/pull/102).
 
-Extra complexity can be worthwhile when it improves a page that helps customers buy. Keeping Inertia elsewhere lets you evaluate that trade-off on one route.
+<a id="try-one-page-in-your-own-app"></a>
+
+## What you should take from this
+
+Already using Inertia? You can introduce React Server Components on selected pages without replacing it across your application. That is what we did in our Gumroad fork.
 
 <a id="llms-change-the-cost-of-trying"></a>
 
-LLM coding tools also make difficult changes more approachable: they can help trace components, propose server/client boundaries and write checks. That lowers the barrier to trying an RSC migration. Engineers still own correctness and deployment; we did not measure developer time saved here.
+**If performance matters, why not try one page?** LLM coding tools make difficult migrations more approachable, while engineers still own correctness and operations. Measure the existing page and its interactions, try RSC behind a flag, and keep it if the improvement earns the extra complexity.
 
-<a id="inspect-the-evidence-or-try-the-pages"></a>
-<a id="what-the-pagespeed-reports-show"></a>
+Start with the [migration guides and Pro license details](reference.md#try-one-page-in-your-own-app), then compare your changes with [ShakaPerf](https://github.com/shakacode/shakaperf). We at ShakaCode can help choose the page, set up measurements and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally.
 
-## Try the pages
+<a id="appendix"></a>
 
-Open the [Inertia deployment](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) and [RSC deployment](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search). In Chrome DevTools, choose **Lighthouse → Navigation → Performance**, clear storage for a first visit, and run each several times with matching settings.
+## Supporting reference
 
-Separate October 1 PageSpeed reports scored **53 with Inertia and 80 with RSC on mobile**. These are individual snapshots, not a controlled before/after comparison; their at-run source parity is unverified. [See the reports and deployment notes](pagespeed-evidence.md). Live deployments can change.
+- [Companion article: rendering, methodology, costs and adoption](reference.md)
+- [Measured trade-offs](appendix.md#measured-trade-offs)
+- [Earlier comparisons across Gumroad pages](appendix.md#earlier-comparisons-across-gumroad-pages)
+- [What about Inertia SSR?](appendix.md#what-about-inertia-ssr)
+- [Raw measurements](benchmark-data/latest-results.md)
 
-## Try one page in your own app
+<a id="throttling-settings">ShakaPerf throttling settings</a>
 
-**If performance matters, why not try one page?** Keep Inertia where it serves you well. Measure an important landing page and its purchase interactions, introduce RSC behind a flag, and keep it if the benefit earns the complexity.
-
-Start with the [Inertia migration guide](https://reactonrails.com/docs/migrating/migrating-from-inertia-rails), the [RSC migration series](https://reactonrails.com/docs/migrating/migrating-to-rsc) and [Pro pricing and license terms](https://reactonrails.com/pricing/). Use [ShakaPerf](https://github.com/shakacode/shakaperf) to compare performance, visual changes and accessibility. For help choosing or migrating a page, [talk with ShakaCode](https://www.shakacode.com/react-on-rails-pro/).
-
-## Appendix
-
-- [Measured trade-offs, visual and accessibility checks, and evidence limits](appendix.md)
-- [Complete measurement tables](benchmark-data/latest-results.md)
-- [Earlier comparisons, including Inertia SSR](historical-comparisons.md)
-- [First-visit loading replay](product-profile-phone-replay.html)
-
-<a id="throttling-settings"></a>
-
-ShakaPerf DevTools settings: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency and 3× CPU slowdown.
+> ShakaPerf DevTools throttling settings: 100 ms RTT, 2,700 Kbps download and upload, 200 ms request latency, and a 3× CPU slowdown.

@@ -27,8 +27,9 @@ for (const input of data.inputs) {
   }
 }
 
-const blue = "#215da8";
-const green = "#147a46";
+const inertiaColor = "#E69F00";
+const rscColor = "#0072B2";
+const inertiaFill = "url(#inertia-hatch)";
 const ink = "#162334";
 const muted = "#4d5a66";
 const background = "#ffffff";
@@ -44,6 +45,7 @@ const svg = (title, description, body, width = 1400, height = 750) =>
   `${[
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="title description" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">`,
     `<title id="title">${xml(title)}</title><desc id="description">${xml(description)}</desc>`,
+    `<defs><pattern id="inertia-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${inertiaColor}"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#6B4900" stroke-width="1.5"/></pattern></defs>`,
     `<metadata>${xml(JSON.stringify({ runId: data.runId, source: data.source, cases: data.results.map((result) => result.id), samplesPerSide: 20, inputHashes: data.inputs }))}</metadata>`,
     `<rect width="${width}" height="${height}" fill="${background}"/>`,
     body,
@@ -51,8 +53,8 @@ const svg = (title, description, body, width = 1400, height = 750) =>
   ].join("\n")}\n`;
 function legend(y = 132, inertiaLabel = "Inertia control") {
   return (
-    `<rect x="48" y="${y - 12}" width="16" height="16" rx="3" fill="${blue}"/>${text(73, y + 1, inertiaLabel, 16)}` +
-    `<rect x="260" y="${y - 12}" width="16" height="16" rx="3" fill="${green}"/>${text(285, y + 1, "React on Rails Pro / RSC", 16)}`
+    `<rect x="48" y="${y - 12}" width="16" height="16" rx="3" fill="${inertiaFill}"/>${text(73, y + 1, inertiaLabel, 16)}` +
+    `<rect x="260" y="${y - 12}" width="16" height="16" rx="3" fill="${rscColor}"/>${text(285, y + 1, "React on Rails Pro / RSC", 16)}`
   );
 }
 function chart(metricDefinitions, title, subtitle, filename, { visitLabels = false } = {}) {
@@ -72,16 +74,23 @@ function chart(metricDefinitions, title, subtitle, filename, { visitLabels = fal
       const top = 235 + row * 109;
       const metric = result.metrics[key];
       for (const [side, offset, color] of [
-        ["control", 0, blue],
-        ["experiment", 32, green],
+        ["control", 0, inertiaColor],
+        ["experiment", 32, rscColor],
       ]) {
         const value = metric[`${side}Median`];
         const width = (280 * value) / max;
         parts.push(`<g data-case="${result.id}" data-metric="${key}" data-side="${side}" data-median="${value}">`);
         parts.push(
-          `<rect x="${x}" y="${top + offset}" width="${width.toFixed(2)}" height="24" rx="4" fill="${color}"/>`,
+          `<rect x="${x}" y="${top + offset}" width="${width.toFixed(2)}" height="24" rx="4" fill="${side === "control" ? inertiaFill : color}" stroke="${side === "control" ? "#6B4900" : rscColor}" stroke-width="1"/>`,
         );
-        parts.push(text(x + width + 8, top + offset + 18, format(key, value), 15));
+        parts.push(
+          text(
+            x + width + 8,
+            top + offset + 18,
+            `${format(key, value)} · ${side === "control" ? "Inertia" : "RSC"}`,
+            14,
+          ),
+        );
         parts.push("</g>");
       }
     });
@@ -108,7 +117,7 @@ function chart(metricDefinitions, title, subtitle, filename, { visitLabels = fal
     filename,
     svg(
       title,
-      `${subtitle ? `${subtitle}. ` : ""}Four profile-layout product landing cases only; sticky add-to-cart excluded. Each colored bar is the median of 20 measurements, not the paired performance estimate.`,
+      `${subtitle ? `${subtitle}. ` : ""}Four profile-layout product landing cases only; sticky add-to-cart excluded. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is labeled. Each bar is the median of 20 measurements, not the paired performance estimate.`,
       parts.join("\n"),
     ),
   ];
@@ -167,8 +176,8 @@ function distributionByCache() {
       const top = section.rows[index];
       parts.push(text(48, top + 21, result.viewport, 18, 'font-weight="600"'));
       for (const [side, offset, color] of [
-        ["control", 0, blue],
-        ["experiment", 34, green],
+        ["control", 0, inertiaColor],
+        ["experiment", 34, rscColor],
       ]) {
         const values = result.metrics.FCP.samples[side];
         const low = Math.min(...values),
@@ -178,9 +187,12 @@ function distributionByCache() {
         parts.push(
           `<line x1="${scale(low)}" y1="${y}" x2="${scale(high)}" y2="${y}" stroke="${
             color
-          }" stroke-width="6" stroke-linecap="round"/>`,
+          }" stroke-width="6" stroke-linecap="round" ${side === "control" ? 'stroke-dasharray="8 5"' : ""}/>`,
         );
-        parts.push(`<circle cx="${scale(median)}" cy="${y}" r="9" fill="${color}" stroke="white" stroke-width="2"/>`);
+        parts.push(
+          `<circle cx="${scale(median)}" cy="${y}" r="9" fill="${side === "control" ? inertiaFill : color}" stroke="white" stroke-width="2"/>`,
+        );
+        parts.push(text(170, y + 5, side === "control" ? "Inertia" : "RSC", 14));
         parts.push(text(endX + 16, y + 5, time(median), 14));
       }
     }
@@ -198,7 +210,7 @@ function distributionByCache() {
     "product-fcp-distributions.svg",
     svg(
       title,
-      "Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.",
+      "Hatched amber markers and dashed lines are Inertia; solid blue markers and lines are RSC. Each series is labeled. Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.",
       parts.join("\n"),
       1400,
       850,

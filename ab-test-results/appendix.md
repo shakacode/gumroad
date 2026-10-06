@@ -6,7 +6,7 @@ Supporting evidence for the [Product-page article](index.md). The September 23 l
 
 The September 23 run covers profile-layout Product landings on desktop and mobile, with 20 paired measurements per case. Both empty-cache and prepopulated-cache cases used DevTools throttling: 100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency and 3× CPU slowdown. The warm cases are full-page navigations, not Inertia client-side navigations.
 
-![Median browser-observed time to first byte, transferred data and network requests for the four profile-layout Product landing cases. Blue is Inertia; green is React on Rails Pro.](images/product-page-tradeoffs.svg)
+![Median browser-observed time to first byte, transferred data and network requests for the four profile-layout Product landing cases. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-tradeoffs.svg)
 
 | Navigation         | Viewport | Metric                | Inertia median | RSC median |          Paired change (95% CI) |
 | ------------------ | -------- | --------------------- | -------------: | ---------: | ------------------------------: |
