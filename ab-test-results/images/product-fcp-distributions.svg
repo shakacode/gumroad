@@ -20,7 +20,7 @@
 <line x1="1250" y1="218" x2="1250" y2="445" stroke="#e1e6ea"/>
 <text x="1250" y="206" font-size="13" fill="#162334" text-anchor="middle">18s</text>
 <text x="48" y="271" font-size="18" fill="#162334" font-weight="600">Desktop</text>
-<line x1="816.0314144444444" y1="250" x2="826.6903455555556" y2="250" stroke="#E69F00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 5"/>
+<line x1="816.0314144444444" y1="250" x2="826.6903455555556" y2="250" stroke="#6B4900" stroke-width="6" stroke-linecap="butt" stroke-dasharray="8 5"/>
 <circle cx="821.7944444444445" cy="250" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
 <text x="170" y="255" font-size="14" fill="#162334" >Inertia</text>
 <text x="1266" y="255" font-size="14" fill="#162334" >9.53 s</text>
@@ -29,7 +29,7 @@
 <text x="170" y="289" font-size="14" fill="#162334" >RSC</text>
 <text x="1266" y="289" font-size="14" fill="#162334" >1.16 s</text>
 <text x="48" y="376" font-size="18" fill="#162334" font-weight="600">Mobile</text>
-<line x1="815.8864211111111" y1="355" x2="829.0728266666667" y2="355" stroke="#E69F00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 5"/>
+<line x1="815.8864211111111" y1="355" x2="829.0728266666667" y2="355" stroke="#6B4900" stroke-width="6" stroke-linecap="butt" stroke-dasharray="8 5"/>
 <circle cx="822.3" cy="355" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
 <text x="170" y="360" font-size="14" fill="#162334" >Inertia</text>
 <text x="1266" y="360" font-size="14" fill="#162334" >9.54 s</text>
@@ -49,7 +49,7 @@
 <line x1="1250" y1="552" x2="1250" y2="778" stroke="#e1e6ea"/>
 <text x="1250" y="540" font-size="13" fill="#162334" text-anchor="middle">1000ms</text>
 <text x="48" y="606" font-size="18" fill="#162334" font-weight="600">Desktop</text>
-<line x1="970.2796500000001" y1="585" x2="1009.1757799999999" y2="585" stroke="#E69F00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 5"/>
+<line x1="970.2796500000001" y1="585" x2="1009.1757799999999" y2="585" stroke="#6B4900" stroke-width="6" stroke-linecap="butt" stroke-dasharray="8 5"/>
 <circle cx="990.65" cy="585" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
 <text x="170" y="590" font-size="14" fill="#162334" >Inertia</text>
 <text x="1266" y="590" font-size="14" fill="#162334" >715 ms</text>
@@ -58,7 +58,7 @@
 <text x="170" y="624" font-size="14" fill="#162334" >RSC</text>
 <text x="1266" y="624" font-size="14" fill="#162334" >334 ms</text>
 <text x="48" y="711" font-size="18" fill="#162334" font-weight="600">Mobile</text>
-<line x1="955.2682900000001" y1="690" x2="1010.65999" y2="690" stroke="#E69F00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 5"/>
+<line x1="955.2682900000001" y1="690" x2="1010.65999" y2="690" stroke="#6B4900" stroke-width="6" stroke-linecap="butt" stroke-dasharray="8 5"/>
 <circle cx="984.28" cy="690" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
 <text x="170" y="695" font-size="14" fill="#162334" >Inertia</text>
 <text x="1266" y="695" font-size="14" fill="#162334" >708 ms</text>

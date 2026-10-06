@@ -186,8 +186,8 @@ function distributionByCache() {
         const y = top + offset;
         parts.push(
           `<line x1="${scale(low)}" y1="${y}" x2="${scale(high)}" y2="${y}" stroke="${
-            color
-          }" stroke-width="6" stroke-linecap="round" ${side === "control" ? 'stroke-dasharray="8 5"' : ""}/>`,
+            side === "control" ? "#6B4900" : color
+          }" stroke-width="6" stroke-linecap="${side === "control" ? "butt" : "round"}" ${side === "control" ? 'stroke-dasharray="8 5"' : ""}/>`,
         );
         parts.push(
           `<circle cx="${scale(median)}" cy="${y}" r="9" fill="${side === "control" ? inertiaFill : color}" stroke="white" stroke-width="2"/>`,
