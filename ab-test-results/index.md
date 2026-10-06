@@ -21,9 +21,9 @@ Our October 1 mobile PageSpeed reports scored **80 with React Server Components 
 | Inertia                 |             **53** |              **66** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) |
 | React Server Components |             **80** |              **98** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop)       |
 
-Click **Analyze** again on either report for a fresh test of its displayed URL. Keep the same device tab and run both several times. These saved scores are individual snapshots; fresh scores can vary and the live deployments can change. [Report details](reference.md#what-the-pagespeed-reports-show).
+Click **Analyze** again on either report for a fresh test of its displayed URL. Keep the same device tab and run both several times. These are saved snapshots, not a controlled before/after experiment; at-run source parity is unverified. Fresh scores and deployments can change. [Report details](reference.md#what-the-pagespeed-reports-show).
 
-## 8× faster first paint in the repeated comparison
+## 8× faster first paint on cold visits
 
 ![Median first contentful paint, largest contentful paint, and Speed Index for the profile-layout Product page on Desktop and Mobile, with empty and prepopulated caches. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-paint.svg)
 
@@ -31,7 +31,7 @@ Click **Analyze** again on either report for a fresh test of its displayed URL. 
 
 <a id="the-product-appeared-sooner"></a>
 
-In a separate throttled ShakaPerf comparison, median first paint fell from about **9.5 seconds to 1.16 seconds—roughly 8× faster**. The paired First Contentful Paint (FCP) estimate improved by **8.4 seconds**, or **87.8%**, on desktop and mobile. With cached JavaScript, the paired improvement was **52.6% on desktop and 53.7% on mobile**. Each case used 20 paired measurements under these [throttling settings](#throttling-settings).
+In a separate throttled ShakaPerf comparison with empty caches, median first paint fell from about **9.5 seconds to 1.16 seconds—roughly 8× faster**. The paired First Contentful Paint (FCP) estimate improved by **8.4 seconds**, or **87.8%**, on desktop and mobile. With cached JavaScript, the paired improvement was **52.6% on desktop and 53.7% on mobile**. Each case used 20 paired measurements under these [throttling settings](#throttling-settings).
 
 ## Watch both versions load
 
