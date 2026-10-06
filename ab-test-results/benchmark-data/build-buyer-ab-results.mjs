@@ -187,7 +187,7 @@ function distributionByCache() {
         parts.push(
           `<line x1="${scale(low)}" y1="${y}" x2="${scale(high)}" y2="${y}" stroke="${
             side === "control" ? "#6B4900" : color
-          }" stroke-width="6" stroke-linecap="${side === "control" ? "butt" : "round"}" ${side === "control" ? 'stroke-dasharray="8 5"' : ""}/>`,
+          }" stroke-width="6" stroke-linecap="${side === "control" ? "butt" : "round"}"/>`,
         );
         parts.push(
           `<circle cx="${scale(median)}" cy="${y}" r="9" fill="${side === "control" ? inertiaFill : color}" stroke="white" stroke-width="2"/>`,
@@ -210,7 +210,7 @@ function distributionByCache() {
     "product-fcp-distributions.svg",
     svg(
       title,
-      "Hatched amber markers and dashed lines are Inertia; solid blue markers and lines are RSC. Each series is labeled. Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.",
+      "Hatched amber markers and dark amber range lines are Inertia; solid blue markers and lines are RSC. Each series is labeled. Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.",
       parts.join("\n"),
       1400,
       850,
