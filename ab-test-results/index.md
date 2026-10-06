@@ -1,4 +1,4 @@
-# We made Gumroad’s Product page appear sooner using React Server Components
+# 80 vs 53 on mobile PageSpeed: React Server Components in a Gumroad fork
 
 By Justin Gordon (CEO of ShakaCode) and Ramez Weissa · October 2026
 
@@ -8,7 +8,22 @@ Gumroad's [Inertia migration story](https://x.com/gumroad/status/203437428800718
 
 Product pages are where Gumroad helps creators sell. Buyers arrive from other websites, search results or AI chats, and need to both see the offer and use its purchase controls.
 
-We migrated the profile-layout Product page in our [Gumroad fork](https://github.com/shakacode/gumroad) to React Server Components through [React on Rails Pro](https://reactonrails.com/pro), keeping Inertia elsewhere. We used [ShakaPerf](https://github.com/shakacode/shakaperf/) to measure the result.
+We migrated the profile-layout Product page in our [Gumroad fork](https://github.com/shakacode/gumroad) to React Server Components through [React on Rails Pro](https://reactonrails.com/pro/), keeping Inertia elsewhere. We used [ShakaPerf](https://github.com/shakacode/shakaperf/) to measure the result.
+
+<a id="what-the-pagespeed-reports-show"></a>
+
+## Compare the PageSpeed reports
+
+Our October 1 mobile PageSpeed reports scored **80 with React Server Components and 53 with Inertia**. On desktop, the scores were **98 and 66**. Open the reports and inspect the pages yourself:
+
+| Variant                 | Mobile performance | Desktop performance | Saved reports                                                                                                                                                                                                                                                                     |
+| ----------------------- | -----------------: | ------------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inertia                 |             **53** |              **66** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) |
+| React Server Components |             **80** |              **98** | [Mobile](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile) · [Desktop](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop)       |
+
+Click **Analyze** again on either report for a fresh test of its displayed URL. Keep the same device tab and run both several times. These saved scores are individual snapshots; fresh scores can vary and the live deployments can change. [Report details](reference.md#what-the-pagespeed-reports-show).
+
+## 8× faster first paint in the repeated comparison
 
 ![Median first contentful paint, largest contentful paint, and Speed Index for the profile-layout Product page on Desktop and Mobile, with empty and prepopulated caches. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-paint.svg)
 
@@ -16,7 +31,7 @@ We migrated the profile-layout Product page in our [Gumroad fork](https://github
 
 <a id="the-product-appeared-sooner"></a>
 
-On first visits, First Contentful Paint (FCP) improved by **8.4 seconds**, or **87.8%**, on desktop and mobile. With cached JavaScript, the paired improvement was **52.6% on desktop and 53.7% on mobile**. Each case used 20 paired measurements under these [throttling settings](#throttling-settings).
+In a separate throttled ShakaPerf comparison, median first paint fell from about **9.5 seconds to 1.16 seconds—roughly 8× faster**. The paired First Contentful Paint (FCP) estimate improved by **8.4 seconds**, or **87.8%**, on desktop and mobile. With cached JavaScript, the paired improvement was **52.6% on desktop and 53.7% on mobile**. Each case used 20 paired measurements under these [throttling settings](#throttling-settings).
 
 ## Watch both versions load
 
@@ -34,7 +49,7 @@ On first visits, First Contentful Paint (FCP) improved by **8.4 seconds**, or **
 | Product content and layout | Moved rendering to Server Components, streamed through React on Rails Pro                                                         |
 | Purchase interactions      | Kept interactive purchase controls in client components                                                                           |
 | Business logic             | Kept in Rails                                                                                                                     |
-| Rollout and rollback       | Added a seller feature flag for the profile-layout Product page route; disabling it restores the Inertia route                    |
+| Rollout and rollback       | Added a seller-scoped feature flag for the profile-layout Product page route; disabling it restores the Inertia route             |
 | Scope                      | Product pages using the profile layout; seller profiles, checkout and other pages remain on Inertia                               |
 
 Explore the implementation in [PR #103: Optimize Product page with React Server Components](https://github.com/shakacode/gumroad/pull/103).
@@ -42,6 +57,8 @@ Explore the implementation in [PR #103: Optimize Product page with React Server 
 <a id="early-html-is-only-part-of-the-job"></a>
 
 On a fresh visit, the tested Inertia path sent page data and then relied on browser JavaScript to render the Product content. The new path could show server-rendered content while JavaScript continued loading. This was done through a server/client split in the Product components.
+
+Product pages are also good candidates for server rendering for SEO: the product content can arrive in the initial HTML. Google can render JavaScript, but [recommends server rendering or prerendering](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics) because not all bots can. This experiment did not measure indexing or ranking changes.
 
 Inertia can reuse already-running JavaScript during client-side navigation. Our Product-page repeat-visit test used a **full page navigation** with cached JavaScript files.
 
@@ -69,13 +86,6 @@ We deployed the Product page twice: one deployment has the feature flag on to re
 
 Open each page variant, then open Chrome DevTools, choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a first visit (on by default) and click on "Analyze page load" to test. Run multiple times to limit machine/network noise.
 
-<a id="what-the-pagespeed-reports-show"></a>
-
-Or inspect these October 1 PageSpeed snapshots. They are individual reports, not a controlled before/after comparison; live deployments can change. [Capture and deployment details](pagespeed-evidence.md).
-
-- [React Server Components report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)
-- [Inertia report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile)
-
 ## How we measure the results
 
 [ShakaPerf](https://github.com/shakacode/shakaperf/) runs the same Playwright scenario against both versions, collecting performance, visual, accessibility and network results. We used matching seeded Product content in separate Docker containers, sampling both sides concurrently and analyzing paired differences.
@@ -94,19 +104,15 @@ Already using Inertia? You can introduce React Server Components on selected pag
 
 <a id="llms-change-the-cost-of-trying"></a>
 
-**If performance matters, why not try one page?** LLM coding tools make difficult migrations more approachable, while engineers still own correctness and operations. Measure the existing page and its interactions, try RSC behind a flag, and keep it if the improvement earns the extra complexity.
+**If performance matters, why not try one page?** LLM coding tools make difficult migrations more approachable, while engineers still own correctness and operations. Measure the existing page and its interactions, try RSC behind a feature flag, and keep it if the improvement earns the extra complexity.
 
-Start with the [migration guides and Pro license details](reference.md#try-one-page-in-your-own-app), then compare your changes with [ShakaPerf](https://github.com/shakacode/shakaperf). We at ShakaCode can help choose the page, set up measurements and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally.
+The [companion reference](reference.md#try-one-page-in-your-own-app) links the migration guides and Pro license details. Use ShakaPerf to compare your changes. We at ShakaCode can help choose the page, set up measurements and implement [React on Rails Pro](https://www.shakacode.com/react-on-rails-pro/) incrementally.
 
 <a id="appendix"></a>
 
 ## Supporting reference
 
-- [Companion article: rendering, methodology, costs and adoption](reference.md)
-- [Measured trade-offs](appendix.md#measured-trade-offs)
-- [Earlier comparisons across Gumroad pages](appendix.md#earlier-comparisons-across-gumroad-pages)
-- [What about Inertia SSR?](appendix.md#what-about-inertia-ssr)
-- [Raw measurements](benchmark-data/latest-results.md)
+[Read the companion article](reference.md) for methodology, costs, SEO considerations and source evidence. For the specific comparison, go directly to [What about Inertia SSR?](historical-comparisons.md#what-about-inertia-ssr).
 
 <a id="throttling-settings">ShakaPerf throttling settings</a>
 

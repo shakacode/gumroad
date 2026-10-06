@@ -6,6 +6,12 @@ Companion to [the Product-page experiment](index.md). The main article shows the
 
 Gumroad helps creators sell products. Buyers can arrive directly from another website, Google search or an AI chat, without the application's JavaScript already running. We chose the Product page to explore both initial content and the purchase interaction. We did not measure conversion or sales changes.
 
+## Server rendering and SEO
+
+Google Search executes JavaScript and can index client-rendered content. That does not mean every crawler can, or that a good Lighthouse SEO score proves indexing or rankings. [Google recommends server rendering or prerendering](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics) for users and crawlers, and notes that not all bots run JavaScript.
+
+The saved mobile PageSpeed reports show **92 for SEO on both variants**. Their SEO category checks basic practices after rendering; it is not a measurement of search visibility. We did not audit Gumroad's production indexing, search traffic or rankings. Product pages are good candidates for delivering meaningful content in the initial HTML; this benefit is not exclusive to RSC.
+
 ## Early HTML is only part of the job
 
 Traditional React server rendering can show HTML before the browser finishes loading JavaScript. That helps a buyer see the product, but it does not by itself make React purchase controls responsive. Those controls still need JavaScript and [hydration](https://react.dev/reference/react-dom/client/hydrateRoot).
@@ -63,7 +69,7 @@ Separate October 1 PageSpeed Insights reports scored **53 with Inertia and 80 wi
 
 These snapshots do not establish a controlled before/after result. We cannot verify their at-run source parity. A [later deployment inspection](pagespeed-evidence.md#later-deployment-inspection) found different RSC package versions in the live variants.
 
-PageSpeed is a convenient independent way to inspect these hosted pages. Scores vary with the run and deployment state. The [PageSpeed evidence notes](pagespeed-evidence.md) record the exact timestamps and settings; the repeated local measurements above provide a separate view of the change. The two methods should not be combined into one benchmark.
+Open a saved report and click **Analyze** again to test the URL shown in its input field. Keep the device selection consistent and retain each result. PageSpeed is a convenient independent way to inspect these hosted pages. Scores vary with the run and deployment state. The [PageSpeed evidence notes](pagespeed-evidence.md) record the exact timestamps and settings; the repeated local measurements above provide a separate view of the change. The two methods should not be combined into one benchmark.
 
 ## What changed, and what the checks cover
 
@@ -104,11 +110,11 @@ That is a reason to revisit the effort estimate. Engineers still need to review 
 
 ## Try one page in your own app
 
-**If performance matters, why not try one page?** Choose a product or landing page where a visitor's first interaction matters. Measure the existing route, introduce RSC behind a flag, and compare both the arrival and the actions visitors need to take.
+**If performance matters, why not try one page?** Choose a product or landing page where a visitor's first interaction matters. Measure the existing route, introduce RSC behind a feature flag, and compare both the arrival and the actions visitors need to take.
 
 Keep Inertia where it serves you well. Keep the RSC change if the measured experience earns its implementation and operational complexity. A small, reversible experiment gives you evidence to make that decision in your own application.
 
-Follow the [Inertia migration guide](https://reactonrails.com/docs/migrating/migrating-from-inertia-rails) and the [migrating-to-RSC series](https://reactonrails.com/docs/migrating/migrating-to-rsc). Use [ShakaPerf](https://github.com/shakacode/shakaperf) to compare the result and inspect performance, visual and accessibility changes together.
+Follow the [Inertia migration guide](https://reactonrails.com/docs/migrating/migrating-from-inertia-rails/) and the [migrating-to-RSC series](https://reactonrails.com/docs/migrating/migrating-to-rsc/). Use [ShakaPerf](https://github.com/shakacode/shakaperf) to compare the result and inspect performance, visual and accessibility changes together.
 
 React on Rails core is MIT-licensed. Pro is source-available and free for development, test, CI, staging and review apps, with a 45-day production evaluation per organization. Under the current license, ongoing production use is free for qualifying organizations below **all three** limits—10 paid full-time-equivalent people, $1 million revenue and $1 million lifetime outside capital, counted with affiliates—and for qualifying charities, schools and hospitals. Other production use requires a subscription. The [pricing page](https://reactonrails.com/pricing/) links the authoritative eligibility definitions; use the license terms that apply to your version.
 

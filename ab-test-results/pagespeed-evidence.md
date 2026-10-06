@@ -13,6 +13,12 @@ These are the existing reports linked from the [Product-page article](index.md),
 
 HST is UTC−10: the captures occurred at about 00:50 and 00:52 HST on October 1. Scores are Lighthouse `categories.performance.score` multiplied by 100. FCP and LCP are the displayed values, rounded by Lighthouse. The report pages say there is insufficient Chrome User Experience Report data for these pages; these scores describe lab captures, not field-user outcomes.
 
+## Run a fresh report
+
+Open either saved report and click **Analyze** again. PageSpeed tests the URL displayed in the input field and produces a fresh report; it need not reproduce the saved score. Keep Mobile or Desktop consistent, test both variants several times, and record the report URLs and deployment revisions.
+
+The saved mobile reports both show **92 SEO**. That category checks basic SEO practices, not actual search indexing or rankings. See the [SEO discussion in the companion](reference.md#server-rendering-and-seo).
+
 ## Saved settings
 
 All four captures report Lighthouse **13.5.0** and `throttlingMethod: "simulate"`.
