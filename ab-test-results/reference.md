@@ -18,7 +18,7 @@ Traditional React server rendering can show HTML before the browser finishes loa
 
 [React Server Components](https://react.dev/reference/rsc/server-components) let content components execute on the server without shipping their implementation to the browser. Interactive controls remain Client Components. In our fork, React on Rails Pro streams server-rendered content while JavaScript continues loading for those controls.
 
-This creates an opportunity to change how much work the browser must do and when it does it. It is not an automatic guarantee of faster interaction: component boundaries, JavaScript loading and hydration still matter. The [purchase replay in the main article](index.md#watch-a-purchase-interaction) is evidence for one interaction; paint timings alone cannot answer whether a buyer can use a button sooner.
+This creates an opportunity to change how much work the browser must do and when it does it. It is not an automatic guarantee of faster interaction: component boundaries, JavaScript loading and hydration still matter. The [purchase replay in the main article](index.md#purchase-button-interaction) is evidence for one interaction; paint timings alone cannot answer whether a buyer can use a button sooner.
 
 The September comparison used client-rendered Inertia. It does not establish an advantage over Inertia SSR. The [historical SSR experiment](historical-comparisons.md#what-about-inertia-ssr) used different code and conditions.
 
@@ -70,6 +70,12 @@ Separate October 1 PageSpeed Insights reports scored **53 with Inertia and 80 wi
 These snapshots do not establish a controlled before/after result. We cannot verify their at-run source parity. A [later deployment inspection](pagespeed-evidence.md#later-deployment-inspection) found different RSC package versions in the live variants.
 
 Open a saved report and click **Analyze** again to test the URL shown in its input field. Keep the device selection consistent and retain each result. PageSpeed is a convenient independent way to inspect these hosted pages. Scores vary with the run and deployment state. The [PageSpeed evidence notes](pagespeed-evidence.md) record the exact timestamps and settings; the repeated local measurements above provide a separate view of the change. The two methods should not be combined into one benchmark.
+
+## A separate check on Gumroad's live site
+
+On October 6, Justin checked a different product on Gumroad's production site, using its Discover layout. The [saved mobile report](https://pagespeed.web.dev/analysis/https-oca2026-gumroad-com-l-evo32/rvknlc6sqr?form_factor=mobile) shows a Lighthouse performance score of **56** and SEO score of **92**. Separately, its real-user Core Web Vitals assessment is **Failed**, with LCP of **3.2 s**, INP of **106 ms** and CLS of **0.07** over the latest 28-day period shown in that report.
+
+The lab score and field assessment describe different datasets. This product, layout and production environment also differ from our fork's profile-layout page. It is context for the performance discussion, not a matched third variant or proof that an RSC migration would produce the same gain there.
 
 ## What changed, and what the checks cover
 
