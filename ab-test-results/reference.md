@@ -1,0 +1,133 @@
+# Gumroad RSC experiment: technical reference and trade-offs
+
+Companion to [the Product-page experiment](index.md). The main article shows the results and replays; this reference explains the rendering choices, measurement methods, costs and limits.
+
+## Why this page?
+
+Gumroad helps creators sell products. Buyers can arrive directly from another website, Google search or an AI chat, without the application's JavaScript already running. We chose the Product page to explore both initial content and the purchase interaction. We did not measure conversion or sales changes.
+
+## Server rendering and SEO
+
+Google Search executes JavaScript and can index client-rendered content. That does not mean every crawler can, or that a good Lighthouse SEO score proves indexing or rankings. [Google recommends server rendering or prerendering](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics) for users and crawlers, and notes that not all bots run JavaScript.
+
+The saved mobile PageSpeed reports show **92 for SEO on both variants**. Their SEO category checks basic practices after rendering; it is not a measurement of search visibility. We did not audit Gumroad's production indexing, search traffic or rankings. Product pages are good candidates for delivering meaningful content in the initial HTML; this benefit is not exclusive to RSC.
+
+## Early HTML is only part of the job
+
+Traditional React server rendering can show HTML before the browser finishes loading JavaScript. That helps a buyer see the product, but it does not by itself make React purchase controls responsive. Those controls still need JavaScript and [hydration](https://react.dev/reference/react-dom/client/hydrateRoot).
+
+[React Server Components](https://react.dev/reference/rsc/server-components) let content components execute on the server without shipping their implementation to the browser. Interactive controls remain Client Components. In our fork, React on Rails Pro streams server-rendered content while JavaScript continues loading for those controls.
+
+This creates an opportunity to change how much work the browser must do and when it does it. It is not an automatic guarantee of faster interaction: component boundaries, JavaScript loading and hydration still matter. The [purchase replay in the main article](index.md#purchase-button-interaction) is evidence for one interaction; paint timings alone cannot answer whether a buyer can use a button sooner.
+
+The September comparison used client-rendered Inertia. It does not establish an advantage over Inertia SSR. The [historical SSR experiment](historical-comparisons.md#what-about-inertia-ssr) used different code and conditions.
+
+## What the repeated comparison measured
+
+The September 23 ShakaPerf run compared matching seeded Product content in separate Docker environments. Each row below contains 20 measurements per side. Both first and repeat visits used DevTools throttling: **100 ms RTT, 2,700 Kbps download/upload, 200 ms request latency and 3× CPU slowdown**. The [method notes](appendix.md#measured-trade-offs) describe the setup.
+
+| Navigation         | Viewport | Median FCP: Inertia → RSC | Median LCP: Inertia → RSC | Paired FCP reduction (95% CI) |
+| ------------------ | -------- | ------------------------: | ------------------------: | ----------------------------: |
+| Empty cache        | Desktop  |           9.53 s → 1.16 s |           9.53 s → 2.05 s |            87.8% (87.5–88.2%) |
+| Empty cache        | Mobile   |           9.54 s → 1.16 s |           9.54 s → 2.07 s |            87.8% (87.5–88.1%) |
+| Prepopulated cache | Desktop  |           715 ms → 334 ms |           715 ms → 334 ms |            52.6% (51.1–53.7%) |
+| Prepopulated cache | Mobile   |           708 ms → 326 ms |           708 ms → 326 ms |            53.7% (52.5–55.0%) |
+
+![Median first contentful paint, largest contentful paint and Speed Index for Desktop and Mobile first and repeat visits. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is also labeled.](images/product-page-paint.svg)
+
+The paired estimate puts the cold FCP reduction at about 8.4 seconds for both viewports. It is computed from differences within measurement pairs, rather than by subtracting the displayed medians. The [full table](benchmark-data/latest-results.md) includes absolute estimates and confidence intervals.
+
+Repeat visits here mean **full-page navigations with cached JavaScript**, still under 3× CPU and network throttling. They do not measure Inertia's client-side navigation, which can reuse already-running JavaScript.
+
+## The costs sit alongside the faster paint
+
+Earlier content did not mean less work in every metric. These cold-visit medians and paired estimates come from the same September 23 run:
+
+| Metric                |  Desktop: Inertia → RSC | Desktop paired change |   Mobile: Inertia → RSC | Mobile paired change |
+| --------------------- | ----------------------: | --------------------: | ----------------------: | -------------------: |
+| Total Blocking Time   |          11 ms → 119 ms |               +109 ms |          12 ms → 121 ms |              +110 ms |
+| Browser-observed TTFB |         131 ms → 156 ms |                +28 ms |         129 ms → 162 ms |               +25 ms |
+| Transferred data      | 2,597.9 KB → 2,722.8 KB |             +124.5 KB | 2,597.9 KB → 2,722.0 KB |            +124.4 KB |
+| Network requests      |                143 → 96 |                   −47 |                143 → 96 |                  −47 |
+
+With a prepopulated cache, transferred data fell by a paired estimate of **160 KB on each viewport**, and requests fell from 142 to 95. Costs remained: median Total Blocking Time rose from 0 to 50 ms on desktop and from 0 to 42 ms on mobile; paired TTFB increases were 20 and 23 ms respectively. See the [trade-off tables](appendix.md#measured-trade-offs) for confidence intervals.
+
+RSC also adds a Node renderer service. It needs deployment, resource sizing, health checks and monitoring alongside Rails. Browser timings do not measure that operational cost, server capacity or infrastructure spend.
+
+A little extra complexity can be a reasonable price for a better buying experience. The decision depends on the benefit on the page that matters, and on the team's ability to operate it. Keeping the experiment to one route makes that trade-off easier to evaluate.
+
+## What the PageSpeed reports show
+
+Separate October 1 PageSpeed Insights reports scored **53 with Inertia and 80 with RSC on mobile**. They use Lighthouse's simulated throttling, rather than the September comparison's DevTools settings. These are individual lab captures, not averages, a repeated-run range or real-user measurements. Times below are the reports' displayed First Contentful Paint (FCP) and Largest Contentful Paint (LCP) values. Both reports were captured on October 1, 2026; HST is UTC−10.
+
+| Viewport | Variant                  | Performance score |   FCP |    LCP | Capture time (HST) | Report                                                                                                                                       |
+| -------- | ------------------------ | ----------------: | ----: | -----: | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mobile   | Inertia                  |                53 | 7.1 s | 10.8 s | 00:52:10           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile)  |
+| Mobile   | React on Rails Pro / RSC |                80 | 2.3 s |  3.6 s | 00:50:38           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)     |
+| Desktop  | Inertia                  |                66 | 1.4 s |  2.3 s | 00:52:11           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=desktop) |
+| Desktop  | React on Rails Pro / RSC |                98 | 0.6 s |  0.8 s | 00:50:37           | [Open report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=desktop)    |
+
+These snapshots do not establish a controlled before/after result. We cannot verify their at-run source parity. A [later deployment inspection](pagespeed-evidence.md#later-deployment-inspection) found different RSC package versions in the live variants.
+
+Open a saved report and click **Analyze** again to test the URL shown in its input field. Keep the device selection consistent and retain each result. PageSpeed is a convenient independent way to inspect these hosted pages. Scores vary with the run and deployment state. The [PageSpeed evidence notes](pagespeed-evidence.md) record the exact timestamps and settings; the repeated local measurements above provide a separate view of the change. The two methods should not be combined into one benchmark.
+
+## A separate check on Gumroad's live site
+
+On October 6, Justin checked a different product on Gumroad's production site, using its Discover layout. The [saved mobile report](https://pagespeed.web.dev/analysis/https-oca2026-gumroad-com-l-evo32/rvknlc6sqr?form_factor=mobile) shows a Lighthouse performance score of **56** and SEO score of **92**. Separately, its real-user Core Web Vitals assessment is **Failed**, with LCP of **3.2 s**, INP of **106 ms** and CLS of **0.07** over the latest 28-day period shown in that report.
+
+The lab score and field assessment describe different datasets. This product, layout and production environment also differ from our fork's profile-layout page. It is context for the performance discussion, not a matched third variant or proof that an RSC migration would produce the same gain there.
+
+## What changed, and what the checks cover
+
+React on Rails can complement an Inertia application at the route level. Rails continues to own the business logic; a seller-scoped flag chooses the RSC Product route. Turning that flag off restores the Inertia route. This approach lets a team evaluate a performance-sensitive page while retaining its existing Inertia investment elsewhere.
+
+| Area                   | Change                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Product component tree | Split content rendering from interactive client components.                                                                          |
+| Content and layout     | Render with Server Components, streamed through React on Rails Pro.                                                                  |
+| Business logic         | Keep it in Rails.                                                                                                                    |
+| Rollout and rollback   | Use a seller-scoped feature flag; disabling it restores the Inertia route.                                                           |
+| Scope                  | Change Product pages using the profile layout; Discover-layout Products, seller Profiles, checkout and other routes stay on Inertia. |
+
+The captured cold desktop and mobile screenshots had **zero differing pixels**. Warm visual checks were not captured. Screenshot equality covers those views and states; it does not establish correctness for every purchase path or application state.
+
+The cold accessibility comparison found **0 new and 0 fixed findings**. Twenty existing findings were marked changed on each viewport: 19 critical and 1 serious. Inspection of the raw records shows matching failure descriptions; only captured HTML differs, through image URLs, generated IDs or inline-style serialization. The existing accessibility issues remain. Warm accessibility checks were not captured. [Inspect the classification and raw reports](appendix.md#accessibility-findings).
+
+## Inspect the evidence or try the pages
+
+[ShakaPerf](https://github.com/shakacode/shakaperf/) runs the same Playwright scenario against the control and experiment, collecting Lighthouse measurements, screenshots, accessibility findings and network activity. It sampled both sides concurrently in each pair and analyzed the within-pair differences. That reduces sensitivity to shared host activity, but does not eliminate every source of noise. The setup is in [PR #102](https://github.com/shakacode/gumroad/pull/102).
+
+There are two limits to exact reproduction from the published September 23 summary: its hashes identify input files, not the exact application commit tested on each side, and it contains no time-aligned host memory or swap telemetry. We cannot use it to prove the host was free of memory pressure. The [archived artifacts](https://github.com/shakacode/gumroad/tree/f533e7ca1fb9e3cb21a296b8835d373a1858ca9b/compare-results/rorp-2026-09-23) preserve what was measured.
+
+| Demo                     | Product page                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Inertia                  | [Open the Inertia deployment](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) |
+| React on Rails Pro / RSC | [Open the RSC deployment](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)        |
+
+Live deployments change. The archived reports are evidence for their recorded runs, not proof that today's demos match those builds or each other in every dependency. Deployment sleep, cold starts and current traffic can also affect a new measurement.
+
+To explore either page, open Chrome DevTools and choose **Lighthouse → Navigation → Performance**. Enable **Clear storage** for a first visit, keep the device and settings consistent, and run each variant several times. Record the URLs, timestamps, settings and every result. A local Lighthouse run uses your machine and need not reproduce PageSpeed's score.
+
+## LLMs change the cost of trying
+
+Advances in LLM coding tools make difficult changes such as an RSC migration more approachable. An assistant can help trace a component tree, propose server/client boundaries, update code and write checks. Work that once felt too expensive to explore can become a practical experiment on one page.
+
+That is a reason to revisit the effort estimate. Engineers still need to review the boundaries, verify purchase behavior and own the resulting deployment. We did not measure developer time saved in this experiment, and AI assistance does not remove the renderer's ongoing operational cost.
+
+## Try one page in your own app
+
+**If performance matters, why not try one page?** Choose a product or landing page where a visitor's first interaction matters. Measure the existing route, introduce RSC behind a feature flag, and compare both the arrival and the actions visitors need to take.
+
+Keep Inertia where it serves you well. Keep the RSC change if the measured experience earns its implementation and operational complexity. A small, reversible experiment gives you evidence to make that decision in your own application.
+
+Follow the [Inertia migration guide](https://reactonrails.com/docs/migrating/migrating-from-inertia-rails/) and the [migrating-to-RSC series](https://reactonrails.com/docs/migrating/migrating-to-rsc/). Use [ShakaPerf](https://github.com/shakacode/shakaperf) to compare the result and inspect performance, visual and accessibility changes together.
+
+React on Rails core is MIT-licensed. Pro is source-available and free for development, test, CI, staging and review apps, with a 45-day production evaluation per organization. Under the current license, ongoing production use is free for qualifying organizations below **all three** limits—10 paid full-time-equivalent people, $1 million revenue and $1 million lifetime outside capital, counted with affiliates—and for qualifying charities, schools and hospitals. Other production use requires a subscription. The [pricing page](https://reactonrails.com/pricing/) links the authoritative eligibility definitions; use the license terms that apply to your version.
+
+If you want help choosing the page, setting up measurements or making the migration, [talk with ShakaCode](https://www.shakacode.com/react-on-rails-pro/).
+
+## Further evidence
+
+- [Detailed cost and accessibility tables](appendix.md)
+- [Historical comparisons](historical-comparisons.md)
+- [Raw measurement tables](benchmark-data/latest-results.md)

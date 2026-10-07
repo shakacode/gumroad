@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 750" role="img" aria-labelledby="title description" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<title id="title">Product page loading times: Inertia vs React Server Components with React on Rails</title><desc id="description">Four profile-layout product landing cases only; sticky add-to-cart excluded. Hatched amber bars are Inertia; solid blue bars are RSC. Each bar is labeled. Each bar is the median of 20 measurements, not the paired performance estimate.</desc>
+<defs><pattern id="inertia-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#E69F00"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#6B4900" stroke-width="1.5"/></pattern></defs>
+<metadata>{&quot;runId&quot;:&quot;2026-09-23T18:01:58.195Z&quot;,&quot;source&quot;:&quot;compare-results-sep23&quot;,&quot;cases&quot;:[&quot;product-page-profile-layout-cold-landing-desktop-6fad3788&quot;,&quot;product-page-profile-layout-cold-landing-phone-031456e8&quot;,&quot;product-page-profile-layout-warm-landing-desktop-266c1124&quot;,&quot;product-page-profile-layout-warm-landing-phone-87ad03a9&quot;],&quot;samplesPerSide&quot;:20,&quot;inputHashes&quot;:[{&quot;path&quot;:&quot;full-report.html&quot;,&quot;sha256&quot;:&quot;11565a0eca3cfd7daf90097a9178060c3c027550fbf5b6e64f7793024dc64838&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/perf.json&quot;,&quot;sha256&quot;:&quot;8870803c802542bcd34984e3fdd7618f21dc050cc2e7790e2edaab2a95cbf07b&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;4c60dae361e503c9f14ed1d822ef089b4d83d495265e1ef1628756ed4a7a0fb8&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;111a3673bafb16f87ad7d4045a6bf3835dffc9ab23e881b3ba778d13f7296243&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/visreg.json&quot;,&quot;sha256&quot;:&quot;5bcef201732c1f9de96bb6e5a9e11ffc72d7094861850524c286eb05ba25ddbe&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/accessibility.json&quot;,&quot;sha256&quot;:&quot;cdd4d706bfc2a2c878c7aa084cbd8958ea928bb00ab48f8f247e5b2960ac43a2&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;18765f2cf45c31d46bbf54fdae6af31ef2dfb63a1a94da7fba9d7c13a80604ac&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;017c9b3cd9530bed86283c6cddad7e7261531785328c36f7b2881539c9c5b26f&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/perf.json&quot;,&quot;sha256&quot;:&quot;912b91b6d63f4a762862ebded6c63d4be16589abb81b695b6003b38b8b098bde&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;4164647a965c6f9d9b2a90a37ac0375232a0dd70a532c4585655f50e85992535&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;a98be69d73401c4f102b14d237ea9b0665f60e3488c34a0d35710af8d7d0f5b5&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/visreg.json&quot;,&quot;sha256&quot;:&quot;de49fece289d95b2d8c95a74e72bb4b2ae691f3a0752d13a9138cc9801793ffe&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/accessibility.json&quot;,&quot;sha256&quot;:&quot;f8be16e5d701273c627a34e4d25673448d4f0bf25eccf50ac78556dce0cb3e9b&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;5f435c35c311c9091710fb23fc19625741b8a81920a8b0cbd9d7a78fceb68378&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;c2770725bb633faae437cf7d625de67f68863053592b964993deaa6e87b9b7df&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/perf.json&quot;,&quot;sha256&quot;:&quot;290f7c32fd5d683231548357c297e2d758c95e21774dcde51ea7cd35ae0f044d&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;651223d5a8b1490d41e625cf6c6299e438b7fd3b0155cfaba89ee5334f8d2848&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;64bc80e2994b42f406b2225aeb1c55c36df6714e1f9ea6815ecec65228ecc578&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/visreg.json&quot;,&quot;sha256&quot;:&quot;5272dc83eaab3221db3bc4587607397ecdd3a7fe88fe72454dd18705fe17fb40&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/accessibility.json&quot;,&quot;sha256&quot;:&quot;74da61f71489dc68f4c718b83c1fe1fa045e99244e8474e0a022d065c69d19bd&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;5969d6508b63ab2106ed9895d7e895ceda6c03af3e7c505353d507ab8ecd2379&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;b5d731de0d2427f27ce6e48516ebe85e57444d862b0e97d48af757037a966317&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/perf.json&quot;,&quot;sha256&quot;:&quot;b0025cc1f43a41cd55289efabf9b1f26bd003f3bf565fff593eb43e867a342e1&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;bbe6f836e04bf54149088ed4f81fb6880d00d32c1f5d070f741b54cf8908480a&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;de65a2afe72ccaa7c07366f8316503d7a7f938b1ddbb07212bc09b33b5c0a40e&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/visreg.json&quot;,&quot;sha256&quot;:&quot;37aecb92d2bbe940376b86fa752c4b0be27d059341994a55562c782c6ecc3549&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/accessibility.json&quot;,&quot;sha256&quot;:&quot;d51467dc77387eee05984ff319f085a6203fd2ac2f63c7916d1e8bb596396fb0&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;c8b1e136136f454b09fc90ed8d71afc660234eb4577cc20068a14caca2d61ded&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;0fd61bc8bd8875829676298bb0e40a8855d8aba5f2d9db0ccd7242ec6d2f4a40&quot;}]}</metadata>
+<rect width="1400" height="750" fill="#ffffff"/>
+<text x="48" y="57" font-size="29" fill="#162334" font-weight="700">Product page loading times: Inertia vs React Server Components with React on Rails</text>
+<rect x="48" y="120" width="16" height="16" rx="3" fill="url(#inertia-hatch)"/><text x="73" y="133" font-size="16" fill="#162334" >Inertia</text><rect x="260" y="120" width="16" height="16" rx="3" fill="#0072B2"/><text x="285" y="133" font-size="16" fill="#162334" >React on Rails Pro / RSC</text>
+<text x="245" y="195" font-size="21" fill="#162334" font-weight="700">First contentful paint (FCP)</text>
+<line x1="245" y1="221" x2="245" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="FCP" data-side="control" data-median="9530">
+<rect x="245" y="235" width="211.90" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="464.89886284225906" y="253" font-size="14" fill="#162334" >9.53 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="FCP" data-side="experiment" data-median="1155">
+<rect x="245" y="267" width="25.68" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="278.6813417190776" y="285" font-size="14" fill="#162334" >1.16 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="FCP" data-side="control" data-median="9540">
+<rect x="245" y="344" width="212.12" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="465.1212121212121" y="362" font-size="14" fill="#162334" >9.54 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="FCP" data-side="experiment" data-median="1163">
+<rect x="245" y="376" width="25.86" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="278.85922114224" y="394" font-size="14" fill="#162334" >1.16 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="FCP" data-side="control" data-median="715">
+<rect x="245" y="453" width="15.90" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="268.89797344514324" y="471" font-size="14" fill="#162334" >715 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="FCP" data-side="experiment" data-median="334">
+<rect x="245" y="485" width="7.43" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="260.4264659170319" y="503" font-size="14" fill="#162334" >334 ms · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="FCP" data-side="control" data-median="708">
+<rect x="245" y="562" width="15.74" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="268.74232894987614" y="580" font-size="14" fill="#162334" >708 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="FCP" data-side="experiment" data-median="326">
+<rect x="245" y="594" width="7.25" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="260.24858649386954" y="612" font-size="14" fill="#162334" >326 ms · RSC</text>
+</g>
+<text x="625" y="195" font-size="21" fill="#162334" font-weight="700">Largest contentful paint (LCP)</text>
+<line x1="625" y1="221" x2="625" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="LCP" data-side="control" data-median="9530">
+<rect x="625" y="235" width="211.90" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="844.8988628422591" y="253" font-size="14" fill="#162334" >9.53 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="LCP" data-side="experiment" data-median="2051">
+<rect x="625" y="267" width="45.60" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="678.6038371132711" y="285" font-size="14" fill="#162334" >2.05 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="LCP" data-side="control" data-median="9540">
+<rect x="625" y="344" width="212.12" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="845.1212121212121" y="362" font-size="14" fill="#162334" >9.54 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="LCP" data-side="experiment" data-median="2066">
+<rect x="625" y="376" width="45.94" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="678.9373610317007" y="394" font-size="14" fill="#162334" >2.07 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="LCP" data-side="control" data-median="715">
+<rect x="625" y="453" width="15.90" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="648.8979734451433" y="471" font-size="14" fill="#162334" >715 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="LCP" data-side="experiment" data-median="334">
+<rect x="625" y="485" width="7.43" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="640.4264659170319" y="503" font-size="14" fill="#162334" >334 ms · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="LCP" data-side="control" data-median="708">
+<rect x="625" y="562" width="15.74" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="648.7423289498761" y="580" font-size="14" fill="#162334" >708 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="LCP" data-side="experiment" data-median="326">
+<rect x="625" y="594" width="7.25" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="640.2485864938695" y="612" font-size="14" fill="#162334" >326 ms · RSC</text>
+</g>
+<text x="1005" y="195" font-size="21" fill="#162334" font-weight="700">Speed Index</text>
+<line x1="1005" y1="221" x2="1005" y2="671" stroke="#b9c2cb"/>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="speed-index" data-side="control" data-median="9548">
+<rect x="1005" y="235" width="210.82" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="1223.8185003990147" y="253" font-size="14" fill="#162334" >9.55 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-desktop-6fad3788" data-metric="speed-index" data-side="experiment" data-median="1665">
+<rect x="1005" y="267" width="36.76" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="1049.762966397608" y="285" font-size="14" fill="#162334" >1.67 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="speed-index" data-side="control" data-median="9607">
+<rect x="1005" y="344" width="212.12" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="1225.121212121212" y="362" font-size="14" fill="#162334" >9.61 s · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-cold-landing-phone-031456e8" data-metric="speed-index" data-side="experiment" data-median="2671">
+<rect x="1005" y="376" width="58.98" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="1071.9753052540602" y="394" font-size="14" fill="#162334" >2.67 s · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="speed-index" data-side="control" data-median="717">
+<rect x="1005" y="453" width="15.83" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="1028.8312594036545" y="471" font-size="14" fill="#162334" >717 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-desktop-266c1124" data-metric="speed-index" data-side="experiment" data-median="342">
+<rect x="1005" y="485" width="7.55" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="1020.5513120168059" y="503" font-size="14" fill="#162334" >342 ms · RSC</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="speed-index" data-side="control" data-median="752">
+<rect x="1005" y="562" width="16.60" height="24" rx="4" fill="url(#inertia-hatch)" stroke="#6B4900" stroke-width="1"/>
+<text x="1029.6040544930938" y="580" font-size="14" fill="#162334" >752 ms · Inertia</text>
+</g>
+<g data-case="product-page-profile-layout-warm-landing-phone-87ad03a9" data-metric="speed-index" data-side="experiment" data-median="421">
+<rect x="1005" y="594" width="9.30" height="24" rx="4" fill="#0072B2" stroke="#0072B2" stroke-width="1"/>
+<text x="1022.2956209329687" y="612" font-size="14" fill="#162334" >421 ms · RSC</text>
+</g>
+<text x="48" y="266" font-size="16" fill="#162334" font-weight="600">Desktop - First visit</text>
+<line x1="48" y1="317" x2="1350" y2="317" stroke="#e1e6ea"/>
+<text x="48" y="375" font-size="16" fill="#162334" font-weight="600">Mobile - First visit</text>
+<line x1="48" y1="426" x2="1350" y2="426" stroke="#e1e6ea"/>
+<text x="48" y="484" font-size="16" fill="#162334" font-weight="600">Desktop - Repeat visit</text>
+<line x1="48" y1="535" x2="1350" y2="535" stroke="#e1e6ea"/>
+<text x="48" y="593" font-size="16" fill="#162334" font-weight="600">Mobile - Repeat visit</text>
+<text x="48" y="713" font-size="15"  fill="#4d5a66">ShakaPerf · September 23, 2026 · median of 20 measurements per side · lower is better</text>
+</svg>

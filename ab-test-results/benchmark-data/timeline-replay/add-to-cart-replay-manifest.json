@@ -1,0 +1,64 @@
+{
+  "runId": "2026-09-23T18:01:58.195Z",
+  "caseId": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14",
+  "scenario": "Product page · profile layout · Mobile · sticky add to cart",
+  "diagnosticStage": "perf-low-noise",
+  "note": "One diagnostic load, not a 20-sample median.",
+  "durationMs": 19000,
+  "throttling": {
+    "method": "devtools",
+    "rttMs": 100,
+    "throughputKbps": 2700,
+    "requestLatencyMs": 200,
+    "downloadThroughputKbps": 2700,
+    "uploadThroughputKbps": 2700,
+    "cpuSlowdownMultiplier": 3
+  },
+  "fcpMs": {
+    "control": 9381.217,
+    "experiment": 1158.202
+  },
+  "frameCounts": {
+    "control": 39,
+    "experiment": 74
+  },
+  "originalTimeline": {
+    "sourcePath": "compare-results-sep23/product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/timeline_comparison.html",
+    "sha256": "f0349bc9bad74a786f6e5a4e1b984684f9c09dde1fa84cff2016015c6bef981a"
+  },
+  "visualDiffPixels": 0,
+  "sourceHashes": [
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/perf.json",
+      "sha256": "fbdf6de3b4155f23a598b08445ab0bd3e79146b72729855e09274a13f4c22c43"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/perf-low-noise.json",
+      "sha256": "cc849cbb19c5221acc7ce86de0ed77177b201b9b58e21a897d876379e966ad8f"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/visreg.json",
+      "sha256": "93a500a71d2f307991b6eee09c42f0ff777bfe1d4dd8a759a522b756b5997774"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/timeline_comparison.html",
+      "sha256": "f0349bc9bad74a786f6e5a4e1b984684f9c09dde1fa84cff2016015c6bef981a"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/control_lighthouse_report.html",
+      "sha256": "73151dbad0ff6ebdf5433e232b63bc3b30bca220ad8a6c2e0dd50a5c07e73ae5"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/control_performance_profile.json",
+      "sha256": "cdb4560f7efcb03a7291114e22c14cb6e788082afb68eb222ed7f19b2ef37835"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/experiment_lighthouse_report.html",
+      "sha256": "c11fe7c2f25e1ad351d9ec4f3c2a15a4f52c778fe110f2dad88dc1623788e1ba"
+    },
+    {
+      "path": "product-page-profile-layout-sticky-add-to-cart-phone-4ebd8e14/artifacts/experiment_performance_profile.json",
+      "sha256": "bf8934ccc1321dbc65d24283aa59501029589cd4cb628a2e4b382946b2e66ca4"
+    }
+  ]
+}

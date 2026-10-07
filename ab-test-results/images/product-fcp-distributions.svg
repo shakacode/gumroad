@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 850" role="img" aria-labelledby="title description" font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<title id="title">First paint times: cold and warm ranges</title><desc id="description">Hatched amber markers and dark amber range lines are Inertia; solid blue markers and lines are RSC. Each series is labeled. Cold visits use a 0–18-second scale. Warm visits use a 0–1000-millisecond scale. Each line shows the range of 20 raw first-contentful-paint measurements; each circle shows the median.</desc>
+<defs><pattern id="inertia-hatch" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#E69F00"/><path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#6B4900" stroke-width="1.5"/></pattern></defs>
+<metadata>{&quot;runId&quot;:&quot;2026-09-23T18:01:58.195Z&quot;,&quot;source&quot;:&quot;compare-results-sep23&quot;,&quot;cases&quot;:[&quot;product-page-profile-layout-cold-landing-desktop-6fad3788&quot;,&quot;product-page-profile-layout-cold-landing-phone-031456e8&quot;,&quot;product-page-profile-layout-warm-landing-desktop-266c1124&quot;,&quot;product-page-profile-layout-warm-landing-phone-87ad03a9&quot;],&quot;samplesPerSide&quot;:20,&quot;inputHashes&quot;:[{&quot;path&quot;:&quot;full-report.html&quot;,&quot;sha256&quot;:&quot;11565a0eca3cfd7daf90097a9178060c3c027550fbf5b6e64f7793024dc64838&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/perf.json&quot;,&quot;sha256&quot;:&quot;8870803c802542bcd34984e3fdd7618f21dc050cc2e7790e2edaab2a95cbf07b&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;4c60dae361e503c9f14ed1d822ef089b4d83d495265e1ef1628756ed4a7a0fb8&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;111a3673bafb16f87ad7d4045a6bf3835dffc9ab23e881b3ba778d13f7296243&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/visreg.json&quot;,&quot;sha256&quot;:&quot;5bcef201732c1f9de96bb6e5a9e11ffc72d7094861850524c286eb05ba25ddbe&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/accessibility.json&quot;,&quot;sha256&quot;:&quot;cdd4d706bfc2a2c878c7aa084cbd8958ea928bb00ab48f8f247e5b2960ac43a2&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;18765f2cf45c31d46bbf54fdae6af31ef2dfb63a1a94da7fba9d7c13a80604ac&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-desktop-6fad3788/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;017c9b3cd9530bed86283c6cddad7e7261531785328c36f7b2881539c9c5b26f&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/perf.json&quot;,&quot;sha256&quot;:&quot;912b91b6d63f4a762862ebded6c63d4be16589abb81b695b6003b38b8b098bde&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;4164647a965c6f9d9b2a90a37ac0375232a0dd70a532c4585655f50e85992535&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;a98be69d73401c4f102b14d237ea9b0665f60e3488c34a0d35710af8d7d0f5b5&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/visreg.json&quot;,&quot;sha256&quot;:&quot;de49fece289d95b2d8c95a74e72bb4b2ae691f3a0752d13a9138cc9801793ffe&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/accessibility.json&quot;,&quot;sha256&quot;:&quot;f8be16e5d701273c627a34e4d25673448d4f0bf25eccf50ac78556dce0cb3e9b&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;5f435c35c311c9091710fb23fc19625741b8a81920a8b0cbd9d7a78fceb68378&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-cold-landing-phone-031456e8/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;c2770725bb633faae437cf7d625de67f68863053592b964993deaa6e87b9b7df&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/perf.json&quot;,&quot;sha256&quot;:&quot;290f7c32fd5d683231548357c297e2d758c95e21774dcde51ea7cd35ae0f044d&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;651223d5a8b1490d41e625cf6c6299e438b7fd3b0155cfaba89ee5334f8d2848&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;64bc80e2994b42f406b2225aeb1c55c36df6714e1f9ea6815ecec65228ecc578&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/visreg.json&quot;,&quot;sha256&quot;:&quot;5272dc83eaab3221db3bc4587607397ecdd3a7fe88fe72454dd18705fe17fb40&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/accessibility.json&quot;,&quot;sha256&quot;:&quot;74da61f71489dc68f4c718b83c1fe1fa045e99244e8474e0a022d065c69d19bd&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;5969d6508b63ab2106ed9895d7e895ceda6c03af3e7c505353d507ab8ecd2379&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-desktop-266c1124/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;b5d731de0d2427f27ce6e48516ebe85e57444d862b0e97d48af757037a966317&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/perf.json&quot;,&quot;sha256&quot;:&quot;b0025cc1f43a41cd55289efabf9b1f26bd003f3bf565fff593eb43e867a342e1&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/report.json&quot;,&quot;sha256&quot;:&quot;bbe6f836e04bf54149088ed4f81fb6880d00d32c1f5d070f741b54cf8908480a&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/ab-measurements.json&quot;,&quot;sha256&quot;:&quot;de65a2afe72ccaa7c07366f8316503d7a7f938b1ddbb07212bc09b33b5c0a40e&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/visreg.json&quot;,&quot;sha256&quot;:&quot;37aecb92d2bbe940376b86fa752c4b0be27d059341994a55562c782c6ecc3549&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/accessibility.json&quot;,&quot;sha256&quot;:&quot;d51467dc77387eee05984ff319f085a6203fd2ac2f63c7916d1e8bb596396fb0&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/control_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;c8b1e136136f454b09fc90ed8d71afc660234eb4577cc20068a14caca2d61ded&quot;},{&quot;path&quot;:&quot;product-page-profile-layout-warm-landing-phone-87ad03a9/artifacts/experiment_lighthouse_report.html&quot;,&quot;sha256&quot;:&quot;0fd61bc8bd8875829676298bb0e40a8855d8aba5f2d9db0ccd7242ec6d2f4a40&quot;}]}</metadata>
+<rect width="1400" height="850" fill="#ffffff"/>
+<text x="48" y="57" font-size="29" fill="#162334" font-weight="700">First paint times: cold and warm ranges</text>
+<text x="48" y="91" font-size="17" fill="#162334" >Profile-layout Product landings · 20 measurements per side</text>
+<rect x="48" y="120" width="16" height="16" rx="3" fill="url(#inertia-hatch)"/><text x="73" y="133" font-size="16" fill="#162334" >Inertia control</text><rect x="260" y="120" width="16" height="16" rx="3" fill="#0072B2"/><text x="285" y="133" font-size="16" fill="#162334" >React on Rails Pro / RSC</text>
+<text x="48" y="190" font-size="21" fill="#162334" font-weight="700">Cold visits · seconds</text>
+<line x1="340" y1="218" x2="340" y2="445" stroke="#e1e6ea"/>
+<text x="340" y="206" font-size="13" fill="#162334" text-anchor="middle">0s</text>
+<line x1="542.2222222222222" y1="218" x2="542.2222222222222" y2="445" stroke="#e1e6ea"/>
+<text x="542.2222222222222" y="206" font-size="13" fill="#162334" text-anchor="middle">4s</text>
+<line x1="744.4444444444445" y1="218" x2="744.4444444444445" y2="445" stroke="#e1e6ea"/>
+<text x="744.4444444444445" y="206" font-size="13" fill="#162334" text-anchor="middle">8s</text>
+<line x1="946.6666666666666" y1="218" x2="946.6666666666666" y2="445" stroke="#e1e6ea"/>
+<text x="946.6666666666666" y="206" font-size="13" fill="#162334" text-anchor="middle">12s</text>
+<line x1="1148.888888888889" y1="218" x2="1148.888888888889" y2="445" stroke="#e1e6ea"/>
+<text x="1148.888888888889" y="206" font-size="13" fill="#162334" text-anchor="middle">16s</text>
+<line x1="1250" y1="218" x2="1250" y2="445" stroke="#e1e6ea"/>
+<text x="1250" y="206" font-size="13" fill="#162334" text-anchor="middle">18s</text>
+<text x="48" y="271" font-size="18" fill="#162334" font-weight="600">Desktop</text>
+<line x1="816.0314144444444" y1="250" x2="826.6903455555556" y2="250" stroke="#6B4900" stroke-width="6" stroke-linecap="butt"/>
+<circle cx="821.7944444444445" cy="250" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
+<text x="170" y="255" font-size="14" fill="#162334" >Inertia</text>
+<text x="1266" y="255" font-size="14" fill="#162334" >9.53 s</text>
+<line x1="396.84001555555557" y1="284" x2="403.1033938888889" y2="284" stroke="#0072B2" stroke-width="6" stroke-linecap="round"/>
+<circle cx="398.39166666666665" cy="284" r="9" fill="#0072B2" stroke="white" stroke-width="2"/>
+<text x="170" y="289" font-size="14" fill="#162334" >RSC</text>
+<text x="1266" y="289" font-size="14" fill="#162334" >1.16 s</text>
+<text x="48" y="376" font-size="18" fill="#162334" font-weight="600">Mobile</text>
+<line x1="815.8864211111111" y1="355" x2="829.0728266666667" y2="355" stroke="#6B4900" stroke-width="6" stroke-linecap="butt"/>
+<circle cx="822.3" cy="355" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
+<text x="170" y="360" font-size="14" fill="#162334" >Inertia</text>
+<text x="1266" y="360" font-size="14" fill="#162334" >9.54 s</text>
+<line x1="374.30427" y1="389" x2="402.9010705555555" y2="389" stroke="#0072B2" stroke-width="6" stroke-linecap="round"/>
+<circle cx="398.7961111111111" cy="389" r="9" fill="#0072B2" stroke="white" stroke-width="2"/>
+<text x="170" y="394" font-size="14" fill="#162334" >RSC</text>
+<text x="1266" y="394" font-size="14" fill="#162334" >1.16 s</text>
+<text x="48" y="525" font-size="21" fill="#162334" font-weight="700">Warm visits · milliseconds</text>
+<line x1="340" y1="552" x2="340" y2="778" stroke="#e1e6ea"/>
+<text x="340" y="540" font-size="13" fill="#162334" text-anchor="middle">0ms</text>
+<line x1="567.5" y1="552" x2="567.5" y2="778" stroke="#e1e6ea"/>
+<text x="567.5" y="540" font-size="13" fill="#162334" text-anchor="middle">250ms</text>
+<line x1="795" y1="552" x2="795" y2="778" stroke="#e1e6ea"/>
+<text x="795" y="540" font-size="13" fill="#162334" text-anchor="middle">500ms</text>
+<line x1="1022.5" y1="552" x2="1022.5" y2="778" stroke="#e1e6ea"/>
+<text x="1022.5" y="540" font-size="13" fill="#162334" text-anchor="middle">750ms</text>
+<line x1="1250" y1="552" x2="1250" y2="778" stroke="#e1e6ea"/>
+<text x="1250" y="540" font-size="13" fill="#162334" text-anchor="middle">1000ms</text>
+<text x="48" y="606" font-size="18" fill="#162334" font-weight="600">Desktop</text>
+<line x1="970.2796500000001" y1="585" x2="1009.1757799999999" y2="585" stroke="#6B4900" stroke-width="6" stroke-linecap="butt"/>
+<circle cx="990.65" cy="585" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
+<text x="170" y="590" font-size="14" fill="#162334" >Inertia</text>
+<text x="1266" y="590" font-size="14" fill="#162334" >715 ms</text>
+<line x1="624.71352" y1="619" x2="721.48565" y2="619" stroke="#0072B2" stroke-width="6" stroke-linecap="round"/>
+<circle cx="643.94" cy="619" r="9" fill="#0072B2" stroke="white" stroke-width="2"/>
+<text x="170" y="624" font-size="14" fill="#162334" >RSC</text>
+<text x="1266" y="624" font-size="14" fill="#162334" >334 ms</text>
+<text x="48" y="711" font-size="18" fill="#162334" font-weight="600">Mobile</text>
+<line x1="955.2682900000001" y1="690" x2="1010.65999" y2="690" stroke="#6B4900" stroke-width="6" stroke-linecap="butt"/>
+<circle cx="984.28" cy="690" r="9" fill="url(#inertia-hatch)" stroke="white" stroke-width="2"/>
+<text x="170" y="695" font-size="14" fill="#162334" >Inertia</text>
+<text x="1266" y="695" font-size="14" fill="#162334" >708 ms</text>
+<line x1="590.13989" y1="724" x2="681.34191" y2="724" stroke="#0072B2" stroke-width="6" stroke-linecap="round"/>
+<circle cx="636.6600000000001" cy="724" r="9" fill="#0072B2" stroke="white" stroke-width="2"/>
+<text x="170" y="729" font-size="14" fill="#162334" >RSC</text>
+<text x="1266" y="729" font-size="14" fill="#162334" >326 ms</text>
+<text x="48" y="817" font-size="15"  fill="#4d5a66">Line = minimum to maximum; circle = median. Different cold and warm scales; neither shows paired intervals.</text>
+</svg>
