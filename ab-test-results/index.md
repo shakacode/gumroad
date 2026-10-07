@@ -2,6 +2,8 @@
 
 By Justin Gordon (CEO of ShakaCode, React on Rails creator) and Ramez Weissa · October 2026
 
+![Mobile PageSpeed scores for the Gumroad product-page experiment: 53 with Inertia and 80 with React Server Components.](images/gumroad-pagespeed-hero.png)
+
 Gumroad's job is to help creators sell products. Shoppers follow links directly to product pages, where they need the details to load quickly and the "Add to cart" button to respond when they click it. Search crawlers need access to that product content too. Speed matters for the buying experience, and [Google uses Core Web Vitals in its ranking systems](https://developers.google.com/search/docs/appearance/core-web-vitals).
 
 Gumroad previously used my library, React on Rails, before [moving to Inertia in 2026](https://x.com/gumroad/status/2034374288007188817).
