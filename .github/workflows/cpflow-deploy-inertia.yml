@@ -21,7 +21,7 @@ env:
   STAGING_APP_BRANCH: ramez/cpln/cpflow
 
 concurrency:
-  group: cpflow-deploy-inertia
+  group: cpflow-deploy-inertia-${{ github.ref == 'refs/heads/ramez/cpln/cpflow' && 'deployment' || github.run_id }}
   # A cancelled deploy-image can leave some workloads on the new image and others on the old.
   cancel-in-progress: false
 
@@ -58,6 +58,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          filter: blob:none
           persist-credentials: false
 
       - name: Resolve deployment source
@@ -73,10 +74,23 @@ jobs:
             echo "source_sha must be a full lowercase commit SHA" >&2
             exit 1
           fi
-          resolved_sha="$(git rev-parse --verify "${source_sha}^{commit}")"
-          [[ "$resolved_sha" == "$source_sha" ]]
+          if ! resolved_sha="$(git rev-parse --verify "${source_sha}^{commit}" 2>/dev/null)"; then
+            echo "source_sha is not a known commit in the fetched repository history" >&2
+            exit 1
+          fi
+          if [[ "$resolved_sha" != "$source_sha" ]]; then
+            echo "source_sha must identify the commit itself, not a tag object" >&2
+            exit 1
+          fi
           # Earlier application commits lack the paired demos' Control Plane runtime support.
-          git merge-base --is-ancestor 5df1b6827002108389e337bbe308896d49da30a1 "$resolved_sha"
+          if ! git merge-base --is-ancestor 5df1b6827002108389e337bbe308896d49da30a1 "$resolved_sha"; then
+            echo "source_sha must include the paired-demo deployment foundation" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$resolved_sha" "$GITHUB_SHA"; then
+            echo "source_sha must already belong to this deployment branch's history" >&2
+            exit 1
+          fi
           echo "source_sha=$resolved_sha" >> "$GITHUB_OUTPUT"
           {
             echo "### Deployment provenance"

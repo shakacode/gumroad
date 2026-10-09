@@ -1,8 +1,8 @@
 # Control Plane benchmark deployments
 
-`gumroad-rorp` is the isolated RORP benchmark app in `shakacode-open-source-examples-staging` (`aws-us-east-2`). Its GVC runs Rails, Sidekiq, a private authenticated renderer, MySQL, DynamoDB, Redis, Elasticsearch, and Memcached. The app uses an operator-owned R2 bucket under the `benchmarks/gumroad-rorp/` key prefix; the bucket and its public custom domain must exist before deployment.
+`gumroad-inertia` and `gumroad-rorp` are isolated benchmark apps in `shakacode-open-source-examples-staging` (`aws-us-east-2`). Each GVC runs Rails, Sidekiq, a private authenticated renderer, MySQL, DynamoDB, Redis, Elasticsearch, and Memcached. Each app uses an operator-owned R2 bucket with its own key prefix; the buckets and public custom domains must exist before deployment.
 
-The RORP path in this branch serves **full profile-layout Product documents for sellers with `product_page_react_on_rails` enabled**. Discover, seller profiles, and Discover-layout Product pages remain on Inertia. The fixture seeds do not enable the flag, so set and verify it for the seller being compared before claiming the RSC path is live.
+The RORP path in this branch serves **full profile-layout Product documents for sellers with `product_page_react_on_rails` enabled**. Discover, seller profiles, and Discover-layout Product pages remain on Inertia. The release phase sets and verifies the flag after fixture seeding: disabled on Inertia and enabled on RORP.
 
 ## Deploy matched sources with GitHub Actions
 
@@ -18,9 +18,9 @@ for surface in inertia rorp; do
 done
 ```
 
-The commit must exist in the repository's fetched history and descend from `5df1b6827002108389e337bbe308896d49da30a1`, the paired-demo deployment foundation. PR #103's application head alone lacks the required Control Plane runtime and storage configuration. Omit the input to build the workflow commit; pushes to the deployment branch retain that behavior.
+The commit must already belong to the selected deployment branch's history and descend from `5df1b6827002108389e337bbe308896d49da30a1`, the paired-demo deployment foundation. PR #103's application head alone lacks the required Control Plane runtime and storage configuration. Omit the input to build the workflow commit; pushes to the deployment branch retain that behavior.
 
-Each run records the workflow and application SHAs in its validation-job summary. Build and deploy jobs check out the same resolved application SHA, which is also passed to the image build as `GIT_COMMIT`. Deployments serialize per app across refs; let both finish successfully before collecting measurements. Control Plane Flow deploys the latest image for that app, so do not run separate manual builds or deployments concurrently.
+Each run records the workflow and application SHAs in its validation-job summary. Build and deploy jobs check out the same resolved application SHA, which is also passed to the image build as `GIT_COMMIT`. Deployments serialize per app; dispatches from other refs are skipped without sharing the deployment queue. GitHub Actions may replace a pending run with a newer pending run, so verify both intended runs finish successfully before collecting measurements. Control Plane Flow deploys the latest image for that app, so do not run separate manual builds or deployments concurrently. Do not push the deployment branch, dispatch another deployment, or run manual builds during measurement.
 
 After deployment, record the image digests for Rails, Sidekiq, and renderer, and verify runtime `GIT_COMMIT` and package versions on both demos. The release verifies the Product `bgfjk` rendering flag: disabled on Inertia and enabled on RORP. Also confirm its seller is `luisfurushio` and request both seller URLs with `?layout=profile&recommended_by=search`. Asset hashes may differ because builds embed their respective hostnames.
 
