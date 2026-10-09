@@ -24,6 +24,8 @@ Each run records the workflow and application SHAs in its validation-job summary
 
 After deployment, record the image digests for Rails, Sidekiq, and renderer, and verify runtime `GIT_COMMIT` and package versions on both demos. The release verifies the Product `bgfjk` rendering flag: disabled on Inertia and enabled on RORP. Also confirm its seller is `luisfurushio` and request both seller URLs with `?layout=profile&recommended_by=search`. Asset hashes may differ because builds embed their respective hostnames.
 
+Both apps use fixed resources during comparisons: Rails gets 1 CPU and 2 GiB, and Sidekiq and renderer each get 0.5 CPU and 1 GiB, with one replica per workload. CapacityAI is disabled so idle history cannot change one app's allocation. For existing apps, apply the updated Rails and Sidekiq templates before the paired deployment. After both deployments finish, verify workload readiness, deployment resource allocations, and current-version `cpu_reserved` metrics before warming and measuring; fresh replicas alone do not prove equal resources.
+
 ## Bootstrap the app
 
 Use cpflow 5.2 from the repository root. Authenticate `cpln` with its saved profile or `CPLN_TOKEN`. Supply credentials scoped to the existing R2 bucket:
