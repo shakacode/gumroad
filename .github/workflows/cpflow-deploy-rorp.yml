@@ -21,7 +21,7 @@ env:
   STAGING_APP_BRANCH: ramez/cpln/cpflow
 
 concurrency:
-  group: cpflow-deploy-rorp-${{ github.ref == 'refs/heads/ramez/cpln/cpflow' && 'deployment' || github.run_id }}
+  group: cpflow-deploy-rorp-${{ github.ref == 'refs/heads/ramez/cpln/cpflow' && 'ramez/cpln/cpflow' || github.run_id }}
   # A cancelled deploy-image can leave some workloads on the new image and others on the old.
   cancel-in-progress: false
 
