@@ -56,10 +56,10 @@ Both demo sites were rebuilt and deployed from [`5df1b6827002108389e337bbe308896
 
 Both deployments used the existing Control Plane Flow workflows on `ramez/cpln/cpflow`, with their guarded release phase. Times below are October 8 HST (UTC−10).
 
-| Variant | Build started | Build completed | Deploy started | Deploy completed | Workflow |
-| --- | --- | --- | --- | --- | --- |
-| Inertia | 13:58:00 | 14:21:28 | 14:21:30 | 14:25:27 | [Successful run](https://github.com/shakacode/gumroad/actions/runs/37862289473) |
-| RSC | 13:57:53 | 14:15:43 | 14:15:45 | 14:19:24 | [Successful attempt 2](https://github.com/shakacode/gumroad/actions/runs/36861319438/attempts/2) |
+| Variant | Build started | Build completed | Deploy started | Deploy completed | Workflow                                                                                         |
+| ------- | ------------- | --------------- | -------------- | ---------------- | ------------------------------------------------------------------------------------------------ |
+| Inertia | 13:58:00      | 14:21:28        | 14:21:30       | 14:25:27         | [Successful run](https://github.com/shakacode/gumroad/actions/runs/37862289473)                  |
+| RSC     | 13:57:53      | 14:15:43        | 14:15:45       | 14:19:24         | [Successful attempt 2](https://github.com/shakacode/gumroad/actions/runs/36861319438/attempts/2) |
 
 The RSC run reuses the original immutable source revision. Its first attempt, on October 1, failed during image publication with a registry authorization error; only the successful October 8 attempt is used here.
 
@@ -71,17 +71,17 @@ At approximately 14:26 HST, read-only commands inside each live Rails container 
 - Both deployed `package.json` files declared `react-on-rails-rsc` `19.3.0`.
 - Both package manifests and lockfiles matched each other and the files at the source commit, using SHA-256:
 
-| File | SHA-256, both deployments and source commit |
-| --- | --- |
-| `package.json` | `862b67c72d7710a11338214cd144f3b25bcfb47a7e5c296ad84c484de264d723` |
+| File                | SHA-256, both deployments and source commit                        |
+| ------------------- | ------------------------------------------------------------------ |
+| `package.json`      | `862b67c72d7710a11338214cd144f3b25bcfb47a7e5c296ad84c484de264d723` |
 | `package-lock.json` | `2ca9052d7559dfa6c04502da4effa2c1d8cfcdbb3f3e68cf2917be08586b3a2b` |
 
 Rails, Sidekiq, and renderer all referenced the same image within each app. Before measurement, all six workloads reported `ready: true` and `readyLatest: true`. These are separate builds with different image digests. Each build embeds its own hostname through `BENCHMARK_APP`, so matching source and lockfiles does not imply identical artifacts or asset hashes.
 
-| Variant | Image tag | Image SHA-256 digest |
-| --- | --- | --- |
+| Variant | Image tag                                                     | Image SHA-256 digest                                               |
+| ------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Inertia | `gumroad-inertia:21_5df1b6827002108389e337bbe308896d49da30a1` | `2124b06dbd22f039b636077abe956b0091cd90a292eaac0a158df781341d8404` |
-| RSC | `gumroad-rorp:33_5df1b6827002108389e337bbe308896d49da30a1` | `1686a9367dec1a79c2f19dd5f0b839bd42d8ae1c29ff4c9840e78a0ef509ae97` |
+| RSC     | `gumroad-rorp:33_5df1b6827002108389e337bbe308896d49da30a1`    | `1686a9367dec1a79c2f19dd5f0b839bd42d8ae1c29ff4c9840e78a0ef509ae97` |
 
 Both exact URLs returned HTTP 200 without redirecting. The Inertia HTML contained `id="app"` and no `product-rsc-root`; RSC contained `id="product-rsc-root"` and no Inertia root. Both browser pages displayed the product title, price, and purchase controls.
 
@@ -102,32 +102,141 @@ Unlike the original October 1 reports, which requested only `?layout=profile`, t
 
 Performance scores are the report's `categories.performance.score` multiplied by 100; FCP and LCP below are its exact displayed values, not independently rounded raw timings. Timestamps are copied from each report's embedded Lighthouse JSON.
 
-| Variant | Form factor | Run | Performance | FCP displayed | LCP displayed | `fetchTime` (UTC) | Saved report |
-| --- | --- | ---: | ---: | ---: | ---: | --- | --- |
-| Inertia | Mobile | 1 | 55 | 7.1 s | 10.8 s | `2026-10-09T00:27:36.782Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/vlgb91j3om?form_factor=mobile) |
-| Inertia | Mobile | 2 | 48 | 7.2 s | 11.0 s | `2026-10-09T00:29:17.773Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/qhqhjfiopt?form_factor=mobile) |
-| Inertia | Mobile | 3 | 55 | 7.1 s | 10.9 s | `2026-10-09T00:31:35.940Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/d3c8fxobbt?form_factor=mobile) |
-| RSC | Mobile | 1 | 73 | 2.3 s | 4.3 s | `2026-10-09T00:28:19.498Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/j8t9j1ft3l?form_factor=mobile) |
-| RSC | Mobile | 2 | 67 | 2.9 s | 5.7 s | `2026-10-09T00:30:26.717Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/y1orp88s0w?form_factor=mobile) |
-| RSC | Mobile | 3 | 62 | 2.9 s | 6.0 s | `2026-10-09T00:32:30.638Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/qoybdr7p1r?form_factor=mobile) |
-| Inertia | Desktop | 1 | 53 | 1.4 s | 2.5 s | `2026-10-09T00:27:38.204Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/vlgb91j3om?form_factor=desktop) |
-| Inertia | Desktop | 2 | 58 | 1.4 s | 2.4 s | `2026-10-09T00:29:17.958Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/qhqhjfiopt?form_factor=desktop) |
-| Inertia | Desktop | 3 | 41 | 1.4 s | 2.8 s | `2026-10-09T00:31:58.878Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/d3c8fxobbt?form_factor=desktop) |
-| RSC | Desktop | 1 | 97 | 0.6 s | 1.0 s | `2026-10-09T00:28:19.159Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/j8t9j1ft3l?form_factor=desktop) |
-| RSC | Desktop | 2 | 98 | 0.6 s | 1.0 s | `2026-10-09T00:30:26.702Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/y1orp88s0w?form_factor=desktop) |
-| RSC | Desktop | 3 | 67 | 0.6 s | 1.1 s | `2026-10-09T00:32:31.348Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/qoybdr7p1r?form_factor=desktop) |
+| Variant | Form factor | Run | Performance | FCP displayed | LCP displayed | `fetchTime` (UTC)          | Saved report                                                                                                                            |
+| ------- | ----------- | --: | ----------: | ------------: | ------------: | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Inertia | Mobile      |   1 |          55 |         7.1 s |        10.8 s | `2026-10-09T00:27:36.782Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/vlgb91j3om?form_factor=mobile)  |
+| Inertia | Mobile      |   2 |          48 |         7.2 s |        11.0 s | `2026-10-09T00:29:17.773Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/qhqhjfiopt?form_factor=mobile)  |
+| Inertia | Mobile      |   3 |          55 |         7.1 s |        10.9 s | `2026-10-09T00:31:35.940Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/d3c8fxobbt?form_factor=mobile)  |
+| RSC     | Mobile      |   1 |          73 |         2.3 s |         4.3 s | `2026-10-09T00:28:19.498Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/j8t9j1ft3l?form_factor=mobile)     |
+| RSC     | Mobile      |   2 |          67 |         2.9 s |         5.7 s | `2026-10-09T00:30:26.717Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/y1orp88s0w?form_factor=mobile)     |
+| RSC     | Mobile      |   3 |          62 |         2.9 s |         6.0 s | `2026-10-09T00:32:30.638Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/qoybdr7p1r?form_factor=mobile)     |
+| Inertia | Desktop     |   1 |          53 |         1.4 s |         2.5 s | `2026-10-09T00:27:38.204Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/vlgb91j3om?form_factor=desktop) |
+| Inertia | Desktop     |   2 |          58 |         1.4 s |         2.4 s | `2026-10-09T00:29:17.958Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/qhqhjfiopt?form_factor=desktop) |
+| Inertia | Desktop     |   3 |          41 |         1.4 s |         2.8 s | `2026-10-09T00:31:58.878Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/d3c8fxobbt?form_factor=desktop) |
+| RSC     | Desktop     |   1 |          97 |         0.6 s |         1.0 s | `2026-10-09T00:28:19.159Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/j8t9j1ft3l?form_factor=desktop)    |
+| RSC     | Desktop     |   2 |          98 |         0.6 s |         1.0 s | `2026-10-09T00:30:26.702Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/y1orp88s0w?form_factor=desktop)    |
+| RSC     | Desktop     |   3 |          67 |         0.6 s |         1.1 s | `2026-10-09T00:32:31.348Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/qoybdr7p1r?form_factor=desktop)    |
 
 ### Settings and outcome
 
 All twelve captures used Lighthouse **13.5.0**, `throttlingMethod: "simulate"`, and `disableStorageReset: true`. The complete `configSettings` objects matched across all six captures within each form factor. Throttling values matched the October 1 saved settings table above: mobile 150 ms RTT, 1,638.4 Kbps throughput, and 1.2× CPU slowdown; desktop 40 ms RTT, 10,240 Kbps throughput, and 1× CPU slowdown. The UI reported HeadlessChromium 153.0.8010.36. These remain lab results, not field-user measurements.
 
 | Form factor | Inertia median performance | RSC median performance | RSC minus Inertia |
-| --- | ---: | ---: | ---: |
-| Mobile | 55 | 67 | 12 |
-| Desktop | 53 | 97 | 44 |
+| ----------- | -------------------------: | ---------------------: | ----------------: |
+| Mobile      |                         55 |                     67 |                12 |
+| Desktop     |                         53 |                     97 |                44 |
 
 The recapture had a pre-agreed publication rule: leave the articles unchanged and report the evidence if the median mobile gap fell below 15 points or the RSC median fell below 70. Both conditions occurred (55/67, a 12-point gap), so the website articles were left unchanged pending editorial reassessment. No additional runs were selected to improve these medians.
 
 Each median covers only three lab captures. Desktop scores varied from 41 to 58 for Inertia and 67 to 98 for RSC; all those results remain in the table.
 
-This recapture verifies source parity for the new measurements and resolves the live deployment mismatch. It does not establish parity during the October 1 captures or isolate source versions as the cause of the changed scores. The capture date and added `recommended_by=search` query parameter also differ from the original runs. The historical evidence and caveat above remain applicable to those older captures.
+This recapture verifies source parity for the new measurements and resolves the live deployment mismatch. It does not establish parity during the October 1 captures or isolate source versions as the cause of the changed scores. The capture date and added `recommended_by=search` query parameter also differ from the original runs. The historical reconstruction below addresses source parity for those older captures separately.
+
+## Historical source verification for the October 1 reports
+
+A subsequent reconstruction of the deployment history establishes that the original October 1 captures used builds from the same application commit, [`624ee397bc0fceabb129c0765221af06278a2377`](https://github.com/shakacode/gumroad/commit/624ee397bc0fceabb129c0765221af06278a2377). The different revisions found in the later October 1 inspection were deployed after those reports ran.
+
+### Deployment history
+
+Both September 28 deployment workflows built commit `624ee397bc0fceabb129c0765221af06278a2377`:
+
+| Variant | Public deployment run                                                                    | Rails image update (UTC)   | Image digest                                                              |
+| ------- | ---------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------- |
+| Inertia | [September 28 deployment](https://github.com/shakacode/gumroad/actions/runs/36421897716) | `2026-09-28T13:02:12.011Z` | `sha256:fcca4708a519fc335c0c7f52647a3ff561ee79c5df12df16baae92891dff54c0` |
+| RSC     | [September 28 deployment](https://github.com/shakacode/gumroad/actions/runs/36421897718) | `2026-09-28T12:57:08.461Z` | `sha256:579304fb4fff6fd79df1c4cd6f2e54e0db249225e32d503c39de16b7361fa073` |
+
+The image-update timestamps above come from retained Control Plane audit records and corroborate the public workflow logs. Consecutive audit versions show that the next Rails image changes occurred on October 1 at `12:37:10.594Z` for Inertia and `12:38:11.385Z` for RSC, both to `a01f734c288f5b59c05f02b38f82f8bc6477ff36`. Inertia subsequently changed to `5df1b6827002108389e337bbe308896d49da30a1` at `13:03:29.141Z`. All three changes occurred after the original reports' `10:50` and `10:52` UTC captures.
+
+The renderer audit records independently show the September 28 source revision remained configured through the captures. Its first subsequent image changes occurred on October 1 at `12:34:11.858Z` for Inertia and `12:35:13.114Z` for RSC.
+
+The [package manifest at the September 28 commit](https://github.com/shakacode/gumroad/blob/624ee397bc0fceabb129c0765221af06278a2377/package.json) specifies `react-on-rails-rsc` **19.3.0-rc.4**, `react-on-rails`, `react-on-rails-pro`, and `react-on-rails-pro-node-renderer` **17.1.0-rc.5**, and React **19.2.8**. Both builds therefore used the same source manifest. Host-specific builds produced different image digests; matching source does not mean byte-identical images or identical runtime configuration.
+
+### Corroboration from the saved reports
+
+The original mobile reports' network-request records contain Vite script filenames that match their respective September 28 build logs: **117 of 117 unique Inertia Vite script URLs** and **10 of 10 unique RSC Vite script URLs**. In particular:
+
+| Variant | Original mobile report                                                                                                                           | Captured Vite entrypoints also present in the September 28 build log |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Inertia | [October 1 report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) | `base.ts-DUbPH_da.js`, `inertia.js-Dep6yyfG.js`                      |
+| RSC     | [October 1 report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)    | `base.ts-Cb01j-r4.js`, `inertia.js-D9IEFUnU.js`                      |
+
+This connects the saved captures to the historical builds, in addition to the deployment audit sequence. The build logs abbreviate the RSC bundle listing, so the Vite comparison is not a claim that every RSC bundle filename was independently matched.
+
+### What this resolves
+
+The later inspection alone could not establish source parity at capture time. The historical deployment records and captured asset filenames now provide that evidence for the October 1 reports. Their recorded **53 → 80 mobile** and **66 → 98 desktop** scores remain individual captures, not repeated-run medians or proof that source parity controls every runtime difference.
+
+This historical verification does not supersede the new comparison. The subsequent three-run mobile medians were **55 for Inertia and 67 for RSC**, a **12-point gap**. Those results meet the publication stop conditions: RSC mobile below 70 and a mobile gap below 15 points. The article update remains paused pending investigation; the historical scores must not replace or conceal the new measurements.
+
+## Same-host historical-image experiment, October 8 evening
+
+To investigate the lower scores, the RSC host was measured with the current image, temporarily switched to its preserved September 28 image, and restored to the current image. Every report in this experiment requests the original `?layout=profile` URL, without `recommended_by=search`. Inertia was not changed. This is diagnostic evidence, separate from the twelve matched-source comparison captures above.
+
+The historical image was `gumroad-rorp:31_624ee397bc0fceabb129c0765221af06278a2377` with digest `sha256:579304fb4fff6fd79df1c4cd6f2e54e0db249225e32d503c39de16b7361fa073`. The restored image was `gumroad-rorp:33_5df1b6827002108389e337bbe308896d49da30a1` with digest `sha256:1686a9367dec1a79c2f19dd5f0b839bd42d8ae1c29ff4c9840e78a0ef509ae97`. Only image references on Rails, renderer, and Sidekiq were changed; no release hooks, migrations, fixture seeding, or flag changes were run.
+
+The historical image converged and its runtime SHA and seller flag were verified at `2026-10-09T04:43:58.450975Z`; three successful warm requests finished at `04:44:11.800Z`. Restoration converged and the current SHA and flag were verified at `2026-10-09T04:49:25.610396Z`; three successful warm requests finished at approximately `04:49:40Z`. These times are October 8 evening HST. All three workloads were ready on the intended image before measurements. Hashes of their specifications excluding image references remained unchanged.
+
+### Reports and duplicate detection
+
+The current-before mobile sample includes the earlier clean-URL diagnostic at 18:29 HST and two fresh captures at 18:39 and 18:41. One additional submission produced a new report URL but reused the previous mobile `fetchTime` and identical mobile report. It is retained below, explicitly marked, and excluded from mobile medians; its desktop capture is distinct. Each of the three historical and three restored mobile captures has a unique `fetchTime`.
+
+| Phase                            | Form factor | Performance | FCP displayed | LCP displayed | `fetchTime` (UTC)          | Report                                                                                                                               |
+| -------------------------------- | ----------- | ----------: | ------------: | ------------: | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Current before                   | Mobile      |          70 |         2.3 s |         5.6 s | `2026-10-09T04:29:08.599Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/0lcfw65osm?form_factor=mobile)  |
+| Current before                   | Desktop     |          98 |         0.6 s |         1.0 s | `2026-10-09T04:29:08.923Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/0lcfw65osm?form_factor=desktop) |
+| Current before                   | Mobile      |          63 |         2.9 s |         7.6 s | `2026-10-09T04:39:32.503Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/7f17x9pem2?form_factor=mobile)  |
+| Current before                   | Desktop     |          96 |         0.5 s |         0.8 s | `2026-10-09T04:39:32.751Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/7f17x9pem2?form_factor=desktop) |
+| Current before, duplicate mobile | Mobile      |          63 |         2.9 s |         7.6 s | `2026-10-09T04:39:32.503Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/n7g3u5wrmn?form_factor=mobile)  |
+| Current before                   | Desktop     |          91 |         0.7 s |         1.3 s | `2026-10-09T04:40:07.998Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/n7g3u5wrmn?form_factor=desktop) |
+| Current before                   | Mobile      |          57 |         2.9 s |         5.7 s | `2026-10-09T04:41:16.439Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/npovj5le0d?form_factor=mobile)  |
+| Current before                   | Desktop     |          97 |         0.6 s |         1.2 s | `2026-10-09T04:41:16.064Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/npovj5le0d?form_factor=desktop) |
+| Historical                       | Mobile      |          66 |         2.4 s |         6.8 s | `2026-10-09T04:44:26.795Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/syfhmujqna?form_factor=mobile)  |
+| Historical                       | Desktop     |          97 |         0.7 s |         1.0 s | `2026-10-09T04:44:26.811Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/syfhmujqna?form_factor=desktop) |
+| Historical                       | Mobile      |          70 |         2.3 s |         4.5 s | `2026-10-09T04:45:40.461Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/5jddo7lqlz?form_factor=mobile)  |
+| Historical                       | Desktop     |          98 |         0.6 s |         1.1 s | `2026-10-09T04:45:39.964Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/5jddo7lqlz?form_factor=desktop) |
+| Historical                       | Mobile      |          68 |         2.9 s |         4.6 s | `2026-10-09T04:46:57.063Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/au8r78jf13?form_factor=mobile)  |
+| Historical                       | Desktop     |          95 |         0.7 s |         1.1 s | `2026-10-09T04:46:56.664Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/au8r78jf13?form_factor=desktop) |
+| Current restored                 | Mobile      |          66 |         2.9 s |         6.4 s | `2026-10-09T04:50:06.908Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/04hvhkgk74?form_factor=mobile)  |
+| Current restored                 | Desktop     |          64 |         0.6 s |         0.9 s | `2026-10-09T04:50:09.605Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/04hvhkgk74?form_factor=desktop) |
+| Current restored                 | Mobile      |          76 |         1.8 s |         3.5 s | `2026-10-09T04:51:11.973Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/aldkqcgk0z?form_factor=mobile)  |
+| Current restored                 | Desktop     |          97 |         0.7 s |         1.2 s | `2026-10-09T04:51:11.691Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/aldkqcgk0z?form_factor=desktop) |
+| Current restored                 | Mobile      |          71 |         2.4 s |         6.5 s | `2026-10-09T04:52:19.666Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/xf0puv9uk5?form_factor=mobile)  |
+| Current restored                 | Desktop     |          98 |         0.7 s |         1.1 s | `2026-10-09T04:52:20.068Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/xf0puv9uk5?form_factor=desktop) |
+
+All reports used Lighthouse 13.5.0, HeadlessChromium 153.0.8010.36 and the same complete `configSettings` as the original October 1 report within each form factor. Google runner benchmark indices varied; matching settings does not imply identical runner hardware or network conditions.
+
+| Phase            | Independent mobile scores | Median |
+| ---------------- | ------------------------- | -----: |
+| Current before   | 70, 63, 57                |     63 |
+| Historical image | 66, 70, 68                |     68 |
+| Current restored | 66, 76, 71                |     71 |
+
+The verdict for an image-induced regression is **ambiguous**: three samples per phase have overlapping ranges, and the current image performed both below and above the historical image across the two periods. Restoring the original artifact did not reproduce 80 in these runs. This does not invalidate earlier measurements or prove the absence of every regression.
+
+### Runtime and interpretation limits
+
+Control Plane's adaptive allocation changed despite identical workload specifications: Rails had a 0.4-core reservation before the experiment, then a 1-core reservation after each fresh rollout. The renderer reservation remained 0.5 core. Available CPU measurements were low, with no container restarts or reschedules, but these averages do not exclude transient contention; memory and CPU-throttling measurements were unavailable. Thus this is a same-host image experiment, not a claim that every runtime resource was held constant. The historical and restored phases both began with a 1-core Rails reservation.
+
+The slow results involve more than one timing pattern. In the earlier RSC capture with score 73, the unchanged render-blocking stylesheet finished at about 2.965 seconds and first paint followed at 3.135 seconds, after the cover image had downloaded. In other runs CSS completed early but painting was delayed. Conversely, the restored current-image report scoring 71 observed LCP at **454 ms** while estimating throttled LCP at **6,452 ms**; its score uses the simulated timing, not that observed paint. The restored report scoring 76 estimated LCP at **3.5 s**, close to the original **3.6 s**. These differences require examining network and execution dependencies rather than treating the score change as a direct measure of server rendering speed.
+
+Source and published-package comparisons found no executable React on Rails, Pro, Node renderer, or RSC package changes between the relevant RC and final releases. The historical-to-current source includes real `io-event` and `protocol-http2` dependency changes and routing changes for URLs without an explicit layout. The measured explicit-profile path is unchanged. The image experiment has not established those dependency changes as a cause.
+
+The matched-source image was restored before further diagnostic work. These follow-up results do not replace the original twelve captures, and the website publication stop remains in effect.
+
+### Local raw-trace follow-up
+
+Five additional local Lighthouse 13.5.0 runs against the restored current image retained raw traces and DevTools network logs. They used the saved mobile throttling and viewport settings, a fresh headless browser per run, and only the performance category. These ran on macOS with Chrome 156, not Google's Chrome 153/Linux runners, so their scores are not substitutes for PageSpeed reports.
+
+| Local run | Performance | Observed LCP (ms) | Simulated LCP (ms) |
+| --------- | ----------: | ----------------: | -----------------: |
+| 1         |          74 |              2027 |               3949 |
+| 2         |          76 |              1191 |               3789 |
+| 3         |          75 |              1229 |               3934 |
+| 4         |          75 |              1250 |               3934 |
+| 5         |          74 |              1596 |               3944 |
+
+All five traces show HTML parsing pausing before visible server-rendered content at an inline initialization script following the stylesheet. Parsing resumes 2–3 ms after that stylesheet finishes. No hidden Suspense reveal gate or main-thread task longer than 50 ms was found in those traces. The duplicate `6142` script requests complete after first paint in these local captures, so they are not required to reveal the product.
+
+This confirms a stylesheet/parser dependency but does not reproduce every slow Google capture, including cases where CSS and the cover image finish early yet painting is delayed. Lighthouse's [Lantern model](https://github.com/GoogleChrome/lighthouse/blob/main/docs/lantern.md) estimates throttled performance from a dependency graph; simulated and observed times must remain separate. The exact dependency responsible for each divergent Google estimate has not been established from the saved reports, which do not contain the raw Google traces.
+
+No application performance fix was deployed during this investigation. The evidence resolves the original source-parity question and narrows the performance problem, but does not establish a source regression or fully explain the historical-to-current score shift.
