@@ -24,7 +24,18 @@ Each run records the workflow and application SHAs in its validation-job summary
 
 After deployment, record the image digests for Rails, Sidekiq, and renderer, and verify runtime `GIT_COMMIT` and package versions on both demos. The release verifies the Product `bgfjk` rendering flag: disabled on Inertia and enabled on RORP. Also confirm its seller is `luisfurushio` and request both seller URLs with `?layout=profile&recommended_by=search`. Asset hashes may differ because builds embed their respective hostnames.
 
-Both apps use fixed resources during comparisons: Rails gets 1 CPU and 2 GiB, and Sidekiq and renderer each get 0.5 CPU and 1 GiB, with one replica per workload. CapacityAI is disabled so idle history cannot change one app's allocation. For existing apps, apply the updated Rails and Sidekiq templates before the paired deployment. After both deployments finish, verify workload readiness, deployment resource allocations, and current-version `cpu_reserved` metrics before warming and measuring; fresh replicas alone do not prove equal resources.
+Both apps use fixed resources during comparisons: Rails gets 1 CPU and 2 GiB, and Sidekiq and renderer each get 0.5 CPU and 1 GiB, with one replica per workload. CapacityAI is disabled so idle history cannot change one app's allocation. Older application commits retain adaptive templates. After deploying either app, explicitly set fixed allocation on its existing workloads:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  cpln workload update rails --gvc "$app" --org shakacode-open-source-examples-staging \
+    --set spec.defaultOptions.capacityAI=false spec.containers.rails.cpu=1 spec.containers.rails.memory=2Gi
+  cpln workload update sidekiq --gvc "$app" --org shakacode-open-source-examples-staging \
+    --set spec.defaultOptions.capacityAI=false spec.containers.sidekiq.cpu=500m spec.containers.sidekiq.memory=1Gi
+done
+```
+
+The renderer template already disables CapacityAI. After both deployments finish, verify workload readiness, deployment resource allocations, and current-version `cpu_reserved` metrics before warming and measuring; fresh replicas alone do not prove equal resources.
 
 ## Bootstrap the app
 
