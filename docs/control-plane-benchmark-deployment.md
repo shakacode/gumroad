@@ -29,9 +29,9 @@ Both apps use fixed resources during comparisons: Rails gets 1 CPU and 2 GiB, an
 ```sh
 for app in gumroad-inertia gumroad-rorp; do
   cpln workload update rails --gvc "$app" --org shakacode-open-source-examples-staging \
-    --set spec.defaultOptions.capacityAI=false spec.containers.rails.cpu=1 spec.containers.rails.memory=2Gi
+    --set spec.defaultOptions.capacityAI=false
   cpln workload update sidekiq --gvc "$app" --org shakacode-open-source-examples-staging \
-    --set spec.defaultOptions.capacityAI=false spec.containers.sidekiq.cpu=500m spec.containers.sidekiq.memory=1Gi
+    --set spec.defaultOptions.capacityAI=false
 done
 ```
 
