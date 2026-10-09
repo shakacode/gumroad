@@ -382,3 +382,101 @@ The controlled historical-image rollback still did not establish better performa
 A read-only runtime and Control Plane recheck at `2026-10-09T22:07:05Z` (October 9, 12:07 HST) reconfirmed both deployments on `5df1b6827002108389e337bbe308896d49da30a1`. Both GVCs and every active workload deployment are in **AWS US East (Ohio), `aws-us-east-2`**. All eight workload pairs were ready with matching fixed resources and one ready replica each. Source and installed dependency hashes still match. This is the application hosting region; the saved Google reports separately identify their runner as North America.
 
 The product rendering path is selected by `product_page_react_on_rails`, false for the Inertia demo and true for the RSC demo when evaluated for `luisfurushio`. The differing `GUMROAD_RENDERING_SURFACE` release setting maps to that same flag; it is not a separate request-time rendering switch. The release script sets the flag globally within each isolated demo database and verifies it for the product seller. The deployments have their own hostnames, storage namespaces, credential references and host-specific images; no additional unexplained behavior-setting difference was identified. No deployment, flag change or new PageSpeed measurement was made during this recheck.
+
+### Historical hosting and score differences
+
+Historical replica metrics place both applications in AWS US East (Ohio) during the October 1 captures, as today. Google's browser location changed from Europe to North America; the application hosting region did not. The critical CSS URL and HTTP/2 protocol remained unchanged. Current Rails CPU reservations increased from approximately 0.4–0.45 cores to one fixed core; capacity was not reduced.
+
+| RSC mobile report                                                                                                                                          | Performance |   FCP |   LCP | Total Blocking Time |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------: | ----: | ----: | ------------------: |
+| [October 1](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)                     |          80 | 2.3 s | 3.6 s |              200 ms |
+| [October 9, confirmation run 2](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/pdzy604kqs?form_factor=mobile) |          65 | 2.9 s | 6.8 s |               30 ms |
+
+Both linked reports use Lighthouse 13.5.0, Chrome 153.0.8010.36 and identical `configSettings`. Both recorded 95 requests, including the same 14 image URLs and two stylesheet URLs; total recorded transfer was 2,957,995 and 2,960,646 bytes respectively. The comparison does not show a browser-version change or a large new payload.
+
+LCP's weighted contribution decreased by 13.5 points, while improved blocking time added 3 points. These are simulated Lighthouse metrics, not evidence that the application became uniformly slower. The original URL lacked `recommended_by=search`; both retained `layout=profile`. No exact historical cause has been established.
+
+### Local stylesheet delivery experiment, October 9
+
+A predefined local experiment alternated five external-stylesheet baselines with five copies of the same RSC document containing its complete stylesheet inline. Chrome 153.0.8010.36 and Lighthouse 13.5.0 used the same mobile settings across all ten runs. All subresources used the live network. The initial document came from a local gzip server after a fixed 350 ms delay, preserving the original visible URL and origin.
+
+| Median metric                  | External stylesheet | Inline stylesheet |
+| ------------------------------ | ------------------: | ----------------: |
+| Local performance score        |                  60 |                85 |
+| Observed FCP                   |             2529 ms |            414 ms |
+| Observed LCP                   |             2529 ms |            608 ms |
+| Paint-to-presentation interval |           1000.9 ms |            7.5 ms |
+| Simulated LCP                  |             7161 ms |           3445 ms |
+| Compressed HTML body           |         21131 bytes |       47360 bytes |
+
+Baseline scores were 60, 60, 61, 59 and 60; inline scores were 85, 87, 87, 85 and 85. All five baselines exhibited the approximately one-second presentation delay; all five interventions avoided it. Chrome trace events identify `ThrottleUndrawnFrames` during the baseline's surface transition. Earlier stylesheet availability allowed the matching frame to arrive before this throttling began in the local reproduction. The direct-host Google reports do not expose these trace events, so this does not establish the exact mechanism behind the October 1 result.
+
+These are local diagnostic scores, not Google PageSpeed measurements or a production forecast. The enlarged HTML had no additional WAN transfer penalty in this setup. Inlining also removes independent stylesheet caching and may duplicate a later stylesheet download. The first pair's initial and carousel-next screenshots matched byte-for-byte. All ten runs recorded the same existing analytics-request error, so this does not establish error-free page execution. The next step is to deploy the application change and measure both specified demo URLs through Google.
+
+## CSS delivery change and paired Google captures, 2026-10-09 HST
+
+These captures use application commit [`59c6947b9d80c7c52df8772fe69fd0e42c14fdb5`](https://github.com/shakacode/gumroad/commit/59c6947b9d80c7c52df8772fe69fd0e42c14fdb5) from [the CSS delivery PR](https://github.com/shakacode/gumroad/pull/117). Both hosts were freshly deployed from this commit. The existing stylesheet is embedded in the RSC product document; Inertia retains its external stylesheet. Dependency versions are unchanged.
+
+### Deployment verification
+
+Both demos were built from commit `59c6947b9d80c7c52df8772fe69fd0e42c14fdb5` using local Control Plane Flow 6.0.0 and the repository Dockerfile targeting Linux AMD64. The earlier baseline used the hosted Flow deployment workflow. Host-specific `BENCHMARK_APP` arguments produce distinct images; the deployed application source and dependency manifests match.
+
+| App | Build/push started UTC | Build/push finished UTC | Image update started UTC | Image update finished UTC |
+| --- | --- | --- | --- | --- |
+| gumroad-inertia | 2026-10-09T22:56:50.102730+00:00 | 2026-10-09T23:40:03.281798+00:00 | 2026-10-09T23:40:49.312081+00:00 | 2026-10-09T23:41:00.227042+00:00 |
+| gumroad-rorp | 2026-10-09T22:56:50.102840+00:00 | 2026-10-09T23:39:14.508075+00:00 | 2026-10-09T23:40:49.234619+00:00 | 2026-10-09T23:41:00.392469+00:00 |
+
+Image updates completed before rollout convergence. All six application workloads reported latest-image readiness at 2026-10-09T23:42:42.580278+00:00. Runtime, fixed-capacity and HTTP checks completed by 2026-10-09T23:44:17.585308+00:00.
+
+- `gumroad-inertia:23_59c6947b9d80c7c52df8772fe69fd0e42c14fdb5` — `sha256:b22cc8f031265e341be2f03ea5d518922f17910cf74eef8f85b96a51e5f954ce`.
+- `gumroad-rorp:35_59c6947b9d80c7c52df8772fe69fd0e42c14fdb5` — `sha256:e7473c11906bed761439701f8234c26b9052a45292835bb71d75049598be8cb6`.
+
+Both applications remain in AWS US East (Ohio), with one ready replica per workload and Capacity AI disabled. Rails has 1 CPU/2 GiB; renderer and Sidekiq each have 0.5 CPU/1 GiB. All eight workload pairs have matching fixed resources. Hash comparison verified that every non-image workload specification and both GVC specifications remained unchanged. No release hook, database preparation, reseeding, secret preparation or template application ran.
+
+Both runtimes report Ruby 3.4.3 and Node v22.22.2, matching the live baseline. `package.json`, `package-lock.json`, `Gemfile.lock`, installed React/ROR/RSC package manifests and installed ROR gem versions match between hosts. Seller `luisfurushio` retains `product_page_react_on_rails=false` on Inertia and `true` on RSC.
+
+| HTTP acceptance | Inertia | RSC |
+| --- | ---: | ---: |
+| Gzip response body bytes | 6549 | 47410 |
+| Decoded HTML bytes | 38728 | 297408 |
+| External design stylesheet links | 1 | 0 |
+
+The RSC document contains the full design stylesheet inline, with no external design stylesheet link or HTTP Link preload for that stylesheet. All seven rebased asset URLs use the original asset host and returned HTTP 200. Inertia retains its external design stylesheet link and HTTP preload hint. These checks establish deployment and document behavior; Google PageSpeed measurements are reported separately.
+
+Offline comparison with the previous deployment confirmed identical paths and SHA-256 hashes for the RSC document’s initial script artifacts. The design stylesheet is also byte-identical (154,723 bytes). Other Vite JavaScript filenames changed; after normalizing emitted asset references, the only remaining differences were trailing spaces in type-validation diagnostic strings. Reinstating those spaces reproduced the saved baseline hashes exactly.
+
+### Twelve Google PageSpeed captures
+
+URLs: [Inertia](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) and [RSC](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search). Both include `layout=profile&recommended_by=search`. The post-verification, post-warmup cutoff is `2026-10-09T23:45:55.487Z` (UTC).
+
+Lighthouse version(s): `13.5.0`. Browser host user agent(s): `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.36 Safari/537.36`. The report JSON settings below are identical within each form factor.
+
+| Form | Throttling method | RTT (ms) | Throughput (Kbps) | CPU slowdown multiplier | Screen emulation |
+| --- | --- | ---: | ---: | ---: | --- |
+| mobile | `simulate` | 150 | 1638.4 | 1.2 | `{"width":412,"height":823,"deviceScaleFactor":1.75,"mobile":true}` |
+| desktop | `simulate` | 40 | 10240 | 1 | `{"width":1350,"height":940,"deviceScaleFactor":1}` |
+
+All twelve saved-report browser-location tooltips identify North America. The applications are hosted in Ohio; browser and application locations are separate observations.
+
+The predefined batch contains three runs per host and form factor. Every report was submitted through the Google PageSpeed website against the specified URLs after three warmup loads per host. All twelve actual `fetchTime` values are later than the recorded deployment/warmup cutoff. Complete settings match within each form factor. The captures span **324.804 seconds**, from `2026-10-09T23:46:08.733Z` to `2026-10-09T23:51:33.537Z`.
+
+| Variant / run | Form factor | Performance | FCP | LCP | `fetchTime` (UTC) | Report |
+| --- | --- | ---: | --- | --- | --- | --- |
+| inertia-1 | desktop | 76 | 1.4 s | 2.2 s | `2026-10-09T23:46:08.733Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/w5svfjw4x6?form_factor=desktop) |
+| inertia-1 | mobile | 45 | 7.2 s | 11.5 s | `2026-10-09T23:46:09.524Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/w5svfjw4x6?form_factor=mobile) |
+| rorp-1 | mobile | 74 | 2.0 s | 5.8 s | `2026-10-09T23:47:17.733Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/ss6kmx0shp?form_factor=mobile) |
+| rorp-1 | desktop | 98 | 0.3 s | 1.0 s | `2026-10-09T23:47:17.012Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/ss6kmx0shp?form_factor=desktop) |
+| inertia-2 | desktop | 61 | 1.4 s | 2.4 s | `2026-10-09T23:48:20.552Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/lyxockk21u?form_factor=desktop) |
+| inertia-2 | mobile | 55 | 7.1 s | 10.8 s | `2026-10-09T23:48:19.870Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/lyxockk21u?form_factor=mobile) |
+| rorp-2 | desktop | 97 | 0.6 s | 1.0 s | `2026-10-09T23:49:27.379Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/17jeccaz99?form_factor=desktop) |
+| rorp-2 | mobile | 72 | 2.0 s | 6.0 s | `2026-10-09T23:49:27.355Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/17jeccaz99?form_factor=mobile) |
+| inertia-3 | mobile | 54 | 7.1 s | 10.8 s | `2026-10-09T23:50:30.841Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/tyskyoggwd?form_factor=mobile) |
+| inertia-3 | desktop | 75 | 1.4 s | 2.3 s | `2026-10-09T23:50:30.683Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/tyskyoggwd?form_factor=desktop) |
+| rorp-3 | desktop | 95 | 0.6 s | 1.0 s | `2026-10-09T23:51:33.537Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/3jqrwhe3ck?form_factor=desktop) |
+| rorp-3 | mobile | 76 | 2.0 s | 4.9 s | `2026-10-09T23:51:32.764Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/3jqrwhe3ck?form_factor=mobile) |
+
+Mobile medians are **54 for Inertia and 74 for RSC**, a **20-point gap**. Desktop medians are **75 and 97**. These are Google lab measurements; scores vary between runs.
+
+The preceding local experiment isolates stylesheet delivery under its stated transport limits. This deployed comparison establishes the measured result for the new same-source pair; it does not reconstruct the exact transient conditions behind the October 1 captures.
+
+This complete batch improves on the earlier mobile medians of 53/65, but RSC’s median of 74 does not meet the intended above-80 result or the article’s original approximate score band. No article update is justified by this batch. Further image-scheduling experiments are separate work; these reports are retained without score-driven replacements.
