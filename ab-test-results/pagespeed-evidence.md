@@ -48,7 +48,6 @@ A later inspection, on October 1 at approximately 22:00 HST, identified Inertia 
 
 Those immutable source files verify the package-version difference, not which versions were deployed during the earlier PageSpeed captures. The later inspection cannot establish parity at capture time.
 
-
 ## October 8 matched-source recapture
 
 Both demo sites were rebuilt and deployed from [`5df1b6827002108389e337bbe308896d49da30a1`](https://github.com/shakacode/gumroad/commit/5df1b6827002108389e337bbe308896d49da30a1) on October 8, 2026 HST. This deployment-branch commit contains PR #103's complete application head, `e3258d2cfcc6022b31d6703bdb11a922932a8f44`, plus the Control Plane runtime configuration needed by the public demos. No changes were made to the upstream-facing PR.
@@ -61,6 +60,8 @@ Both deployments used the existing Control Plane Flow workflows on `ramez/cpln/c
 | --- | --- | --- | --- | --- | --- |
 | Inertia | 13:58:00 | 14:21:28 | 14:21:30 | 14:25:27 | [Successful run](https://github.com/shakacode/gumroad/actions/runs/37862289473) |
 | RSC | 13:57:53 | 14:15:43 | 14:15:45 | 14:19:24 | [Successful attempt 2](https://github.com/shakacode/gumroad/actions/runs/36861319438/attempts/2) |
+
+The RSC run reuses the original immutable source revision. Its first attempt, on October 1, failed during image publication with a registry authorization error; only the successful October 8 attempt is used here.
 
 At approximately 14:26 HST, read-only commands inside each live Rails container verified:
 
@@ -75,7 +76,7 @@ At approximately 14:26 HST, read-only commands inside each live Rails container 
 | `package.json` | `862b67c72d7710a11338214cd144f3b25bcfb47a7e5c296ad84c484de264d723` |
 | `package-lock.json` | `2ca9052d7559dfa6c04502da4effa2c1d8cfcdbb3f3e68cf2917be08586b3a2b` |
 
-Rails, Sidekiq, and renderer all referenced the same image within each app. Before measurement, all six workloads reported `ready: true` and `readyLatest: true`. The image digests differ because each build embeds its own hostname through `BENCHMARK_APP`; identical asset hashes are not expected.
+Rails, Sidekiq, and renderer all referenced the same image within each app. Before measurement, all six workloads reported `ready: true` and `readyLatest: true`. These are separate builds with different image digests. Each build embeds its own hostname through `BENCHMARK_APP`, so matching source and lockfiles does not imply identical artifacts or asset hashes.
 
 | Variant | Image tag | Image SHA-256 digest |
 | --- | --- | --- |
@@ -125,6 +126,8 @@ All twelve captures used Lighthouse **13.5.0**, `throttlingMethod: "simulate"`, 
 | Mobile | 55 | 67 | 12 |
 | Desktop | 53 | 97 | 44 |
 
-The matched-source mobile result moved materially from the earlier individual 53/80 captures: the median gap is below 15 points and the RSC median is below 70. The website articles were therefore left unchanged. No additional runs were selected to improve these medians.
+The recapture had a pre-agreed publication rule: leave the articles unchanged and report the evidence if the median mobile gap fell below 15 points or the RSC median fell below 70. Both conditions occurred (55/67, a 12-point gap), so the website articles were left unchanged pending editorial reassessment. No additional runs were selected to improve these medians.
 
-This recapture verifies source parity for the new measurements and resolves the live deployment mismatch. It does not establish parity during the October 1 captures or isolate source versions as the cause of the changed scores. The historical evidence and caveat above remain applicable to those older captures.
+Each median covers only three lab captures. Desktop scores varied from 41 to 58 for Inertia and 67 to 98 for RSC; all those results remain in the table.
+
+This recapture verifies source parity for the new measurements and resolves the live deployment mismatch. It does not establish parity during the October 1 captures or isolate source versions as the cause of the changed scores. The capture date and added `recommended_by=search` query parameter also differ from the original runs. The historical evidence and caveat above remain applicable to those older captures.
