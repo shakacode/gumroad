@@ -11,7 +11,7 @@
   <%= action_cable_meta_tag %>
   <%= vite_client_tag %>
   <%= vite_react_refresh_tag(nonce: SecureHeaders.content_security_policy_script_nonce(request)) %>
-  <%= vite_entrypoint_stylesheet_tag "design", crossorigin: "anonymous" unless @hide_styles %>
+  <%= vite_entrypoint_stylesheet_tag "design", inline: @product_rsc_document_props.present?, crossorigin: "anonymous" unless @hide_styles %>
   <%= yield :style %>
   <%= yield :smart_app_banner %>
   <%# The Inertia wrapper removes marked server tags during hydration when no Head owns them. %>
