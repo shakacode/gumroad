@@ -6,6 +6,11 @@ on:
   push:
     branches: ["ramez/cpln/cpflow"]
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Full deployment-capable source commit SHA (defaults to this workflow commit)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -16,7 +21,7 @@ env:
   STAGING_APP_BRANCH: ramez/cpln/cpflow
 
 concurrency:
-  group: cpflow-deploy-inertia-${{ github.ref_name }}
+  group: cpflow-deploy-inertia
   # A cancelled deploy-image can leave some workloads on the new image and others on the old.
   cancel-in-progress: false
 
@@ -26,6 +31,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       is_deployable: ${{ steps.check-branch.outputs.is_deployable }}
+      source_sha: ${{ steps.resolve-source.outputs.source_sha }}
     steps:
       - name: Check whether this branch should deploy staging
         id: check-branch
@@ -46,6 +52,38 @@ jobs:
             echo "Branch '${GITHUB_REF_NAME}' is not main/master and no STAGING_APP_BRANCH is configured"
             echo "is_deployable=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Checkout deployment history
+        if: steps.check-branch.outputs.is_deployable == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve deployment source
+        if: steps.check-branch.outputs.is_deployable == 'true'
+        id: resolve-source
+        shell: bash
+        env:
+          REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          source_sha="${REQUESTED_SOURCE_SHA:-${GITHUB_SHA}}"
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source_sha must be a full lowercase commit SHA" >&2
+            exit 1
+          fi
+          resolved_sha="$(git rev-parse --verify "${source_sha}^{commit}")"
+          [[ "$resolved_sha" == "$source_sha" ]]
+          # Earlier application commits lack the paired demos' Control Plane runtime support.
+          git merge-base --is-ancestor 5df1b6827002108389e337bbe308896d49da30a1 "$resolved_sha"
+          echo "source_sha=$resolved_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deployment provenance"
+            echo "- App: ${APP_NAME}"
+            echo "- Workflow commit: ${GITHUB_SHA}"
+            echo "- Application commit: ${resolved_sha}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout control-plane-flow actions
         if: steps.check-branch.outputs.is_deployable == 'true'
@@ -78,6 +116,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ needs.validate-branch.outputs.source_sha }}
           persist-credentials: false
 
       - name: Checkout control-plane-flow actions
@@ -103,7 +142,7 @@ jobs:
         with:
           app_name: ${{ env.APP_NAME }}
           org: ${{ vars.CPLN_ORG_STAGING }}
-          commit: ${{ github.sha }}
+          commit: ${{ needs.validate-branch.outputs.source_sha }}
           docker_build_extra_args: |
             ${{ vars.DOCKER_BUILD_EXTRA_ARGS }}
             --build-arg=BENCHMARK_APP=${{ env.APP_NAME }}
@@ -119,6 +158,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ needs.validate-branch.outputs.source_sha }}
           persist-credentials: false
 
       - name: Checkout control-plane-flow actions
