@@ -145,11 +145,11 @@ Both September 28 deployment workflows built commit `624ee397bc0fceabb129c076522
 | Inertia | [September 28 deployment](https://github.com/shakacode/gumroad/actions/runs/36421897716) | `2026-09-28T13:02:12.011Z` | `sha256:fcca4708a519fc335c0c7f52647a3ff561ee79c5df12df16baae92891dff54c0` |
 | RSC     | [September 28 deployment](https://github.com/shakacode/gumroad/actions/runs/36421897718) | `2026-09-28T12:57:08.461Z` | `sha256:579304fb4fff6fd79df1c4cd6f2e54e0db249225e32d503c39de16b7361fa073` |
 
-The image-update timestamps above come from retained Control Plane audit records and corroborate the public workflow logs. Consecutive audit versions show that the next Rails image changes occurred on October 1 at `12:37:10.594Z` for Inertia and `12:38:11.385Z` for RSC, both to `a01f734c288f5b59c05f02b38f82f8bc6477ff36`. Inertia subsequently changed to `5df1b6827002108389e337bbe308896d49da30a1` at `13:03:29.141Z`. All three changes occurred after the original reports' `10:50` and `10:52` UTC captures.
+The image-update timestamps above come from Control Plane audit records retained locally by the investigator, not published in this PR, and corroborate the public workflow logs. Public workflow links alone do not expose the intervening audit history. Consecutive audit versions show that the next Rails image changes occurred on October 1 at `12:37:10.594Z` for Inertia and `12:38:11.385Z` for RSC, both to `a01f734c288f5b59c05f02b38f82f8bc6477ff36`. Inertia subsequently changed to `5df1b6827002108389e337bbe308896d49da30a1` at `13:03:29.141Z`. All three changes occurred after the original reports' `10:50` and `10:52` UTC captures.
 
 The renderer audit records independently show the September 28 source revision remained configured through the captures. Its first subsequent image changes occurred on October 1 at `12:34:11.858Z` for Inertia and `12:35:13.114Z` for RSC.
 
-The [package manifest at the September 28 commit](https://github.com/shakacode/gumroad/blob/624ee397bc0fceabb129c0765221af06278a2377/package.json) specifies `react-on-rails-rsc` **19.3.0-rc.4**, `react-on-rails`, `react-on-rails-pro`, and `react-on-rails-pro-node-renderer` **17.1.0-rc.5**, and React **19.2.8**. Both builds therefore used the same source manifest. Host-specific builds produced different image digests; matching source does not mean byte-identical images or identical runtime configuration.
+The [package manifest at the September 28 commit](https://github.com/shakacode/gumroad/blob/624ee397bc0fceabb129c0765221af06278a2377/package.json) specifies `react-on-rails-rsc` **19.3.0-rc.4**, `react-on-rails`, `react-on-rails-pro`, and `react-on-rails-pro-node-renderer` **17.1.0-rc.5**, and React **19.2.8**. Both builds therefore used the same source manifest. The two builds have different image digests; matching source does not mean byte-identical images or identical runtime configuration.
 
 ### Corroboration from the saved reports
 
@@ -160,13 +160,13 @@ The original mobile reports' network-request records contain Vite script filenam
 | Inertia | [October 1 report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/pktr6lcl65?form_factor=mobile) | `base.ts-DUbPH_da.js`, `inertia.js-Dep6yyfG.js`                      |
 | RSC     | [October 1 report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/737osqp6n5?form_factor=mobile)    | `base.ts-Cb01j-r4.js`, `inertia.js-D9IEFUnU.js`                      |
 
-This connects the saved captures to the historical builds, in addition to the deployment audit sequence. The build logs abbreviate the RSC bundle listing, so the Vite comparison is not a claim that every RSC bundle filename was independently matched.
+This filename match is consistent with the historical builds. Content-hashed filenames can persist across builds, so the match alone does not establish the source revision; the consecutive deployment audit sequence supplies that attribution. The build logs abbreviate the RSC bundle listing, so the Vite comparison is not a claim that every RSC bundle filename was independently matched.
 
 ### What this resolves
 
-The later inspection alone could not establish source parity at capture time. The historical deployment records and captured asset filenames now provide that evidence for the October 1 reports. Their recorded **53 → 80 mobile** and **66 → 98 desktop** scores remain individual captures, not repeated-run medians or proof that source parity controls every runtime difference.
+The later inspection alone could not establish source parity at capture time. The historical deployment records now establish source parity for the October 1 reports, with the captured filenames providing a consistency check. Their recorded **53 → 80 mobile** and **66 → 98 desktop** scores remain individual captures, not repeated-run medians or proof that source parity controls every runtime difference.
 
-This historical verification does not supersede the new comparison. The subsequent three-run mobile medians were **55 for Inertia and 67 for RSC**, a **12-point gap**. Those results meet the publication stop conditions: RSC mobile below 70 and a mobile gap below 15 points. The article update remains paused pending investigation; the historical scores must not replace or conceal the new measurements.
+This historical verification does not supersede the new comparison or its publication stop conditions described above.
 
 ## Same-host historical-image experiment, October 8 evening
 
@@ -178,7 +178,7 @@ The historical image converged and its runtime SHA and seller flag were verified
 
 ### Reports and duplicate detection
 
-The current-before mobile sample includes the earlier clean-URL diagnostic at 18:29 HST and two fresh captures at 18:39 and 18:41. One additional submission produced a new report URL but reused the previous mobile `fetchTime` and identical mobile report. It is retained below, explicitly marked, and excluded from mobile medians; its desktop capture is distinct. Each of the three historical and three restored mobile captures has a unique `fetchTime`.
+The current-before mobile sample includes a diagnostic capture of the same explicit-profile URL at 18:29 HST (the first row below) and two fresh captures at 18:39 and 18:41. One additional submission produced a new report URL but reused the previous mobile `fetchTime` and identical mobile report. It is retained below, explicitly marked, and excluded from mobile medians; its desktop capture is distinct. Each of the three historical and three restored mobile captures has a unique `fetchTime`.
 
 | Phase                            | Form factor | Performance | FCP displayed | LCP displayed | `fetchTime` (UTC)          | Report                                                                                                                               |
 | -------------------------------- | ----------- | ----------: | ------------: | ------------: | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -211,21 +211,21 @@ All reports used Lighthouse 13.5.0, HeadlessChromium 153.0.8010.36 and the same 
 | Historical image | 66, 70, 68                |     68 |
 | Current restored | 66, 76, 71                |     71 |
 
-The verdict for an image-induced regression is **ambiguous**: three samples per phase have overlapping ranges, and the current image performed both below and above the historical image across the two periods. Restoring the original artifact did not reproduce 80 in these runs. This does not invalidate earlier measurements or prove the absence of every regression.
+The verdict for an image-induced regression is **ambiguous**. The pre-rollback phase had a different Rails CPU reservation (0.4 core versus 1 core), so its median is not directly comparable. The historical and restored phases both had 1-core reservations; their medians were 68 and 71, with overlapping ranges and only three samples each. Restoring the original artifact did not reproduce 80 in these runs. This does not invalidate earlier measurements or prove the absence of every regression.
 
 ### Runtime and interpretation limits
 
-Control Plane's adaptive allocation changed despite identical workload specifications: Rails had a 0.4-core reservation before the experiment, then a 1-core reservation after each fresh rollout. The renderer reservation remained 0.5 core. Available CPU measurements were low, with no container restarts or reschedules, but these averages do not exclude transient contention; memory and CPU-throttling measurements were unavailable. Thus this is a same-host image experiment, not a claim that every runtime resource was held constant. The historical and restored phases both began with a 1-core Rails reservation.
+Control Plane's adaptive allocation changed despite identical workload specifications: Rails had a 0.4-core reservation before the experiment, then a 1-core reservation after each fresh rollout. The renderer reservation remained 0.5 core. Available CPU measurements were low, with no container restarts or reschedules, but these averages do not exclude transient contention; memory and CPU-throttling measurements were unavailable. Thus this is a same-host image experiment, not a claim that every runtime resource was held constant. The historical and restored phases both began with a 1-core Rails reservation. Reservations during the earlier twelve-capture comparison were not recorded.
 
-The slow results involve more than one timing pattern. In the earlier RSC capture with score 73, the unchanged render-blocking stylesheet finished at about 2.965 seconds and first paint followed at 3.135 seconds, after the cover image had downloaded. In other runs CSS completed early but painting was delayed. Conversely, the restored current-image report scoring 71 observed LCP at **454 ms** while estimating throttled LCP at **6,452 ms**; its score uses the simulated timing, not that observed paint. The restored report scoring 76 estimated LCP at **3.5 s**, close to the original **3.6 s**. These differences require examining network and execution dependencies rather than treating the score change as a direct measure of server rendering speed.
+The slow results involve more than one timing pattern. In the earlier RSC capture with score 73, the unchanged render-blocking stylesheet finished at about 2.965 seconds and first paint followed at 3.135 seconds in the observed, unthrottled timings, after the cover image had downloaded. In other runs CSS completed early but painting was delayed. Conversely, the restored current-image report scoring 71 observed LCP at **454 ms** while estimating throttled LCP at **6,452 ms**; its score uses the simulated timing, not that observed paint. The restored report scoring 76 estimated LCP at **3.5 s**, close to the original **3.6 s**. These differences require examining network and execution dependencies rather than treating the score change as a direct measure of server rendering speed.
 
-Source and published-package comparisons found no executable React on Rails, Pro, Node renderer, or RSC package changes between the relevant RC and final releases. The historical-to-current source includes real `io-event` and `protocol-http2` dependency changes and routing changes for URLs without an explicit layout. The measured explicit-profile path is unchanged. The image experiment has not established those dependency changes as a cause.
+Local comparisons of the published packages found no executable changes in React on Rails, Pro, or Node renderer from 17.1.0-rc.5 to 17.1.0, or in RSC from 19.3.0-rc.4 to 19.3.0. The [current manifest](https://github.com/shakacode/gumroad/blob/5df1b6827002108389e337bbe308896d49da30a1/package.json) records the final versions. Package comparison output is retained locally and is not attached to this evidence-only PR. The historical-to-current source includes real `io-event` and `protocol-http2` dependency changes and routing changes for URLs without an explicit layout. The measured explicit-profile path is unchanged. The image experiment has not established those dependency changes as a cause.
 
-The matched-source image was restored before further diagnostic work. These follow-up results do not replace the original twelve captures, and the website publication stop remains in effect.
+The matched-source image was restored before further diagnostic work. These follow-up results do not replace the original twelve captures.
 
 ### Local raw-trace follow-up
 
-Five additional local Lighthouse 13.5.0 runs against the restored current image retained raw traces and DevTools network logs. They used the saved mobile throttling and viewport settings, a fresh headless browser per run, and only the performance category. These ran on macOS with Chrome 156, not Google's Chrome 153/Linux runners, so their scores are not substitutes for PageSpeed reports.
+Five additional local Lighthouse 13.5.0 runs against the restored current image retained raw traces and DevTools network logs locally with the investigator; these diagnostic files are not attached to this PR. They used the saved mobile throttling and viewport settings, a fresh headless browser per run, and only the performance category. These ran on macOS with Chrome 156, not Google's Chrome 153/Linux runners, so their scores are not substitutes for PageSpeed reports.
 
 | Local run | Performance | Observed LCP (ms) | Simulated LCP (ms) |
 | --------- | ----------: | ----------------: | -----------------: |
@@ -235,7 +235,7 @@ Five additional local Lighthouse 13.5.0 runs against the restored current image 
 | 4         |          75 |              1250 |               3934 |
 | 5         |          74 |              1596 |               3944 |
 
-All five traces show HTML parsing pausing before visible server-rendered content at an inline initialization script following the stylesheet. Parsing resumes 2–3 ms after that stylesheet finishes. No hidden Suspense reveal gate or main-thread task longer than 50 ms was found in those traces. The duplicate `6142` script requests complete after first paint in these local captures, so they are not required to reveal the product.
+All five traces show HTML parsing pausing before visible server-rendered content at an inline initialization script following the stylesheet. Parsing resumes 2–3 ms after that stylesheet finishes. No hidden Suspense reveal gate or main-thread task longer than 50 ms was found in those traces. Two requests for the RSC chunk `6142.830d6adf.js` complete after first paint in these local captures, so they are not required to reveal the product.
 
 This confirms a stylesheet/parser dependency but does not reproduce every slow Google capture, including cases where CSS and the cover image finish early yet painting is delayed. Lighthouse's [Lantern model](https://github.com/GoogleChrome/lighthouse/blob/main/docs/lantern.md) estimates throttled performance from a dependency graph; simulated and observed times must remain separate. The exact dependency responsible for each divergent Google estimate has not been established from the saved reports, which do not contain the raw Google traces.
 
