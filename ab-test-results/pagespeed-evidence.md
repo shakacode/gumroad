@@ -240,3 +240,51 @@ All five traces show HTML parsing pausing before visible server-rendered content
 This confirms a stylesheet/parser dependency but does not reproduce every slow Google capture, including cases where CSS and the cover image finish early yet painting is delayed. Lighthouse's [Lantern model](https://github.com/GoogleChrome/lighthouse/blob/main/docs/lantern.md) estimates throttled performance from a dependency graph; simulated and observed times must remain separate. The exact dependency responsible for each divergent Google estimate has not been established from the saved reports, which do not contain the raw Google traces.
 
 No application performance fix was deployed during this investigation. The evidence resolves the original source-parity question and narrows the performance problem, but does not establish a source regression or fully explain the historical-to-current score shift.
+
+## Fresh paired deployments with fixed resources, October 8 evening
+
+Both demos were freshly rebuilt and deployed from `5df1b6827002108389e337bbe308896d49da30a1`. The [Inertia workflow](https://github.com/shakacode/gumroad/actions/runs/37892405121) completed at `2026-10-09T06:39:23Z`; the [RSC workflow](https://github.com/shakacode/gumroad/actions/runs/37892408227) completed at `2026-10-09T06:40:28Z` (October 8, 20:39 and 20:40 HST).
+
+The new application images are:
+
+- Inertia: `gumroad-inertia:22_5df1b6827002108389e337bbe308896d49da30a1`, digest `sha256:b65cd28900526ce1c8e08127faa5bd79849a8bb771d361c3654d064cc55de39a`.
+- RSC: `gumroad-rorp:34_5df1b6827002108389e337bbe308896d49da30a1`, digest `sha256:a2c203dad1bec8fa204fb6babf6d1409b3324065939a1bc9ab9ba66031d358c9`.
+
+Rails, renderer, and Sidekiq use their app's corresponding image. Runtime checks at approximately `06:45:50Z` confirmed the full SHA, matching package and lockfile checksums, RSC package 19.3.0, seller `luisfurushio`, and product `bgfjk`. All seller feature states matched except `product_page_react_on_rails`: false on Inertia, true on RSC.
+
+CapacityAI was disabled on both apps' Rails and Sidekiq workloads after deployment. Effective allocations and current deployment CPU reservation metrics were checked: Rails has 1 CPU / 2 GiB; Sidekiq and renderer each have 0.5 CPU / 1 GiB, with one ready replica. Renderer and data-service allocation was already fixed. A check completed at `06:47:34.305333Z` found all eight workload pairs healthy with matching resource settings. This removes the earlier adaptive-allocation confound; it does not guarantee identical physical host contention or Google runner conditions.
+
+The two builds use identical Node and Ruby base-image digests and logged dependency versions. Their host-specific asset URLs and image digests differ: generated route helpers and RSC asset paths embed the appropriate hostname. Runtime hostnames, isolated service/storage addresses, and credentials also differ by app. These are equivalent separately hosted deployments, not byte-identical images.
+
+Read-only checks found matching normalized product descriptions, seller public fields, catalog data, fixture files, and media identities. All 34 checked media responses returned HTTP 200, and corresponding bytes matched exactly. Both rendered pages contained the expected cover and description-image URLs. Browser warming loaded each exact requested URL three times, completing at `06:46:35.216Z`.
+
+### Twelve fresh reports
+
+All submissions used the same PageSpeed browser tab and the exact `?layout=profile&recommended_by=search` URLs. Hosts alternated, with both mobile and desktop reports retained per submission. Every JSON `fetchTime` is distinct. Lighthouse 13.5.0 and the complete `configSettings` match the original reports within each form factor. The twelve timestamps span **267.608 seconds**. Scores and displayed FCP/LCP below are copied from the saved JSON.
+
+| Variant / run | Form factor | Performance | FCP | LCP | `fetchTime` (UTC) | Report |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| inertia-1 | mobile | 55 | 7.1 s | 10.9 s | `2026-10-09T06:47:55.895Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/wtmmrq1jjc?form_factor=mobile) |
+| inertia-1 | desktop | 71 | 1.4 s | 2.3 s | `2026-10-09T06:47:56.351Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/wtmmrq1jjc?form_factor=desktop) |
+| rorp-1 | mobile | 65 | 2.6 s | 6.5 s | `2026-10-09T06:48:42.432Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/iij4pwjlai?form_factor=mobile) |
+| rorp-1 | desktop | 97 | 0.6 s | 1.1 s | `2026-10-09T06:48:42.410Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/iij4pwjlai?form_factor=desktop) |
+| inertia-2 | mobile | 52 | 7.1 s | 10.8 s | `2026-10-09T06:49:47.087Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/ub8j7jgl8m?form_factor=mobile) |
+| inertia-2 | desktop | 75 | 1.4 s | 2.2 s | `2026-10-09T06:49:46.323Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/ub8j7jgl8m?form_factor=desktop) |
+| rorp-2 | mobile | 75 | 2.3 s | 4.7 s | `2026-10-09T06:50:41.203Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/pokpn0o3zd?form_factor=mobile) |
+| rorp-2 | desktop | 97 | 0.7 s | 1.1 s | `2026-10-09T06:50:41.164Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/pokpn0o3zd?form_factor=desktop) |
+| inertia-3 | mobile | 56 | 7.1 s | 10.9 s | `2026-10-09T06:51:29.973Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/l2yofygx58?form_factor=mobile) |
+| inertia-3 | desktop | 75 | 1.4 s | 2.3 s | `2026-10-09T06:51:30.020Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/l2yofygx58?form_factor=desktop) |
+| rorp-3 | mobile | 70 | 2.7 s | 5.1 s | `2026-10-09T06:52:23.503Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/n8t47qotak?form_factor=mobile) |
+| rorp-3 | desktop | 98 | 0.7 s | 1.0 s | `2026-10-09T06:52:23.432Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/n8t47qotak?form_factor=desktop) |
+
+Mobile medians are **55 for Inertia and 70 for RSC**, a **15-point gap**. Desktop medians are **75 and 97**. Inertia mobile scores were 55, 52, 56; RSC mobile scores were 65, 75, 70. The fixed-resource fresh deployment does not reproduce the original RSC score of 80, and 70 is outside the agreed approximate five-point publication range. The articles remain unchanged. This result does not establish an application-code regression or show that adaptive allocation caused the earlier score shift.
+
+Raw report JSON, deployment/configuration snapshots, and parity-check output are retained locally by the investigator; public reports and workflow runs are linked above. No application performance fix was included in these deployments.
+
+### What the fresh reports narrow down
+
+The fresh RSC HTML responses finished in 342–380 ms. Its three observed first-paint times were 3,561, 1,518, and 1,480 ms; simulated LCP was 6,452, 4,727, and 5,113 ms. These are separate measurements: displayed LCP and the score use the simulated values.
+
+In run 1, the render-blocking stylesheet finished at approximately 2,173 ms, contributing to a slow start. In runs 2 and 3, CSS finished at approximately 464 and 424 ms and the cover image at 498 and 450 ms, yet visible product painting waited until around 1.5 seconds. Filmstrip frames before that paint remain blank; the earlier `observedFirstVisualChange` is not evidence that the product was already visible. One of those runs finished downloading its fonts after the product painted, while the other finished fonts before painting, so font completion alone does not explain both delays.
+
+The source, fixture, and fixed-resource checks eliminate those mismatches from this fresh comparison. They do not identify the cause of the remaining browser paint delay or the full historical-to-current simulated-LCP difference. No causal application regression or performance fix is claimed.
