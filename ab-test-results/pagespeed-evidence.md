@@ -1,6 +1,6 @@
 # October 1 PageSpeed evidence
 
-**Current status:** the latest captured comparison is the [October 9 HST cart-count deployment](#cart-count-deployment-october-9-2026-hst), with mobile medians 53/86 and desktop medians 72/99. Earlier sections record their status at the time; their stop decisions and caveats remain part of the history.
+**Current status:** the latest captured comparison is the [October 9 HST cart-count deployment](#cart-count-deployment-october-9-2026-hst), with mobile medians 53/86 and desktop medians 72/99 from one three-run batch per variant and device. Article publication is separate from this capture record. Earlier sections record their status at the time; their stop decisions and caveats remain part of the history.
 
 These are the existing reports linked from the [Product-page article](index.md), captured October 1, 2026. Each report contains one mobile and one desktop Lighthouse capture. The table below was extracted from the reports' embedded Lighthouse JSON; it does not represent a new run.
 
@@ -642,7 +642,7 @@ Whole-page script counts fall from **66 to 53**, and median script transfer from
 
 ### Twelve Google captures after the cart-count deployment
 
-Both exact Product URLs retained `?layout=profile&recommended_by=search`. Three successful browser warmups per host finished before the independently recorded cutoff `2026-10-10T04:39:38.987Z`. Six predefined alternating submissions in the same PageSpeed tab generated twelve fresh reports, three per host and form factor. All fetchTimes follow that cutoff; no score-driven retry, exclusion or replacement occurred.
+Both exact Product URLs retained `?layout=profile&recommended_by=search`. Three successful browser warmups per host finished before the independently recorded cutoff `2026-10-10T04:39:38.987Z`. Before those equal warmups, only RSC received the five local candidate captures above (`04:36:59.165Z`–`04:38:45.695Z`); any effect of that additional load on the subsequent Google results is unquantified. Six predefined alternating submissions in the same PageSpeed tab generated twelve fresh reports, three per host and form factor. All fetchTimes follow that cutoff; no score-driven retry, exclusion or replacement occurred.
 
 The actual earliest-to-latest JSON fetchTime span is **246.653 seconds**, from `2026-10-10T04:39:45.177Z` to `2026-10-10T04:43:51.830Z` (October 9, 18:39:45.177–18:43:51.830 HST), within ten minutes. Every report uses Lighthouse **13.5.0** and HeadlessChrome **153.0.8010.36**. Complete settings match within each form factor: simulated mobile 150 ms RTT / 1638.4 Kbps / CPU 1.2 and desktop 40 ms RTT / 10240 Kbps / CPU 1. These Google reports are separate from the local Lighthouse 13.0.3 diagnostics above.
 
