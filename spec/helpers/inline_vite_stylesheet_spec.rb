@@ -9,6 +9,7 @@ describe ApplicationHelper, type: :helper do
     let(:css) { 'body{color:red;background:url(/images/logo.svg)}@font-face{src:url("../fonts/test.woff2")}' }
 
     before do
+      allow(Rails).to receive(:public_path).and_return(Pathname.new(File.expand_path("../../public", __dir__)))
       ApplicationHelper::INLINE_STYLESHEET_CACHE.clear
       allow(File).to receive(:read).and_call_original
       allow(ViteRuby.instance.manifest).to receive(:resolve_entries).with("design", type: :typescript)
@@ -123,7 +124,6 @@ describe ApplicationHelper, type: :helper do
         stub_const("FACEBOOK_OG_NAMESPACE", "test")
         stub_const("CDN_S3_PROXY_HOST", nil)
         stub_const("PUBLIC_STORAGE_CDN_S3_PROXY_HOST", nil)
-        allow(Rails).to receive(:public_path).and_return(Pathname.new(File.expand_path("../../public", __dir__)))
         allow(Rails).to receive(:application).and_return(double(root: Pathname.new(File.expand_path("../..", __dir__)), config: double(asset_host: nil, root: Pathname.new(File.expand_path("../..", __dir__)))))
         allow(helper).to receive_messages(action_cable_meta_tag: "", vite_client_tag: "", vite_react_refresh_tag: "", erb_meta_tags: "", inertia_meta_tags: "", inertia_rendering?: true)
         allow(SecureHeaders).to receive(:content_security_policy_script_nonce).and_return("test-nonce")
