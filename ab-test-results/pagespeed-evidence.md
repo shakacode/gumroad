@@ -668,3 +668,12 @@ The original editorial condition used “about five points” around 53/80 and a
 Median-score representative reports, with earliest-fetchTime tie-breaking, are Inertia mobile run 3, RSC mobile run 3, Inertia desktop run 2 and RSC desktop run 1. Their FCP/LCP values and times belong to those reports, not separate timing medians. Sequential before/after campaigns do not isolate the cart change's causal contribution to the score difference.
 
 All twelve saved-report browser-location tooltips identify **North America**. The after-capture check ran from `2026-10-10T04:45:17.030521+00:00` to `2026-10-10T04:45:59.039131+00:00`: all six application images and workload versions remained unchanged and ready at the verified source. All sixteen non-image workload specifications, allocations and GVC configuration remained unchanged in Ohio; fresh seller-flag checks remained false on Inertia and true on RSC.
+
+
+### Post-capture behavior and operational update
+
+After the captures, both variants passed [nonempty-cart browser checks](https://github.com/shakacode/gumroad/pull/117#issuecomment-6095061562): add a product, see cart count 1, reopen the saved item through the badge at bare `/checkout`, remove it, and reload to confirm the empty state. No payment details were entered or purchase submitted. These checks do not certify payment completion or every browser’s storage policy.
+
+At `2026-10-10T07:20:26Z`, after all measurements, CapacityAI was restored on the six stateless application workloads (Rails, renderer and Sidekiq on each demo). All six were ready; image identities and all other workload and GVC settings were unchanged. Both demos remained running; the choice between manual and automatic shutdown was still pending.
+
+The saved benchmarks used the fixed allocations documented above. The live demos now use adaptive resource allocation, so a new visit is not a reproduction of that measurement environment. To repeat the comparison, temporarily restore matched fixed resources, verify both deployments, and warm both exact URLs before capturing reports.
