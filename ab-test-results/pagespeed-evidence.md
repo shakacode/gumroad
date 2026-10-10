@@ -602,10 +602,9 @@ For the article tables, the representative report is the run with the median per
 
 Across all three new RSC mobile Google reports, the same seven editor-related application script URLs are absent compared with all three preceding CSS-only reports. Application-host HTTP(S) script requests fall from **70 to 63**; their median transferred bytes fall from **1,486,096 to 1,202,313**, and decoded bytes from **4,433,001 to 3,556,809**. These counts and sums are computed from each report's network-request audit, excluding third-party scripts and blob URLs. They confirm the reduced application download; the sequential batches do not isolate how much of the score change comes from this reduction.
 
-
 ## Cart-count deployment, October 9, 2026 HST
 
-Both demos were rebuilt from reviewed commit `7f3557b04e9e8babffb2d8a337f7ea980f405b44` using local Control Plane Flow 6.0.0. Both complete builds passed before image-only deployment; no release hook, migration, seeding or template application ran. This change replaces the hidden cart-count iframe's application shell with a small HTML response, preserving the existing storage-access check and message contract. It applies to both demos.
+Both demos were rebuilt from [reviewed commit `7f3557b04e9e8babffb2d8a337f7ea980f405b44`](https://github.com/shakacode/gumroad/commit/7f3557b04e9e8babffb2d8a337f7ea980f405b44) in [application PR #117](https://github.com/shakacode/gumroad/pull/117) using local Control Plane Flow 6.0.0. Both complete builds passed before image-only deployment; no release hook, migration, seeding or template application ran. This change replaces the hidden cart-count iframe's application shell with a small HTML response, preserving the existing storage-access check and message contract. It applies to both demos.
 
 | Demo | Image | Digest | Build start / finish (UTC) | Image update start / finish (UTC) |
 |---|---|---|---|---|
@@ -619,7 +618,6 @@ Both retain AWS Ohio hosting, the preceding fixed resource allocations, one repl
 Both cart-count endpoints return 439-byte HTML with a nonce matching CSP, private/no-store caching, permitted framing and no external scripts or styles. Mobile and desktop browser checks received the expected cart-count message from each host with zero iframe asset requests. Both Product pages passed hydration, cover navigation and main Add to cart navigation to checkout, without page errors or RSC fallback requests. RSC retained its static description, first-image default and six lazy images; all seven images loaded visibly after expansion and scrolling. Desktop description was already expanded. No purchase was submitted or checkout completion tested.
 
 These checks establish deployment and the tested behaviors, not a performance improvement. The following measurements record the new fixed comparison; no score is inferred from the smaller iframe response.
-
 
 ### Local cart-count before/after diagnostics
 
@@ -642,12 +640,11 @@ Both performance medians are **94**; simulated LCP medians are **2882.2715 → 2
 
 Whole-page script counts fall from **66 to 53**, and median script transfer from **1324304 to 448266 bytes**, but this includes variable Stripe traffic and must not be attributed entirely to the application iframe. These runs support the reduced iframe download, not a causal timing or score improvement. Baseline and candidate ran sequentially under different time/network conditions; four idle local test-service containers present during baseline were removed before candidate. Fresh profiles avoided reliance on the installed worker's cache-clearing helper. Raw reports, CDP logs, the capture procedure and independent calculations are retained locally; this table is not a publicly reproducible full artifact bundle.
 
-
 ### Twelve Google captures after the cart-count deployment
 
 Both exact Product URLs retained `?layout=profile&recommended_by=search`. Three successful browser warmups per host finished before the independently recorded cutoff `2026-10-10T04:39:38.987Z`. Six predefined alternating submissions in the same PageSpeed tab generated twelve fresh reports, three per host and form factor. All fetchTimes follow that cutoff; no score-driven retry, exclusion or replacement occurred.
 
-The actual earliest-to-latest JSON fetchTime span is **246.653 seconds**, from `2026-10-10T04:39:45.177Z` to `2026-10-10T04:43:51.830Z` (October 9, 18:39:45.177–18:43:51.830 HST), within ten minutes. Every report uses Lighthouse **13.5.0** and HeadlessChrome **153.0.8010.36**. Complete settings match within each form factor: simulated mobile150ms RTT/1638.4Kbps/CPU1.2 and desktop40ms RTT/10240Kbps/CPU1. These Google reports are separate from the local Lighthouse13.0.3 diagnostics above.
+The actual earliest-to-latest JSON fetchTime span is **246.653 seconds**, from `2026-10-10T04:39:45.177Z` to `2026-10-10T04:43:51.830Z` (October 9, 18:39:45.177–18:43:51.830 HST), within ten minutes. Every report uses Lighthouse **13.5.0** and HeadlessChrome **153.0.8010.36**. Complete settings match within each form factor: simulated mobile 150 ms RTT / 1638.4 Kbps / CPU 1.2 and desktop 40 ms RTT / 10240 Kbps / CPU 1. These Google reports are separate from the local Lighthouse 13.0.3 diagnostics above.
 
 | Run | Form factor | Performance | FCP | LCP | fetchTime (UTC) | Saved report |
 |---|---|---:|---:|---:|---|---|
@@ -664,10 +661,10 @@ The actual earliest-to-latest JSON fetchTime span is **246.653 seconds**, from `
 | rorp-3 | mobile | 86 | 1.1 s | 4.2 s | `2026-10-10T04:43:51.782Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/rw8p0jygjc?form_factor=mobile) |
 | rorp-3 | desktop | 98 | 0.5 s | 1.1 s | `2026-10-10T04:43:51.830Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/rw8p0jygjc?form_factor=desktop) |
 
-Mobile scores are **51/55/53 for Inertia** and **96/82/86 for RSC**, with medians **53 and 86** and a **33-point gap**. Desktop scores are **75/72/72** and **99/99/98**, with medians **72 and 99**. All three RSC mobile runs exceed80; the median86 also meets the later above80 objective. Scores still vary between runs: this is one fixed batch, not proof of a stable86 or the historical score's cause.
+Mobile scores are **51/55/53 for Inertia** and **96/82/86 for RSC**, with medians **53 and 86** and a **33-point gap**. Desktop scores are **75/72/72** and **99/99/98**, with medians **72 and 99**. All three RSC mobile runs exceed 80; the median 86 also meets the later above 80 objective. Scores still vary between runs: this is one fixed batch, not proof of a stable 86 or the historical score's cause.
 
-The original editorial condition used “about five points” around53/80 and a similar27-point gap. The new RSC median is six points above80, one point outside a literal five-point band; the gap is33. Neither material-regression stop condition applies (gap below15 or RSC median below70). This improved result should not be described as satisfying a strict±5 rule. The later objective explicitly prioritized improvement above80; publication of updated comparison blocks is a separate editorial decision.
+The original editorial condition used “about five points” around 53/80 and a similar 27-point gap. The new RSC median is six points above 80, one point outside a literal five-point band; the gap is 33. Neither material-regression stop condition applies (gap below 15 or RSC median below 70). This improved result should not be described as satisfying a strict ±5 rule. The later objective explicitly prioritized improvement above 80; publication of updated comparison blocks is a separate editorial decision.
 
-Median-score representative reports, with earliest-fetchTime tie-breaking, are Inertia mobile run3, RSC mobile run3, Inertia desktop run2 and RSC desktop run1. Their FCP/LCP values and times belong to those reports, not separate timing medians. Sequential before/after campaigns do not isolate the cart change's causal contribution to the score difference.
+Median-score representative reports, with earliest-fetchTime tie-breaking, are Inertia mobile run 3, RSC mobile run 3, Inertia desktop run 2 and RSC desktop run 1. Their FCP/LCP values and times belong to those reports, not separate timing medians. Sequential before/after campaigns do not isolate the cart change's causal contribution to the score difference.
 
 All twelve saved-report browser-location tooltips identify **North America**. The after-capture check ran from `2026-10-10T04:45:17.030521+00:00` to `2026-10-10T04:45:59.039131+00:00`: all six application images and workload versions remained unchanged and ready at the verified source. All sixteen non-image workload specifications, allocations and GVC configuration remained unchanged in Ohio; fresh seller-flag checks remained false on Inertia and true on RSC.
