@@ -61,7 +61,18 @@ done
 
 Verify effective equal resources: Rails 1 CPU/2 GiB, Sidekiq and renderer 0.5 CPU/1 GiB each, one ready replica each, plus matching backing-service allocations. Wait for resource changes to converge; current-version allocation metrics must agree. Load each exact product URL three times and wait for cold starts before the timed report batch. Live demo scores can differ from saved warmed captures because of suspension, adaptive allocation, cache state, or report-runner conditions.
 
-After capturing, restore `capacityAI=true` on those same three app workloads. Stop both apps only when the operator has chosen offline operation; otherwise leave them available with adaptive allocation. Preserve the measurement's fixed-allocation evidence separately from the everyday idle settings.
+The selected source also supplies the Control Plane configuration and release script. Image deployment does not reapply templates, and older sources may contain different resource defaults. Set the everyday adaptive policy explicitly on existing workloads after an older-source deployment, and restore it after every benchmark:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  for workload in rails sidekiq renderer; do
+    cpln workload update "$workload" --gvc "$app" --org shakacode-open-source-examples-staging \
+      --set spec.defaultOptions.capacityAI=true
+  done
+done
+```
+
+Verify all six values are true and each workload is ready. Stop both apps only when the operator has chosen offline operation; otherwise leave them available with adaptive allocation. Preserve the measurement's fixed-allocation evidence separately from the everyday idle settings.
 
 ## Bootstrap the app
 
