@@ -3,8 +3,8 @@
 require "spec_helper"
 
 describe ProductPresenter::RscContentProps do
-  let(:description) { '<p>Learn more <a href="mailto:author@example.com">by email</a>.</p><figure><img src="/sample.webp" alt="Sample" width="640" height="480"></figure>' }
-  let(:product_props) { { description_html: description, price_cents: 100, options: [], recurrences: nil } }
+  let(:description) { '<p>Learn more <a href="mailto:author@example.com">by email</a>.</p><img src="/first.webp"><figure><img src="/sample.webp" alt="Sample" width="640" height="480"></figure>' }
+  let(:product_props) { { description_html: description, price_cents: 100, options: [], recurrences: nil, covers: [{ url: "/cover.webp" }] } }
   subject(:props) { described_class.new(product_props:).props }
 
   it "renders ordinary links with the same target and rel as the rich-text client" do
@@ -16,10 +16,21 @@ describe ProductPresenter::RscContentProps do
   end
 
   it "defers description images while retaining their content and dimensions" do
-    image = Nokogiri::HTML.fragment(props.fetch(:description_html)).at_css("img")
+    image = Nokogiri::HTML.fragment(props.fetch(:description_html)).at_css('img[src="/sample.webp"]')
     expect(image.attributes.transform_values(&:value)).to include(
       "loading" => "lazy", "src" => "/sample.webp", "alt" => "Sample", "width" => "640", "height" => "480"
     )
+  end
+
+  it "leaves the first description image eager in case it is visible below a short cover" do
+    expect(Nokogiri::HTML.fragment(props.fetch(:description_html)).at_css("img")["loading"]).to be_nil
+  end
+
+  it "normalizes links without deferring images when the product has no cover" do
+    product_props[:covers] = []
+    document = Nokogiri::HTML.fragment(props.fetch(:description_html))
+    expect(document.at_css("a")["target"]).to eq("_blank")
+    expect(document.css("img[loading]")).to be_empty
   end
 
   it "preserves an explicit image loading preference" do

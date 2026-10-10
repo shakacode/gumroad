@@ -30,7 +30,10 @@ class ProductPresenter::RscContentProps
         link["target"] = "_blank"
         link["rel"] = (link["rel"].to_s.split + %w[noopener noreferrer nofollow]).uniq(&:downcase).join(" ")
       end
-      fragment.css("img").each { |image| image["loading"] ||= "lazy" }
+      if product_props[:covers].present?
+        # A short cover can leave the first description image in the initial viewport.
+        fragment.css("img").drop(1).each { |image| image["loading"] ||= "lazy" }
+      end
       fragment.to_html
     end
 

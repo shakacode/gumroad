@@ -72,7 +72,7 @@ module ApplicationHelper
           previous = token unless [:whitespace, :comment].include?(token[:node])
           value = token[:value]
           if url && value.present? && !value.match?(%r{\A(?:[a-z][a-z\d+.-]*:|//|#)}i)
-            absolute = Addressable::URI.join(source, value).normalize.to_s.to_json
+            absolute = JSON.generate(Addressable::URI.join(source, value).normalize.to_s)
             token[:node] == :url ? "url(#{absolute})" : absolute
           else
             token[:raw]

@@ -66,6 +66,16 @@ describe ApplicationHelper, type: :helper do
       expect(Nokogiri::HTML.fragment(result).at_css("style").content).to eq('a{background:url("https://assets.example.com/vite/image%20one.svg?q=two%20three#mask")}')
     end
 
+    it "preserves multiple query parameters when HTML-safe JSON encoding is enabled" do
+      allow(File).to receive(:read).with(asset_file).and_return('a{background:url("../image.svg?v=1&color=blue")}')
+      previous = ActiveSupport::JSON::Encoding.escape_html_entities_in_json
+      ActiveSupport::JSON::Encoding.escape_html_entities_in_json = true
+      result = helper.vite_entrypoint_stylesheet_tag("design", inline: true)
+      expect(Nokogiri::HTML.fragment(result).at_css("style").content).to eq('a{background:url("https://assets.example.com/vite/image.svg?v=1&color=blue")}')
+    ensure
+      ActiveSupport::JSON::Encoding.escape_html_entities_in_json = previous
+    end
+
     it "does not allow stylesheet text to close the style element" do
       allow(File).to receive(:read).with(asset_file).and_return('a{content:"</STYLE><script>alert(1)</script>"}')
       document = Nokogiri::HTML.fragment(helper.vite_entrypoint_stylesheet_tag("design", inline: true))
@@ -113,6 +123,7 @@ describe ApplicationHelper, type: :helper do
         stub_const("FACEBOOK_OG_NAMESPACE", "test")
         stub_const("CDN_S3_PROXY_HOST", nil)
         stub_const("PUBLIC_STORAGE_CDN_S3_PROXY_HOST", nil)
+        allow(Rails).to receive(:public_path).and_return(Pathname.new(File.expand_path("../../public", __dir__)))
         allow(Rails).to receive(:application).and_return(double(root: Pathname.new(File.expand_path("../..", __dir__)), config: double(asset_host: nil, root: Pathname.new(File.expand_path("../..", __dir__)))))
         allow(helper).to receive_messages(action_cable_meta_tag: "", vite_client_tag: "", vite_react_refresh_tag: "", erb_meta_tags: "", inertia_meta_tags: "", inertia_rendering?: true)
         allow(SecureHeaders).to receive(:content_security_policy_script_nonce).and_return("test-nonce")
