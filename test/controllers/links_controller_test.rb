@@ -6406,52 +6406,72 @@ class LinksControllerConsumerTest < ActionController::TestCase
   tests LinksController
   include LinksControllerTestHelpers
 
-  setup { @user = create_user }
+  setup do
+    # Devise registers its session serializers when the routes are loaded.
+    Rails.application.reload_routes_unless_loaded
+    @user = create_user
+  end
 
   # --- GET cart_items_count ---------------------------------------------------
 
-  test "GET cart_items_count returns 0 when no cart exists" do
+  test "GET cart_items_count returns a private minimal iframe document" do
     get :cart_items_count
 
-    page = inertia_page_from_html
-    assert_equal "Products/CartItemsCount", page["component"]
-    assert_equal 0, page["props"]["cart_items_count"]
-
+    assert_response :success
+    assert_equal "text/html", response.media_type
     html = Nokogiri::HTML.parse(response.body)
-    [
-      "gr:google_analytics:enabled",
-      "gr:fb_pixel:enabled",
-      "gr:tiktok_pixel:enabled",
-    ].each do |property|
-      assert_equal "false", html.xpath("//meta[@property='#{property}']/@content").text
-    end
+    assert_empty html.css("script[src], link, style, [data-page], meta[property]")
+    assert_equal 1, html.css("script").length
+    script = html.at_css("script")
+    assert_match(/cartItemsCount:\s*hasAccess \? 0 : "not-available"/, script.text)
+    assert_includes script.text, "document.hasStorageAccess()"
+    assert_includes script.text, "window.parent.postMessage"
+    assert script["nonce"].present?
+    assert_equal SecureHeaders.content_security_policy_script_nonce(@request), script["nonce"]
+    assert_includes response.headers["Cache-Control"], "private"
+    assert_includes response.headers["Cache-Control"], "no-store"
+    assert_nil response.headers["X-Inertia"]
+    assert_nil response.headers["X-Frame-Options"]
   end
 
-  test "GET cart_items_count returns the count of alive cart products" do
-    sign_in @user
-    product = create_product
+  test "GET cart_items_count counts alive rows rather than quantities even with X Inertia" do
+    sign_in @user, scope: :user
     cart = create_cart(user: @user, email: @user.email)
-    create_cart_product(cart:, product:)
-
-    @request.headers["X-Inertia"] = "true"
-    get :cart_items_count
-
-    page = inertia_page
-    assert_equal "Products/CartItemsCount", page["component"]
-    assert_equal 1, page["props"]["cart_items_count"]
-  end
-
-  test "GET cart_items_count does not count deleted cart products" do
-    sign_in @user
-    product = create_product
-    cart = create_cart(user: @user, email: @user.email)
-    create_cart_product(cart:, product:)
+    create_cart_product(cart:, product: create_product, quantity: 3)
     create_cart_product(cart:, product: create_product, deleted_at: Time.current)
 
     @request.headers["X-Inertia"] = "true"
     get :cart_items_count
 
-    assert_equal 1, inertia_page["props"]["cart_items_count"]
+    assert_equal "text/html", response.media_type
+    assert_nil response.headers["X-Inertia"]
+    assert_match(/cartItemsCount:\s*hasAccess \? 1 : "not-available"/, response.body)
+    assert_empty Nokogiri::HTML.parse(response.body).css("script[src], link, [data-page]")
+  end
+
+  test "GET cart_items_count only reads the anonymous cart matching its guid cookie" do
+    cookies[:_gumroad_guid] = "cart-count-browser"
+    own_cart = create_cart(user: nil, browser_guid: "cart-count-browser")
+    other_cart = create_cart(user: nil, browser_guid: "other-cart-count-browser")
+    create_cart_product(cart: own_cart, product: create_product)
+    2.times { create_cart_product(cart: other_cart, product: create_product) }
+
+    get :cart_items_count
+
+    assert_match(/cartItemsCount:\s*hasAccess \? 1 : "not-available"/, response.body)
+  end
+
+  test "GET cart_items_count prefers the signed in cart over the guid cookie" do
+    sign_in @user, scope: :user
+    cookies[:_gumroad_guid] = "cart-count-anonymous"
+    anonymous_cart = create_cart(user: nil, browser_guid: "cart-count-anonymous")
+    create_cart_product(cart: anonymous_cart, product: create_product)
+    user_cart = create_cart(user: @user, email: @user.email)
+    2.times { create_cart_product(cart: user_cart, product: create_product) }
+
+    get :cart_items_count
+
+    assert_match(/cartItemsCount:\s*hasAccess \? 2 : "not-available"/, response.body)
   end
 
   # --- POST track_user_action -------------------------------------------------
