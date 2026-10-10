@@ -480,3 +480,120 @@ Mobile medians are **54 for Inertia and 74 for RSC**, a **20-point gap**. Deskto
 The preceding local experiment isolates stylesheet delivery under its stated transport limits. This deployed comparison establishes the measured result for the new same-source pair; it does not reconstruct the exact transient conditions behind the October 1 captures.
 
 This complete batch improves on the earlier mobile medians of 53/65, but RSC’s median of 74 does not meet the intended above-80 result or the article’s original approximate score band. No article update is justified by this batch. Further image-scheduling experiments are separate work; these reports are retained without score-driven replacements.
+
+## Static description diagnostics — October 9, 2026
+
+These local diagnostics informed [PR #117](https://github.com/shakacode/gumroad/pull/117), candidate commit [`eae862d6f774b5b7b4b81989a4e41766bf110829`](https://github.com/shakacode/gumroad/commit/eae862d6f774b5b7b4b81989a4e41766bf110829). Both hosts have now been deployed and verified at this candidate; deployment details follow below. The completed Google PageSpeed batch is reported below. Local scores below do not replace the saved Google reports or establish that the article's publication criteria have been met.
+
+Comparing the saved Google RSC mobile reports scoring 80, 65, and 74 separates observed rendering from Lighthouse's simulation. Their observed FCP/LCP values were respectively 991/991 ms, 2423/2423 ms, and 469/651 ms; simulated LCP was 3604.023, 6752.028, and 5813.987 ms (rounded to three decimals). Thus the inline-CSS report scoring 74 displayed the product sooner than the original report scoring 80, while its simulated LCP remained worse. LCP accounted for −13.50 weighted score points between 80 and 65, and −11.50 between 80 and 74. These reports do not supply Google's raw trace and simulation graph, so they do not establish the complete historical cause of the score change. They also do not support backend slowness or a historical CPU slowdown as a simple explanation.
+
+Three local hero-priority pairs changed the hero's request priority as intended but left median score at 85 and median simulated LCP at 3454 → 3451 ms. Three offscreen-cover pairs actually deferred four requests beyond one second and reduced median image bytes completed before one second by 280,642 bytes, but median score changed 86 → 85. Replaying the retained artifacts with CPU multipliers 1.2, 4, 6, and 8 gave median paired score changes of 0 at every multiplier for hero priority, and −1/−3/−3/−3 for cover deferral. This was offline sensitivity analysis, not new browser gathering or calibration to Google's hardware.
+
+An initial description-only experiment added lazy attributes to seven HTML images without changing the client description data. Median local score rose 85 → 90, but client editor enhancement reset every loading attribute to `auto`; all seven requests still began before one second. That experiment demonstrated a transient priority/model effect, not persistent lazy loading or bandwidth savings, and was not treated as a deployable fix.
+
+The subsequent nine-run experiment used three fixed groups with three arms: the inline-CSS baseline, normalized links keeping ordinary descriptions static, and the same static descriptions with six subsequent images lazy. The first description image retained its existing loading behavior. Captured HTML and Flight data were updated consistently using the actual Ruby presenter output; Flight record framing and embedded cache keys were preserved. The tested application code is identical to the final candidate linked above. Tests used Linux ARM Chrome 153.0.8010.36, Lighthouse 13.5.0, simulated mobile throttling (150 ms RTT, 1638.4 Kbps, CPU multiplier 1.2), and a 412 × 823 viewport at device scale factor 1.75. All arms used the same local gzip document transport with a 350 ms delivery delay and actual network requests to the original HTTPS asset hosts. This document transport and local hardware limit comparisons with Google.
+
+| Median of three local runs | Baseline | Static description | Static + six lazy images |
+| --- | ---: | ---: | ---: |
+| Performance score | 85 | 90 | 95 |
+| Observed LCP, ms | 625 | 610 | 613 |
+| Simulated LCP, ms | 3445 | 3446 | 2662 |
+| Script requests | 73 | 66 | 66 |
+| Script transfer bytes | 1,593,275 | 1,068,102 | 1,068,108 |
+| Image bytes completed before one second | 1,008,161 | 1,008,114 | 1,008,142 |
+
+Avoiding unnecessary editor enhancement eliminated seven script requests and approximately 525 KB of transferred JavaScript. The six lazy attributes persisted, but all seven description-image requests still began before one second during Lighthouse: **there was no measured early image-byte saving**. The previously identified local simulated-LCP image changed from Medium to Low priority only in the lazy arm, consistent with resource scheduling and Lighthouse's image-selection rules affecting the modeled result. This does not identify the critical node in Google's unavailable raw graph. All three TBT medians were zero; the static-only score increase cannot be attributed solely to CPU savings.
+
+Separate functional checks expanded “Read more,” scrolled through all seven images, verified loaded natural dimensions and visible image pixels, and successfully collapsed “Show less” in all three arms. The final arm retained the first image's default and six lazy attributes throughout. In the first separate UI check, baseline and final-arm initial screenshots were byte-identical. All arms also showed the same existing “Something went wrong” page error; a transient toast affected the static-only screenshot and can affect Speed Index. These checks verify description/image behavior, not an error-free application. An earlier reconstruction attempt that produced blank intervention pages was excluded from the valid nine-run comparison.
+
+Raw local reports, traces, network logs, reconstruction checks, and screenshots were retained locally; the replay fixtures are not attached here, so this summary alone is not a complete public reproduction package. The candidate preserves authored loading preferences, leaves coverless descriptions' image loading unchanged, and retains existing enhancement for interactive descriptions. The matched-deployment Google capture batch below determines the article update gate.
+
+## Referral-query Google diagnostic — October 9, 2026 (HST)
+
+This bounded diagnostic compared two URLs on the same RSC deployment, held at commit [`59c6947b9d80c7c52df8772fe69fd0e42c14fdb5`](https://github.com/shakacode/gumroad/commit/59c6947b9d80c7c52df8772fe69fd0e42c14fdb5):
+
+- [Original URL](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile)
+- [Search URL](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search)
+
+All four October 1 saved reports used `?layout=profile` without the referral parameter. This diagnostic isolates that URL difference on the later inline-CSS deployment; it does not reproduce the historical deployment or compare Inertia with RSC.
+
+Both exact URLs were loaded three times before capture. Six alternating submissions produced twelve distinct fresh reports, three per URL and form factor. Lighthouse 13.5.0 and Chrome 153.0.8010.36 ran in North America with simulated throttling, with identical settings within each form factor: mobile 150 ms RTT / 1638.4 Kbps / CPU multiplier 1.2, desktop 40 ms / 10240 Kbps / CPU multiplier 1. The first-to-last JSON fetchTime span was **344.708 seconds** (October 10, 00:49:33.019–00:55:17.727 UTC; October 9, 14:49:33.019–14:55:17.727 HST). Before/after checks confirmed unchanged deployment images and workload versions. Every submitted report is retained below, including the desktop outlier.
+
+| URL | Run | Device | Score | FCP | LCP | JSON fetchTime (UTC) | Saved report |
+| --- | ---: | --- | ---: | --- | --- | --- | --- |
+| Original | 1 | mobile | 70 | 2.3 s | 6.4 s | 2026-10-10T00:49:33.019Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/vujmp7v680?form_factor=mobile) |
+| Original | 1 | desktop | 97 | 0.7 s | 1.1 s | 2026-10-10T00:49:33.238Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/vujmp7v680?form_factor=desktop) |
+| Search | 1 | mobile | 75 | 2.0 s | 5.5 s | 2026-10-10T00:50:38.595Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/pxwa43fezy?form_factor=mobile) |
+| Search | 1 | desktop | 97 | 0.6 s | 1.1 s | 2026-10-10T00:50:39.012Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/pxwa43fezy?form_factor=desktop) |
+| Original | 2 | mobile | 75 | 2.0 s | 5.6 s | 2026-10-10T00:51:43.988Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/voqh3879h0?form_factor=mobile) |
+| Original | 2 | desktop | 98 | 0.6 s | 1.0 s | 2026-10-10T00:51:44.309Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/voqh3879h0?form_factor=desktop) |
+| Search | 2 | mobile | 80 | 2.0 s | 4.3 s | 2026-10-10T00:53:00.156Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/9qg2q73w2i?form_factor=mobile) |
+| Search | 2 | desktop | 64 | 0.6 s | 1.1 s | 2026-10-10T00:53:01.809Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/9qg2q73w2i?form_factor=desktop) |
+| Original | 3 | mobile | 70 | 2.5 s | 5.7 s | 2026-10-10T00:54:11.203Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/hqfy0a0nw3?form_factor=mobile) |
+| Original | 3 | desktop | 97 | 0.6 s | 0.9 s | 2026-10-10T00:54:10.724Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/hqfy0a0nw3?form_factor=desktop) |
+| Search | 3 | desktop | 99 | 0.5 s | 0.8 s | 2026-10-10T00:55:16.955Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/kc869b0btc?form_factor=desktop) |
+| Search | 3 | mobile | 77 | 2.3 s | 4.4 s | 2026-10-10T00:55:17.727Z | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/kc869b0btc?form_factor=mobile) |
+
+Mobile scores were **70/75/70** without the parameter (median **70**) and **75/80/77** with it (median **77**). Desktop scores were **97/98/97** and **97/64/99**, both median **97**. The search URL's desktop score of **64** is retained: its total blocking time displayed **1,830 ms**, despite FCP **0.6 s** and LCP **1.1 s**.
+
+The referral parameter did **not** reproduce the proposed historical negative effect in this batch. Three runs per condition, differing runner conditions, and the retained outlier do not establish a positive causal benefit from adding the parameter either. A separate paired HTTP comparison found identical initial resource lists, with differences limited to URL-derived values, CSRF tokens, and CSP nonces. The application has a feature-gated attribution branch, so these findings do not mean the parameter can never affect timing. Historical rollback/restored-source measurements also used the original URL and had mobile medians 68/71; omission of the referral parameter alone does not establish the historical explanation.
+
+These are diagnostic results on the earlier CSS-only source, not the final static-description candidate's matched-deployment capture or an authorization to update the articles.
+
+## Static description deployment, October 9, 2026 (HST)
+
+Both demos were built from commit `eae862d6f774b5b7b4b81989a4e41766bf110829` using Control Plane Flow 6.0.0 locally, then updated by immutable image digest. No release hook, migration or reseeding ran. Both retain fixed resources in AWS Ohio and their existing configuration. The luisfurushio rendering flag is off for Inertia and on for RSC.
+
+| Demo | Image | Digest | Build start/end UTC | Deploy update start/end UTC |
+|---|---|---|---|---|
+|gumroad-inertia|`gumroad-inertia:24_eae862d6f774b5b7b4b81989a4e41766bf110829`|`sha256:3b6c98ab0e0d2df08cb45a8159a38c0f9b6c749dce114874de39cb4e1de2086b`|2026-10-10T00:27:42.553814+00:00 / 2026-10-10T01:10:15.966320+00:00|2026-10-10T01:10:52.960267+00:00 / 2026-10-10T01:11:04.733964+00:00|
+|gumroad-rorp|`gumroad-rorp:36_eae862d6f774b5b7b4b81989a4e41766bf110829`|`sha256:c05e2cc0522e36c6c27be31b8889321489c8bd9f29e1b91f59562a400e77a5b6`|2026-10-10T00:27:42.553976+00:00 / 2026-10-10T01:09:45.591859+00:00|2026-10-10T01:10:52.968731+00:00 / 2026-10-10T01:11:04.962371+00:00|
+
+All six application workloads reported readyLatest at 2026-10-10T01:12:43.118676+00:00.
+
+Ruby, Node, installed dependency versions and package/lock hashes match between the pair. Runtime source-file hashes match the reviewed source. All non-image workload and GVC specification hashes are unchanged. The existing RSC compiled script paths/hashes and design stylesheet bytes match the preceding inline-CSS deployment. The two hosts have distinct image digests, domains, storage/database/cache identities and credentials. These isolate deployments and can affect URL/metadata/cache state. The product-page feature flag selects the rendering implementation; no second request-time implementation toggle was identified. Configured environment entries have no unexpected differences beyond these established identities and rendering-surface setup.
+
+RSC keeps inline design CSS without an external design stylesheet link/preload. Its simple description stays static without the editor or a fallback RSC fetch; links have the expected target/rel values, the first description image retains its default loading, and the following six remain lazy. The product loads, Read more expands, and all seven description images load on scroll. Inertia keeps its external design stylesheet.
+
+Verification completed 2026-10-10T01:22:31.704771+00:00. Browser hydration, carousel, expanded-image visibility and navigation from the main Add to cart action to the expected checkout URL pass. This verifies navigation only, not checkout completion; no purchase was submitted. Local build method is the same as the preceding inline-CSS deployment; earlier hosted `5df1b68` builds used Flow 5.2. No claim of byte-identical host images or controlled equivalence to the historical October 1 runner is made.
+
+The deployed source above is application-identical to PR #117 test-only follow-up commit `7f0a7d1f833e33ecaf71a3a6a1a08c541745c3a4`. Standard Rails focused validation at that follow-up passed 31 examples; local asset-build validation remained limited by missing frontend dependencies. The successful deployment builds are separate production-asset-build evidence.
+
+Both runtimes report Ruby **3.4.3**, Node **v22.22.2**, React/ReactDOM **19.2.8**, React on Rails/Pro/Node renderer **17.1.0**, and react-on-rails-rsc **19.3.0**. Common dependency-file SHA-256 values are:
+
+- `package.json`: `862b67c72d7710a11338214cd144f3b25bcfb47a7e5c296ad84c484de264d723`.
+- `package-lock.json`: `2ca9052d7559dfa6c04502da4effa2c1d8cfcdbb3f3e68cf2917be08586b3a2b`.
+- `Gemfile.lock`: `b33772f04939472e16ea8bd17e3255b264ceefae262159a3c05e2d6acded7f7c`.
+
+Fixed allocations match the preceding comparison: Rails **1 CPU / 2 GiB**, renderer and Sidekiq each **0.5 CPU / 1 GiB**, one ready replica per workload, Capacity AI disabled. Resource allocations match across all eight corresponding workloads. All 477 compared compiled asset paths and SHA-256 hashes match the preceding inline-CSS deployment on each host, including 83 RSC artifacts and the design stylesheet. The change is server-provided description data, not a rebuilt client script change.
+
+The verification cutoff is `2026-10-10T01:22:31.704771+00:00`. The Google batch below followed this verification and fresh warmups; deployment success alone does not satisfy the article score gate.
+
+### Twelve Google captures after the static-description deployment
+
+Both [Inertia](https://luisfurushio.gumroad-inertia.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) and [RSC](https://luisfurushio.gumroad-rorp.reactonrails.com/l/bgfjk?layout=profile&recommended_by=search) used the prescribed `layout=profile&recommended_by=search` URLs. Three successful warmup loads per host completed at `2026-10-10T01:23:30.463Z`. Six predefined alternating submissions produced twelve distinct fresh reports, with no exclusions or retries. All JSON fetchTimes follow the verification and warmup cutoff, and none reuse retained prior report IDs or timestamps.
+
+The captures span **365.532 seconds**, `2026-10-10T01:23:44.463Z`–`2026-10-10T01:29:49.995Z` (October 9, 15:23:44.463–15:29:49.995 HST). All twelve browser-location tooltips report **North America**. Lighthouse **13.5.0** and HeadlessChrome **153.0.8010.36** were used throughout; complete settings match within each form factor and match the preceding CSS-only batch: mobile simulated 150 ms RTT / 1638.4 Kbps / CPU 1.2, desktop simulated 40 ms RTT / 10240 Kbps / CPU 1. Before/after comparison confirmed unchanged application image digests, workload versions and non-image specifications; the final verification completed at `2026-10-10T01:31:44.122410+00:00`.
+
+| Variant / run | Form factor | Performance | FCP | LCP | `fetchTime` (UTC) | Report |
+| --- | --- | ---: | --- | --- | --- | --- |
+| inertia-1 | mobile | 55 | 7.1 s | 10.9 s | `2026-10-10T01:23:44.463Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/u78lxp24qi?form_factor=mobile) |
+| inertia-1 | desktop | 75 | 1.4 s | 2.2 s | `2026-10-10T01:23:44.496Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/u78lxp24qi?form_factor=desktop) |
+| rorp-1 | desktop | 100 | 0.3 s | 0.7 s | `2026-10-10T01:24:59.070Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/tx4ma7by4i?form_factor=desktop) |
+| rorp-1 | mobile | 80 | 2.0 s | 4.5 s | `2026-10-10T01:24:59.544Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/tx4ma7by4i?form_factor=mobile) |
+| inertia-2 | desktop | 77 | 1.4 s | 2.2 s | `2026-10-10T01:26:14.108Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/2qkck1tfl4?form_factor=desktop) |
+| inertia-2 | mobile | 50 | 7.1 s | 10.9 s | `2026-10-10T01:26:14.691Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/2qkck1tfl4?form_factor=mobile) |
+| rorp-2 | mobile | 78 | 2.0 s | 5.3 s | `2026-10-10T01:27:24.313Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/0n4zwbvb29?form_factor=mobile) |
+| rorp-2 | desktop | 99 | 0.5 s | 0.8 s | `2026-10-10T01:27:23.936Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/0n4zwbvb29?form_factor=desktop) |
+| inertia-3 | desktop | 74 | 1.4 s | 2.4 s | `2026-10-10T01:28:35.215Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/peuvxzavus?form_factor=desktop) |
+| inertia-3 | mobile | 51 | 7.1 s | 10.9 s | `2026-10-10T01:28:35.792Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-inertia-reactonrails-com-l-bgfjk/peuvxzavus?form_factor=mobile) |
+| rorp-3 | desktop | 99 | 0.6 s | 0.9 s | `2026-10-10T01:29:49.995Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/ubwes2odgs?form_factor=desktop) |
+| rorp-3 | mobile | 83 | 1.8 s | 4.3 s | `2026-10-10T01:29:49.484Z` | [Report](https://pagespeed.web.dev/analysis/https-luisfurushio-gumroad-rorp-reactonrails-com-l-bgfjk/ubwes2odgs?form_factor=mobile) |
+
+Mobile scores are **55/50/51 for Inertia** and **80/78/83 for RSC**, with medians **51 and 80** and a **29-point gap**. Desktop scores are **75/77/74** and **100/99/99**, with medians **75 and 99**. Scores vary between runs.
+
+This complete batch satisfies the original article-update criterion: mobile medians are within five points of the original 53/80, and the 29-point gap is similar to the original 27 points. It does **not** establish a median strictly above 80: one RSC run scored 83, but the median is 80. No lower-scoring result was replaced. These measurements establish the result of the verified same-source deployment pair, not the precise cause of the historical October 1 result.
+
+For the article tables, the representative report is the run with the median performance score, breaking ties by earliest fetchTime: Inertia mobile run 3, RSC mobile run 1, Inertia desktop run 1, and RSC desktop run 2. FCP, LCP and capture time come from that same report; they are not separately calculated medians. The approximately 525 KB JavaScript reduction above belongs to the local diagnostic and is not a measured Google transfer-saving claim.
+
+Across all three new RSC mobile Google reports, the same seven editor-related application script URLs are absent compared with all three preceding CSS-only reports. Application-host HTTP(S) script requests fall from **70 to 63**; their median transferred bytes fall from **1,486,096 to 1,202,313**, and decoded bytes from **4,433,001 to 3,556,809**. These counts and sums are computed from each report's network-request audit, excluding third-party scripts and blob URLs. They confirm the reduced application download; the sequential batches do not isolate how much of the score change comes from this reduction.
