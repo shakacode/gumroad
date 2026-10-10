@@ -70,7 +70,7 @@ class LinksController < ApplicationController
   # in-action pin drew, leaving the product and seller lookups above on the replica.
   around_action :use_primary_database, only: :show
 
-  layout "inertia", only: %i[index new show cart_items_count edit]
+  layout "inertia", only: %i[index new show edit]
 
   def index
     authorize Link
@@ -275,7 +275,8 @@ class LinksController < ApplicationController
 
   def cart_items_count
     cart = Cart.fetch_by(user: logged_in_user, browser_guid: cookies[:_gumroad_guid])
-    render inertia: "Products/CartItemsCount", props: {
+    response.headers["Cache-Control"] = "private, no-store"
+    render :cart_items_count, layout: false, formats: [:html], locals: {
       cart_items_count: cart&.cart_products&.alive&.count || 0
     }
   end
