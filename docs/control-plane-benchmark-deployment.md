@@ -24,18 +24,44 @@ Each run records the workflow and application SHAs in its validation-job summary
 
 After deployment, record the image digests for Rails, Sidekiq, and renderer, and verify runtime `GIT_COMMIT` and package versions on both demos. The release verifies the Product `bgfjk` rendering flag: disabled on Inertia and enabled on RORP. Also confirm its seller is `luisfurushio` and request both seller URLs with `?layout=profile&recommended_by=search`. Asset hashes may differ because builds embed their respective hostnames.
 
-Both apps use fixed resources during comparisons: Rails gets 1 CPU and 2 GiB, and Sidekiq and renderer each get 0.5 CPU and 1 GiB, with one replica per workload. CapacityAI is disabled so idle history cannot change one app's allocation. Older application commits retain adaptive templates. After deploying either app, explicitly set fixed allocation on its existing workloads:
+## Idle operation and reproducing measurements
+
+Follow [Control Plane Flow's demo guidance](https://github.com/shakacode/control-plane-flow/blob/main/docs/tips.md#enable-capacity-ai-for-demo-and-starter-staging-apps): Rails, Sidekiq, and renderer use Capacity AI with disabled replica autoscaling. This right-sizes running stateless services; it does **not** shut them down. Stateful services remain manually sized. Keep fixed benchmark allocations temporary, not the everyday demo default.
+
+If the operator chooses to take the demos offline between sessions, use Flow's reversible [pause/resume commands](https://github.com/shakacode/control-plane-flow/blob/main/docs/tips.md#pause-and-resume-with-psstop--psstart):
 
 ```sh
 for app in gumroad-inertia gumroad-rorp; do
-  cpln workload update rails --gvc "$app" --org shakacode-open-source-examples-staging \
-    --set spec.defaultOptions.capacityAI=false
-  cpln workload update sidekiq --gvc "$app" --org shakacode-open-source-examples-staging \
-    --set spec.defaultOptions.capacityAI=false
+  cpflow ps:stop --app "$app" --org shakacode-open-source-examples-staging --wait
 done
 ```
 
-The renderer template already disables CapacityAI. After both deployments finish, verify workload readiness, deployment resource allocations, and current-version `cpu_reserved` metrics before warming and measuring; fresh replicas alone do not prove equal resources.
+This suspends the eight workloads listed in `app_workloads` and `additional_workloads`. Inventory live workloads first: older deployments may also have an unlisted MongoDB workload. Stop any such existing service explicitly with `cpflow ps:stop --app "$app" --workload mongo --org shakacode-open-source-examples-staging --wait`, and record it for the matching explicit start. Do not delete workloads, GVCs, images, or volume sets. Persistent database volumes survive suspension; in-memory caches do not, and retained storage can still incur charges. Verify that every intended workload is suspended and has no running replicas; the command alone does not inventory unlisted services.
+
+**Reproduction warning:** a stopped demo does not wake when its URL is refreshed. An operator must start it before a visitor or PageSpeed can use it:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  cpflow ps:start --app "$app" --org shakacode-open-source-examples-staging --wait
+done
+```
+
+Start any recorded unlisted backing service before the app. Verify readiness, source/image digests, seller flags, database-backed product rendering, and all resource allocations after startup. No deployment, release hook, migration, or reseeding is required. True automatic idle scale-to-zero requires a separately planned serverless migration; do not change these existing standard workloads' type in place.
+
+For a controlled comparison only, temporarily disable Capacity AI on all three app workloads on both hosts:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  for workload in rails sidekiq renderer; do
+    cpln workload update "$workload" --gvc "$app" --org shakacode-open-source-examples-staging \
+      --set spec.defaultOptions.capacityAI=false
+  done
+done
+```
+
+Verify effective equal resources: Rails 1 CPU/2 GiB, Sidekiq and renderer 0.5 CPU/1 GiB each, one ready replica each, plus matching backing-service allocations. Wait for resource changes to converge; current-version allocation metrics must agree. Load each exact product URL three times and wait for cold starts before the timed report batch. Live demo scores can differ from saved warmed captures because of suspension, adaptive allocation, cache state, or report-runner conditions.
+
+After capturing, restore `capacityAI=true` on those same three app workloads. Stop both apps only when the operator has chosen offline operation; otherwise leave them available with adaptive allocation. Preserve the measurement's fixed-allocation evidence separately from the everyday idle settings.
 
 ## Bootstrap the app
 

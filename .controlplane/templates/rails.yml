@@ -33,7 +33,7 @@ spec:
       metric: disabled
       minScale: 1
       maxScale: 1
-    capacityAI: false
+    capacityAI: true
     timeoutSeconds: 120
   firewallConfig:
     external:
