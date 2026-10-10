@@ -11,11 +11,31 @@ class ProductPresenter::RscContentProps
   end
 
   def props
-    product_props.slice(*CONTENT_KEYS).merge(show_price: show_price?)
+    product_props.slice(*CONTENT_KEYS).merge(show_price: show_price?, description_html: description_html)
   end
 
   private
     attr_reader :product_props
+
+    def description_html
+      html = product_props[:description_html]
+      return html if html.blank?
+
+      fragment = Nokogiri::HTML.fragment(html)
+      # Interactive descriptions still use TipTap, which owns their image and link behavior.
+      return html if fragment.at_css("pre, public-file-embed, review-card, upsell-card, a:not([href])")
+
+      # Plain descriptions need no client enhancement once their links match TipTap's behavior.
+      fragment.css("a[href]").each do |link|
+        link["target"] = "_blank"
+        link["rel"] = (link["rel"].to_s.split + %w[noopener noreferrer nofollow]).uniq(&:downcase).join(" ")
+      end
+      if product_props[:covers].present?
+        # A short cover can leave the first description image in the initial viewport.
+        fragment.css("img").drop(1).each { |image| image["loading"] ||= "lazy" }
+      end
+      fragment.to_html
+    end
 
     def show_price?
       base_price_cents = if product_props[:bundle_products].present?
