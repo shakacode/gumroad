@@ -1,8 +1,78 @@
-# Control Plane RORP benchmark deployment
+# Control Plane benchmark deployments
 
-`gumroad-rorp` is the isolated RORP benchmark app in `shakacode-open-source-examples-staging` (`aws-us-east-2`). Its GVC runs Rails, Sidekiq, a private authenticated renderer, MySQL, DynamoDB, Redis, Elasticsearch, and Memcached. The app uses an operator-owned R2 bucket under the `benchmarks/gumroad-rorp/` key prefix; the bucket and its public custom domain must exist before deployment.
+`gumroad-inertia` and `gumroad-rorp` are isolated benchmark apps in `shakacode-open-source-examples-staging` (`aws-us-east-2`). Each GVC runs Rails, Sidekiq, a private authenticated renderer, MySQL, DynamoDB, Redis, Elasticsearch, and Memcached. Each app uses an operator-owned R2 bucket with its own key prefix; the buckets and public custom domains must exist before deployment.
 
-The RORP path in this branch serves **full profile-layout Product documents for sellers with `product_page_react_on_rails` enabled**. Discover, seller profiles, and Discover-layout Product pages remain on Inertia. The fixture seeds do not enable the flag, so set and verify it for the seller being compared before claiming the RSC path is live.
+The RORP path in this branch serves **full profile-layout Product documents for sellers with `product_page_react_on_rails` enabled**. Discover, seller profiles, and Discover-layout Product pages remain on Inertia. The release phase sets and verifies the flag after fixture seeding: disabled on Inertia and enabled on RORP.
+
+## Deploy matched sources with GitHub Actions
+
+Keep deployment changes on `ramez/cpln/cpflow`; do not merge them into the upstream-facing Product RSC PR. Both demo workflows use the standard Control Plane Flow setup and image-build actions, followed by the configured release phase.
+
+Dispatch **Deploy Inertia to Control Plane** and **Deploy RORP to Control Plane** from `ramez/cpln/cpflow`, supplying the same full lowercase `source_sha` to both. For example:
+
+```sh
+source_sha=5df1b6827002108389e337bbe308896d49da30a1
+for surface in inertia rorp; do
+  gh workflow run "cpflow-deploy-${surface}.yml" --repo shakacode/gumroad \
+    --ref ramez/cpln/cpflow -f "source_sha=$source_sha"
+done
+```
+
+The commit must already belong to the selected deployment branch's history and descend from `5df1b6827002108389e337bbe308896d49da30a1`, the paired-demo deployment foundation. PR #103's application head alone lacks the required Control Plane runtime and storage configuration. Omit the input to build the workflow commit; pushes to the deployment branch retain that behavior.
+
+Each run records the workflow and application SHAs in its validation-job summary. Build and deploy jobs check out the same resolved application SHA, which is also passed to the image build as `GIT_COMMIT`. Deployments serialize per app; dispatches from other refs are skipped without sharing the deployment queue. GitHub Actions may replace a pending run with a newer pending run, so verify both intended runs finish successfully before collecting measurements. Control Plane Flow deploys the latest image for that app, so do not run separate manual builds or deployments concurrently. Do not push the deployment branch, dispatch another deployment, or run manual builds during measurement.
+
+After deployment, record the image digests for Rails, Sidekiq, and renderer, and verify runtime `GIT_COMMIT` and package versions on both demos. The release verifies the Product `bgfjk` rendering flag: disabled on Inertia and enabled on RORP. Also confirm its seller is `luisfurushio` and request both seller URLs with `?layout=profile&recommended_by=search`. Asset hashes may differ because builds embed their respective hostnames.
+
+## Idle operation and reproducing measurements
+
+Follow [Control Plane Flow's demo guidance](https://github.com/shakacode/control-plane-flow/blob/main/docs/tips.md#enable-capacity-ai-for-demo-and-starter-staging-apps): Rails, Sidekiq, and renderer use Capacity AI with disabled replica autoscaling. This right-sizes running stateless services; it does **not** shut them down. Stateful services remain manually sized. Keep fixed benchmark allocations temporary, not the everyday demo default.
+
+If the operator chooses to take the demos offline between sessions, use Flow's reversible [pause/resume commands](https://github.com/shakacode/control-plane-flow/blob/main/docs/tips.md#pause-and-resume-with-psstop--psstart):
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  cpflow ps:stop --app "$app" --org shakacode-open-source-examples-staging --wait
+done
+```
+
+This suspends the eight workloads listed in `app_workloads` and `additional_workloads`. Inventory live workloads first: older deployments may also have an unlisted MongoDB workload. Stop any such existing service explicitly with `cpflow ps:stop --app "$app" --workload mongo --org shakacode-open-source-examples-staging --wait`, and record it for the matching explicit start. Do not delete workloads, GVCs, images, or volume sets. Persistent database volumes survive suspension; in-memory caches do not, and retained storage can still incur charges. Verify that every intended workload is suspended and has no running replicas; the command alone does not inventory unlisted services.
+
+**Reproduction warning:** a stopped demo does not wake when its URL is refreshed. An operator must start it before a visitor or PageSpeed can use it:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  cpflow ps:start --app "$app" --org shakacode-open-source-examples-staging --wait
+done
+```
+
+Start any recorded unlisted backing service before the app. Verify readiness, source/image digests, seller flags, database-backed product rendering, and all resource allocations after startup. No deployment, release hook, migration, or reseeding is required. True automatic idle scale-to-zero requires a separately planned serverless migration; do not change these existing standard workloads' type in place.
+
+For a controlled comparison only, temporarily disable Capacity AI on all three app workloads on both hosts:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  for workload in rails sidekiq renderer; do
+    cpln workload update "$workload" --gvc "$app" --org shakacode-open-source-examples-staging \
+      --set spec.defaultOptions.capacityAI=false
+  done
+done
+```
+
+Verify effective equal resources: Rails 1 CPU/2 GiB, Sidekiq and renderer 0.5 CPU/1 GiB each, one ready replica each, plus matching backing-service allocations. Wait for resource changes to converge; current-version allocation metrics must agree. Load each exact product URL three times and wait for cold starts before the timed report batch. Live demo scores can differ from saved warmed captures because of suspension, adaptive allocation, cache state, or report-runner conditions.
+
+The selected source also supplies the Control Plane configuration and release script. Image deployment does not reapply templates, and older sources may contain different resource defaults. Set the everyday adaptive policy explicitly after any deployment to an existing app, including older-source deployments, and restore it after every benchmark:
+
+```sh
+for app in gumroad-inertia gumroad-rorp; do
+  for workload in rails sidekiq renderer; do
+    cpln workload update "$workload" --gvc "$app" --org shakacode-open-source-examples-staging \
+      --set spec.defaultOptions.capacityAI=true
+  done
+done
+```
+
+Verify all six values are true and each workload is ready. Stop both apps only when the operator has chosen offline operation; otherwise leave them available with adaptive allocation. Preserve the measurement's fixed-allocation evidence separately from the everyday idle settings.
 
 ## Bootstrap the app
 
