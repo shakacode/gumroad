@@ -157,6 +157,36 @@ describe "Product RSC hydration", :product_rsc_renderer, type: :system, js: true
     expect(page).to have_css("[aria-label='Discount code']", text: offer_code.code)
   end
 
+  it "localizes initial product cards like the Inertia product grid without replacing their server nodes" do
+    product = create(:product, user: seller, name: "Main catalog guide", price_cents: 123_456)
+    card = create(:product, user: seller, name: "Catalog workbook", price_cents: 123_456)
+    Link.import(refresh: true, force: true)
+    section = create(:seller_profile_products_section, seller:, product:, header: "More guides", shown_products: [card.id])
+    product.update!(sections: [section.id], main_section_index: 0)
+    capture_hydration(card, time_zone: "Pacific/Honolulu", locale: "de-DE")
+
+    visit product.long_url(layout: Product::Layout::PROFILE)
+    wait_for_product_script
+
+    expect(initial_product_markup(card).fetch("price")).to eq("$1,234.56")
+    within find("article", text: card.name) do
+      expect(page).to have_css("[itemprop='price']", text: "$1.234,56", exact_text: true)
+    end
+    expect(page.evaluate_script(<<~JS)).to be(true)
+      (() => {
+        const saved = window.productHydration.products[#{card.name.to_json}];
+        const article = [...document.querySelectorAll("#product-rsc-root article")].find(node => node.textContent.includes(#{card.name.to_json}));
+        return saved.article === article && saved.price === article.querySelector('[itemprop="price"]');
+      })()
+    JS
+
+    Feature.deactivate_user(:product_page_react_on_rails, seller)
+    visit product.long_url(layout: Product::Layout::PROFILE)
+    within find("article", text: card.name) do
+      expect(page).to have_css("[itemprop='price']", text: "$1.234,56", exact_text: true)
+    end
+  end
+
   def capture_hydration(*products, time_zone:, locale:, notice_text: nil, browser_time: nil)
     page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: time_zone)
     page.driver.browser.execute_cdp("Emulation.setLocaleOverride", locale:)

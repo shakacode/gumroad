@@ -139,3 +139,32 @@ it("does not emit non-web image sources", () => {
 
   expect(html).not.toContain("my-app://open");
 });
+
+it.each([undefined, {}, { level: 0 }, { level: 7 }, { level: 1.5 }, { level: "2" }])(
+  "preserves headings with missing or unsupported levels like the editor (%j)",
+  (attrs) => {
+    const html = renderToStaticMarkup(
+      <ProfileRichTextContent
+        content={{
+          type: "doc",
+          content: [{ type: "heading", attrs, content: [{ type: "text", text: "Default heading" }] }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("<h1>Default heading</h1>");
+  },
+);
+
+it.each([1, 2, 3, 4, 5, 6])("preserves authored heading level %i", (level) => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Authored heading" }] }],
+      }}
+    />,
+  );
+
+  expect(html).toContain(`<h${level}>Authored heading</h${level}>`);
+});

@@ -90,6 +90,23 @@ describe "Selective product renderer boundary", type: :request do
     expect(body.to_s).not_to include("<pre", "Product rendering is temporarily unavailable.")
   end
 
+  it "keeps a real streamed response uncached and nonces its executable inline scripts", :product_rsc_renderer do
+    Feature.activate_user(:product_page_react_on_rails, seller)
+
+    get product.long_url(layout: "profile")
+
+    expect(response).to be_successful
+    expect(response.headers["Cache-Control"]).to include("no-store")
+    document = Nokogiri::HTML(response.body)
+    expect(document.css("script[data-react-on-rails-rsc-payload]")).not_to be_empty
+    inline_scripts = document.css("script:not([src])").reject { _1["type"].to_s.include?("json") }
+    expect(inline_scripts).not_to be_empty
+    inline_scripts.each do |script|
+      expect(script["nonce"]).to be_present
+      expect(response.headers["Content-Security-Policy"]).to include("'nonce-#{script['nonce']}'")
+    end
+  end
+
   it "preserves a flagged checkout redirect when the renderer is unconfigured" do
     Feature.activate_user(:product_page_react_on_rails, seller)
     allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("ExecJS")

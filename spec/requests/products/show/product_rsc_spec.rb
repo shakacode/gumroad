@@ -100,6 +100,19 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
     seller.seller_profile.update!(background_color: "#123456")
   end
 
+  it "retains owner edit links and saved sections without adding inline section controls" do
+    login_as seller
+
+    visit product.long_url(layout: Product::Layout::PROFILE)
+
+    expect(page).to have_css("#product-rsc-root")
+    expect(page).to have_link("Edit product")
+    expect(page).to have_link("Edit profile")
+    expect(page).to have_text("Server-visible creator story")
+    expect(page).not_to have_disclosure_button("Add section")
+    expect(page).not_to have_disclosure_button("Edit section")
+  end
+
   it "server-renders the full profile product without client JavaScript" do
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
 

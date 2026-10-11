@@ -99,6 +99,58 @@ it("uses browser formatting without an RSC provider", async () => {
   );
 });
 
+it("hydrates a card price without an explicit locale before adopting the buyer's locale", async () => {
+  let defaultLocale = "en-US";
+  vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+    return new Intl.NumberFormat(locales ?? defaultLocale, options).format(this);
+  });
+  const content = (
+    <ProductHydrationProvider value={snapshot}>
+      <PriceTag
+        currencyCode="usd"
+        price={123456}
+        oldPrice={234567}
+        isPayWhatYouWant
+        isSalesLimited={false}
+        buyerCurrency="eur"
+        buyerLocalCurrencyRate={null}
+      />
+    </ProductHydrationProvider>
+  );
+  const container = document.createElement("div");
+  document.body.append(container);
+  container.innerHTML = renderToString(content);
+  const serverPrice = container.querySelector('[itemprop="price"]');
+  const serverOldPrice = container.querySelector("s");
+  expect(serverPrice?.textContent).toBe("$2,345.67 $1,234.56+");
+  defaultLocale = "de-DE";
+  const errors = vi.fn();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  await React.act(async () => {
+    roots.push(hydrateRoot(container, content, { onRecoverableError: errors }));
+    await Promise.resolve();
+  });
+  expect(errors).not.toHaveBeenCalled();
+  expect(container.querySelector('[itemprop="price"]')).toBe(serverPrice);
+  expect(container.querySelector("s")).toBe(serverOldPrice);
+  expect(serverPrice?.textContent).toBe("$2.345,67 $1.234,56+");
+  expect(serverPrice?.getAttribute("content")).toBe("1234.56");
+});
+
+it("preserves an explicitly supplied price locale after hydration", async () => {
+  vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+    return new Intl.NumberFormat(locales ?? "de-DE", options).format(this);
+  });
+  const container = await hydrate(
+    <ProductHydrationProvider value={snapshot}>
+      <div data-hydration-check>
+        <PriceTag currencyCode="usd" price={123456} isPayWhatYouWant={false} isSalesLimited={false} locale="en-US" />
+      </div>
+    </ProductHydrationProvider>,
+  );
+  expect(container.textContent).toContain("$1,234.56");
+});
+
 it("hydrates the seven-day countdown boundary using the serialized reference time", async () => {
   const expiresAt = new Date(snapshot.referenceTime + (7 * 86400 + 1) * 1000);
   vi.spyOn(Date, "now").mockReturnValue(snapshot.referenceTime + 2000);

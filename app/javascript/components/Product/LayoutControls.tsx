@@ -88,18 +88,22 @@ export const CtaBar = ({
   return (
     <section
       aria-label="Product information bar"
-      className="fixed inset-x-0 bottom-0 order-1 translate-y-full border-0 bg-background lg:top-0 lg:bottom-auto lg:order-none lg:-translate-y-full"
+      className="border-0 bg-background"
       style={{
         padding: 0,
         overflow: "hidden",
         height: visible ? height : 0,
-        translate: visible ? "0 0" : undefined,
-        transition: "translate var(--transition-duration)",
+        transition: "var(--transition-duration)",
         flexShrink: 0,
         order: isDesktop ? undefined : 1,
         boxShadow: visible
           ? "0 var(--border-width) rgb(var(--color)), 0 calc(-1 * var(--border-width)) rgb(var(--color))"
           : undefined,
+        position: "fixed",
+        top: isDesktop ? 0 : undefined,
+        bottom: isDesktop ? undefined : 0,
+        left: 0,
+        right: 0,
         zIndex: "var(--z-index-menubar)",
         marginTop: hasHero ? "var(--border-width)" : undefined,
       }}
@@ -107,6 +111,10 @@ export const CtaBar = ({
       <div
         ref={ref}
         className="mx-auto flex max-w-product-page items-center justify-between gap-2 p-4 max-sm:flex-col max-sm:items-stretch lg:gap-4 lg:px-8"
+        style={{
+          transition: "var(--transition-duration)",
+          marginTop: visible || !isDesktop ? undefined : -height,
+        }}
       >
         {needsOptionChoice(product, selection) ? null : (
           <PriceTag
