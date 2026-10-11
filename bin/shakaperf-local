@@ -120,6 +120,15 @@ begin
   run!({}, ROOT, "npm", "ci", "--ignore-scripts", "--prefix", TOOL_DIR)
   package = File.join(TOOL_DIR, "node_modules", "shaka-perf", "package.json")
   abort "Unexpected ShakaPerf version" unless JSON.parse(File.read(package)).fetch("version") == TOOL_VERSION
+  package_directory = File.dirname(package)
+  run!({}, package_directory, "node", File.join(package_directory, "node_modules/node-gyp/bin/node-gyp.js"), "rebuild")
+  output!("node", "-e", "require(process.argv[1]).socketpair().forEach(fd => require('fs').closeSync(fd))",
+          File.join(package_directory, "build/Release/shaka_perf_socketpair.node"))
+  native_sources = {}
+  %w[binding.gyp native/socketpair.cpp].each { |path| native_sources[path] = Digest::SHA256.file(File.join(package_directory, path)).hexdigest }
+  manifest[:native_build] = { node_gyp: "12.1.0", python: output!("python3", "--version"), compiler: output!("clang", "--version"),
+                              sources: native_sources,
+                              binary_sha256: Digest::SHA256.file(File.join(package_directory, "build/Release/shaka_perf_socketpair.node")).hexdigest }
   manifest[:tool_dependencies] = JSON.parse(output!("node", "-e", <<~JS, package))
     const req = require("module").createRequire(process.argv[1]);
     console.log(JSON.stringify(Object.fromEntries(["playwright", "playwright-core", "lighthouse", "shaka-shared"].map(name => [name, req(name + "/package.json").version]))));
