@@ -32,8 +32,8 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     @source = git("rev-parse", "HEAD").strip
     @image = "gumroad-inertia:7_#{@source}"
     @commands = []
-    @images = %w[rails sidekiq renderer].index_with do
-      "/org/#{VerifiedBenchmarkDeployment::ORG}/image/gumroad-inertia:1@sha256:#{'b' * 64}"
+    @images = %w[rails sidekiq renderer].index_with do |workload|
+      "/org/#{VerifiedBenchmarkDeployment::ORG}/image/gumroad-inertia:1_#{workload}@sha256:#{Digest::SHA256.hexdigest(workload)}"
     end
     @digest = DIGEST
     @image_source = @source
@@ -105,6 +105,7 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     assert_includes error.message, "release data/flags require operator assessment"
     assert_equal previous, @images
     record = JSON.parse(File.read(@manifest))
+    assert_equal previous, record.fetch("previous_images")
     assert_equal "promotion_failed", record.fetch("phase")
     assert_empty record.fetch("rollback_errors")
   end
