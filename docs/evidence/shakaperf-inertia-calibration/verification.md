@@ -1,0 +1,15 @@
+# Delivery verification
+
+The integration is a **blocked draft** pending the existing verification-wrapper repair. The measured workload completed, but required local validation is not green.
+
+Shaka's immutable default-branch policy is `3bd38e01e0117115bbcf424a12c1721c8f51cf0e`. The complete-upstream comparison base is `ad62684070c74caedef86aecc5d3d67c6526676e`. Both candidate and a separate clean checkout of that exact base ran `.agents/bin/validate origin/jg-codex/gumroad-upstream-921e1d5` through the installed Shaka evidence runner, using Ruby3.4.3, Node22.22.2, matching Gemfile dependencies and the same independently prepared loopback service fixtures.
+
+Both runs passed ESLint and application TypeScript checking, then exited1 on the same13 RuboCop diagnostics: ten frozen-string/string-literal findings through `.agents/bin/setup`, plus missing frozen-string comment, indentation and block alignment in generated `db/schema.rb`. Candidate tested tree:`72ab262a8ad063ab4eb61196172b8f92e6f66ddb`; clean base tree:`36bbf2769c66dbffd99a329a1d8afbcb8b6acc93`. Later evidence-only documentation does not change the failing inputs.
+
+The full integration diff leaves the setup target, validation wrapper, RuboCop configurations, schema, Gemfile and Gemfile.lock unchanged. Their file hashes match the base. The root Node lock adds only the benchmark development dependency/peer, and does not affect these Ruby diagnostics. Existing [repair PR121](https://github.com/shakacode/gumroad/pull/121), owned separately, covers setup delegation and hidden-checkout lint discovery. This contribution changes no Shaka configuration or deployment protocol. Apply the reviewed wrapper repair to the intended base and rerun required validation before readiness; failed evidence is not waived or relabeled as passing.
+
+Focused evidence passed:35 healthcheck-controller examples after initializing required test seeds, scenario TypeScript checking, and RuboCop on the two new Ruby files. The fixture's type/comment-only lint repair emits byte-identical JavaScript to its measured source; provenance preserves both hashes.
+
+The validation wrapper stops at RuboCop. Its remaining checks were therefore run separately: migration-version collision guard,24 migration/CI-status self-checks,179 branch-spec selection checks and all reuse-full-suite checks passed. Those self-checks require a neutral shell/Git environment: unset `BASH_ENV` so host mise initialization does not replace their stub PATH, and suppress global Git config so Difftastic does not replace the machine-readable diff. No persistent host settings were changed. These passing checks do not turn the failed required validation into a pass.
+
+Only the task's own local services/processes were created and removed. No benchmark-host operation, production purchase, deployment, merge or maintainer contact occurred. Before publication, fork metadata showed no configured Buildkite secret/variable names, so the upstream preview trigger lacks its required credentials on this fork. No deployment workflow or setting was edited.

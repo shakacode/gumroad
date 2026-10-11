@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "shaka-perf": "0.3.1"
+  }
+}

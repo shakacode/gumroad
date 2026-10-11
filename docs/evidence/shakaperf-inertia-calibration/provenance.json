@@ -1,0 +1,153 @@
+{
+  "started_at": "2026-10-11T01:51:06Z",
+  "control_sha": "921e1d56e1685084b66cb4a532439e4b3069de4c",
+  "experiment_sha": "ad62684070c74caedef86aecc5d3d67c6526676e",
+  "dirty": true,
+  "tool_version": "0.3.1",
+  "mode": "Development Rails with prebuilt Vite assets; no architecture or production speedup claim",
+  "sampling": "18 simultaneous pairs per viewport; paired native inference",
+  "sides": {
+    "control": {
+      "url": "http://localhost:3411",
+      "environment": {
+        "RAILS_ENV": "development",
+        "NODE_ENV": "production",
+        "PROTOCOL": "http",
+        "DISABLE_SPRING": "1",
+        "DATABASE_NAME": "gumroad_shakaperf_control",
+        "DATABASE_PORT": "3331",
+        "DATABASE_HOST": "127.0.0.1",
+        "DATABASE_USERNAME": "root",
+        "DATABASE_URL": null,
+        "PRIMARY_DATABASE_URL": null,
+        "USE_DB_WORKER_REPLICAS": "false",
+        "TEST_DATABASE_NAME": "gumroad_shakaperf_test_control",
+        "DEV_LANE_PORT": "3411",
+        "DYNAMODB_ENDPOINT": "http://127.0.0.1:8041",
+        "ELASTICSEARCH_HOST": "http://127.0.0.1:9241",
+        "AWS_S3_ENDPOINT": "http://127.0.0.1:9041",
+        "REDIS_HOST": "127.0.0.1:6401/0",
+        "SIDEKIQ_REDIS_HOST": "127.0.0.1:6401/1",
+        "RPUSH_REDIS_HOST": "127.0.0.1:6401/2",
+        "RACK_ATTACK_REDIS_HOST": "127.0.0.1:6401/3",
+        "VITE_RUBY_AUTO_BUILD": "false",
+        "VITE_RUBY_MODE": "production",
+        "VITE_RUBY_ASSET_HOST": "http://shakaperf.localhost:3411",
+        "VITE_RUBY_HOST": "127.0.0.1",
+        "VITE_RUBY_PORT": "3511",
+        "ASSET_DOMAIN": "shakaperf.localhost:3411"
+      },
+      "compose_project": "gumroad-s1-14a39f22-control"
+    },
+    "experiment": {
+      "url": "http://localhost:3412",
+      "environment": {
+        "RAILS_ENV": "development",
+        "NODE_ENV": "production",
+        "PROTOCOL": "http",
+        "DISABLE_SPRING": "1",
+        "DATABASE_NAME": "gumroad_shakaperf_experiment",
+        "DATABASE_PORT": "3332",
+        "DATABASE_HOST": "127.0.0.1",
+        "DATABASE_USERNAME": "root",
+        "DATABASE_URL": null,
+        "PRIMARY_DATABASE_URL": null,
+        "USE_DB_WORKER_REPLICAS": "false",
+        "TEST_DATABASE_NAME": "gumroad_shakaperf_test_experiment",
+        "DEV_LANE_PORT": "3412",
+        "DYNAMODB_ENDPOINT": "http://127.0.0.1:8042",
+        "ELASTICSEARCH_HOST": "http://127.0.0.1:9242",
+        "AWS_S3_ENDPOINT": "http://127.0.0.1:9042",
+        "REDIS_HOST": "127.0.0.1:6402/0",
+        "SIDEKIQ_REDIS_HOST": "127.0.0.1:6402/1",
+        "RPUSH_REDIS_HOST": "127.0.0.1:6402/2",
+        "RACK_ATTACK_REDIS_HOST": "127.0.0.1:6402/3",
+        "VITE_RUBY_AUTO_BUILD": "false",
+        "VITE_RUBY_MODE": "production",
+        "VITE_RUBY_ASSET_HOST": "http://shakaperf.localhost:3412",
+        "VITE_RUBY_HOST": "127.0.0.1",
+        "VITE_RUBY_PORT": "3512",
+        "ASSET_DOMAIN": "shakaperf.localhost:3412"
+      },
+      "compose_project": "gumroad-s1-14a39f22-experiment"
+    }
+  },
+  "versions": {
+    "ruby": "ruby 3.4.3 (2025-04-14 revision d0b7e5b6a0) +PRISM [arm64-darwin24]",
+    "node": "v22.22.2",
+    "docker": "Docker version 29.4.1, build 055a478",
+    "kernel": "Darwin arm64"
+  },
+  "machine": {
+    "logical_cpus": 18,
+    "load_before": "15:51  up 4 days,  1:55, 8 users, load averages: 17.82 15.50 15.67",
+    "load_after": "16:16  up 4 days,  2:21, 8 users, load averages: 21.56 20.70 19.27"
+  },
+  "source_diff_sha256": "b6090c4143fdea830caca8da98fab378dc9465d63a0cbbfee30cc3817d31e6e0",
+  "integration_files": {
+    "abtests.config.ts": "690dee7891518a3f5cf73c77266c385f5b397d8ffcad2d2ac88dbc6aa88fe733",
+    "ab-tests/product-landing.abtest.ts": "1ca27d177fc525ba0588c9301f21b22a9bb029bbd1d1313bafb58e7750335734",
+    "bin/shakaperf-local": "9ad7ad8abcf96863972bcb639c80c4237d18158ed87cbb50a38a1f94a63d0b94",
+    "scripts/seed_shakaperf_product.rb": "6e0a8cc316bc6f8680a5d5b1d92bfbd038d08230a86cd074af5c56508b2637d3",
+    "tools/shakaperf/package-lock.json": "9f7e9b358940a22e06a0f022b33dfb0fd574dfb9423687d8717482402574111b"
+  },
+  "tool_dependencies": {
+    "playwright": "1.58.2",
+    "playwright-core": "1.58.2",
+    "lighthouse": "13.4.1",
+    "shaka-shared": "0.3.0"
+  },
+  "finished_at": "2026-10-11T02:16:21Z",
+  "comparison_seconds": 1242.376228,
+  "browser_versions": {
+    "chrome": "Google Chrome 157.0.8097.0 canary",
+    "playwrightBrowserRevision": [
+      {
+        "name": "chromium",
+        "revision": "1208",
+        "installByDefault": true,
+        "browserVersion": "145.0.7632.6",
+        "title": "Chrome for Testing"
+      },
+      {
+        "name": "chromium-headless-shell",
+        "revision": "1208",
+        "installByDefault": true,
+        "browserVersion": "145.0.7632.6",
+        "title": "Chrome Headless Shell"
+      }
+    ]
+  },
+  "chrome_binary": {
+    "sha256": "56ef3228f5f287f4a601c8f352f053df4a7419b09d69bee39b9b6f47525627e1",
+    "version": "Google Chrome 157.0.8097.0 canary"
+  },
+  "machine_resources": {
+    "observed_at": "2026-10-11T00:49:58Z",
+    "chip": "Apple M5 Max",
+    "host_logical_cpus": 18,
+    "host_memory_bytes": 137438953472,
+    "os_version": "27.0.1",
+    "docker_cpus": 10,
+    "docker_memory_bytes": 34128097280,
+    "load": "39.47 40.69 49.77",
+    "limitation": "Shared developer machine with concurrent unrelated work; no production resource or saturation claim"
+  },
+  "redaction": "Workspace paths replaced; disposable DB password omitted. Numerical values unchanged.",
+  "original_sha256": {
+    "desktop-ab-measurements.json": "a7e405b33ca71c57158c3596e277e8cb421c2ee3a1198aeee52a34869e9fac07",
+    "desktop-report.json": "9e83dfbc38772e92aa94fb0855d77fbe8f6c11ca33e78b437882a6ed12191751",
+    "phone-ab-measurements.json": "e31ed7ae23790aa53a4ad3978199ac5e79766751793d454002e62d53da6dd449",
+    "phone-report.json": "9a8a2bec0cd81e1a4218c017a0ed23abb7b2a36bba1d6ceec2d3be17f673bbe0"
+  },
+  "post_capture_changes": {
+    "description": "Scenario type annotation and scoped lint comments only; TypeScript emission with comments removed is byte-identical. Runtime behavior and comparison setup unchanged; no statistical rerun.",
+    "measured_scenario_sha256": "1ca27d177fc525ba0588c9301f21b22a9bb029bbd1d1313bafb58e7750335734",
+    "published_scenario_sha256": "fa5c105d15a092b4abaa56a7829b0d7aa9903c873d2454d094e8161afc1fb3b3",
+    "emission_proof": {
+      "identicalEmittedJavaScript": true,
+      "sha256": "5b7c5e33d675b98b9e89f7f174570c2f5d4c0de57f9745497ffa9a4541886f26",
+      "typescript": "6.0.3"
+    }
+  }
+}
