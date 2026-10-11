@@ -1,7 +1,7 @@
 {
-  "started_at": "2026-10-11T03:09:06Z",
+  "started_at": "2026-10-11T03:50:57Z",
   "control_sha": "921e1d56e1685084b66cb4a532439e4b3069de4c",
-  "experiment_sha": "9307ea81bb2944c64c60aa57fdd8475e19e0cb10",
+  "experiment_sha": "2d64b4db280d88f46b7b424916b485eb2dde0298",
   "dirty": false,
   "tool_version": "0.3.1",
   "mode": "Development Rails with prebuilt Vite assets; no architecture or production speedup claim",
@@ -80,26 +80,34 @@
   },
   "machine": {
     "logical_cpus": 18,
-    "load_before": "17:09  up 4 days,  3:13, 8 users, load averages: 11.91 11.16 11.98",
-    "load_after": "17:32  up 4 days,  3:37, 8 users, load averages: 15.98 14.50 13.72"
+    "load_before": "17:50  up 4 days,  3:55, 8 users, load averages: 32.87 19.76 16.17",
+    "load_after": "18:15  up 4 days,  4:20, 8 users, load averages: 15.70 15.47 16.32"
   },
-  "source_diff_sha256": "efd07519be7da3ca6490c00cd8ec33957cd605563d15360dc96ebbcd0ef49689",
+  "source_diff_sha256": "6ebaaf5fbcb5b0c9a77f8afdd8678b974f85d9a51a7c7d1c0fd71561da94be44",
   "integration_files": {
     "abtests.config.ts": "690dee7891518a3f5cf73c77266c385f5b397d8ffcad2d2ac88dbc6aa88fe733",
-    "ab-tests/product-landing.abtest.ts": "2ba02cfac8f4bca65d329111375ee314e153f2c76e7f68fca78bc32ed0765187",
-    "bin/shakaperf-local": "9051cb272b8ca50127b083cd5317e3fe20460f9e8c02a76fa7a65abd7e8274f7",
+    "ab-tests/product-landing.abtest.ts": "43676a70d42eacd6677a122b2d8c6cddd482a5e15235b8b2bd2d41b4d2f4c16e",
+    "bin/shakaperf-local": "d4bdd767d018bdf097539c20ae4245bbd748098dacf46c571f595e079851501b",
     "scripts/seed_shakaperf_product.rb": "6e0a8cc316bc6f8680a5d5b1d92bfbd038d08230a86cd074af5c56508b2637d3",
     "tools/shakaperf/package-lock.json": "9f7e9b358940a22e06a0f022b33dfb0fd574dfb9423687d8717482402574111b"
   },
   "native_build": {
     "node_gyp": "12.1.0",
-    "python": "Python 3.9.6",
-    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "selected_tools": {
+      "CC": "/usr/bin/cc",
+      "CXX": "/usr/bin/c++",
+      "PYTHON": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3"
+    },
+    "versions": {
+      "CC": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+      "CXX": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+      "PYTHON": "Python 3.9.6"
+    },
     "sources": {
       "binding.gyp": "a9480be7b366edba672357af01e5d9da89d88fb5d49a9a25978815feb17df8b7",
       "native/socketpair.cpp": "2f7ef2bc6af46c6b78463e73ccfe28afd46599350d044ec027ce4f780ebc3078"
     },
-    "binary_sha256": "02469348f58e5f477034e3559e3112d386349ca11699823455dc7c8b37506e22"
+    "binary_sha256": "6b74c0229db7d024630da990d839ca8d798b941407938d894b8dfc5fee55b88e"
   },
   "tool_dependencies": {
     "playwright": "1.58.2",
@@ -107,8 +115,8 @@
     "lighthouse": "13.4.1",
     "shaka-shared": "0.3.0"
   },
-  "finished_at": "2026-10-11T03:32:11Z",
-  "comparison_seconds": 1170.121307,
+  "finished_at": "2026-10-11T04:15:35Z",
+  "comparison_seconds": 1178.000522,
   "browser_versions": {
     "chrome": "Google Chrome 157.0.8097.0 canary",
     "playwrightBrowserRevision": [
@@ -133,18 +141,18 @@
     "version": "Google Chrome 157.0.8097.0 canary"
   },
   "machine_resources": {
-    "observed_at": "2026-10-11T03:14:11Z",
+    "observed_at": "2026-10-11T03:53:20Z",
     "chip": "Apple M5 Max",
     "host_logical_cpus": 18,
     "host_memory_bytes": 137438953472,
     "os_version": "27.0.1",
     "docker_cpus": 10,
     "docker_memory_bytes": 34128097280,
-    "load": "17:14  up 4 days,  3:19, 8 users, load averages: 14.04 12.06 12.04",
+    "load": "17:53  up 4 days,  3:58, 8 users, load averages: 25.66 25.47 19.35",
     "limitation": "Shared developer machine; no isolated production resource or load-generator saturation claim"
   },
   "container_images": {
-    "observed_at": "2026-10-11T03:17:16Z",
+    "observed_at": "2026-10-11T04:01:53Z",
     "sides": {
       "control": [
         {
@@ -193,15 +201,15 @@
     }
   },
   "original_sha256": {
-    "desktop-ab-measurements.json": "02b75baccc4989b9ce5264fab2f55365c56710ac7fa9138818d708dfed91aa57",
-    "desktop-report.json": "fdaf13b55e5ac95a2b37b47684d18aa4a8293f950ca62398e1a2bb3b86e56c5f",
-    "phone-ab-measurements.json": "49065552ee58bce04f14d20b034266da77ef3ee95e612c7b934c4a3b3dfaad43",
-    "phone-report.json": "6a8a3fb374fb38ee756f93c3f55006e034ade3bfb33b34e07c8b45d231505a50"
+    "desktop-ab-measurements.json": "7ad3345d48170b4d8bab68abd758562e29e1a856d88a3203d2ce9185eacf8906",
+    "desktop-report.json": "2ec63c5d62ec17a8eafb75c3c1c49d0f053541c18344a7ba14f09d4434684b0b",
+    "phone-ab-measurements.json": "c7bc3d06e8ce629208ca40017bc8d9a82b33373b45ba24974d2955a022a5a474",
+    "phone-report.json": "01d1c7d567fbe5b15ec49bb5df1498d4f472ea9382e8e07bc5246e57241db536"
   },
   "comparison_meta": {
-    "generatedAt": "2026-10-11T03:32:08.247Z",
+    "generatedAt": "2026-10-11T04:15:32.204Z",
     "pipelineName": "compare",
-    "durationMs": 1165927,
+    "durationMs": 1173945,
     "cwd": "/workspace/gumroad",
     "controlUrl": "http://shakaperf.localhost:3411",
     "experimentUrl": "http://shakaperf.localhost:3412",
@@ -277,6 +285,17 @@
       ]
     }
   ],
+  "comparison_exit_code": 1,
+  "comparison_verdict": "Completed 18 pairs per viewport; phone native regression threshold exceeded. All stage kinds are ok and meta.errors is empty; those alone do not encode the exit verdict.",
+  "practical_thresholds": {
+    "timing_ms": 5,
+    "transfer_KiB": 1,
+    "score_per_100": 1,
+    "other_units": 0.5,
+    "CLS": "5/100 delta or crossing native quality boundaries",
+    "statistic": "estimator",
+    "source": "shaka-perf/dist/bench/cli/compare/regression-thresholds.js at locked0.3.1"
+  },
   "redaction": "Workspace paths replaced; CSP nonces redacted and disposable DB password omitted. Numerical values unchanged.",
-  "history": "Attempt 12 completed before independent review but used an existing experiment workspace; retained as historical evidence. Attempt 13 failed before any pair because native compilation was skipped. Attempt 14 verifies clean corrected sources; no favorable-outcome selection or merged sample groups."
+  "history": "Attempt 12 completed before independent review but used an existing experiment workspace; retained as historical evidence. Attempt 13 failed before any pair because native compilation was skipped. Attempt 14 is retained with significant secondary TBT in opposite directions. Independent review required a terminal-response pending marker and explicit actual native tool selection; the binary changed, making prior measurements stale for that setup. Attempt 15 verifies the corrected clean source. No favorable-outcome selection, discarded successful samples or merged sample groups."
 }
