@@ -59,17 +59,16 @@ export const NodeActionsMenu = ({
   const [open, setOpen] = React.useState(false);
   const [selectedActionIndex, setSelectedActionIndex] = React.useState<number | null>(null);
   const selected = React.useContext(SelectedContext);
+  const selectTargetNode = () => {
+    const pos = getPos();
+    return pos !== undefined && editor.commands.setNodeSelection(pos);
+  };
 
   return (
     <Popover
       open={open}
       onOpenChange={(open) => {
-        if (open) {
-          const pos = getPos();
-          if (pos === undefined) return;
-          // Button events in node views do not update ProseMirror's selection.
-          editor.commands.setNodeSelection(pos);
-        }
+        if (open && !selectTargetNode()) return;
         setOpen(open);
       }}
     >
@@ -82,7 +81,16 @@ export const NodeActionsMenu = ({
         )}
       >
         <PopoverAnchor>
-          <PopoverTrigger aria-label="Actions" data-drag-handle draggable asChild>
+          <PopoverTrigger
+            aria-label="Actions"
+            data-drag-handle
+            draggable
+            onMouseDown={(event) => {
+              // Select before mouseup so ProseMirror's selection update cannot swallow the menu click.
+              if (event.button === 0) selectTargetNode();
+            }}
+            asChild
+          >
             <Button size="sm" color="filled" className="cursor-move">
               <DotsVerticalRounded pack="filled" className="size-5" />
             </Button>
