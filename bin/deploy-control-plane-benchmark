@@ -18,7 +18,9 @@ class VerifiedBenchmarkDeployment
                       .controlplane/entrypoint.sh config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb].freeze
 
   def initialize(root:, app:, source:, manifest:, runner: nil, foundation: FOUNDATION, sleeper: nil)
-    @root, @app, @source, @manifest = File.realpath(root), app, source, File.expand_path(manifest)
+    @root, @app, @source = File.realpath(root), app, source
+    expanded = File.expand_path(manifest)
+    @manifest = File.join(File.realpath(File.dirname(expanded)), File.basename(expanded))
     @foundation = foundation
     @runner = runner || ->(*args, chdir:) { Open3.capture3(*args, chdir:) }
     @sleeper = sleeper || -> { sleep 5 }
@@ -46,8 +48,8 @@ class VerifiedBenchmarkDeployment
       record["source_archive_sha256"] = Digest::SHA256.file(archive).hexdigest
       save(record)
       output = command("cpflow", "build-image", "--app", @app, "--org", ORG,
-                       "--commit", @source, "--docker-context", context, "--build-arg", "BENCHMARK_APP=#{@app}", chdir: context)
-      names = output.scan(%r{Pushed image to '/org/#{Regexp.escape(ORG)}/image/(#{Regexp.escape(@app)}:\d+)'\.}).flatten.uniq
+                       "--commit", @source, "--docker-context", context, "--build-arg", "BENCHMARK_APP=#{@app}", chdir: context, include_stderr: true)
+      names = output.scan(%r{Pushed image to '/org/#{Regexp.escape(ORG)}/image/(#{Regexp.escape(@app)}:\d+_#{@source})'\.}).flatten.uniq
       raise "Build did not identify exactly one pushed app image" unless names.size == 1
 
       image = names.first
@@ -112,84 +114,83 @@ class VerifiedBenchmarkDeployment
   end
 
   private
-
-  def verify_source!
-    raise "Requested SHA differs from checkout HEAD" unless command("git", "rev-parse", "HEAD").strip == @source
-    raise "Dirty or untracked source checkout" unless command("git", "status", "--porcelain", "--untracked-files=all").empty?
-    command("git", "merge-base", "--is-ancestor", @foundation, @source)
-    attributes = command("git", "rev-parse", "--git-path", "info/attributes").strip
-    raise "Uncommitted archive attributes are not allowed" if File.size?(File.expand_path(attributes, @root))
-    origin = command("git", "remote", "get-url", "origin").strip
-    raise "Expected the verified Gumroad fork" unless %r{\A(?:https://github\.com/|git@github\.com:)shakacode/gumroad(?:\.git)?\z}.match?(origin)
-    raise "Submodule build contexts need separate verification" if command("git", "ls-tree", "-r", @source).lines.any? { |line| line.start_with?("160000 ") }
-    verify_support_files!(@root)
-  end
-
-  def verify_support_files!(directory)
-    directory = File.realpath(directory)
-    REQUIRED_FILES.each do |path|
-      full_path = "#{directory}/#{path}"
-      raise "Missing or linked deployment support: #{path}" unless File.file?(full_path) && !File.symlink?(full_path)
-      raise "Deployment support escapes the source context: #{path}" unless File.realpath(full_path).start_with?("#{directory}/")
+    def verify_source!
+      raise "Requested SHA differs from checkout HEAD" unless command("git", "rev-parse", "HEAD").strip == @source
+      raise "Dirty or untracked source checkout" unless command("git", "status", "--porcelain", "--untracked-files=all").empty?
+      command("git", "merge-base", "--is-ancestor", @foundation, @source)
+      attributes = command("git", "rev-parse", "--git-path", "info/attributes").strip
+      raise "Uncommitted archive attributes are not allowed" if File.size?(File.expand_path(attributes, @root))
+      origin = command("git", "remote", "get-url", "origin").strip
+      raise "Expected the verified Gumroad fork" unless %r{\A(?:https://github\.com/|git@github\.com:)shakacode/gumroad(?:\.git)?\z}.match?(origin)
+      raise "Submodule build contexts need separate verification" if command("git", "ls-tree", "-r", @source).lines.any? { |line| line.start_with?("160000 ") }
+      verify_support_files!(@root)
     end
-  end
 
-  def verify_archive!(directory)
-    command("git", "ls-tree", "-rz", @source).split("\0").each do |entry|
-      metadata, path = entry.split("\t", 2)
-      mode, type, object = metadata.split(" ")
-      raise "Unsupported archive object: #{path}" unless type == "blob"
-      full_path = "#{directory}/#{path}"
-      bytes = mode == "120000" ? File.readlink(full_path) : File.binread(full_path)
-      actual = Digest::SHA1.hexdigest("blob #{bytes.bytesize}\0#{bytes}")
-      raise "Archive differs from the reviewed source: #{path}" unless actual == object
+    def verify_support_files!(directory)
+      directory = File.realpath(directory)
+      REQUIRED_FILES.each do |path|
+        full_path = "#{directory}/#{path}"
+        raise "Missing or linked deployment support: #{path}" unless File.file?(full_path) && !File.symlink?(full_path)
+        raise "Deployment support escapes the source context: #{path}" unless File.realpath(full_path).start_with?("#{directory}/")
+      end
     end
-  end
 
-  def image_details(image)
-    raise "Expected the explicit built app image" unless /\A#{Regexp.escape(@app)}:\d+\z/.match?(image)
-    data = JSON.parse(command("cpln", "image", "get", image, "--org", ORG, "--output", "json"))
-    raise "Registry returned another image" unless data["name"] == image
-    raise "Expected a SHA256 image digest" unless /\Asha256:[a-f0-9]{64}\z/.match?(data["digest"].to_s)
-    data
-  end
-
-  def set_image(workload, image)
-    command("cpln", "workload", "update", workload, "--org", ORG, "--gvc", @app,
-            "--set", "spec.containers.#{workload}.image=#{image}")
-  end
-
-  def verify_image_source!(image)
-    command("docker", "pull", "#{ORG}.registry.cpln.io/#{image}")
-    env = JSON.parse(command("docker", "image", "inspect", "#{ORG}.registry.cpln.io/#{image}", "--format", "{{json .Config.Env}}"))
-    raise "Built image source differs from the verified checkout" unless env.grep(/\AGIT_COMMIT=/) == ["GIT_COMMIT=#{@source}"]
-  end
-
-  def verify_running_image!(workload, image)
-    120.times do |attempt|
-      data = JSON.parse(command("cpln", "workload", "get-deployments", workload, "--org", ORG, "--gvc", @app, "--output", "json"))
-      deployments = data.fetch("items")
-      raise "Expected one Ohio deployment" unless deployments.size == 1 && deployments.first["name"] == "aws-us-east-2"
-      status = deployments.first.fetch("status")
-      ready_versions = status.fetch("versions").select { |version| version["ready"] }
-      images = ready_versions.flat_map { |version| version.fetch("containers").values.map { |container| container["image"] } }
-      return if status["ready"] && !status["deploying"] && images == [image]
-      @sleeper.call unless attempt == 119
+    def verify_archive!(directory)
+      command("git", "ls-tree", "-rz", @source).split("\0").each do |entry|
+        metadata, path = entry.split("\t", 2)
+        mode, type, object = metadata.split(" ")
+        raise "Unsupported archive object: #{path}" unless type == "blob"
+        full_path = "#{directory}/#{path}"
+        bytes = mode == "120000" ? File.readlink(full_path) : File.binread(full_path)
+        actual = Digest::SHA1.hexdigest("blob #{bytes.bytesize}\0#{bytes}")
+        raise "Archive differs from the reviewed source: #{path}" unless actual == object
+      end
     end
-    raise "Running #{workload} does not match the expected image"
-  end
 
-  def command(*args, chdir: @root)
-    output, error, status = @runner.call(*args, chdir:)
-    raise "#{args.first(2).join(' ')} failed: #{error}" unless status.success?
-    output
-  end
+    def image_details(image)
+      raise "Expected the explicit built app image" unless /\A#{Regexp.escape(@app)}:\d+_#{@source}\z/.match?(image)
+      data = JSON.parse(command("cpln", "image", "get", image, "--org", ORG, "--output", "json"))
+      raise "Registry returned another image" unless data["name"] == image
+      raise "Expected a SHA256 image digest" unless /\Asha256:[a-f0-9]{64}\z/.match?(data["digest"].to_s)
+      data
+    end
 
-  def save(record)
-    temporary = "#{@manifest}.tmp"
-    File.write(temporary, JSON.pretty_generate(record))
-    File.rename(temporary, @manifest)
-  end
+    def set_image(workload, image)
+      command("cpln", "workload", "update", workload, "--org", ORG, "--gvc", @app,
+              "--set", "spec.containers.#{workload}.image=#{image}")
+    end
+
+    def verify_image_source!(image)
+      command("docker", "pull", "#{ORG}.registry.cpln.io/#{image}")
+      env = JSON.parse(command("docker", "image", "inspect", "#{ORG}.registry.cpln.io/#{image}", "--format", "{{json .Config.Env}}"))
+      raise "Built image source differs from the verified checkout" unless env.grep(/\AGIT_COMMIT=/) == ["GIT_COMMIT=#{@source}"]
+    end
+
+    def verify_running_image!(workload, image)
+      120.times do |attempt|
+        data = JSON.parse(command("cpln", "workload", "get-deployments", workload, "--org", ORG, "--gvc", @app, "--output", "json"))
+        deployments = data.fetch("items")
+        raise "Expected one Ohio deployment" unless deployments.size == 1 && deployments.first["name"] == "aws-us-east-2"
+        status = deployments.first.fetch("status")
+        ready_versions = status.fetch("versions").select { |version| version["ready"] }
+        images = ready_versions.flat_map { |version| version.fetch("containers").values.map { |container| container["image"] } }
+        return if status["ready"] && !status["deploying"] && images == [image]
+        @sleeper.call unless attempt == 119
+      end
+      raise "Running #{workload} does not match the expected image"
+    end
+
+    def command(*args, chdir: @root, include_stderr: false)
+      output, error, status = @runner.call(*args, chdir:)
+      raise "#{args.first(2).join(' ')} failed: #{error}" unless status.success?
+      include_stderr ? output + error : output
+    end
+
+    def save(record)
+      temporary = "#{@manifest}.tmp"
+      File.write(temporary, JSON.pretty_generate(record))
+      File.rename(temporary, @manifest)
+    end
 end
 
 if $PROGRAM_NAME == __FILE__

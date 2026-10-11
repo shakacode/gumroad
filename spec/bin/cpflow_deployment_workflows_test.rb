@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "open3"
 require "tmpdir"
 require "yaml"
+require "json"
 
 class CpflowDeploymentWorkflowsTest < Minitest::Test
   def test_only_the_deployment_branch_and_explicit_preparation_dispatch_can_deploy
@@ -28,6 +29,11 @@ class CpflowDeploymentWorkflowsTest < Minitest::Test
             ),
             "bash", "-c", workflow.fetch("jobs").fetch("validate-branch").fetch("steps").find { |step| step["id"] == "check-branch" }.fetch("run")
           )
+          expression = workflow.fetch("concurrency").fetch("group")[/\$\{\{ (.*) \}\}/, 1]
+          expression = expression.gsub("github.ref", "refs/heads/#{branch}".to_json).gsub("github.event_name", event.to_json)
+          group, result = Open3.capture2e("node", "-p", expression)
+          assert result.success?, group
+          assert_equal expected ? "deployment" : "refs/heads/#{branch}", group.strip
           assert status.success?, output
           assert_equal "is_deployable=#{expected}\n", File.read(output_file), "#{event} #{branch}"
         end
@@ -39,7 +45,7 @@ class CpflowDeploymentWorkflowsTest < Minitest::Test
     groups = workflows.map do |workflow|
       concurrency = workflow.fetch("concurrency")
       refute concurrency.fetch("cancel-in-progress")
-      refute_includes concurrency.fetch("group"), "${{"
+      assert_includes concurrency.fetch("group"), "${{"
       concurrency.fetch("group")
     end
     assert_equal 2, groups.uniq.size

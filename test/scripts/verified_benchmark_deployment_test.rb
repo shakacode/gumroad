@@ -30,6 +30,7 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     git("add", "-f", ".")
     git("commit", "-qm", "Fixture source")
     @source = git("rev-parse", "HEAD").strip
+    @image = "gumroad-inertia:7_#{@source}"
     @commands = []
     @images = %w[rails sidekiq renderer].index_with do
       "/org/#{VerifiedBenchmarkDeployment::ORG}/image/gumroad-inertia:1@sha256:#{'b' * 64}"
@@ -80,10 +81,10 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
   def test_release_and_running_workloads_use_the_explicit_built_digest
     deployment.build
     record = deployment.deploy
-    reference = "/org/#{VerifiedBenchmarkDeployment::ORG}/image/gumroad-inertia:7@#{DIGEST}"
+    reference = "/org/#{VerifiedBenchmarkDeployment::ORG}/image/#{@image}@#{DIGEST}"
     assert_equal [reference], @images.values.uniq
     release = @commands.find { |command| command[0, 2] == %w[cpflow run] }
-    assert_equal "gumroad-inertia:7@#{DIGEST}", release[release.index("--image") + 1]
+    assert_equal "#{@image}@#{DIGEST}", release[release.index("--image") + 1]
     assert_equal false, @commands.flatten.include?("latest")
     assert_equal "deployed", record.fetch("phase")
   end
@@ -132,6 +133,25 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     assert_equal false, @commands.any? { |command| command.first == "cpflow" }
   end
 
+  def test_failed_release_preserves_evidence_and_refuses_automatic_retry
+    deployment.build
+    @fail_release = true
+    previous = @images.dup
+    assert_raises(RuntimeError) { deployment.deploy }
+    assert_equal previous, @images
+    assert_equal "release_started", JSON.parse(File.read(@manifest)).fetch("phase")
+    assert_raises(RuntimeError) { deployment.deploy }
+    assert_equal 1, @commands.count { |command| command[0, 2] == %w[cpflow run] }
+  end
+
+  def test_manifest_symlink_into_source_is_rejected_before_build
+    File.symlink(@root, "#{@directory}/linked-source")
+    assert_raises(RuntimeError) do
+      VerifiedBenchmarkDeployment.new(root: @root, app: "gumroad-inertia", source: @source,
+                                      manifest: "#{@directory}/linked-source/build.json")
+    end
+  end
+
   private
     def git(*args)
       output, error, status = Open3.capture3("git", *args, chdir: @root)
@@ -146,15 +166,16 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
       output = if args[0, 2] == %w[cpflow build-image]
         context = args[args.index("--docker-context") + 1]
         @context_verified = chdir == context && File.read("#{context}/canonical.txt") == "committed source\n" && !File.exist?("#{context}/ignored.txt")
-        "Pushed image to '/org/#{VerifiedBenchmarkDeployment::ORG}/image/gumroad-inertia:7'.\n"
+        return ["", "Pushed image to '/org/#{VerifiedBenchmarkDeployment::ORG}/image/#{@image}'.\n", Success.new(true)]
       elsif args[0, 3] == %w[cpln image get]
-        JSON.generate(name: "gumroad-inertia:7", digest: @digest)
+        JSON.generate(name: @image, digest: @digest)
       elsif args[0, 3] == %w[docker image inspect]
         JSON.generate(["GIT_COMMIT=#{@image_source}"])
       elsif args[0, 2] == %w[docker pull]
         raise "Expected an immutable image" unless args.last.end_with?("@#{DIGEST}")
         "pulled"
       elsif args[0, 2] == %w[cpflow run]
+        return ["", "release rejected", Success.new(false)] if @fail_release
         "release completed"
       elsif args[0, 3] == %w[cpln workload get]
         workload = args[3]

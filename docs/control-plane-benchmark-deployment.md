@@ -4,11 +4,7 @@
 
 The RORP path serves full profile-layout Product documents for enabled sellers. Discover, seller profiles, and Discover-layout Product pages remain on Inertia. The paired comparison enables only the fixture seller `luisfurushio` on RORP and leaves Inertia off; it never enables the feature globally.
 
-## Deploy matched sources with GitHub Actions
-
-Keep deployment changes on `ramez/cpln/cpflow`; do not merge them into the upstream-facing Product RSC PR. Both demo workflows use the standard Control Plane Flow setup and image-build actions, followed by the configured release phase.
-
-Before any deployment or measurement, obtain the full final application integration SHA, its prerequisite relationship, passing Product behavior checks, and published exact-head Shaka review and ready outcome. Require a separately verified deployment-capable integration with compatible benchmark runtime, fixtures, media/storage, renderer, cache and routing support. A prerequisite-only or unfinished application head is insufficient. Preserve the deployment foundation and actual application provenance; do not overlay missing wrappers or historical application files.
+Keep these operations changes separate from the upstream-facing application PR. Before any deployment or measurement, obtain the full final application integration SHA, its prerequisite relationship, passing Product behavior checks, and published exact-head Shaka review and ready outcome. Require a separately verified deployment-capable integration with compatible benchmark runtime, fixtures, media/storage, renderer, cache and routing support. A prerequisite-only or unfinished application head is insufficient. Preserve the deployment foundation and actual application provenance; do not overlay missing wrappers or historical application files.
 
 The hosted workflows retain explicit `source_sha` selection and allow manual dispatch from the owned preparation branch, without merging the deployment base. Their Flow actions still resolve latest images; they are not the final matched comparison's verified promotion path. Use the local digest-bound command below for that comparison. No merge, dispatch or deployment is authorized by this guide; pushing the live deployment base already triggers both workflows.
 
@@ -93,19 +89,11 @@ Image promotion does not update templates. Review any necessary renderer, secret
 
 ## Build and deploy
 
-For the final matched-source comparison, use the verified local command after
-the full deployment-capable integration has passing Shaka validation, exact-head
-review, and ready outcome evidence. This removes reliance on implicit latest
-image selection; it does not remove deployment authorization or source ancestry
-requirements. The command refuses dirty/untracked source, a different HEAD,
-missing deployment support, and a source outside the deployment foundation.
-It builds from a canonical Git archive, including the Dockerfile and Flow config,
-and records the source tree/archive hashes, runtime source label and image digest.
+Use the verified local command only after the complete deployment integration passes Shaka validation, exact-head review and ready outcome, in an authorized exclusive operation window. It checks clean source/foundation ancestry and canonical Git blobs, builds with that source’s recipe/config, and records archive/tree hashes, runtime provenance and the exact digest.
 
 ```sh
 set -eu
-: "${INTEGRATION_SHA:?Set the full reviewed deployment integration SHA}"
-: "${DEPLOYMENT_RECORD:?Set an absolute manifest path outside this checkout}"
+: "${INTEGRATION_SHA:?Set the full reviewed deployment integration SHA}" "${DEPLOYMENT_RECORD:?Set an absolute manifest path outside this checkout}"
 APP=gumroad-inertia # Repeat with a separate record for gumroad-rorp.
 ruby bin/deploy-control-plane-benchmark build --app "$APP" \
   --source-sha "$INTEGRATION_SHA" --manifest "$DEPLOYMENT_RECORD" --execute
@@ -113,23 +101,11 @@ ruby bin/deploy-control-plane-benchmark deploy --app "$APP" \
   --source-sha "$INTEGRATION_SHA" --manifest "$DEPLOYMENT_RECORD" --execute
 ```
 
-The deployment command runs the release with the recorded explicit digest, then
-updates exactly Rails, Sidekiq and renderer and waits for their ready running
-images to match. It records each prior immutable image before release. A partial
-promotion failure restores those individual images and reports restoration
-failures. Image rollback does not reverse release data, flags or schema changes.
-The release runner remains schedule-suspended but its one-off job and any
-configuration synchronization require explicit operator authorization.
+Before release, reconcile any global, group, percentage, expression or other-seller product-page gates in a separately authorized step. The app/surface-guarded release waits for backing services, migrates, seeds/reindexes and probes private R2/public delivery/deletion before the actor guard; its writes require authorization and the normal entrypoint never migrates/seeds. The actor guard never erases conflicting gates. Verify luisfurushio enabled only on RORP, Inertia off, another seller unaffected and unrelated flags unchanged.
 
-The product-page flag is actor-scoped to `luisfurushio` on RORP and disabled for
-that seller on Inertia. The release rejects global, group, percentage, expression
-or another seller's existing product-page gates without clearing them. Reconcile
-historical conflicting gates in a separately authorized step; never erase
-unrelated seller settings to make release pass. After release, verify the actor
-gate, global disabled state, a second seller's negative result and unchanged
-unrelated feature settings, as well as rendered roots and interactions.
+The command releases the explicit digest, promotes Rails/Sidekiq/renderer and verifies their running images. Promotion failure attempts each workload’s own prior digest. Release writes are not undone by image rollback. The schedule-suspended release runner’s job and configuration synchronization require authorization.
 
-The guarded release checks app/surface, waits for backing services, migrates, seeds and reindexes fixtures, and probes private R2 plus public delivery/deletion. These are live writes and must be covered by the operation window. The normal image entrypoint does not migrate or seed.
+Failed/incomplete manifests deliberately cannot retry. Preserve the record, inspect the registry, all workload images and release data/flags/schema, and complete recovery under operator authorization. After gates and partial writes are reconciled, build a new image with a new manifest; never edit an earlier record to pretend release did not run. Restore all six adaptive settings even on failure.
 
 ## Verify routing and storage
 
@@ -149,7 +125,7 @@ set -eu
 : "${CPLN_ORG:?Set the recorded organization}"
 : "${WORKLOAD:?Set the recorded workload}"
 : "${CONTAINER:?Set its recorded container}"
-: "${PREVIOUS_IMAGE:?Set that containers prior immutable image}"
+: "${PREVIOUS_IMAGE:?Set the recorded container’s prior immutable image}"
 cpln workload update "$WORKLOAD" --gvc "$APP" --org "$CPLN_ORG" \
   --set "spec.containers.${CONTAINER}.image=$PREVIOUS_IMAGE"
 ```
