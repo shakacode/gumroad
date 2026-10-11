@@ -3,11 +3,16 @@
 class ProductRscLinksController < LinksController
   include ReactOnRailsPro::Stream
 
-  # Live also handles Inertia visits and redirects, regardless of the renderer flag.
   prepend_around_action :clear_live_active_record_connections
   prepend_around_action :close_live_response_stream, if: :product_rsc_route_request?
   before_action :prepare_product_xsrf_cookie
   helper_method :content_security_policy_nonce
+
+  def process(name)
+    # Precommit exceptions return to Live's parent thread for middleware reporting.
+    Sentry.get_current_scope&.set_transaction_name("#{self.class}##{name}", source: :view)
+    super
+  end
 
   private
     def new_controller_thread
@@ -29,7 +34,7 @@ class ProductRscLinksController < LinksController
     end
 
     def prepare_product_xsrf_cookie
-      # Live can commit a normal Inertia response before its cookie after-action runs.
+      # Live can commit the document before its cookie after-action runs.
       cookies["XSRF-TOKEN"] = form_authenticity_token if protect_against_forgery?
     end
 

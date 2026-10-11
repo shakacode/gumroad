@@ -290,12 +290,7 @@ class ApplicationController < ActionController::Base
 
     def invalidate_session_if_necessary
       return if self.class.name == "LoginsController"
-      return unless request.env["warden"].authenticated?
-      return if logged_in_user.nil?
-      return if logged_in_user.last_active_sessions_invalidated_at.nil?
-
-      last_sign_in_at = request.env["warden"].session["last_sign_in_at"]
-      return if last_sign_in_at && last_sign_in_at.to_i >= logged_in_user.last_active_sessions_invalidated_at.to_i
+      return unless active_session_invalidated?
 
       sign_out
 
@@ -307,6 +302,14 @@ class ApplicationController < ActionController::Base
 
       flash[:warning] = "We're sorry; you have been logged out. Please login again."
       redirect_to login_path
+    end
+
+    def active_session_invalidated?
+      return false unless request.env["warden"].authenticated?
+      return false if logged_in_user.nil? || logged_in_user.last_active_sessions_invalidated_at.nil?
+
+      last_sign_in_at = request.env["warden"].session["last_sign_in_at"]
+      !last_sign_in_at || last_sign_in_at.to_i < logged_in_user.last_active_sessions_invalidated_at.to_i
     end
 
     def check_suspended

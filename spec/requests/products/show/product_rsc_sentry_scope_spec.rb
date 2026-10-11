@@ -36,6 +36,12 @@ describe "Product Live Sentry scope", type: :request do
 
   it "isolates request context and restores the pooled worker's scope even after a committed-response error" do
     product = create(:product)
+    Feature.activate_user(:product_page_react_on_rails, product.user)
+    allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("NodeRenderer")
+    allow(ReactOnRailsPro.configuration).to receive(:renderer_password).and_return("test-only-stub")
+    allow_any_instance_of(ProductRscLinksController).to receive(:stream_view_containing_react_components) do |controller, **|
+      controller.response.stream.write("<main>scope probe</main>")
+    end
     completed_workers = Queue.new
     parent_scopes = []
     worker_ids = []
@@ -78,10 +84,10 @@ describe "Product Live Sentry scope", type: :request do
 
     restored_scopes = %w[first second].map do |marker|
       get product.long_url(layout: "profile"),
-          headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest", "X-Sentry-Probe" => marker }
+          headers: { "X-Sentry-Probe" => marker }
 
       expect(response).to be_successful
-      expect(response.headers["X-Inertia"]).to eq("true")
+      expect(response.body).to eq("<main>scope probe</main>")
       Timeout.timeout(10) { completed_workers.pop }
     end
 
@@ -104,5 +110,58 @@ describe "Product Live Sentry scope", type: :request do
     expect(error_event.user[:id]).to eq("second")
     expect(error_event.request.headers["X-Sentry-Probe"]).to eq("second")
     expect(error_event.extra[:request_processor]).to eq("second")
+    expect(error_event.transaction).to eq("ProductRscLinksController#show")
+    expect(error_event.transaction_info[:source]).to eq(:view)
+    expect(error_event.exception.values.last.type).to eq("RuntimeError")
+  end
+
+  [false, true].each do |enabled|
+    it "reports actual #{enabled ? 'Live' : 'ordinary'} precommit exceptions with controller identity and request context" do
+      product = create(:product)
+      allow_any_instance_of(LinksController).to receive(:show).and_raise(RuntimeError, "precommit scope probe")
+      controller = enabled ? ProductRscLinksController : LinksController
+      allow_any_instance_of(controller).to receive(:process).and_wrap_original do |original, *args|
+        marker = original.receiver.request.headers["X-Sentry-Probe"]
+        scope = Sentry.get_current_scope
+        scope.set_user(id: marker)
+        scope.set_tags(request_probe: marker)
+        scope.add_event_processor do |event, _hint|
+          event.extra[:request_processor] = marker
+          event
+        end
+        original.call(*args)
+      end
+      enabled ? Feature.activate_user(:product_page_react_on_rails, product.user) : Feature.deactivate_user(:product_page_react_on_rails, product.user)
+      marker = enabled ? "live" : "ordinary"
+      expect do
+        get product.long_url(layout: "profile"), headers: { "X-Sentry-Probe" => marker }
+      end.to raise_error(RuntimeError, "precommit scope probe")
+
+      event = @sentry_client.transport.events.last
+      expect(event.exception.values.last.type).to eq("RuntimeError")
+      expect(event.exception.values.last.value).to start_with("precommit scope probe")
+      expect(event.transaction).to eq(enabled ? "ProductRscLinksController#show" : "LinksController#show")
+      expect(event.transaction_info[:source]).to eq(:view)
+      expect(event.request.headers["X-Sentry-Probe"]).to eq(marker)
+      expect(event.user[:id]).to eq(marker)
+      expect(event.tags[:request_probe]).to eq(marker)
+      expect(event.extra[:request_processor]).to eq(marker)
+      expect(Sentry.get_current_scope.tags).not_to have_key(:worker_only)
+    end
+  end
+
+  it "retains controller identity and request metadata when routing lookup fails" do
+    product = create(:product)
+    allow(Link).to receive(:fetch_leniently).and_raise(ActiveRecord::ConnectionNotEstablished, "routing lookup probe")
+    expect do
+      get product.long_url(layout: "profile"), headers: { "X-Sentry-Probe" => "lookup" }
+    end.to raise_error(ActiveRecord::ConnectionNotEstablished, "routing lookup probe")
+
+    event = @sentry_client.transport.events.last
+    expect(event.transaction).to eq("LinksController#show")
+    expect(event.transaction_info[:source]).to eq(:view)
+    expect(event.request.headers["X-Sentry-Probe"]).to eq("lookup")
+    expect(event.exception.values.last.type).to eq("ActiveRecord::ConnectionNotEstablished")
+    expect(event.exception.values.last.value).to start_with("routing lookup probe")
   end
 end

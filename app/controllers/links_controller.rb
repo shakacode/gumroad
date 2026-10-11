@@ -915,11 +915,25 @@ class LinksController < ApplicationController
     end
 
     def product_rsc_route_request?
-      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request)
     end
 
     def product_react_on_rails_enabled?
-      is_a?(ProductRscLinksController) && Feature.active?(:product_page_react_on_rails, @product.user)
+      (is_a?(ProductRscLinksController) || (request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request))) &&
+        Feature.active?(:product_page_react_on_rails, @product.user)
+    end
+
+    def product_rsc_document_eligible?
+      fetch_product_for_show
+      request.env["gumroad.product_rsc_lookup"] = { product: @product, custom_domain_product: @_product_by_custom_domain }
+      return false unless Feature.active?(:product_page_react_on_rails, @product.user)
+      return false if @product.banned? || @product.user.deleted? || active_session_invalidated? || custom_html_visible?
+      return true if params[:layout] == Product::Layout::PROFILE
+      return false unless @product.user.product_page_storefront_enabled?
+
+      seller = find_seller_from_cookie(cookies.encrypted[:current_seller_id]) if user_signed_in?
+      seller = logged_in_user unless valid_seller?(seller)
+      seller != @product.user
     end
 
     def product_rsc_document_props(product_props)
@@ -1024,6 +1038,11 @@ class LinksController < ApplicationController
     end
 
     def fetch_product_for_show
+      if (lookup = request.env["gumroad.product_rsc_lookup"])
+        @_product_by_custom_domain = lookup[:custom_domain_product]
+        return @product = lookup.fetch(:product)
+      end
+
       fetch_product_by_custom_domain || fetch_product_by_general_permalink
     end
 

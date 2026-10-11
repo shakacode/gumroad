@@ -12,6 +12,5 @@ module LiveActiveRecordConnectionCleanup
 
     def release_live_active_record_connections
       ActiveRecord::Base.connection_handler.clear_active_connections!(:all)
-      ActiveRecord::Base.connection_handler.each_connection_pool(&:reap)
     end
 end
