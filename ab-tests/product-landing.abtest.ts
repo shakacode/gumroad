@@ -36,9 +36,10 @@ abTest(
               const response = await originalFetch(...args);
               // The upstream analytics caller leaves this body unread, preventing network idle.
               if (response.url && new URL(response.url).pathname.endsWith("/increment_views")) {
+                document.documentElement.dataset.shakaperfProductView = "failed";
                 const result: unknown = await response.clone().json();
-                if (!result || typeof result !== "object" || !("success" in result) || result.success !== true)
-                  throw new Error("Product view response was not successful");
+                if (result && typeof result === "object" && "success" in result && result.success === true)
+                  document.documentElement.dataset.shakaperfProductView = "success";
               }
               return response;
             };
@@ -98,6 +99,9 @@ abTest(
       if (!(await page.locator("[data-page]").getAttribute("data-page"))?.includes("Products/Discover/Show"))
         throw new Error("Expected the upstream Inertia product page");
       await waitUntilPageSettled(page);
+      await page.waitForFunction(() => document.documentElement.dataset.shakaperfProductView !== undefined);
+      if ((await page.locator("html").getAttribute("data-shakaperf-product-view")) !== "success")
+        throw new Error("Product view response was not successful");
       if (page.isClosed()) throw new Error("Landing page closed before verification");
       const counts = work.get(browserContext);
       if (
