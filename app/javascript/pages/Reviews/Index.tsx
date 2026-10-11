@@ -207,7 +207,9 @@ export default function ReviewsIndex({ reviews: initialReviews, purchases: initi
                         );
                       }}
                       style={{ display: "grid", gap: "var(--spacer-4)" }}
-                      ref={(el) => (inputRefs.current[purchase.id] = el)}
+                      ref={(el) => {
+                        inputRefs.current[purchase.id] = el;
+                      }}
                     />
                   }
                   key={purchase.id}
