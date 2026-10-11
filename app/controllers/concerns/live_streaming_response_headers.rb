@@ -9,5 +9,6 @@ module LiveStreamingResponseHeaders
       # header is already present before the first stream write.
       response.headers["Last-Modified"] ||= Time.current.httpdate
       response.headers["X-Accel-Buffering"] = "no"
+      response.headers["Cache-Control"] = "no-store"
     end
 end

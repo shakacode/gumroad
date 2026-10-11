@@ -9,6 +9,7 @@ import {
 import { formatRecurrenceWithDuration, RecurrenceId } from "$app/utils/recurringPricing";
 
 type Props = {
+  locale?: string | undefined;
   url?: string;
   currencyCode: CurrencyCode;
   price: number;
@@ -30,6 +31,7 @@ type Props = {
 };
 
 export const PriceTag = ({
+  locale,
   url,
   currencyCode,
   oldPrice,
@@ -44,7 +46,13 @@ export const PriceTag = ({
   buyerLocalPriceCents,
   buyerLocalOriginalPriceCents,
 }: Props) => {
-  const buyerLocalContext = { currencyCode, buyerCurrency, buyerLocalCurrencyRate, buyerLocalCurrencySubunitToUnit };
+  const buyerLocalContext = {
+    currencyCode,
+    buyerCurrency,
+    buyerLocalCurrencyRate,
+    buyerLocalCurrencySubunitToUnit,
+    locale,
+  };
   const formatDisplayPrice = (amountCents: number, fallbackLocalCents?: number | null) =>
     formatBuyerLocalOrSetPrice(amountCents, buyerLocalContext, { fallbackLocalCents });
 

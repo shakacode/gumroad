@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/consistent-type-assertions -- Mocks only read the recurring-purchase fields below. */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Product as ProductData, ProductDiscount, Purchase } from "$app/components/Product";
@@ -10,6 +12,7 @@ import {
   ProductPurchaseControls,
   ProductPurchaseControlsFromState,
 } from "$app/components/Product/ProductPurchaseControls.client";
+import { ProductHydrationProvider } from "$app/components/PublicPages/ProductHydration.client";
 
 const {
   assertResponseError,
@@ -195,6 +198,52 @@ afterEach(() => {
 });
 
 describe("ProductPurchaseControls", () => {
+  it("hydrates PPP percentage and seller-currency text using the request locale", async () => {
+    selectionAttributes.value = {
+      ...selectionAttributes.value,
+      priceCents: 200_000,
+      discountedPriceCents: 123_456,
+      pppDiscounted: true,
+    };
+    vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+      return new Intl.NumberFormat(locales ?? "de-DE", options).format(this);
+    });
+    const content = (
+      <ProductHydrationProvider value={{ locale: "en-US", timeZone: "UTC", referenceTime: 0 }}>
+        <ProductPurchaseControls
+          product={buildProduct({ ppp_details: { country: "Germany", factor: 0.61728, minimum_price: 0 } })}
+          purchase={null}
+          selection={selection}
+          availabilityNotice={null}
+          membershipNotices={null}
+          onDiscountExpiration={vi.fn()}
+        />
+      </ProductHydrationProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(content);
+    expect(container.textContent).toContain("38%");
+    expect(container.textContent).toContain("$1,234.56");
+    const serverNotice = container.querySelector("[role=status]");
+    const errors = vi.fn();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const root = hydrateRoot(container, content, { onRecoverableError: errors });
+    try {
+      await React.act(async () => {
+        await Promise.resolve();
+      });
+      expect(errors).not.toHaveBeenCalled();
+      expect(container.querySelector("[role=status]")).toBe(serverNotice);
+      expect(container.textContent).toContain("$1.234,56");
+      expect(container.textContent).toContain(new Intl.NumberFormat("de-DE", { style: "percent" }).format(0.38));
+    } finally {
+      await React.act(async () => {
+        root.unmount();
+        await Promise.resolve();
+      });
+    }
+  });
+
   it("opens the shared subscription choice dialog after the CTA is activated", async () => {
     render(
       <ProductPurchaseControls

@@ -11,6 +11,7 @@ import {
 import { PriceTag } from "$app/components/Product/PriceTag";
 import { getBundleComparisonPriceCents, getStandalonePrice } from "$app/components/Product/pricing";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 
 export const ProductPrice = ({
   product,
@@ -21,6 +22,7 @@ export const ProductPrice = ({
   selection: PriceSelection;
   discountCode?: ProductDiscount | null | undefined;
 }) => {
+  const snapshot = useProductHydration();
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { basePriceCents } = selectionAttributes;
   const { discountedPriceCents, selectedOption } = selectionAttributes;
@@ -38,6 +40,7 @@ export const ProductPrice = ({
   return (
     <div className="px-6 py-4 outline outline-offset-0 outline-border">
       <PriceTag
+        locale={snapshot?.locale}
         currencyCode={product.currency_code}
         oldPrice={
           comparisonPriceCents !== null && discountedPriceCents < comparisonPriceCents

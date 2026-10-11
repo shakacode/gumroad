@@ -3,6 +3,8 @@
 require "spec_helper"
 
 describe "Selective product renderer boundary", type: :request do
+  include Devise::Test::IntegrationHelpers
+
   let(:seller) { create(:user) }
   let(:product) { create(:product, user: seller) }
 
@@ -88,15 +90,100 @@ describe "Selective product renderer boundary", type: :request do
     expect(body.to_s).not_to include("<pre", "Product rendering is temporarily unavailable.")
   end
 
-  [false, true].each do |inertia|
-    it "sets the XSRF cookie on a flag-off #{inertia ? 'Inertia' : 'document'} response with forgery protection" do
-      allow_any_instance_of(ProductRscLinksController).to receive(:protect_against_forgery?).and_return(true)
+  it "preserves a flagged checkout redirect when the renderer is unconfigured" do
+    Feature.activate_user(:product_page_react_on_rails, seller)
+    allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("ExecJS")
+    expect_any_instance_of(ProductRscLinksController).not_to receive(:stream_view_containing_react_components)
 
-      get product.long_url(layout: "profile"), headers: inertia ? { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" } : {}
+    get product.long_url(layout: "profile"), params: { wanted: true }
+
+    expect(response).to have_http_status(:found)
+    location = URI(response.location)
+    expect(location.path).to eq("/checkout")
+    expect(Rack::Utils.parse_query(location.query)).to include("product" => product.unique_permalink)
+    expect(response.headers["Last-Modified"]).to be_nil
+    expect(response.headers["X-Accel-Buffering"]).to be_nil
+  end
+
+  context "when the product renderer flag is off" do
+    let(:buyer) { create(:user) }
+
+    before do
+      allow_any_instance_of(ApplicationController).to receive(:protect_against_forgery?).and_return(true)
+      sign_in buyer
+    end
+
+    def expect_authenticated_contact_submission(csrf_token)
+      expect do
+        post "#{PROTOCOL}://#{DOMAIN}#{help_center_contact_path}",
+             params: { email: buyer.email, category: "technical issue", message: "The product page needs help." },
+             headers: { "X-CSRF-Token" => csrf_token }
+      end.to have_enqueued_mail(SupportContactMailer, :contact_form).with(hash_including(user_id: buyer.id))
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["success"]).to be(true)
+    end
+
+    def csrf_token_from_document
+      tokens = Nokogiri::HTML(response.body).css("meta[name='csrf-token']")
+      expect(tokens.length).to eq(1)
+      token = tokens.first["content"]
+      expect(token).to be_present
+      expect(token).not_to eq(CsrfTokenInjector::TOKEN_PLACEHOLDER)
+      token
+    end
+
+    [false, true].each do |inertia|
+      it "preserves headers, cookies and the authenticated session on a #{inertia ? 'Inertia' : 'document'} response" do
+        affiliate = create(:direct_affiliate, seller:, products: [product])
+
+        get product.long_url(layout: "profile", code: "parity"),
+            params: { a: affiliate.external_id_numeric },
+            headers: inertia ? { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" } : {}
+
+        expect(response).to be_successful
+        expect(response.media_type).to eq(inertia ? "application/json" : "text/html")
+        expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+        expect(response.headers["Content-Security-Policy"]).to include("script-src", "object-src 'none'")
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
+        expect(response.headers["Last-Modified"]).to be_nil
+        expect(response.headers["X-Accel-Buffering"]).to be_nil
+        expect(cookies["_gumroad_guid"]).to be_present
+        expect(cookies[affiliate.cookie_key]).to be_present
+        expect(cookies["XSRF-TOKEN"]).to be_present
+        expect(response.body).not_to include('id="product-rsc-root"', "/public-rsc/")
+
+        if inertia
+          expect(response.headers["X-Inertia"]).to eq("true")
+          expect(response.parsed_body["component"]).to eq("Products/Profile/Show")
+          csrf_token = cookies["XSRF-TOKEN"]
+        else
+          expect(response.headers["X-Inertia"]).to be_nil
+          csrf_token = csrf_token_from_document
+        end
+
+        expect_authenticated_contact_submission(csrf_token)
+      end
+    end
+
+    it "preserves a valid CSRF token and matching CSP nonce on the custom HTML wrapper" do
+      Feature.activate_user(:custom_html_pages, seller)
+      product.update!(custom_html: "<main>Custom product</main>")
+
+      get product.long_url
 
       expect(response).to be_successful
-      expect(cookies["XSRF-TOKEN"]).to be_present
-      expect(response.headers["X-Inertia"]).to eq("true") if inertia
+      expect(response.media_type).to eq("text/html")
+      document = Nokogiri::HTML(response.body)
+      expect(document.at_css("iframe#gumroad-landing-frame")).to be_present
+      nonces = document.css("script[nonce]").map { _1["nonce"] }.uniq
+      expect(nonces).not_to be_empty
+      nonces.each do |nonce|
+        expect(nonce).to be_present
+        expect(response.headers["Content-Security-Policy"]).to include("'nonce-#{nonce}'")
+      end
+
+      expect_authenticated_contact_submission(csrf_token_from_document)
     end
   end
 end

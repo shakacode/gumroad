@@ -18,6 +18,7 @@ import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExp
 import { ProductPurchaseRecoveryLink } from "$app/components/Product/ProductPurchaseRecoveryLink.client";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { PurchaseButton } from "$app/components/Product/PurchaseButton";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 import { Alert } from "$app/components/ui/Alert";
 
 export const formatDiscountAmount = (discount: Discount, buyerLocalContext: BuyerLocalCurrencyContext) => {
@@ -53,14 +54,16 @@ export const ProductPurchaseControls = ({
   discountCode?: ProductDiscount | null | undefined;
   selection: PriceSelection;
   setSelection?: React.Dispatch<React.SetStateAction<PriceSelection>> | undefined;
-  ctaButtonRef?: React.MutableRefObject<HTMLAnchorElement | null> | undefined;
-  configurationSelectorRef?: React.MutableRefObject<ConfigurationSelectorHandle | null> | undefined;
+  ctaButtonRef?: React.RefObject<HTMLAnchorElement | null> | undefined;
+  configurationSelectorRef?: React.RefObject<ConfigurationSelectorHandle | null> | undefined;
   ctaLabel?: string | undefined;
   availabilityNotice: React.ReactNode;
   membershipNotices: React.ReactNode;
   onDiscountExpiration: () => void;
   disableAnalytics?: boolean | undefined;
 }) => {
+  const snapshot = useProductHydration();
+  const buyerLocalContext = { ...buyerLocalContextFor(product), locale: snapshot?.locale };
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   const { priceCents, discountedPriceCents, pppDiscounted, maxQuantity } = selectionAttributes;
 
@@ -81,8 +84,8 @@ export const ProductPurchaseControls = ({
             <Alert role="status" variant="success">
               <div className="flex flex-col gap-4">
                 {discountCode.discount.minimum_quantity
-                  ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
-                  : `${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
+                  ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContext)} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
+                  : `${formatDiscountAmount(discountCode.discount, buyerLocalContext)} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
                 {discountCode.discount.duration_in_billing_cycles && product.is_recurring_billing ? (
                   <div>This discount will only apply to the first payment of your subscription.</div>
                 ) : null}
@@ -91,12 +94,12 @@ export const ProductPurchaseControls = ({
                     {(discountCode.discount.product_ids?.length ?? 0) === 1
                       ? `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
                           discountCode.discount.minimum_amount_cents,
-                          buyerLocalContextFor(product),
+                          buyerLocalContext,
                           { symbolFormat: "short" },
                         )} or more.`
                       : `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
                           discountCode.discount.minimum_amount_cents,
-                          buyerLocalContextFor(product),
+                          buyerLocalContext,
                           { symbolFormat: "short" },
                         )} or more in ${
                           !discountCode.discount.product_ids && product.seller ? `${product.seller.name}'s` : "selected"
@@ -136,13 +139,13 @@ export const ProductPurchaseControls = ({
           This product supports purchasing power parity. Because you're located in <b>{product.ppp_details.country}</b>,
           the price has been discounted by{" "}
           <b>
-            {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(undefined, {
+            {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(snapshot?.locale, {
               style: "percent",
             })}
           </b>{" "}
           to{" "}
           <b>
-            {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContextFor(product), {
+            {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContext, {
               symbolFormat: "long",
             })}
           </b>

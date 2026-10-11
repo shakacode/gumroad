@@ -61,8 +61,6 @@ class LinksController < ApplicationController
   before_action :ensure_domain_belongs_to_seller, only: %i[show landing_iframe_content landing_version]
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
-  before_action :ensure_product_renderer_available, only: :show, if: :product_rsc_document_request?
-  before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
   prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_route_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
   before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections disable_downloads_for_all_files]
@@ -917,12 +915,6 @@ class LinksController < ApplicationController
       render plain: "Product rendering is temporarily unavailable.", status: :service_unavailable
     end
 
-    def product_rsc_document_request?
-      product_rsc_route_request? && product_react_on_rails_enabled? &&
-        (params[:layout] == Product::Layout::PROFILE ||
-         (@product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user))
-    end
-
     def product_rsc_route_request?
       is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
     end
@@ -944,6 +936,10 @@ class LinksController < ApplicationController
     end
 
     def render_product_rsc_document(product_props)
+      ensure_product_renderer_available
+      return if performed?
+
+      prepare_live_streaming_response
       # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
       meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
         remove_meta_tag(tag[:head_key])

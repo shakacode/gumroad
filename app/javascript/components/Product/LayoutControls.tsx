@@ -12,6 +12,7 @@ import { getBundleComparisonPriceCents } from "$app/components/Product/pricing";
 import { ProductRatingsSummary } from "$app/components/Product/ProductRatingsSummary";
 import { PurchaseButton } from "$app/components/Product/PurchaseButton";
 import { needsOptionChoice } from "$app/components/Product/purchaseReadiness";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 import { useIsAboveBreakpoint } from "$app/components/useIsAboveBreakpoint";
 
 export const CtaBar = ({
@@ -35,6 +36,7 @@ export const CtaBar = ({
   setSelection: React.Dispatch<React.SetStateAction<PriceSelection>>;
   hasHero: boolean;
 }) => {
+  const snapshot = useProductHydration();
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   let { priceCents } = selectionAttributes;
   const { discountedPriceCents, isPWYW, selectedOption } = selectionAttributes;
@@ -108,6 +110,7 @@ export const CtaBar = ({
       >
         {needsOptionChoice(product, selection) ? null : (
           <PriceTag
+            locale={snapshot?.locale}
             currencyCode={product.currency_code}
             oldPrice={discountedPriceCents < priceCents ? priceCents : undefined}
             price={discountedPriceCents}

@@ -234,13 +234,7 @@ export const InteractiveProduct = ({
       />
       {serverContent.quantityRemaining}
       <section className="lg:border-r">
-        <header className="grid gap-4 p-6 not-first:border-t">
-          {/* dir="auto" lets an RTL product name (Hebrew, Arabic) render right-to-left
-              instead of inheriting the document's LTR base direction, which misplaces
-              neutral characters like quotes and digits (gumroad-private#1259; same
-              rationale as the description fix in #6138). */}
-          {serverContent.title}
-        </header>
+        <header className="grid gap-4 p-6 not-first:border-t">{serverContent.title}</header>
         <section className="grid grid-cols-1 gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
           <ProductPrice product={product} selection={selection} discountCode={discountCode} />
           {serverContent.sellerAndRatings}

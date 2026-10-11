@@ -14,6 +14,7 @@ import {
   startOfDay,
   subMinutes,
 } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import * as React from "react";
 
 import { CallAvailability, getRemainingCallAvailabilities } from "$app/data/call_availabilities";
@@ -39,6 +40,10 @@ import { LoadingSpinner } from "$app/components/LoadingSpinner";
 import { NumberInput } from "$app/components/NumberInput";
 import { PriceInput } from "$app/components/PriceInput";
 import { needsOptionChoice } from "$app/components/Product/purchaseReadiness";
+import {
+  useProductHydration,
+  type ProductHydrationSnapshot,
+} from "$app/components/PublicPages/ProductHydration.client";
 import { TypeSafeOptionSelect } from "$app/components/TypeSafeOptionSelect";
 import { Alert } from "$app/components/ui/Alert";
 import { Calendar } from "$app/components/ui/Calendar";
@@ -63,6 +68,7 @@ const PWYWInput = React.forwardRef<
     buyerLocal?: { currencyCode: CurrencyCode; rate: number } | null;
   }
 >(({ currencyCode, cents, onChange, suggestedPriceCents, hasError, onBlur, hideLabel, buyerLocal }, ref) => {
+  const snapshot = useProductHydration();
   const uid = React.useId();
 
   // The buyer enters and sees their local currency, but selection.price.value (`cents`) stays in
@@ -106,7 +112,7 @@ const PWYWInput = React.forwardRef<
           currencyCode={inputCurrency}
           cents={inputCents}
           onChange={handleChange}
-          placeholder={`${formatPriceCentsWithoutCurrencySymbol(inputCurrency, toInputCents(suggestedPriceCents) || 0)}+`}
+          placeholder={`${formatPriceCentsWithoutCurrencySymbol(inputCurrency, toInputCents(suggestedPriceCents) || 0, snapshot?.locale)}+`}
           hasError={hasError}
           onBlur={() => {
             const minPriceCents = getMinPriceCents(currencyCode);
@@ -338,8 +344,9 @@ export const OptionRadioButton = ({
   includeInOffer?: boolean;
 }) => {
   priceCents ??= 0;
+  const snapshot = useProductHydration();
   const { value: discountedPriceCents } = computeSelectionDiscountedPrice(priceCents, discount, product, quantity);
-  const buyerLocalContext = buyerLocalContextFor(product);
+  const buyerLocalContext = { ...buyerLocalContextFor(product), locale: snapshot?.locale };
   // aria-label overrides the button's content for screen readers, so everything
   // rendered inside (price, stock, description) must be re-exposed via
   // aria-describedby or it is never announced.
@@ -405,9 +412,13 @@ export const OptionRadioButton = ({
   );
 };
 
-const getClientTimeZone = () => ({
-  shortFormattedName: new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).format(new Date()).split(", ")[1],
-  longFormattedName: new Intl.DateTimeFormat("en-US", { timeZoneName: "long" }).format(new Date()).split(", ")[1],
+const getClientTimeZone = (snapshot?: ProductHydrationSnapshot) => ({
+  shortFormattedName: new Intl.DateTimeFormat("en-US", { timeZoneName: "short", timeZone: snapshot?.timeZone })
+    .format(new Date(snapshot?.referenceTime ?? Date.now()))
+    .split(", ")[1],
+  longFormattedName: new Intl.DateTimeFormat("en-US", { timeZoneName: "long", timeZone: snapshot?.timeZone })
+    .format(new Date(snapshot?.referenceTime ?? Date.now()))
+    .split(", ")[1],
 });
 
 const roundToNearestDisplayTime = (time: Date) =>
@@ -427,7 +438,8 @@ const CallDateAndTimeSelector = ({
   const [isLoading, setIsLoading] = React.useState(true);
   const [availabilities, setAvailabilities] = React.useState<CallAvailability[]>([]);
 
-  const clientTimeZone = getClientTimeZone();
+  const snapshot = useProductHydration();
+  const clientTimeZone = getClientTimeZone(snapshot);
   const callDurationInMinutes = selectedOption.duration_in_minutes ?? 0;
   const selectedStartTime = rawSelectedStartTime ? new Date(rawSelectedStartTime) : undefined;
   const lastAvailability = availabilities.length > 0 ? availabilities[availabilities.length - 1] : null;
@@ -531,7 +543,11 @@ const CallDateAndTimeSelector = ({
   );
   const dateSelectId = React.useId();
   const timeGroupName = React.useId();
-  const selectedDateValue = selectedStartTime ? format(selectedStartTime, "yyyy-MM-dd") : "";
+  const selectedDateValue = selectedStartTime
+    ? snapshot
+      ? formatInTimeZone(selectedStartTime, snapshot.timeZone, "yyyy-MM-dd")
+      : format(selectedStartTime, "yyyy-MM-dd")
+    : "";
 
   if (firstAvailableStartTime === null && !isLoading) {
     return (
@@ -577,10 +593,17 @@ const CallDateAndTimeSelector = ({
           </Select>
           <Calendar
             locale={{ code: "en-US" }}
+            {...(snapshot ? { timeZone: snapshot.timeZone, today: new Date(snapshot.referenceTime) } : {})}
+            formatters={{
+              formatWeekdayName: (date) =>
+                date.toLocaleString("en-US", { weekday: "narrow", timeZone: snapshot?.timeZone }),
+            }}
             mode="single"
             selected={selectedStartTime}
-            startMonth={firstAvailableStartTime ?? new Date()}
-            endMonth={lastAvailability ? new Date(lastAvailability.end_time) : new Date()}
+            startMonth={firstAvailableStartTime ?? new Date(snapshot?.referenceTime ?? Date.now())}
+            endMonth={
+              lastAvailability ? new Date(lastAvailability.end_time) : new Date(snapshot?.referenceTime ?? Date.now())
+            }
             disabled={(date) => !isAvailableOnDate(date)}
             onSelect={(date) => {
               if (date) setSelectedDateFromReactCalendar(date);
@@ -599,9 +622,7 @@ const CallDateAndTimeSelector = ({
             }}
           >
             <span>Select a time</span>
-            <span title={clientTimeZone.longFormattedName} suppressHydrationWarning>
-              {clientTimeZone.shortFormattedName}
-            </span>
+            <span title={clientTimeZone.longFormattedName}>{clientTimeZone.shortFormattedName}</span>
           </h4>
           <fieldset className="grid grid-cols-2 gap-3 md:grid-flow-row">
             <legend className="sr-only">Select a time</legend>
@@ -635,7 +656,10 @@ const CallDateAndTimeSelector = ({
           <h4>
             You selected{" "}
             <strong>
-              {formatCallDate(selectedStartTime, { date: { hideYear: true }, timeZone: { hidden: true } })}
+              {formatCallDate(selectedStartTime, {
+                date: { hideYear: true },
+                timeZone: { hidden: true, userTimeZone: snapshot?.timeZone },
+              })}
             </strong>
           </h4>
         </div>
@@ -653,6 +677,7 @@ const PaymentOptionSelector = ({
   selection: PriceSelection;
   onChange: (selection: Partial<PriceSelection>) => void;
 }) => {
+  const snapshot = useProductHydration();
   if (!product.installment_plan) return null;
 
   const fullPriceCents = selection.price.value ?? product.price_cents;
@@ -687,7 +712,7 @@ const PaymentOptionSelector = ({
               <p>
                 {formatInstallmentPaymentSchedule(
                   fullPriceCents,
-                  buyerLocalContextFor(product),
+                  { ...buyerLocalContextFor(product), locale: snapshot?.locale },
                   product.installment_plan.number_of_installments,
                 )}
               </p>
@@ -718,6 +743,7 @@ export const ConfigurationSelector = React.forwardRef<
     showInstallmentPlan?: boolean;
   }
 >((props, ref) => {
+  const snapshot = useProductHydration();
   const {
     product,
     selection,
@@ -845,9 +871,13 @@ export const ConfigurationSelector = React.forwardRef<
                   }
                   className="justify-center"
                 >
-                  {formatBuyerLocalOrSetPrice(option.price_difference_cents ?? 0, buyerLocalContextFor(product), {
-                    symbolFormat: "short",
-                  })}
+                  {formatBuyerLocalOrSetPrice(
+                    option.price_difference_cents ?? 0,
+                    { ...buyerLocalContextFor(product), locale: snapshot?.locale },
+                    {
+                      symbolFormat: "short",
+                    },
+                  )}
                 </Button>
               </Tab>
             );
@@ -1005,7 +1035,11 @@ export const ConfigurationSelector = React.forwardRef<
             ) : null}
             {purchasableOptionPrices.length > 0 ? (
               <div itemProp="lowPrice" className="hidden">
-                {formatPriceCentsWithoutCurrencySymbol(product.currency_code, Math.min(...purchasableOptionPrices))}
+                {formatPriceCentsWithoutCurrencySymbol(
+                  product.currency_code,
+                  Math.min(...purchasableOptionPrices),
+                  snapshot?.locale,
+                )}
               </div>
             ) : null}
             <div itemProp="priceCurrency" className="hidden">

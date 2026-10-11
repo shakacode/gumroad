@@ -3,7 +3,6 @@ import * as React from "react";
 import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
 import type { Seller } from "$app/components/Product";
-import { scheduleProductReviewsLoad } from "$app/components/Product/scheduleProductReviewsLoad";
 
 const importProductReviewsEnhancement = () => import("$app/components/Product/ProductReviewsEnhancement");
 const ProductReviewsEnhancement = React.lazy(() => fetchWithOneRetry(importProductReviewsEnhancement));
@@ -34,7 +33,7 @@ export const ProductReviews = ({
 }) => {
   const [shouldLoadWrittenReviews, setShouldLoadWrittenReviews] = React.useState(false);
 
-  React.useEffect(() => scheduleProductReviewsLoad(() => setShouldLoadWrittenReviews(true)), []);
+  React.useEffect(() => setShouldLoadWrittenReviews(true), []);
 
   return (
     <section className="grid gap-4 p-6 not-first:border-t">

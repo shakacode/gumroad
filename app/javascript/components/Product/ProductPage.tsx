@@ -260,7 +260,11 @@ export default function ProductPage({
   return (
     <>
       <ProductCoverPreloads covers={productProps.product.covers} mainCoverId={productProps.product.main_cover_id} />
-      <ProductPageShell global={global} inertiaMeta={inertiaMeta}>
+      <ProductPageShell
+        global={global}
+        inertiaMeta={inertiaMeta}
+        hydrationSnapshot={{ locale: global.locale, timeZone: "UTC", referenceTime: Date.now() }}
+      >
         <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
           {productContent}
         </ProductStateProvider>

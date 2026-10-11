@@ -165,7 +165,6 @@ export const FeaturedProductView = ({ props }: { props: ProductProps }) => {
     <Product
       product={props.product}
       purchase={props.purchase}
-      discountCode={props.discount_code}
       wishlists={props.wishlists}
       selection={selection}
       setSelection={setSelection}

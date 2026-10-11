@@ -23,6 +23,7 @@ describe "Product RORP shared globals", type: :request do
     get product.long_url(layout: Product::Layout::PROFILE)
 
     expect(response).to be_successful
+    expect(response.headers["Cache-Control"]).to include("no-store")
     expect(rendered_meta).not_to include('rel="preload"')
     expect(rendered_meta).to include('rel="canonical"', 'property="og:image"')
     expect(rendered_props.fetch(:_inertia_meta).any? { |tag| tag[:rel] == "preload" && tag[:as] == "image" }).to be(false)
