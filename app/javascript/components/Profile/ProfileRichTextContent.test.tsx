@@ -2,32 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 
-import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
-
-it("detects nested nodes that require client enhancement", () => {
-  expect(
-    profileRichTextNeedsClientEnhancement({
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: "Static creator story" }] }],
-    }),
-  ).toBe(false);
-  expect(
-    profileRichTextNeedsClientEnhancement({
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "raw" }] }],
-    }),
-  ).toBe(true);
-});
-
-it("enhances authored buttons with the current public button presentation", () => {
-  expect(
-    profileRichTextNeedsClientEnhancement({
-      type: "doc",
-      content: [{ type: "button", content: [{ type: "text", text: "Read more" }] }],
-    }),
-  ).toBe(true);
-});
 
 it("renders safe rich text links without emitting unsafe hrefs", () => {
   const html = renderToStaticMarkup(

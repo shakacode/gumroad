@@ -1,4 +1,5 @@
 import { Archive, ArrowUpRight } from "@boxicons/react";
+import { EditorContent } from "@tiptap/react";
 import classNames from "classnames";
 import * as React from "react";
 
@@ -20,8 +21,7 @@ import { CardGrid, useSearchReducer } from "$app/components/Product/CardGrid";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import { FollowForm } from "$app/components/Profile/FollowForm";
-import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
-import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
+import { useRichTextEditor } from "$app/components/RichTextEditor";
 import { CardContent } from "$app/components/ui/Card";
 import { Input } from "$app/components/ui/Input";
 import { useUserAgentInfo } from "$app/components/UserAgent";
@@ -198,9 +198,10 @@ const FeaturedProductSectionView = ({ section }: { section: FeaturedProductSecti
 
 const PostsSectionView = ({ section }: { section: PostsSection }) => <PostsView posts={section.posts} />;
 
-const RichTextSectionView = ({ section }: { section: RichTextSection }) => (
-  <ProfileRichTextEnhancement content={section.text} fallback={<ProfileRichTextContent content={section.text} />} />
-);
+const RichTextSectionView = ({ section }: { section: RichTextSection }) => {
+  const editor = useRichTextEditor({ initialValue: section.text, editable: false });
+  return <EditorContent editor={editor} className="rich-text -mb-4" />;
+};
 
 const SubscribeSectionView = ({
   section,

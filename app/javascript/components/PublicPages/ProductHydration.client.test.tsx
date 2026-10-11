@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
 import { PriceTag } from "$app/components/Product/PriceTag";
+import { ProductSalesNotice } from "$app/components/Product/ProductContent";
 import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductHydrationProvider, useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 
@@ -149,6 +150,48 @@ it("preserves an explicitly supplied price locale after hydration", async () => 
     </ProductHydrationProvider>,
   );
   expect(container.textContent).toContain("$1,234.56");
+});
+
+it("hydrates sales counts before adopting the buyer's locale without replacing the notice", async () => {
+  let defaultLocale = "en-US";
+  vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+    return new Intl.NumberFormat(locales ?? defaultLocale, options).format(this);
+  });
+  const notice = <ProductSalesNotice salesCount={12345} isMembership={false} isPreorder={false} hasPaidPrice />;
+  const content = <ProductHydrationProvider value={snapshot}>{notice}</ProductHydrationProvider>;
+  const container = document.createElement("div");
+  document.body.append(container);
+  container.innerHTML = renderToString(content);
+  const serverNotice = container.querySelector('[role="status"]');
+  const serverCount = container.querySelector("strong");
+  expect(serverNotice?.textContent).toBe("12,345 sales");
+  defaultLocale = "de-DE";
+  const errors = vi.fn();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  await React.act(async () => {
+    roots.push(hydrateRoot(container, content, { onRecoverableError: errors }));
+    await Promise.resolve();
+  });
+  expect(errors).not.toHaveBeenCalled();
+  expect(container.querySelector('[role="status"]')).toBe(serverNotice);
+  expect(container.querySelector("strong")).toBe(serverCount);
+  expect(serverNotice?.textContent).toBe("12.345 sales");
+  const legacy = document.createElement("div");
+  legacy.innerHTML = renderToString(notice);
+  expect(serverNotice?.textContent).toBe(legacy.textContent);
+});
+
+it.each([
+  { salesCount: null, isMembership: false, isPreorder: false, hasPaidPrice: false, text: "" },
+  { salesCount: 0, isMembership: false, isPreorder: false, hasPaidPrice: false, text: "0 downloads" },
+  { salesCount: 1, isMembership: false, isPreorder: false, hasPaidPrice: false, text: "1 download" },
+  { salesCount: 2, isMembership: false, isPreorder: false, hasPaidPrice: true, text: "2 sales" },
+  { salesCount: 1, isMembership: false, isPreorder: true, hasPaidPrice: true, text: "1 pre-order" },
+  { salesCount: 2, isMembership: true, isPreorder: true, hasPaidPrice: true, text: "2 members" },
+])("preserves the sales notice wording: $text", ({ text, ...props }) => {
+  const container = document.createElement("div");
+  container.innerHTML = renderToString(<ProductSalesNotice {...props} />);
+  expect(container.textContent).toBe(text);
 });
 
 it("hydrates the seven-day countdown boundary using the serialized reference time", async () => {

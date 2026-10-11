@@ -38,7 +38,8 @@ describe "Product RSC hydration", :product_rsc_renderer, type: :system, js: true
   ].each do |time_zone, locale, local_release_day|
     it "retains preorder, price and PWYW nodes while switching to #{locale} in #{time_zone}" do
       product = create(:product, user: seller, name: "Preorder hydration guide", price_cents: 123_456,
-                                 customizable_price: true, is_in_preorder_state: true)
+                                 customizable_price: true, is_in_preorder_state: true, should_show_sales_count: true)
+      allow_any_instance_of(Link).to receive(:successful_sales_count).and_return(12_345)
       release_at = Time.utc(2030, 1, 2, 0, 30)
       create(:preorder_link, link: product, release_at:)
       capture_hydration(product, time_zone:, locale:, notice_text: "Available on")
@@ -50,11 +51,13 @@ describe "Product RSC hydration", :product_rsc_renderer, type: :system, js: true
       expect(initial.fetch("price")).to eq("$1,234.56+")
       expect(initial.fetch("placeholder")).to eq("1,234.56+")
       expect(initial.fetch("notice")).to include("January 2, 2030")
+      local_sales_count = page.evaluate_script("(12345).toLocaleString()")
       local_amount = browser_amount(1234.56)
       within find("article", text: product.name) do
         expect(page).to have_css("[itemprop='price']", text: localized_text("$#{local_amount}+", exact: true))
         expect(page).to have_field("Name a fair price", placeholder: localized_text("#{local_amount}+", exact: true))
         expect(page).to have_css("[role='status']", text: local_release_day)
+        expect(page).to have_css("[role='status']", text: localized_text("#{local_sales_count} pre-orders"))
         expected_release = page.evaluate_script(<<~JS)
           new Date(#{release_at.iso8601.to_json}).toLocaleString(#{locale.to_json}, {
             dateStyle: "long", timeStyle: "short", timeZone: #{time_zone.to_json}

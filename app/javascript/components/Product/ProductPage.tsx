@@ -22,7 +22,6 @@ import {
   ProductSalesNotice,
   ProductStreamingNotice,
   ProductTitle,
-  productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
 import { ProductCoverPreloads } from "$app/components/Product/ProductCoverPreloads";
 import { ProductFooter } from "$app/components/Product/ProductFooter";
@@ -33,7 +32,6 @@ import { ProductProfileLayout } from "$app/components/Profile/ProductProfileLayo
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
-import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
@@ -73,7 +71,6 @@ export default function ProductPage({
         ]),
       ),
       description: <ProductDescriptionContent content={content} />,
-      descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(content.description_html),
       initialCover: initialCover
         ? {
             id: initialCover.id,
@@ -98,7 +95,6 @@ export default function ProductPage({
           isMembership={product.recurrences !== null}
           isPreorder={product.preorder !== null}
           hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
-          locale={global.locale}
         />
       ),
       title: <ProductTitle content={content} scaleLongTitle={scaleLongTitle} />,
@@ -143,7 +139,7 @@ export default function ProductPage({
           [
             section.id,
             <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-              <ProfilePostsContent posts={section.posts} locale={global.locale} />
+              <ProfilePostsContent posts={section.posts} />
             </ProfileSectionFrame>,
           ],
         ];
@@ -154,11 +150,7 @@ export default function ProductPage({
           [
             section.id,
             <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-              {profileRichTextNeedsClientEnhancement(section.text) ? (
-                <ProfileRichTextEnhancement content={section.text} fallback={richTextContent} />
-              ) : (
-                richTextContent
-              )}
+              <ProfileRichTextEnhancement content={section.text} fallback={richTextContent} />
             </ProfileSectionFrame>,
           ],
         ];

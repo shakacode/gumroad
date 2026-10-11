@@ -65,7 +65,6 @@ export default function ProductArticle({
             <ProductDescription
               descriptionHtml={product.description_html}
               initialContent={serverContent.description}
-              needsClientEnhancement={serverContent.descriptionNeedsClientEnhancement}
               publicFiles={product.public_files}
             />
           </section>

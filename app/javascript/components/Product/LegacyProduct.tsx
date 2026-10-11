@@ -63,7 +63,6 @@ export const legacyProductContent = ({
       ]),
     ),
     description: <ProductDescriptionContent content={{ ...product, show_price: showPrice }} />,
-    descriptionNeedsClientEnhancement: true,
     initialCover: null,
     membershipNotices: <ProductMembershipNotices content={{ ...product, show_price: showPrice }} />,
     quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,

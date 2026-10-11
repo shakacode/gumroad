@@ -87,26 +87,7 @@ export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview;
 export const ProductQuantityRemaining = ({ quantityRemaining }: { quantityRemaining: number | null }) =>
   quantityRemaining !== null ? <Ribbon>{quantityRemaining} left</Ribbon> : null;
 
-export const ProductSalesNotice = ({
-  salesCount,
-  isMembership,
-  isPreorder,
-  hasPaidPrice,
-  locale,
-}: {
-  salesCount: number | null;
-  isMembership: boolean;
-  isPreorder: boolean;
-  hasPaidPrice: boolean;
-  locale?: string | undefined;
-}) =>
-  salesCount !== null ? (
-    <Alert role="status" variant="info">
-      <strong>{salesCount.toLocaleString(locale)}</strong>{" "}
-      {isMembership ? "member" : isPreorder ? "pre-order" : hasPaidPrice ? "sale" : "download"}
-      {salesCount === 1 ? "" : "s"}
-    </Alert>
-  ) : null;
+export { ProductSalesNotice } from "$app/components/Product/ProductSalesNotice.client";
 
 export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (
   <>
@@ -292,21 +273,6 @@ export const ProductReviewsContent = ({ ratings }: { ratings: RatingsWithPercent
     </section>
   </>
 );
-
-export const productDescriptionNeedsClientEnhancement = (descriptionHtml: string | null) => {
-  const html = descriptionHtml ?? "";
-
-  if (/<(?:pre|public-file-embed|review-card|upsell-card)(?=[\s/>])/iu.test(html)) return true;
-
-  return [...html.matchAll(/<a(?=[\s>])(?:(?:"[^"]*"|'[^']*'|[^'">])*)>/giu)].some(([tag]) => {
-    if (/\bclass\s*=\s*(["\x27])[^"\x27]*\btiptap__button\b/iu.test(tag)) return true;
-    if (!/\btarget\s*=\s*(["'])_blank\1/iu.test(tag)) return true;
-
-    const rel = /\brel\s*=\s*(["'])([^"']*)\1/iu.exec(tag)?.[2];
-    const relValues = new Set(rel?.toLowerCase().split(/\s+/u));
-    return !["noopener", "noreferrer", "nofollow"].every((value) => relValues.has(value));
-  });
-};
 
 export const ProductMembershipNotices = ({ content }: { content: ProductContentProps }) => (
   <>

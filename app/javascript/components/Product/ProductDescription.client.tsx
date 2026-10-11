@@ -38,24 +38,22 @@ export type PublicFile = {
 const ProductDescription = ({
   descriptionHtml,
   initialContent,
-  needsClientEnhancement,
   publicFiles,
 }: {
   descriptionHtml: string | null;
   initialContent: React.ReactNode;
-  needsClientEnhancement: boolean;
   publicFiles: PublicFile[];
 }) => {
   const [pageLoaded, setPageLoaded] = React.useState(false);
 
   React.useEffect(() => {
-    if (needsClientEnhancement) setPageLoaded(true);
-  }, [needsClientEnhancement]);
+    setPageLoaded(true);
+  }, []);
 
   return (
     <CollapsibleDescription>
       {/* Mixed-language blocks derive their own direction through _rich_text.scss. */}
-      {needsClientEnhancement && pageLoaded ? (
+      {pageLoaded ? (
         <ProductDescriptionEnhancementBoundary fallback={initialContent}>
           <React.Suspense fallback={initialContent}>
             <ProductDescriptionEnhancement

@@ -3,11 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  ProductCoverImage,
-  ProductReceiptContent,
-  productDescriptionNeedsClientEnhancement,
-} from "$app/components/Product/ProductContent";
+import { ProductCoverImage, ProductReceiptContent } from "$app/components/Product/ProductContent";
 import { ProductFooter } from "$app/components/Product/ProductFooter";
 
 afterEach(() => {
@@ -100,49 +96,6 @@ describe("ProductReceiptContent", () => {
     expect(screen.getByRole("heading", { name: "License key" })).toBeTruthy();
     expect(screen.getByText("LICENSE-KEY")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
-  });
-});
-
-describe("ProductDescriptionContent", () => {
-  it("keeps static HTML entirely on the server", () => {
-    expect(
-      productDescriptionNeedsClientEnhancement(
-        '<h2>Guide</h2><p><a href="/more" target="_blank" rel="noopener noreferrer nofollow">Read more</a></p>',
-      ),
-    ).toBe(false);
-  });
-
-  it.each([
-    '<a href="/more">Read more</a>',
-    '<a href="/more" target="_blank">Read more</a>',
-    '<a href="/more" target="_blank" rel="noopener noreferrer">Read more</a>',
-  ])("enhances descriptions containing an unnormalized link: %s", (descriptionHtml) => {
-    expect(productDescriptionNeedsClientEnhancement(descriptionHtml)).toBe(true);
-  });
-
-  it.each(["public-file-embed", "review-card", "upsell-card"])(
-    "enhances descriptions containing <%s> nodes on the client",
-    (tag) => {
-      expect(productDescriptionNeedsClientEnhancement(`<p>Before</p><${tag} id="item-1"></${tag}>`)).toBe(true);
-    },
-  );
-
-  it("recognizes mixed-case and self-closing enhancement nodes", () => {
-    expect(productDescriptionNeedsClientEnhancement("<Review-Card />")).toBe(true);
-  });
-
-  it("enhances authored buttons even when their link attributes are normalized", () => {
-    expect(
-      productDescriptionNeedsClientEnhancement(
-        '<a class="tiptap__button button primary" href="https://example.com" target="_blank" rel="noopener noreferrer nofollow">Read more</a>',
-      ),
-    ).toBe(true);
-  });
-
-  it("enhances code blocks to preserve their copy action", () => {
-    expect(productDescriptionNeedsClientEnhancement('<pre><code class="language-ruby">puts :hello</code></pre>')).toBe(
-      true,
-    );
   });
 });
 

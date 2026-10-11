@@ -167,7 +167,6 @@ export type ServerContent = {
   availabilityNotice: React.ReactNode;
   bundleItems: Record<string, React.ReactNode>;
   description: React.ReactNode;
-  descriptionNeedsClientEnhancement: boolean;
   initialCover: { id: string; content: React.ReactNode } | null;
   membershipNotices: React.ReactNode;
   quantityRemaining: React.ReactNode;
@@ -250,7 +249,6 @@ export const InteractiveProduct = ({
           <ProductDescription
             descriptionHtml={product.description_html}
             initialContent={serverContent.description}
-            needsClientEnhancement={serverContent.descriptionNeedsClientEnhancement}
             publicFiles={product.public_files}
           />
         </section>

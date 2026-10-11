@@ -47,7 +47,6 @@ describe("ProductDescription", () => {
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
         initialContent={<div>Server description</div>}
-        needsClientEnhancement
         publicFiles={[]}
       />,
     );
@@ -60,18 +59,21 @@ describe("ProductDescription", () => {
     expect(screen.queryByText("Server description")).toBeNull();
   });
 
-  it("keeps static server HTML without TipTap enhancement", () => {
+  it.each([
+    "<p>Static description</p>",
+    '<img src="https://example.com/image.png">',
+    "<div data-embed>Embedded content</div>",
+  ])("runs client enhancement for every description: %s", async (descriptionHtml) => {
     render(
       <ProductDescription
-        descriptionHtml="<p>Static description</p>"
+        descriptionHtml={descriptionHtml}
         initialContent={<div>Server description</div>}
-        needsClientEnhancement={false}
         publicFiles={[]}
       />,
     );
 
-    expect(screen.queryByText("Enhanced description")).toBeNull();
-    expect(screen.getByText("Server description")).toBeTruthy();
+    expect(await screen.findByText("Enhanced description")).toBeTruthy();
+    expect(screen.queryByText("Server description")).toBeNull();
   });
 
   it("keeps server content visible when the client enhancement fails", async () => {
@@ -81,7 +83,6 @@ describe("ProductDescription", () => {
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
         initialContent={<div>Server description</div>}
-        needsClientEnhancement
         publicFiles={[]}
       />,
     );
@@ -96,7 +97,6 @@ describe("ProductDescription", () => {
       <ProductDescription
         descriptionHtml="<p>Client description source</p>"
         initialContent={<div>Server description</div>}
-        needsClientEnhancement
         publicFiles={[]}
       />
     );

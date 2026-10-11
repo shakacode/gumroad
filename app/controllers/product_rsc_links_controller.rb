@@ -3,6 +3,8 @@
 class ProductRscLinksController < LinksController
   include ReactOnRailsPro::Stream
 
+  # Live also handles Inertia visits and redirects, regardless of the renderer flag.
+  prepend_around_action :clear_live_active_record_connections
   prepend_around_action :close_live_response_stream, if: :product_rsc_route_request?
   before_action :prepare_product_xsrf_cookie
   helper_method :content_security_policy_nonce
