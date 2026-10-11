@@ -101,7 +101,7 @@ ruby bin/deploy-control-plane-benchmark deploy --app "$APP" \
   --source-sha "$INTEGRATION_SHA" --manifest "$DEPLOYMENT_RECORD" --execute
 ```
 
-Before release, reconcile any global, group, percentage, expression or other-seller product-page gates in a separately authorized step. The app/surface-guarded release waits for backing services, migrates, seeds/reindexes and probes private R2/public delivery/deletion before the actor guard; its writes require authorization and the normal entrypoint never migrates/seeds. The actor guard never erases conflicting gates. Verify luisfurushio enabled only on RORP, Inertia off, another seller unaffected and unrelated flags unchanged.
+The historical RORP release globally enabled this feature; expect a boolean conflict until an authorized read proves otherwise. Before build or release, record the actual gates and reconcile global, group, percentage, expression or other-seller conflicts under separate authorization. Do not invoke deploy without that recorded preflight. The app/surface-guarded release waits for backing services, migrates, seeds/reindexes and probes private R2/public delivery/deletion before the actor guard; its writes require authorization and the normal entrypoint never migrates/seeds. The actor guard never erases conflicting gates. Verify luisfurushio enabled only on RORP, Inertia off, another seller unaffected and unrelated flags unchanged.
 
 The command releases the explicit digest, promotes Rails/Sidekiq/renderer and verifies their running images. Promotion failure attempts each workload’s own prior digest. Release writes are not undone by image rollback. The schedule-suspended release runner’s job and configuration synchronization require authorization.
 
