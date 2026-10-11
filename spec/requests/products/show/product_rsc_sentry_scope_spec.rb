@@ -84,7 +84,7 @@ describe "Product Live Sentry scope", type: :request do
 
     restored_scopes = %w[first second].map do |marker|
       get product.long_url(layout: "profile"),
-          headers: { "X-Sentry-Probe" => marker }
+          headers: { "X-Sentry-Probe" => marker, "SERVER_PROTOCOL" => "HTTP/1.1" }
 
       expect(response).to be_successful
       expect(response.body).to eq("<main>scope probe</main>")
@@ -115,6 +115,35 @@ describe "Product Live Sentry scope", type: :request do
     expect(error_event.exception.values.last.type).to eq("RuntimeError")
   end
 
+  it "ends an aborted Live stream without reporting a client disconnect" do
+    product = create(:product)
+    Feature.activate_user(:product_page_react_on_rails, product.user)
+    allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("NodeRenderer")
+    allow(ReactOnRailsPro.configuration).to receive(:renderer_password).and_return("test-only-stub")
+    completed = Queue.new
+    streams = Queue.new
+    allow(ActionController::Live.live_thread_pool_executor).to receive(:post).and_wrap_original do |original, &block|
+      original.call do
+        block.call
+      ensure
+        completed << Sentry.get_current_scope.tags.dup
+      end
+    end
+    expect_any_instance_of(ProductRscLinksController).to receive(:stream_view_containing_react_components) do |controller, **|
+      streams << controller.response.stream.class
+      controller.response.stream.write("first chunk")
+      controller.response.stream.abort
+      controller.response.stream.write("after disconnect")
+    end
+
+    get product.long_url(layout: "profile"), headers: { "SERVER_PROTOCOL" => "HTTP/1.1" }
+
+    expect(response).to be_successful
+    expect(Timeout.timeout(10) { completed.pop }).to eq({})
+    expect(streams.pop).to eq(ActionController::Live::Buffer)
+    expect(@sentry_client.transport.events.none? { _1.exception&.values&.last&.type == "ActionController::Live::ClientDisconnected" }).to eq(true)
+  end
+
   [false, true].each do |enabled|
     it "reports actual #{enabled ? 'Live' : 'ordinary'} precommit exceptions with controller identity and request context" do
       product = create(:product)
@@ -134,7 +163,7 @@ describe "Product Live Sentry scope", type: :request do
       enabled ? Feature.activate_user(:product_page_react_on_rails, product.user) : Feature.deactivate_user(:product_page_react_on_rails, product.user)
       marker = enabled ? "live" : "ordinary"
       expect do
-        get product.long_url(layout: "profile"), headers: { "X-Sentry-Probe" => marker }
+        get product.long_url(layout: "profile"), headers: { "X-Sentry-Probe" => marker, "SERVER_PROTOCOL" => "HTTP/1.1" }
       end.to raise_error(RuntimeError, "precommit scope probe")
 
       event = @sentry_client.transport.events.last

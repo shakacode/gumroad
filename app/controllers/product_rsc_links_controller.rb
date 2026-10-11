@@ -17,6 +17,9 @@ class ProductRscLinksController < LinksController
   private
     def process_action(*)
       super
+    rescue ActionController::Live::ClientDisconnected
+      # A normal disconnect still runs the stream and connection-cleanup ensures.
+      nil
     rescue StandardError => error
       # Capture worker-added context before Live re-raises on the parent; Sentry deduplicates it.
       Sentry.capture_exception(error)
