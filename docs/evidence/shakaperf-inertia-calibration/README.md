@@ -1,8 +1,8 @@
 # Inertia landing calibration
 
-The corrected campaign passed every configured stage with **18 simultaneous pairs per viewport**. Native paired FCP/LCP differences were nonsignificant and their 95% intervals span zero. This local A/A calibration has no intended application optimization. Passing proves neither a speedup nor equivalence.
+This retained capture passed every configured stage with **18 simultaneous pairs per viewport**. Native paired FCP/LCP differences were nonsignificant and their 95% intervals span zero. Secondary TBT results were significant in opposite directions, as disclosed below. This local A/A calibration has no intended application optimization. Passing proves neither a speedup nor equivalence. A subsequent terminal-response guard and explicit compiler selection require a fresh current-source campaign; these numbers remain evidence for their recorded source.
 
-Control is complete upstream `921e1d56e1685084b66cb4a532439e4b3069de4c`. Experiment is clean commit `9307ea81bb2944c64c60aa57fdd8475e19e0cb10`, adding optional tooling and existing fork workflow wrappers. Both sides used detached clean snapshots, fresh locked dependency installs/builds and the same explicit environment. [Provenance](provenance.json) records five actual executable/configuration hashes, the canonical source diff, native sampler sources/build tools, matching container image identities, runtime versions and host load. Later evidence/documentation updates leave those five inputs unchanged. Reproduce with `bin/shakaperf-local`; see [setup](../../shakaperf.md).
+Control is complete upstream `921e1d56e1685084b66cb4a532439e4b3069de4c`. Experiment is clean commit `9307ea81bb2944c64c60aa57fdd8475e19e0cb10`, adding optional tooling and existing fork workflow wrappers. Both sides used detached clean snapshots, fresh locked dependency installs/builds and the same explicit environment. [Provenance](provenance.json) records five actual executable/configuration hashes, the source diff digest, native sampler sources/build tools, matching container image identities, runtime versions and host load. The two source SHAs identify content; user Git rendering settings can still change the diff digest. Compiler/response-guard corrections made afterward change two captured input files, so these measurements do not certify those repairs. Reproduce the current workload with `bin/shakaperf-local`; see [setup](../../shakaperf.md).
 
 ShakaPerf 0.3.1, shared 0.3.0, Lighthouse 13.4.1 and Playwright/core 1.58.2 are locked. Performance used Chrome Canary 157.0.8097.0; visual checks used Chromium 145.0.7632.6/revision1208. The Chrome executable hash is recorded, but its full installation and live Stripe assets are not archived. Rails used development mode with prebuilt Vite assets and synthetic data. Settings: cold cache, 200ms request latency, 2700kbit/s throughput, 3x CPU slowdown, parallelism1, no retries, p=.05, 5% estimator regression threshold.
 
@@ -18,6 +18,15 @@ Negative values mean lower experiment time/transfer. Native rounded Hodges–Leh
 | Phone FCP | 2053 → 2037ms | −17ms (−.85%) | [−41,8]ms; [−1.97,.39]% | .154 |
 | Phone LCP | 12664 → 12667ms | −6ms (−.04%) | [−19,7]ms; [−.15,.06]% | .4423 |
 | Phone transfer | 3914 → 3914KiB | 0KiB | [0,.1]KiB, rounded | .107 |
+
+Both native reports have `areResultsSignificant:true` and `isBelowRegressionThreshold:true`. All17 metrics per viewport remain in the linked native reports; the predeclared primary FCP/LCP and supporting transfer rows above are not the whole verdict. Secondary TBT is the only significant metric in each viewport:
+
+| Secondary metric | Control → experiment median | Paired estimate | Native95% interval | p |
+| --- | --- | --- | --- | --- |
+| Desktop TBT | 144 → 141ms | −3ms (−1.82%) | [−5,0]ms rounded; [−3.64,−.04]% | .03849 |
+| Phone TBT | 143 → 148ms | +3ms (+2.05%) | [1,6]ms; [.48,3.91]% | .01387 |
+
+These opposite, small secondary estimates are exploratory within34 metric/viewport comparisons at the unchanged per-metric p=.05 threshold. They do not establish a coherent improvement, causality or production benefit. Rounded zero endpoints do not replace the unrounded interval or significance flag. No adjustment or threshold change is applied retrospectively.
 
 | Viewport / metric | Control descriptive range | Experiment descriptive range |
 | --- | --- | --- |

@@ -47,9 +47,19 @@ def wait_for(url, pid)
   end
 end
 
+def executable!(name)
+  path = SYSTEM_ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |directory| File.join(directory, name) }
+                   .find { |candidate| File.file?(candidate) && File.executable?(candidate) }
+  abort "Missing native build prerequisite: #{name}" unless path
+  path
+end
+
 abort "Run from the repository root" unless Dir.pwd == ROOT
 abort "Commit tracked changes before a campaign; both sides use clean commit snapshots" unless output!("git", "status", "--porcelain", "--untracked-files=no").empty?
 output!("node", "-e", "if (require('shaka-shared/package.json').version !== '0.3.0' || require('playwright-core/package.json').version !== '1.58.2') process.exit(1)")
+native_env = { "CC" => executable!("cc"), "CXX" => executable!("c++"), "PYTHON" => executable!("python3") }
+native_env["PYTHON"] = output!(native_env.fetch("PYTHON"), "-c", "import sys; print(sys.executable)")
+native_versions = native_env.transform_values { |path| output!(path, "--version") }
 abort "State already exists; preserve results and remove tmp/shakaperf-local before a new campaign" if File.exist?(STATE)
 FileUtils.mkdir_p(STATE)
 control_dir = File.join(STATE, "control")
@@ -121,12 +131,13 @@ begin
   package = File.join(TOOL_DIR, "node_modules", "shaka-perf", "package.json")
   abort "Unexpected ShakaPerf version" unless JSON.parse(File.read(package)).fetch("version") == TOOL_VERSION
   package_directory = File.dirname(package)
-  run!({}, package_directory, "node", File.join(package_directory, "node_modules/node-gyp/bin/node-gyp.js"), "rebuild")
+  run!(native_env, package_directory, "node", File.join(package_directory, "node_modules/node-gyp/bin/node-gyp.js"), "rebuild")
   output!("node", "-e", "require(process.argv[1]).socketpair().forEach(fd => require('fs').closeSync(fd))",
           File.join(package_directory, "build/Release/shaka_perf_socketpair.node"))
   native_sources = {}
   %w[binding.gyp native/socketpair.cpp].each { |path| native_sources[path] = Digest::SHA256.file(File.join(package_directory, path)).hexdigest }
-  manifest[:native_build] = { node_gyp: "12.1.0", python: output!("python3", "--version"), compiler: output!("clang", "--version"),
+  manifest[:native_build] = { node_gyp: JSON.parse(File.read(File.join(package_directory, "node_modules/node-gyp/package.json"))).fetch("version"),
+                              selected_tools: native_env, versions: native_versions,
                               sources: native_sources,
                               binary_sha256: Digest::SHA256.file(File.join(package_directory, "build/Release/shaka_perf_socketpair.node")).hexdigest }
   manifest[:tool_dependencies] = JSON.parse(output!("node", "-e", <<~JS, package))
