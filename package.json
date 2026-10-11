@@ -127,9 +127,12 @@
     "@tiptap/extension-strike": "$@tiptap/starter-kit",
     "@tiptap/extension-text": "$@tiptap/starter-kit",
     "@xmldom/xmldom": "^0.8.10",
-    "csstype": "3.1.3",
+    "csstype": "3.2.2",
     "@tiptap/extension-heading": "$@tiptap/starter-kit",
-    "@tiptap/extension-text-style": "$@tiptap/starter-kit"
+    "@tiptap/extension-text-style": "$@tiptap/starter-kit",
+    "recharts": {
+      "react-is": "19.2.8"
+    }
   },
   "scripts": {
     "build": "npm run build:pages-tailwind && npx vite build",
