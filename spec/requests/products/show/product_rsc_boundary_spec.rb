@@ -125,6 +125,19 @@ describe "Selective product renderer boundary", type: :request do
   context "when the product renderer flag is off" do
     let(:buyer) { create(:user) }
 
+    around do |example|
+      live = ActionController::Live
+      test_thread_method = live.instance_method(:new_controller_thread)
+      test_cleanup_method = live.instance_method(:clean_up_thread_locals)
+      # Restore the pooled worker below ProductRscLinksController's scope wrapper.
+      live.send(:alias_method, :new_controller_thread, :original_new_controller_thread)
+      live.send(:alias_method, :clean_up_thread_locals, :original_clean_up_thread_locals)
+      example.run
+    ensure
+      live.send(:define_method, :new_controller_thread, test_thread_method)
+      live.send(:define_method, :clean_up_thread_locals, test_cleanup_method)
+    end
+
     before do
       allow_any_instance_of(ApplicationController).to receive(:protect_against_forgery?).and_return(true)
       sign_in buyer

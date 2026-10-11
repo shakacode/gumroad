@@ -10,6 +10,24 @@ class ProductRscLinksController < LinksController
   helper_method :content_security_policy_nonce
 
   private
+    def new_controller_thread
+      request_scope = Sentry.get_current_scope&.dup
+      return super unless request_scope
+
+      # Live copies fiber locals, but Sentry stores its hub in a true thread variable.
+      super do
+        Sentry.with_scope do |scope|
+          scope.clear
+          scope.update_from_scope(request_scope)
+          scope.set_rack_env(request_scope.rack_env)
+          scope.set_level(request_scope.level)
+          scope.set_session(request_scope.session)
+          request_scope.event_processors.each { scope.add_event_processor(&_1) }
+          yield
+        end
+      end
+    end
+
     def prepare_product_xsrf_cookie
       # Live can commit a normal Inertia response before its cookie after-action runs.
       cookies["XSRF-TOKEN"] = form_authenticity_token if protect_against_forgery?

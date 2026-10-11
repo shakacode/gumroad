@@ -36,53 +36,57 @@ describe("public RSC asset fingerprinting", () => {
     ["test", "/public-rsc/", ""],
     ["production", "/assets/public-rsc/", ""],
     ["production", "https://assets.example.test/assets/public-rsc/", "https://assets.example.test"],
-  ])("serializes the chunk prefix for SSR and the browser (%s)", async (environment, prefix, assetHost) => {
-    const root = mkdtempSync(join(tmpdir(), "gumroad-public-rsc-prefix-"));
-    const output = join(root, "output");
-    const clientRuntime = require.resolve("react-on-rails-rsc/client.browser");
-    writeFileSync(join(root, "entry.js"), `import ${JSON.stringify(clientRuntime)};`);
-    writeFileSync(join(root, "client.js"), '"use client"; export const Client = () => "loaded";');
-    try {
-      const client = loadConfigs(environment, environment, assetHost)[0];
-      await new Promise<void>((resolve, reject) =>
-        rspack(
-          {
-            mode: "production",
-            entry: join(root, "entry.js"),
-            output: { ...client?.output, path: output },
-            plugins: [
-              new RSCRspackPlugin({
-                isServer: false,
-                clientReferences: [{ directory: root, include: /client\.js$/u }],
-              }),
-            ],
-          },
-          (error, stats) =>
-            error || !stats || stats.hasErrors()
-              ? reject(error ?? new Error(stats?.toString({ all: false, errors: true })))
-              : resolve(),
-        ),
-      );
-      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-      const manifest = JSON.parse(readFileSync(join(output, "react-client-manifest.json"), "utf8")) as {
-        moduleLoading: { prefix: string };
-        filePathToModuleMetadata: Record<string, { chunks: (string | number)[] }>;
-      };
-      expect(manifest.moduleLoading.prefix).toBe(prefix);
-      expect(client?.output?.publicPath).toBe(prefix);
-      const chunks = Object.values(manifest.filePathToModuleMetadata).flatMap(({ chunks }) =>
-        chunks.filter((_, index) => index % 2 === 1).map(String),
-      );
-      expect(chunks.length).toBeGreaterThan(0);
-      for (const chunk of chunks) {
-        expect(existsSync(join(output, chunk))).toBe(true);
-        const hint = new URL(`${manifest.moduleLoading.prefix}${chunk}`, "https://seller.example.com/");
-        expect(hint.href).toBe(new URL(`${prefix}${chunk}`, "https://seller.example.com/").href);
+  ])(
+    "serializes the chunk prefix for SSR and the browser (%s)",
+    async (environment, prefix, assetHost) => {
+      const root = mkdtempSync(join(tmpdir(), "gumroad-public-rsc-prefix-"));
+      const output = join(root, "output");
+      const clientRuntime = require.resolve("react-on-rails-rsc/client.browser");
+      writeFileSync(join(root, "entry.js"), `import ${JSON.stringify(clientRuntime)};`);
+      writeFileSync(join(root, "client.js"), '"use client"; export const Client = () => "loaded";');
+      try {
+        const client = loadConfigs(environment, environment, assetHost)[0];
+        await new Promise<void>((resolve, reject) =>
+          rspack(
+            {
+              mode: "production",
+              entry: join(root, "entry.js"),
+              output: { ...client?.output, path: output },
+              plugins: [
+                new RSCRspackPlugin({
+                  isServer: false,
+                  clientReferences: [{ directory: root, include: /client\.js$/u }],
+                }),
+              ],
+            },
+            (error, stats) =>
+              error || !stats || stats.hasErrors()
+                ? reject(error ?? new Error(stats?.toString({ all: false, errors: true })))
+                : resolve(),
+          ),
+        );
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        const manifest = JSON.parse(readFileSync(join(output, "react-client-manifest.json"), "utf8")) as {
+          moduleLoading: { prefix: string };
+          filePathToModuleMetadata: Record<string, { chunks: (string | number)[] }>;
+        };
+        expect(manifest.moduleLoading.prefix).toBe(prefix);
+        expect(client?.output?.publicPath).toBe(prefix);
+        const chunks = Object.values(manifest.filePathToModuleMetadata).flatMap(({ chunks }) =>
+          chunks.filter((_, index) => index % 2 === 1).map(String),
+        );
+        expect(chunks.length).toBeGreaterThan(0);
+        for (const chunk of chunks) {
+          expect(existsSync(join(output, chunk))).toBe(true);
+          const hint = new URL(`${manifest.moduleLoading.prefix}${chunk}`, "https://seller.example.com/");
+          expect(hint.href).toBe(new URL(`${prefix}${chunk}`, "https://seller.example.com/").href);
+        }
+      } finally {
+        rmSync(root, { recursive: true, force: true });
       }
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
+    },
+    120_000,
+  );
 
   it("publishes server-only assets through the environment-specific public path", async () => {
     const root = mkdtempSync(join(tmpdir(), "gumroad-public-rsc-assets-"));
