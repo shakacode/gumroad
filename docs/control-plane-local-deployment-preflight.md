@@ -88,7 +88,7 @@ if suspended runners must remain entirely untouched, this release path is blocke
 Do not start a suspended runner as a persistent service.
 
 After source checks and deployment authorization, build each app sequentially
-from the same checkout. Supply its host-specific build argument explicitly:
+from the same commit. Supply its host-specific build argument explicitly:
 
 ```sh
 set -eu
@@ -98,20 +98,53 @@ APP=gumroad-inertia # Repeat the complete sequence for gumroad-rorp.
 BUILD_CONTEXT=$(mktemp -d)
 BUILD_ARCHIVE=$(mktemp)
 trap 'rm -rf -- "$BUILD_CONTEXT" "$BUILD_ARCHIVE"' EXIT
-git archive --format=tar --output="$BUILD_ARCHIVE" "$INTEGRATION_SHA"
+test ! -s "$(git rev-parse --git-path info/attributes)"
+git -c core.attributesFile=/dev/null archive --format=tar \
+  --output="$BUILD_ARCHIVE" "$INTEGRATION_SHA"
 tar -xf "$BUILD_ARCHIVE" -C "$BUILD_CONTEXT"
+ruby - "$INTEGRATION_SHA" "$BUILD_CONTEXT" <<'RUBY'
+require "digest"
+require "open3"
+source, context = ARGV
+entries, error, status = Open3.capture3("git", "ls-tree", "-rz", source)
+abort error unless status.success?
+entries.split("\0").each do |entry|
+  metadata, path = entry.split("\t", 2)
+  mode, type, object = metadata.split(" ")
+  abort "Unsupported archive object: #{path}" unless type == "blob"
+  full_path = File.join(context, path)
+  bytes = mode == "120000" ? File.readlink(full_path) : File.binread(full_path)
+  abort "Archive differs from source: #{path}" unless
+    Digest::SHA1.hexdigest("blob #{bytes.bytesize}\0#{bytes}") == object
+end
+RUBY
+for required in .agents/bin/setup .agents/bin/test .agents/bin/validate \
+  .controlplane/Dockerfile .controlplane/controlplane.yml \
+  .controlplane/entrypoint.sh .controlplane/release_script.sh \
+  config/environments/benchmark.rb scripts/seed_native_product_page.rb \
+  scripts/verify_control_plane_benchmark_storage.rb \
+  scripts/configure_control_plane_product_page.rb; do
+  git cat-file -e "$INTEGRATION_SHA:$required"
+  test -f "$BUILD_CONTEXT/$required"
+  test ! -L "$BUILD_CONTEXT/$required"
+done
 (cd "$BUILD_CONTEXT" && cpflow build-image --app "$APP" --org "$CPLN_ORG" \
   --commit "$INTEGRATION_SHA" --docker-context "$BUILD_CONTEXT" \
   --build-arg "BENCHMARK_APP=$APP")
 ```
 
-The archive contains the tracked immutable commit only. Flow reads its recipe
-and configuration there too. Ignored local files, installed dependencies and
-generated assets cannot enter that Docker context.
+The extracted context must match every tracked Git blob before Flow reads its
+recipe and configuration there. Export attributes that omit or transform files
+and unverified submodules fail this check. Ignored local files, installed
+dependencies and generated assets cannot enter that Docker context. Flow 6.0.0's
+installed `build-image --help` documents `--docker-context`; running from the
+extraction also fixes configuration and recipe discovery.
 
 Record the image name printed by the build and inspect that explicit image with
 `cpln image get`. Record and verify its SHA256 digest and runtime `GIT_COMMIT`
-against the source. Recheck the clean source. Only then, using that exact identity:
+against the source by pulling and inspecting that digest, rather than a mutable
+tag. Keep the archive hash in the source-to-image record. Only then, using that
+exact identity:
 
 ```sh
 set -eu
