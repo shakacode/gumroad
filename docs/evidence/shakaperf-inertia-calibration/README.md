@@ -1,60 +1,57 @@
 # Inertia landing calibration
 
-The first completed campaign passed its configured comparison checks with **18 simultaneous pairs per viewport**. FCP and LCP differences were nonsignificant; their native paired 95% intervals span zero. This is a local A/A calibration, with no intended application optimization. It proves neither a speedup nor equivalence.
+The corrected campaign passed every configured stage with **18 simultaneous pairs per viewport**. Native paired FCP/LCP differences were nonsignificant and their 95% intervals span zero. This local A/A calibration has no intended application optimization. Passing proves neither a speedup nor equivalence.
 
-Control: complete upstream `921e1d56e1685084b66cb4a532439e4b3069de4c`. Experiment: the same application with optional integration, captured dirty on fork baseline `ad62684070c74caedef86aecc5d3d67c6526676e`. [Provenance](provenance.json) records hashes of the actual five executable/configuration inputs. After capture, the scenario received type annotations and scoped lint comments; its TypeScript emission with comments removed is byte-identical, with both source hashes and the emission proof recorded. Runtime behavior and comparison setup remain unchanged. Reproduce with `bin/shakaperf-local`; see [setup and interpretation](../../shakaperf.md).
+Control is complete upstream `921e1d56e1685084b66cb4a532439e4b3069de4c`. Experiment is clean commit `9307ea81bb2944c64c60aa57fdd8475e19e0cb10`, adding optional tooling and existing fork workflow wrappers. Both sides used detached clean snapshots, fresh locked dependency installs/builds and the same explicit environment. [Provenance](provenance.json) records five actual executable/configuration hashes, the canonical source diff, native sampler sources/build tools, matching container image identities, runtime versions and host load. Later evidence/documentation updates leave those five inputs unchanged. Reproduce with `bin/shakaperf-local`; see [setup](../../shakaperf.md).
 
-ShakaPerf 0.3.1, shared 0.3.0, Lighthouse 13.4.1 and Playwright 1.58.2 are locked. Performance used installed Chrome Canary 157.0.8097.0; visual checks used Playwright Chromium 145.0.7632.6, revision1208. The Chrome executable hash is recorded, but the complete browser installation is not archived. Rails used development mode with prebuilt production Vite assets. Both sides used independent local data/services, cold browser cache, 200ms latency, 2700kbit/s throughput, 3x CPU slowdown, parallelism1, no retries, p=.05 and a 5% estimator regression threshold.
+ShakaPerf 0.3.1, shared 0.3.0, Lighthouse 13.4.1 and Playwright/core 1.58.2 are locked. Performance used Chrome Canary 157.0.8097.0; visual checks used Chromium 145.0.7632.6/revision1208. The Chrome executable hash is recorded, but its full installation and live Stripe assets are not archived. Rails used development mode with prebuilt Vite assets and synthetic data. Settings: cold cache, 200ms request latency, 2700kbit/s throughput, 3x CPU slowdown, parallelism1, no retries, p=.05, 5% estimator regression threshold.
 
 ## Statistical evidence
 
-Negative changes mean lower time/transfer on experiment. Native reports round their values; these are paired Hodges–Lehmann estimates, not differences between group medians. All rows have 18 finite samples per group. The statistical stage preserves simultaneous pairs and native paired Wilcoxon inference.
+Negative values mean lower experiment time/transfer. Native rounded Hodges–Lehmann estimates use paired differences; group median differences do not replace them. All rows have 18 finite samples per group and native paired Wilcoxon inference.
 
 | Viewport / metric | Control → experiment median | Paired estimate | Native 95% interval | p |
 | --- | --- | --- | --- | --- |
-| Desktop FCP | 2090 → 2069ms | −16ms (−.79%) | [−35,7]ms; [−1.70,.33]% | .1297 |
-| Desktop LCP | 12829 → 12830ms | −10ms (−.08%) | [−30,6]ms; [−.24,.05]% | .2462 |
-| Desktop transfer | 3930.9 → 3930.9KiB | 0KiB | [−1.1,0]KiB | .4683 |
-| Phone FCP | 2066 → 2062ms | −10ms (−.51%) | [−39,21]ms; [−1.89,.99]% | .5226 |
-| Phone LCP | 12781 → 12766ms | −2ms (−.02%) | [−20,22]ms; [−.16,.17]% | .8986 |
-| Phone transfer | 3922.3 → 3929.4KiB | 0KiB | [−13.9,.1]KiB | .3558 |
+| Desktop FCP | 2054 → 2046ms | −6ms (−.29%) | [−36,26]ms; [−1.75,1.24]% | .6705 |
+| Desktop LCP | 12709 → 12708ms | −1ms (−.01%) | [−17,15]ms; [−.14,.12]% | .8986 |
+| Desktop transfer | 3929.4 → 3929.3KiB | 0KiB | [0,0]KiB, rounded | .6317 |
+| Phone FCP | 2053 → 2037ms | −17ms (−.85%) | [−41,8]ms; [−1.97,.39]% | .154 |
+| Phone LCP | 12664 → 12667ms | −6ms (−.04%) | [−19,7]ms; [−.15,.06]% | .4423 |
+| Phone transfer | 3914 → 3914KiB | 0KiB | [0,.1]KiB, rounded | .107 |
 
 | Viewport / metric | Control descriptive range | Experiment descriptive range |
 | --- | --- | --- |
-| Desktop FCP | 2004.658–2276.515ms | 1986.963–2278.459ms |
-| Desktop LCP | 12717.308–13187.223ms | 12690.082–13179.671ms |
-| Desktop transfer | 3913.5684–3961.3262KiB | 3913.5859–3933.5098KiB |
-| Phone FCP | 1998.187–2307.050ms | 2000.899–2305.935ms |
-| Phone LCP | 12682.482–12913.475ms | 12662.570–12922.193ms |
-| Phone transfer | 3913.6084–3958.1523KiB | 3913.5947–3958.0254KiB |
+| Desktop FCP | 1992.728–2126.942ms | 1985.641–2106.745ms |
+| Desktop LCP | 12623.398–12789.583ms | 12624.083–12820.027ms |
+| Desktop transfer | 3913.6494–3930.4590KiB | 3913.6670–3930.4473KiB |
+| Phone FCP | 1994.607–2125.609ms | 1995.421–2084.592ms |
+| Phone LCP | 12609.754–12789.143ms | 12630.756–12781.337ms |
+| Phone transfer | 3913.5908–3915.2285KiB | 3913.5801–3915.2490KiB |
 
-Read [desktop statistics](desktop-report.json), [phone statistics](phone-report.json), and all [desktop](desktop-ab-measurements.json)/[phone](phone-ab-measurements.json) samples. Raw time values encode microseconds under an `ms` label; divide by1000 for milliseconds. Transfer uses bytes/1024 despite a `KB` label. Empty raw sample metadata and zero `duration` fields supply no pairing identity: [native timing lines](pair-timing.json) retain sample indices0–17 and simultaneous navigation timestamps. The top-level compare report's empty metric summaries supply no estimates. Original statistical-artifact SHA256 values are in provenance.
+Read native [desktop](desktop-report.json)/[phone](phone-report.json) statistics and all [desktop](desktop-ab-measurements.json)/[phone](phone-ab-measurements.json) samples. Raw phases encode microseconds under an `ms` label; divide by1000 for milliseconds. Transfer is bytes/1024 despite the native `KB` label. Rounded zero intervals do not establish exact equality. Empty sample metadata and zero duration fields supply no pairing identity: [timing lines](pair-timing.json) preserve indices0–17 and paired navigation. Maximum observed launch skew was1ms desktop and0ms phone. Empty top-level stage summaries supply no estimates. Original numerical artifact SHA256 values survive in provenance.
 
 ## Seven-question review
 
 | Question | Assessment and consequence |
 | --- | --- |
-| Limiter | Partly supported. Separate single-pair [diagnostics](diagnostics.json) show ~4.02MB transferred, ~0.98/1.02s main-thread work and a large vendor chunk. The upstream [chunk configuration](https://github.com/antiwork/gumroad/blob/921e1d56e1685084b66cb4a532439e4b3069de4c/config/vite/manual-chunks.ts) and request chain suggest cold asset transfer as a substantial cost. Shared host contention and load-generator saturation were not isolated; no causal bottleneck claim. |
-| Production tuning | Missing production parity. Both local variants match, but development Rails, synthetic data, simulated throttling and a shared developer machine limit application/architecture conclusions. Host/Docker resources and before/after load are recorded. |
-| Physical plausibility | Supported narrowly. ~4,024,509 bytes at2700kbit/s is nominally11.92s serialization, compatible with ~12.85s diagnostic LCP. Overlap, protocol overhead and resource contention prevent an additive attribution. No changed component or claimed saving exists in this calibration. |
-| Errors | Local completion supported; global success incomplete. [Work counts](work-counts.json) record9400 attempted, successful and body-completed local requests across84 contexts, zero counted local HTTP/request failures and zero uncaught page errors. There are91 CSP console errors and one unattributed `ERR_CONNECTION_CLOSED` in phone control sample10. Live third-party failures are outside the local denominator. Native passing accessibility comparison still reports two existing critical rules on both sides. |
-| Reproducibility | Supported source/tool/sample provenance with limits. All18 pairs, effective thresholds, commands, runtime/input hashes and machine load survive. Installed Chrome and live Stripe assets are not fully pinned. This permits workload reproduction, not identical timing across machines. |
-| User relevance | Supported narrowly. Cold product landing content and checkout-link destination are checked at1280×800 and375×667. FCP/LCP describe initial paints, not full checkout, purchase success, steady-state traffic or production user latency. |
-| Timed work | Paint boundary supported; full successful external work missing. Native timing logs place navigation, Lighthouse and awaited page checks in each paired collection. Assertions use the real Inertia product content and checkout URL; the product-view response clone must contain `success:true`. Image/font/DOM/network settling holds collection open. FCP/LCP remain navigation-relative paint times; post-paint assertions do not turn them into interaction durations. |
+| Limiter | Partly supported. Separate single-pair [diagnostics](diagnostics.json) show4.02/4.05MB transfer and~.91/.86s main-thread work. The upstream [vendor chunk configuration](https://github.com/antiwork/gumroad/blob/921e1d56e1685084b66cb4a532439e4b3069de4c/config/vite/manual-chunks.ts) and request chain suggest substantial cold-transfer cost. Shared contention and generator saturation were not isolated; no causal limiter established. |
+| Production tuning | Missing production parity. Both local sources/builds/services match. Development middleware, synthetic data, simulation and shared host limit generalization. Native diagnostic settings identify desktop1280×800/mobile=false and phone375×667/mobile=true, but both report a mobile network user agent. Viewport labels therefore do not prove complete real-device fidelity. |
+| Physical plausibility | Supported narrowly. Desktop diagnostic4,024,602 bytes at2700kbit/s gives nominal11.92s serialization, compatible with12.76s diagnostic LCP. Overlap, protocol overhead and contention are unknown; never add nested costs or estimate effects from the single diagnostic pair. No changed component saving is claimed. |
+| Errors | Counted local work supported; global success incomplete. [Work counts](work-counts.json) retain84 contexts and9400 attempted/HTTP-success/body-completed local requests, zero counted local HTTP/request failures and zero uncaught page errors.86 CSP console errors remain; no other console error was recorded in this capture.84 Google requests were identically excluded. Live third-party work remains outside the local denominator. Passing accessibility comparison contains equal critical violations. |
+| Reproducibility | Supported with limits. Clean source/build identity, locked tool/native sources,18 finite pairs, effective settings, commands, machine load and native artifacts survive. Full Chrome installation, live Stripe content and Docker image availability are not guaranteed. Reproducing the workload does not guarantee identical timing. |
+| User relevance | Supported narrowly. Existing Inertia product content and checkout-link destination are checked at both viewports. Initial FCP/LCP are user-relevant paint metrics; one synthetic cold landing and the recorded user-agent mismatch cannot establish real desktop/phone or production transaction latency. No purchase or full checkout was exercised. |
+| Timed work | Paint boundary supported; full external completion missing. Timing logs retain each paired navigation/collection. Content/link/Inertia assertions and the real product-view JSON success marker check intended landing work. Images/fonts/DOM/network settling hold collection open. FCP/LCP remain navigation-relative paint times, not assertion or checkout durations. Local completion at the assertion boundary cannot certify late or third-party work. |
 
-The diagnostic pair has119 network entries:112 local, one identically excluded Google request and six live Stripe requests. Diagnostic HTTP statuses were successful, but that single pair cannot certify every statistical sample. Stripe remains unexcluded and unpinned; it contributes ~0.29MB and a late request chain. Do not use diagnostic paint numbers or trace duration differences as effect estimates.
+The two control diagnostic network audits each contain119 entries:112 local200 responses, one excluded Google204 response and six live Stripe200 responses. Stripe contributes290619/318362 bytes and a late request chain. Those single-pair observations cannot certify external success for all statistical samples. Both mobile network-user-agent strings are retained alongside the actual form factor and screen settings. Diagnostic profiles explain possible costs; they supply no statistical effect estimate.
 
 ## Behavior and visual evidence
 
-[Visual/accessibility evidence](behavior-visual-accessibility.json) records zero differing pixels, with no retry, for both article crops. Manual desktop/phone checks verified content and the local checkout-link destination; they did not make a purchase. Article crops omit the rest of the page. Existing accessibility findings on each side: critical `aria-roles` and `image-alt` (one node each), moderate `landmark-one-main` (one) and `region` (seven). A passing comparison does not mean an accessible page.
+[Visual/accessibility evidence](behavior-visual-accessibility.json) records zero differing article pixels and no retries. Original control/experiment desktop/phone crops and an existing-functionality video are attached to the PR through GitHub assets. Manual checks verified the local checkout destination without a purchase; article crops omit the rest of the page. Development Bullet warnings remain visible. Each side has critical `aria-roles`/`image-alt` findings (one node each), moderate `landmark-one-main` (one) and `region` (seven). Passing does not mean an accessible page.
 
-| Control | Experiment |
-| --- | --- |
-| ![Desktop control](desktop-control.png) | ![Desktop experiment](desktop-experiment.png) |
-| ![Phone control](phone-control.png) | ![Phone experiment](phone-experiment.png) |
+## Execution and history
 
-## Execution and limits
+Corrected launcher:2026-10-11T03:09:06Z–03:32:11Z (23m05s), including fresh installations/builds and cleanup. Native compare:1165927ms (19m25.927s), generated03:32:08.247Z; launcher comparison interval1170.121307s includes report/cleanup overhead. Measurement/build/wait time is separate from checklist review.
 
-Launcher:2026-10-11T01:51:06Z–02:16:21Z (25m15s), including installation/build/setup and cleanup. Native compare metadata:1237288ms (20m37.288s), generated02:16:17.181Z. Desktop's18 pairs finished after9m54s of the shared performance stage; phone finished after19m09s measured from that same stage start, not an additional19m09s. The launcher’s1242.376228s comparison interval includes report/cleanup overhead. No favorable statistical rerun was made. Earlier setup attempts failed before completing any statistical pair and are retained separately.
+The earlier completed capture used an existing experiment workspace and is retained as historical evidence. Independent review required clean source parity and an independent assertion for analytics responses whose errors the application catches. An intervening attempt failed before any statistical pair because lifecycle-script suppression omitted the mandatory sampler addon. The corrected launcher explicitly compiles inspected pinned native sources and preflights both descriptors while leaving other lifecycle scripts disabled. This campaign verifies those functional repairs, with unchanged sampling/statistics; it was not selected for favorable estimates. Captures are not pooled. Later evidence-only edits require no new campaign.
 
-The frozen optional tool lock has eight dependency advisories, including two critical classifications. This bounded local capture does not clear broader tool adoption; see the setup guide's source-reachability limits. Keep the workload optional, preserve failed work and raw artifacts, and separate guide/provenance automation from this integration. Existing ShakaPerf [#36](https://github.com/shakacode/shakaperf/issues/36), [#68](https://github.com/shakacode/shakaperf/issues/68) and [#69](https://github.com/shakacode/shakaperf/issues/69) cover those follow-ups. No new verification gate is added.
+The frozen optional lock has eight advisories, including two critical classifications. The bounded local command does not clear broader adoption; see the setup guide's input/reachability limits. Recommend a short evidence-reading guide and specific artifact/error-work checks under existing ShakaPerf [#36](https://github.com/shakacode/shakaperf/issues/36), [#68](https://github.com/shakacode/shakaperf/issues/68) and [#69](https://github.com/shakacode/shakaperf/issues/69). Broader adoption awaits a separate dependency refresh and complete external-work accounting. No new verification gate is added.

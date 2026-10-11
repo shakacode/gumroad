@@ -1,8 +1,8 @@
 {
-  "started_at": "2026-10-11T01:51:06Z",
+  "started_at": "2026-10-11T03:09:06Z",
   "control_sha": "921e1d56e1685084b66cb4a532439e4b3069de4c",
-  "experiment_sha": "ad62684070c74caedef86aecc5d3d67c6526676e",
-  "dirty": true,
+  "experiment_sha": "9307ea81bb2944c64c60aa57fdd8475e19e0cb10",
+  "dirty": false,
   "tool_version": "0.3.1",
   "mode": "Development Rails with prebuilt Vite assets; no architecture or production speedup claim",
   "sampling": "18 simultaneous pairs per viewport; paired native inference",
@@ -80,16 +80,26 @@
   },
   "machine": {
     "logical_cpus": 18,
-    "load_before": "15:51  up 4 days,  1:55, 8 users, load averages: 17.82 15.50 15.67",
-    "load_after": "16:16  up 4 days,  2:21, 8 users, load averages: 21.56 20.70 19.27"
+    "load_before": "17:09  up 4 days,  3:13, 8 users, load averages: 11.91 11.16 11.98",
+    "load_after": "17:32  up 4 days,  3:37, 8 users, load averages: 15.98 14.50 13.72"
   },
-  "source_diff_sha256": "b6090c4143fdea830caca8da98fab378dc9465d63a0cbbfee30cc3817d31e6e0",
+  "source_diff_sha256": "efd07519be7da3ca6490c00cd8ec33957cd605563d15360dc96ebbcd0ef49689",
   "integration_files": {
     "abtests.config.ts": "690dee7891518a3f5cf73c77266c385f5b397d8ffcad2d2ac88dbc6aa88fe733",
-    "ab-tests/product-landing.abtest.ts": "1ca27d177fc525ba0588c9301f21b22a9bb029bbd1d1313bafb58e7750335734",
-    "bin/shakaperf-local": "9ad7ad8abcf96863972bcb639c80c4237d18158ed87cbb50a38a1f94a63d0b94",
+    "ab-tests/product-landing.abtest.ts": "2ba02cfac8f4bca65d329111375ee314e153f2c76e7f68fca78bc32ed0765187",
+    "bin/shakaperf-local": "9051cb272b8ca50127b083cd5317e3fe20460f9e8c02a76fa7a65abd7e8274f7",
     "scripts/seed_shakaperf_product.rb": "6e0a8cc316bc6f8680a5d5b1d92bfbd038d08230a86cd074af5c56508b2637d3",
     "tools/shakaperf/package-lock.json": "9f7e9b358940a22e06a0f022b33dfb0fd574dfb9423687d8717482402574111b"
+  },
+  "native_build": {
+    "node_gyp": "12.1.0",
+    "python": "Python 3.9.6",
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+    "sources": {
+      "binding.gyp": "a9480be7b366edba672357af01e5d9da89d88fb5d49a9a25978815feb17df8b7",
+      "native/socketpair.cpp": "2f7ef2bc6af46c6b78463e73ccfe28afd46599350d044ec027ce4f780ebc3078"
+    },
+    "binary_sha256": "02469348f58e5f477034e3559e3112d386349ca11699823455dc7c8b37506e22"
   },
   "tool_dependencies": {
     "playwright": "1.58.2",
@@ -97,8 +107,8 @@
     "lighthouse": "13.4.1",
     "shaka-shared": "0.3.0"
   },
-  "finished_at": "2026-10-11T02:16:21Z",
-  "comparison_seconds": 1242.376228,
+  "finished_at": "2026-10-11T03:32:11Z",
+  "comparison_seconds": 1170.121307,
   "browser_versions": {
     "chrome": "Google Chrome 157.0.8097.0 canary",
     "playwrightBrowserRevision": [
@@ -123,31 +133,150 @@
     "version": "Google Chrome 157.0.8097.0 canary"
   },
   "machine_resources": {
-    "observed_at": "2026-10-11T00:49:58Z",
+    "observed_at": "2026-10-11T03:14:11Z",
     "chip": "Apple M5 Max",
     "host_logical_cpus": 18,
     "host_memory_bytes": 137438953472,
     "os_version": "27.0.1",
     "docker_cpus": 10,
     "docker_memory_bytes": 34128097280,
-    "load": "39.47 40.69 49.77",
-    "limitation": "Shared developer machine with concurrent unrelated work; no production resource or saturation claim"
+    "load": "17:14  up 4 days,  3:19, 8 users, load averages: 14.04 12.06 12.04",
+    "limitation": "Shared developer machine; no isolated production resource or load-generator saturation claim"
   },
-  "redaction": "Workspace paths replaced; disposable DB password omitted. Numerical values unchanged.",
-  "original_sha256": {
-    "desktop-ab-measurements.json": "a7e405b33ca71c57158c3596e277e8cb421c2ee3a1198aeee52a34869e9fac07",
-    "desktop-report.json": "9e83dfbc38772e92aa94fb0855d77fbe8f6c11ca33e78b437882a6ed12191751",
-    "phone-ab-measurements.json": "e31ed7ae23790aa53a4ad3978199ac5e79766751793d454002e62d53da6dd449",
-    "phone-report.json": "9a8a2bec0cd81e1a4218c017a0ed23abb7b2a36bba1d6ceec2d3be17f673bbe0"
-  },
-  "post_capture_changes": {
-    "description": "Scenario type annotation and scoped lint comments only; TypeScript emission with comments removed is byte-identical. Runtime behavior and comparison setup unchanged; no statistical rerun.",
-    "measured_scenario_sha256": "1ca27d177fc525ba0588c9301f21b22a9bb029bbd1d1313bafb58e7750335734",
-    "published_scenario_sha256": "fa5c105d15a092b4abaa56a7829b0d7aa9903c873d2454d094e8161afc1fb3b3",
-    "emission_proof": {
-      "identicalEmittedJavaScript": true,
-      "sha256": "5b7c5e33d675b98b9e89f7f174570c2f5d4c0de57f9745497ffa9a4541886f26",
-      "typescript": "6.0.3"
+  "container_images": {
+    "observed_at": "2026-10-11T03:17:16Z",
+    "sides": {
+      "control": [
+        {
+          "container": "/gumroad-s1-14a39f22-control-db-1",
+          "image_id": "sha256:1bd43bad43e0de5959b98c4404e987046de21cd85b9e725849208db6539d3c2d"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-control-dynamodb-1",
+          "image_id": "sha256:d6c5913c8fa25e97539adffe5639f86243d518ab3bc9083cdc7d12bf205a2b71"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-control-elasticsearch-1",
+          "image_id": "sha256:32bb4bf1ee4231fdea29a3d95b27317a370561bb480c4417e0f35e2989099964"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-control-minio-1",
+          "image_id": "sha256:1e675da17ce5b3572589ab7d20e5b44263782d88080445d68eaa1cf745cf95a4"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-control-redis-1",
+          "image_id": "sha256:f8ad782519622926f0cab4ec28545da7a098e87a5f684275ba69276547c7aa3f"
+        }
+      ],
+      "experiment": [
+        {
+          "container": "/gumroad-s1-14a39f22-experiment-db-1",
+          "image_id": "sha256:1bd43bad43e0de5959b98c4404e987046de21cd85b9e725849208db6539d3c2d"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-experiment-dynamodb-1",
+          "image_id": "sha256:d6c5913c8fa25e97539adffe5639f86243d518ab3bc9083cdc7d12bf205a2b71"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-experiment-elasticsearch-1",
+          "image_id": "sha256:32bb4bf1ee4231fdea29a3d95b27317a370561bb480c4417e0f35e2989099964"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-experiment-minio-1",
+          "image_id": "sha256:1e675da17ce5b3572589ab7d20e5b44263782d88080445d68eaa1cf745cf95a4"
+        },
+        {
+          "container": "/gumroad-s1-14a39f22-experiment-redis-1",
+          "image_id": "sha256:f8ad782519622926f0cab4ec28545da7a098e87a5f684275ba69276547c7aa3f"
+        }
+      ]
     }
-  }
+  },
+  "original_sha256": {
+    "desktop-ab-measurements.json": "02b75baccc4989b9ce5264fab2f55365c56710ac7fa9138818d708dfed91aa57",
+    "desktop-report.json": "fdaf13b55e5ac95a2b37b47684d18aa4a8293f950ca62398e1a2bb3b86e56c5f",
+    "phone-ab-measurements.json": "49065552ee58bce04f14d20b034266da77ef3ee95e612c7b934c4a3b3dfaad43",
+    "phone-report.json": "6a8a3fb374fb38ee756f93c3f55006e034ade3bfb33b34e07c8b45d231505a50"
+  },
+  "comparison_meta": {
+    "generatedAt": "2026-10-11T03:32:08.247Z",
+    "pipelineName": "compare",
+    "durationMs": 1165927,
+    "cwd": "/workspace/gumroad",
+    "controlUrl": "http://shakaperf.localhost:3411",
+    "experimentUrl": "http://shakaperf.localhost:3412",
+    "reportHtml": "self-contained-performance-report.html",
+    "reportOnly": false,
+    "errors": []
+  },
+  "stage_outcomes": [
+    {
+      "viewport": {
+        "label": "desktop",
+        "width": 1280,
+        "height": 800
+      },
+      "outcomes": [
+        {
+          "kind": "ok",
+          "stage": "accessibility",
+          "summary": {}
+        },
+        {
+          "kind": "ok",
+          "stage": "perf-low-noise",
+          "summary": {}
+        },
+        {
+          "kind": "skipped",
+          "stage": "perf-warmup"
+        },
+        {
+          "kind": "ok",
+          "stage": "perf",
+          "summary": {}
+        },
+        {
+          "kind": "ok",
+          "stage": "visreg",
+          "summary": {}
+        }
+      ]
+    },
+    {
+      "viewport": {
+        "label": "phone",
+        "width": 375,
+        "height": 667
+      },
+      "outcomes": [
+        {
+          "kind": "ok",
+          "stage": "accessibility",
+          "summary": {}
+        },
+        {
+          "kind": "ok",
+          "stage": "perf-low-noise",
+          "summary": {}
+        },
+        {
+          "kind": "skipped",
+          "stage": "perf-warmup"
+        },
+        {
+          "kind": "ok",
+          "stage": "perf",
+          "summary": {}
+        },
+        {
+          "kind": "ok",
+          "stage": "visreg",
+          "summary": {}
+        }
+      ]
+    }
+  ],
+  "redaction": "Workspace paths replaced; CSP nonces redacted and disposable DB password omitted. Numerical values unchanged.",
+  "history": "Attempt 12 completed before independent review but used an existing experiment workspace; retained as historical evidence. Attempt 13 failed before any pair because native compilation was skipped. Attempt 14 verifies clean corrected sources; no favorable-outcome selection or merged sample groups."
 }

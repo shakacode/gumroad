@@ -5,8 +5,8 @@
       "measurement": [
         {
           "selector": "article",
-          "controlImage": "inertia-product-landing-desktop-b4da388e/artifacts/control_screenshots/Inertia_product_landing_0_article_0_desktop__2e14cea66bc66dee2382ccfce17f9ced958526a1.png",
-          "experimentImage": "inertia-product-landing-desktop-b4da388e/artifacts/experiment_screenshots/Inertia_product_landing_0_article_0_desktop__2e14cea66bc66dee2382ccfce17f9ced958526a1.png",
+          "controlImage": "inertia-product-landing-desktop-b92e56ea/artifacts/control_screenshots/Inertia_product_landing_0_article_0_desktop__2e14cea66bc66dee2382ccfce17f9ced958526a1.png",
+          "experimentImage": "inertia-product-landing-desktop-b92e56ea/artifacts/experiment_screenshots/Inertia_product_landing_0_article_0_desktop__2e14cea66bc66dee2382ccfce17f9ced958526a1.png",
           "diffImage": null,
           "misMatchPercentage": 0,
           "diffPixels": 0,
@@ -15,15 +15,15 @@
           "savedByRetries": false
         }
       ],
-      "runId": "2026-10-11T01:55:39.893Z"
+      "runId": "2026-10-11T03:12:42.320Z"
     },
     "phone": {
       "kind": "ok",
       "measurement": [
         {
           "selector": "article",
-          "controlImage": "inertia-product-landing-phone-4e188f80/artifacts/control_screenshots/Inertia_product_landing_0_article_0_phone__93baf0c93254bcdfe84cb2aba4a406a0c815b961.png",
-          "experimentImage": "inertia-product-landing-phone-4e188f80/artifacts/experiment_screenshots/Inertia_product_landing_0_article_0_phone__93baf0c93254bcdfe84cb2aba4a406a0c815b961.png",
+          "controlImage": "inertia-product-landing-phone-4d4d6a0e/artifacts/control_screenshots/Inertia_product_landing_0_article_0_phone__93baf0c93254bcdfe84cb2aba4a406a0c815b961.png",
+          "experimentImage": "inertia-product-landing-phone-4d4d6a0e/artifacts/experiment_screenshots/Inertia_product_landing_0_article_0_phone__93baf0c93254bcdfe84cb2aba4a406a0c815b961.png",
           "diffImage": null,
           "misMatchPercentage": 0,
           "diffPixels": 0,
@@ -32,233 +32,157 @@
           "savedByRetries": false
         }
       ],
-      "runId": "2026-10-11T01:55:39.893Z"
+      "runId": "2026-10-11T03:12:42.320Z"
     }
   },
   "accessibility": {
-    "desktop-control": [
-      {
-        "id": "aria-roles",
-        "impact": "critical",
-        "nodes": [
-          [
-            "div[role=\"nav\"]"
-          ]
-        ]
-      },
-      {
-        "id": "image-alt",
-        "impact": "critical",
-        "nodes": [
-          [
-            "img"
-          ]
-        ]
-      },
-      {
-        "id": "landmark-one-main",
-        "impact": "moderate",
-        "nodes": [
-          [
-            "html"
-          ]
-        ]
-      },
-      {
-        "id": "region",
-        "impact": "moderate",
-        "nodes": [
-          [
-            ".lg\\:border-r > header"
-          ],
-          [
-            ".px-6.py-4.outline:nth-child(1) > div[itemscope=\"\"][itemprop=\"offers\"][itemtype=\"https://schema.org/Offer\"] > .border-r-0.grid-flow-col.grid"
-          ],
-          [
-            ".flex-wrap"
-          ],
-          [
-            ".border-t.p-6"
-          ],
-          [
-            ".not-first\\:border-t.p-6.gap-4 > .max-lg\\:text-sm.max-lg\\:px-2.max-lg\\:py-3"
-          ],
-          [
-            ".text-center"
-          ],
-          [
-            "div[aria-controls=\":r4:\"]"
-          ]
-        ]
-      }
-    ],
-    "desktop-experiment": [
-      {
-        "id": "aria-roles",
-        "impact": "critical",
-        "nodes": [
-          [
-            "div[role=\"nav\"]"
-          ]
-        ]
-      },
-      {
-        "id": "image-alt",
-        "impact": "critical",
-        "nodes": [
-          [
-            "img"
-          ]
-        ]
-      },
-      {
-        "id": "landmark-one-main",
-        "impact": "moderate",
-        "nodes": [
-          [
-            "html"
-          ]
-        ]
-      },
-      {
-        "id": "region",
-        "impact": "moderate",
-        "nodes": [
-          [
-            ".lg\\:border-r > header"
-          ],
-          [
-            ".px-6.py-4.outline:nth-child(1) > div[itemscope=\"\"][itemprop=\"offers\"][itemtype=\"https://schema.org/Offer\"] > .border-r-0.grid-flow-col.grid"
-          ],
-          [
-            ".flex-wrap"
-          ],
-          [
-            ".border-t.p-6"
-          ],
-          [
-            ".not-first\\:border-t.p-6.gap-4 > .max-lg\\:text-sm.max-lg\\:px-2.max-lg\\:py-3"
-          ],
-          [
-            ".text-center"
-          ],
-          [
-            "div[aria-controls=\":r4:\"]"
-          ]
-        ]
-      }
-    ],
-    "phone-control": [
-      {
-        "id": "aria-roles",
-        "impact": "critical",
-        "nodes": [
-          [
-            "div[role=\"nav\"]"
-          ]
-        ]
-      },
-      {
-        "id": "image-alt",
-        "impact": "critical",
-        "nodes": [
-          [
-            "img"
-          ]
-        ]
-      },
-      {
-        "id": "landmark-one-main",
-        "impact": "moderate",
-        "nodes": [
-          [
-            "html"
-          ]
-        ]
-      },
-      {
-        "id": "region",
-        "impact": "moderate",
-        "nodes": [
-          [
-            ".lg\\:border-r > header"
-          ],
-          [
-            ".px-6.py-4.outline:nth-child(1) > div[itemscope=\"\"][itemprop=\"offers\"][itemtype=\"https://schema.org/Offer\"] > .grid-flow-col.border-r-0.grid"
-          ],
-          [
-            ".flex-wrap"
-          ],
-          [
-            ".border-t.p-6"
-          ],
-          [
-            ".not-first\\:border-t.p-6.gap-4 > .max-lg\\:text-sm.max-lg\\:px-2.max-lg\\:py-3"
-          ],
-          [
-            ".text-center"
-          ],
-          [
-            "div[aria-controls=\":r4:\"]"
-          ]
-        ]
-      }
-    ],
-    "phone-experiment": [
-      {
-        "id": "aria-roles",
-        "impact": "critical",
-        "nodes": [
-          [
-            "div[role=\"nav\"]"
-          ]
-        ]
-      },
-      {
-        "id": "image-alt",
-        "impact": "critical",
-        "nodes": [
-          [
-            "img"
-          ]
-        ]
-      },
-      {
-        "id": "landmark-one-main",
-        "impact": "moderate",
-        "nodes": [
-          [
-            "html"
-          ]
-        ]
-      },
-      {
-        "id": "region",
-        "impact": "moderate",
-        "nodes": [
-          [
-            ".lg\\:border-r > header"
-          ],
-          [
-            ".px-6.py-4.outline:nth-child(1) > div[itemscope=\"\"][itemprop=\"offers\"][itemtype=\"https://schema.org/Offer\"] > .grid-flow-col.border-r-0.grid"
-          ],
-          [
-            ".flex-wrap"
-          ],
-          [
-            ".border-t.p-6"
-          ],
-          [
-            ".not-first\\:border-t.p-6.gap-4 > .max-lg\\:text-sm.max-lg\\:px-2.max-lg\\:py-3"
-          ],
-          [
-            ".text-center"
-          ],
-          [
-            "div[aria-controls=\":r4:\"]"
-          ]
-        ]
-      }
-    ]
+    "desktop-control": {
+      "blocked": false,
+      "violations": [
+        {
+          "id": "aria-roles",
+          "impact": "critical",
+          "description": "Ensure all elements with a role attribute use a valid value",
+          "help": "ARIA roles used must conform to valid values",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-roles?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "image-alt",
+          "impact": "critical",
+          "description": "Ensure <img> elements have alternative text or a role of none or presentation",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "description": "Ensure the document has a main landmark",
+          "help": "Document should have one main landmark",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/landmark-one-main?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "description": "Ensure all page content is contained by landmarks",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "node_count": 7
+        }
+      ]
+    },
+    "desktop-experiment": {
+      "blocked": false,
+      "violations": [
+        {
+          "id": "aria-roles",
+          "impact": "critical",
+          "description": "Ensure all elements with a role attribute use a valid value",
+          "help": "ARIA roles used must conform to valid values",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-roles?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "image-alt",
+          "impact": "critical",
+          "description": "Ensure <img> elements have alternative text or a role of none or presentation",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "description": "Ensure the document has a main landmark",
+          "help": "Document should have one main landmark",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/landmark-one-main?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "description": "Ensure all page content is contained by landmarks",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "node_count": 7
+        }
+      ]
+    },
+    "phone-control": {
+      "blocked": false,
+      "violations": [
+        {
+          "id": "aria-roles",
+          "impact": "critical",
+          "description": "Ensure all elements with a role attribute use a valid value",
+          "help": "ARIA roles used must conform to valid values",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-roles?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "image-alt",
+          "impact": "critical",
+          "description": "Ensure <img> elements have alternative text or a role of none or presentation",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "description": "Ensure the document has a main landmark",
+          "help": "Document should have one main landmark",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/landmark-one-main?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "description": "Ensure all page content is contained by landmarks",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "node_count": 7
+        }
+      ]
+    },
+    "phone-experiment": {
+      "blocked": false,
+      "violations": [
+        {
+          "id": "aria-roles",
+          "impact": "critical",
+          "description": "Ensure all elements with a role attribute use a valid value",
+          "help": "ARIA roles used must conform to valid values",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/aria-roles?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "image-alt",
+          "impact": "critical",
+          "description": "Ensure <img> elements have alternative text or a role of none or presentation",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/image-alt?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "landmark-one-main",
+          "impact": "moderate",
+          "description": "Ensure the document has a main landmark",
+          "help": "Document should have one main landmark",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/landmark-one-main?application=playwright",
+          "node_count": 1
+        },
+        {
+          "id": "region",
+          "impact": "moderate",
+          "description": "Ensure all page content is contained by landmarks",
+          "help": "All page content should be contained by landmarks",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/region?application=playwright",
+          "node_count": 7
+        }
+      ]
+    }
   }
 }
