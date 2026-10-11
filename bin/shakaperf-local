@@ -55,6 +55,7 @@ def executable!(name)
 end
 
 abort "Run from the repository root" unless Dir.pwd == ROOT
+abort "Remove repository-root .env before capture; the tool eagerly loads it" if File.exist?(File.join(ROOT, ".env"))
 abort "Commit tracked changes before a campaign; both sides use clean commit snapshots" unless output!("git", "status", "--porcelain", "--untracked-files=no").empty?
 output!("node", "-e", "if (require('shaka-shared/package.json').version !== '0.3.0' || require('playwright-core/package.json').version !== '1.58.2') process.exit(1)")
 native_env = { "CC" => executable!("cc"), "CXX" => executable!("c++"), "PYTHON" => executable!("python3") }
