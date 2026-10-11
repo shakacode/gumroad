@@ -15,6 +15,14 @@ class ProductRscLinksController < LinksController
   end
 
   private
+    def process_action(*)
+      super
+    rescue StandardError => error
+      # Capture worker-added context before Live re-raises on the parent; Sentry deduplicates it.
+      Sentry.capture_exception(error)
+      raise
+    end
+
     def new_controller_thread
       request_scope = Sentry.get_current_scope&.dup
       return super unless request_scope

@@ -245,7 +245,7 @@ class LinksController < ApplicationController
         else
           if params[:embed] || params[:overlay]
             render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
-          elsif @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
+          elsif product_storefront_profile?
             # Storefront-wrapped product page (gumroad-private#2196): profile header above the
             # product, catalog below (injected in ProductPresenter#product_page_props). Same
             # component the `layout=profile` branch above renders. The seller's own view keeps
@@ -929,6 +929,10 @@ class LinksController < ApplicationController
       return false unless Feature.active?(:product_page_react_on_rails, @product.user)
       return false if @product.banned? || @product.user.deleted? || active_session_invalidated? || custom_html_visible?
       return true if params[:layout] == Product::Layout::PROFILE
+      product_storefront_profile?
+    end
+
+    def product_storefront_profile?
       return false unless @product.user.product_page_storefront_enabled?
 
       seller = find_seller_from_cookie(cookies.encrypted[:current_seller_id]) if user_signed_in?

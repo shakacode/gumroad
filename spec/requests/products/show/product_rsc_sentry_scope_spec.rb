@@ -120,7 +120,7 @@ describe "Product Live Sentry scope", type: :request do
       product = create(:product)
       allow_any_instance_of(LinksController).to receive(:show).and_raise(RuntimeError, "precommit scope probe")
       controller = enabled ? ProductRscLinksController : LinksController
-      allow_any_instance_of(controller).to receive(:process).and_wrap_original do |original, *args|
+      allow_any_instance_of(controller).to receive(:set_default_page_title).and_wrap_original do |original, *args|
         marker = original.receiver.request.headers["X-Sentry-Probe"]
         scope = Sentry.get_current_scope
         scope.set_user(id: marker)
@@ -146,6 +146,7 @@ describe "Product Live Sentry scope", type: :request do
       expect(event.user[:id]).to eq(marker)
       expect(event.tags[:request_probe]).to eq(marker)
       expect(event.extra[:request_processor]).to eq(marker)
+      expect(@sentry_client.transport.events.count { _1.exception&.values&.last&.value&.start_with?("precommit scope probe") }).to eq(1)
       expect(Sentry.get_current_scope.tags).not_to have_key(:worker_only)
     end
   end
