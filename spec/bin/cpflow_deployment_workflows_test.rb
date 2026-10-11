@@ -46,10 +46,9 @@ class CpflowDeploymentWorkflowsTest < Minitest::Test
   end
 
   private
-
-  def workflows
-    %w[inertia rorp].map do |surface|
-      YAML.load_file(File.expand_path("../../.github/workflows/cpflow-deploy-#{surface}.yml", __dir__))
+    def workflows
+      %w[inertia rorp].map do |surface|
+        YAML.load_file(File.expand_path("../../.github/workflows/cpflow-deploy-#{surface}.yml", __dir__))
+      end
     end
-  end
 end
