@@ -11,14 +11,14 @@ class ShakaCommandsTest < Minitest::Test
   def test_delegates_to_application_setup_from_an_unrelated_directory
     Dir.mktmpdir("shaka-setup") do |root|
       FileUtils.mkdir_p(["#{root}/.agents/bin", "#{root}/bin", "#{root}/commands", "#{root}/outside"])
-      FileUtils.cp_r(File.expand_path("../../.agents/bin/setup", __dir__), "#{root}/.agents/bin/setup", dereference_root: false)
+      FileUtils.cp(File.expand_path("../../.agents/bin/setup", __dir__), "#{root}/.agents/bin/setup")
       File.write("#{root}/bin/setup", <<~RUBY)
         require "json"
         Dir.chdir(File.expand_path("..", __dir__)) do
           puts JSON.generate(root: Dir.pwd, arguments: ARGV)
         end
       RUBY
-      # A copied setup implementation must never install dependencies in this fixture.
+      # Reject a copied setup implementation before it can install dependencies.
       File.write("#{root}/commands/gem", "#!/bin/sh\nexit 88\n")
       File.chmod(0755, "#{root}/commands/gem")
 
