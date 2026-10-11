@@ -3,8 +3,10 @@
 The existing local Control Plane Flow path can operate without merging the
 hosted workflow changes. It is an alternative for an explicitly authorized
 deployment window, not a deploy-ready status or permission to change a host.
-Keep workflow PR #116 and command prerequisite PR #121 unmerged during
-preparation: pushing the deployment base already triggers both deployments.
+Do not merge operations PRs merely to enable commands: pushing the deployment
+base already triggers both deployments. Dependent PR publication still follows
+the repository workflow's prerequisite rules; choosing local operation does not
+waive them.
 
 Before choosing this path, the maintainer must confirm local operation and the
 operator must establish effective deployment access. Historical successful
@@ -28,6 +30,9 @@ Do not copy historical application files or optional performance experiments
 over the reviewed integration. Do not overlay missing verification commands.
 Run the trusted repository validation and independent review on the final source;
 an application review does not attest to an added operations integration.
+The pinned foundation commit first supplied the paired-demo deployment support.
+If a history rewrite removes it, stop and obtain an explicitly reviewed replacement
+foundation; do not silently replace the ancestry check with a file-existence test.
 
 Run these read-only guards from that clean source checkout:
 
@@ -39,7 +44,6 @@ case "$INTEGRATION_SHA" in
 esac
 [ "${#INTEGRATION_SHA}" -eq 40 ]
 [ "$(git rev-parse HEAD)" = "$INTEGRATION_SHA" ]
-[ "$(git rev-parse "$INTEGRATION_SHA^{commit}")" = "$INTEGRATION_SHA" ]
 [ -z "$(git status --porcelain --untracked-files=all)" ]
 git merge-base --is-ancestor \
   5df1b6827002108389e337bbe308896d49da30a1 "$INTEGRATION_SHA"
@@ -72,9 +76,10 @@ that no deployment is in progress. Preserve suspended runner workloads.
 Flow 6.0.0 builds the working directory. Its `--commit` option supplies a
 `GIT_COMMIT` build argument; it does not check out or verify that commit. Its
 `deploy-image` resolves the latest app image and uses a digest when configured.
-The release runner separately resolves latest. Exclusive registry ownership
-must extend from build through release and promotion; abort if latest changes.
-Never assume the commit label proves the Docker context or promoted digest.
+Its default release runner also resolves latest. Do not use `deploy-image` for
+the final comparison. Select the explicit image produced by the verified build
+for both the release job and workload updates below. Never assume the commit
+label proves the Docker context or promoted digest.
 
 The release runs a manual job on `rails-runner`. Flow keeps its schedule suspended
 but may synchronize its environment, identity and limits from Rails. Explicitly
@@ -86,21 +91,47 @@ After source checks and deployment authorization, build each app sequentially
 from the same checkout. Supply its host-specific build argument explicitly:
 
 ```sh
+set -eu
+: "${INTEGRATION_SHA:?Set the reviewed full deployment integration SHA}"
 CPLN_ORG=shakacode-open-source-examples-staging
 APP=gumroad-inertia # Repeat the complete sequence for gumroad-rorp.
-cpflow build-image --app "$APP" --org "$CPLN_ORG" \
-  --commit "$INTEGRATION_SHA" --build-arg "BENCHMARK_APP=$APP"
-cpflow latest-image --app "$APP" --org "$CPLN_ORG"
+BUILD_CONTEXT=$(mktemp -d)
+BUILD_ARCHIVE=$(mktemp)
+trap 'rm -rf -- "$BUILD_CONTEXT" "$BUILD_ARCHIVE"' EXIT
+git archive --format=tar --output="$BUILD_ARCHIVE" "$INTEGRATION_SHA"
+tar -xf "$BUILD_ARCHIVE" -C "$BUILD_CONTEXT"
+(cd "$BUILD_CONTEXT" && cpflow build-image --app "$APP" --org "$CPLN_ORG" \
+  --commit "$INTEGRATION_SHA" --docker-context "$BUILD_CONTEXT" \
+  --build-arg "BENCHMARK_APP=$APP")
 ```
 
-Record the image name printed by the build, inspect it with `cpln image get`,
-and require the latest image to match that name and its SHA256 digest immediately
-before promotion. Recheck the clean source. Only then:
+The archive contains the tracked immutable commit only. Flow reads its recipe
+and configuration there too. Ignored local files, installed dependencies and
+generated assets cannot enter that Docker context.
+
+Record the image name printed by the build and inspect that explicit image with
+`cpln image get`. Record and verify its SHA256 digest and runtime `GIT_COMMIT`
+against the source. Recheck the clean source. Only then, using that exact identity:
 
 ```sh
-cpflow deploy-image --app "$APP" --org "$CPLN_ORG" \
-  --run-release-phase --use-digest-image-ref
+set -eu
+: "${APP:?Set the reviewed app}"
+: "${CPLN_ORG:?Set the reviewed organization}"
+: "${BUILT_IMAGE:?Set the image name produced by the verified build}"
+: "${BUILT_DIGEST:?Set its verified SHA256 digest}"
+cpflow run --app "$APP" --org "$CPLN_ORG" \
+  --image "$BUILT_IMAGE@$BUILT_DIGEST" -- \
+  'ALLOW_BENCHMARK_SEED=true .controlplane/release_script.sh'
+for workload in rails sidekiq renderer; do
+  cpln workload update "$workload" --gvc "$APP" --org "$CPLN_ORG" \
+    --set "spec.containers.${workload}.image=/org/$CPLN_ORG/image/$BUILT_IMAGE@$BUILT_DIGEST"
+done
 ```
+
+Validate the actual workload/container names against the snapshot first. Require
+all running images to converge to that exact reference and readiness before
+continuing. On a partial failure, restore each workload's own prior image; do not
+retry a selection of latest or continue toward measurement.
 
 The historical release migrates, seeds, reindexes and probes storage. It also
 clears the product-page feature gates and globally enables RSC on the RORP app.
@@ -112,7 +143,7 @@ semantics deliberately. Do not change flags during measurement.
 Image promotion does not apply changed templates. Review any necessary renderer
 command, secret reference, benchmark environment, storage, asset-cache or routing
 adjustment before the window. Do not blindly apply the historical template set:
-it can overwrite unrelated settings. Read back all three app image digests and
+it can overwrite unrelated settings. Read back all six workload image digests and
 runtime revisions after release, then prove product/media/fixture and interaction
 parity before warming the exact URLs.
 
@@ -134,12 +165,19 @@ proof. Restore CapacityAI and verify readiness on success or failure.
 For image rollback, use each workload's recorded prior immutable image:
 
 ```sh
-: "${PREVIOUS_IMAGE:?Set the recorded app image including its digest}"
-for workload in rails sidekiq renderer; do
-  cpln workload update "$workload" --gvc "$APP" --org "$CPLN_ORG" \
-    --set "spec.containers.${workload}.image=$PREVIOUS_IMAGE"
-done
+set -eu
+: "${APP:?Set the recorded app}"
+: "${CPLN_ORG:?Set the recorded organization}"
+: "${WORKLOAD:?Set one recorded workload}"
+: "${CONTAINER:?Set its recorded container name}"
+: "${PREVIOUS_IMAGE:?Set the recorded immutable container image}"
+cpln workload update "$WORKLOAD" --gvc "$APP" --org "$CPLN_ORG" \
+  --set "spec.containers.${CONTAINER}.image=$PREVIOUS_IMAGE"
 ```
+
+Repeat separately for each recorded workload/container pair and verify its ready
+running digest. Never reuse one prior image across workloads unless the snapshot
+proves they were identical. Record failed restoration steps and stop for recovery.
 
 An image rollback does not undo migrations, seeded data, storage probes or feature
 flags. Review schema compatibility and data recovery before release; after any
