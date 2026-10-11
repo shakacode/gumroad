@@ -26,6 +26,7 @@
 /config/certs
 /config/content_moderation_blocklist.yml
 /node_modules
+/tools/shakaperf/node_modules
 /public/packs
 /public/packs-test
 /public/pages-tailwind.css
@@ -78,3 +79,8 @@ autoresearch.*
 # Baked CI test-database dump (created inside the test image at build time;
 # never committed — see docker/ci/dump_test_db.sh)
 db/prepared_test_db.sql.gz
+# Local ShakaPerf campaigns retain raw evidence outside the contribution diff.
+/compare-results/
+/bench-results/
+/visreg-results/
+/accessibility-results/

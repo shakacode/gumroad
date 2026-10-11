@@ -1,0 +1,1183 @@
+[
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:visreg:<4.0s>[  control   ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:visreg:<5.3s>[ experiment ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:visreg:<9.7s>[  control   ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked.",
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:visreg:<9.7s>[ experiment ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<31.2s>sample-0[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<31.2s>sample-0[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<65.7s>sample-1[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<66.0s>sample-1[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<95.9s>sample-2[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<95.9s>sample-2[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<125.3s>sample-3[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<125.5s>sample-3[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<154.5s>sample-4[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<154.6s>sample-4[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked.",
+        "Failed to load resource: net::ERR_CONNECTION_CLOSED"
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<183.7s>sample-5[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<183.7s>sample-5[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked.",
+        "Failed to load resource: net::ERR_CONNECTION_CLOSED"
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<214.6s>sample-6[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<214.6s>sample-6[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<244.2s>sample-7[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<244.2s>sample-7[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<273.6s>sample-8[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<273.7s>sample-8[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<302.9s>sample-9[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<302.9s>sample-9[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<334.0s>sample-10[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<334.0s>sample-10[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<363.6s>sample-11[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<363.6s>sample-11[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<392.9s>sample-12[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<392.9s>sample-12[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<422.0s>sample-13[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<422.0s>sample-13[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<451.2s>sample-14[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<451.2s>sample-14[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<480.4s>sample-15[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<480.4s>sample-15[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<509.6s>sample-16[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<509.6s>sample-16[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<538.8s>sample-17[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf:<538.9s>sample-17[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<568.1s>sample-0[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<568.1s>sample-0[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<597.4s>sample-1[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<597.4s>sample-1[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<629.0s>sample-2[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<629.0s>sample-2[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<658.7s>sample-3[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<658.7s>sample-3[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<688.2s>sample-4[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<688.2s>sample-4[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<722.3s>sample-5[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<722.6s>sample-5[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<752.0s>sample-6[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<752.1s>sample-6[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<786.2s>sample-7[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<786.3s>sample-7[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<815.5s>sample-8[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<815.5s>sample-8[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<845.1s>sample-9[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<845.1s>sample-9[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<874.6s>sample-10[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<874.6s>sample-10[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<908.5s>sample-11[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<908.5s>sample-11[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<939.7s>sample-12[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<939.8s>sample-12[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<969.3s>sample-13[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<969.3s>sample-13[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<998.8s>sample-14[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<998.8s>sample-14[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1027.8s>sample-15[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1027.8s>sample-15[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1056.7s>sample-16[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1056.7s>sample-16[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1086.1s>sample-17[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf:<1086.1s>sample-17[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf-low-noise:<1117.6s>sample-0[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:perf-low-noise:<1117.8s>sample-0[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf-low-noise:<1148.1s>sample-0[ experiment ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:perf-low-noise:<1148.1s>sample-0[  control   ]",
+    "counts": {
+      "attempted": 112,
+      "successful": 112,
+      "completed": 112,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:accessibility:<1170.0s>[ experiment ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:desktop:accessibility:<1171.2s>[  control   ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked.",
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:accessibility:<1172.9s>[ experiment ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3412 shakaperf.localhost:3412 localhost:3512 app.localhost:3512 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  },
+  {
+    "context": "ab-tests/product-landing.abtest.ts:14:phone:accessibility:<1174.1s>[  control   ]",
+    "counts": {
+      "attempted": 111,
+      "successful": 111,
+      "completed": 111,
+      "excludedAnalytics": 1,
+      "errors": [],
+      "consoleErrors": [
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked.",
+        "Executing inline script violates the following Content Security Policy directive 'script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com analytics.tiktok.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@2.0.12/ localhost:3411 shakaperf.localhost:3411 localhost:3511 app.localhost:3511 http: 'nonce-REDACTED' 'unsafe-inline''. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked."
+      ],
+      "pageErrors": []
+    }
+  }
+]
