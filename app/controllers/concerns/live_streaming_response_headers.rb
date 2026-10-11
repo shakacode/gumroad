@@ -5,8 +5,8 @@ module LiveStreamingResponseHeaders
 
   private
     def prepare_live_streaming_response
-      # Rack::ETag can buffer ActionController::Live bodies unless a freshness
-      # header is already present before the first stream write.
+      # The outer middleware removes this sentinel after Rack::ETag skips buffering.
+      request.env["gumroad.product_rsc_streaming"] = true
       response.headers["Last-Modified"] ||= Time.current.httpdate
       response.headers["X-Accel-Buffering"] = "no"
       response.headers["Cache-Control"] = "no-store"

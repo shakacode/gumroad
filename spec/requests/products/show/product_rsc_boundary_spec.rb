@@ -107,6 +107,20 @@ describe "Selective product renderer boundary", type: :request do
     end
   end
 
+  it "serves the personalized document despite conditional freshness dates", :product_rsc_renderer do
+    Feature.activate_user(:product_page_react_on_rails, seller)
+
+    [Time.current, 1.day.from_now].each do |date|
+      get product.long_url(layout: "profile"), headers: { "If-Modified-Since" => date.httpdate, "SERVER_PROTOCOL" => "HTTP/1.1" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to include("no-store")
+      expect(response.headers["Last-Modified"]).to be_nil
+      expect(response.headers["ETag"]).to be_nil
+      expect(response.body).to include('id="product-rsc-root"')
+    end
+  end
+
   it "preserves a flagged checkout redirect when the renderer is unconfigured" do
     Feature.activate_user(:product_page_react_on_rails, seller)
     allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("ExecJS")
