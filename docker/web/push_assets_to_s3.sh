@@ -18,7 +18,11 @@ aws s3 cp --recursive --only-show-errors /app/public/vite s3://${ASSETS_S3_BUCKE
 aws s3 sync /app/public/vite/.vite s3://${ASSETS_S3_BUCKET}/vite/.vite --acl public-read --cache-control max-age=31536000,immutable
 logger "Done uploading public/vite to S3"
 
+logger "Uploading public RSC browser assets to S3"
+aws s3 cp --recursive --only-show-errors /app/public/public-rsc s3://${ASSETS_S3_BUCKET}/assets/public-rsc --exclude '*.map' --exclude '*manifest*.json' --acl public-read --cache-control max-age=31536000,immutable
+
 logger "Uploading public/js to S3"
+
 aws s3 sync /app/public/js s3://${ASSETS_S3_BUCKET}/js --acl public-read --cache-control max-age=300,public
 logger "Done uploading public/js to S3"
 

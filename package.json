@@ -59,7 +59,12 @@
     "react-sortablejs": "^6.1.4",
     "recharts": "^2.15.2",
     "sortablejs": "^1.15.0",
-    "typia": "^12.1.1"
+    "typia": "^12.1.1",
+    "react-on-rails": "17.1.0",
+    "react-on-rails-pro": "17.1.0",
+    "react-on-rails-pro-node-renderer": "17.1.0",
+    "react-on-rails-rsc": "19.3.0",
+    "react-server-dom-webpack": "19.2.8"
   },
   "devDependencies": {
     "@eslint/compat": "^1.1.1",
@@ -104,7 +109,11 @@
     "unplugin-auto-import": "^19.0.0",
     "vite": "^8.3.4",
     "vite-plugin-ruby": "^5.2.5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@rspack/cli": "^2.1.10",
+    "@rspack/core": "^2.1.10",
+    "rspack-manifest-plugin": "5.2.2",
+    "shakapacker": "10.2.0"
   },
   "overrides": {
     "@tiptap/extension-blockquote": "$@tiptap/starter-kit",
@@ -142,7 +151,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "setup": "bundle exec rails js:export && npm run build:pages-tailwind",
-    "postinstall": "patch-package && ts-patch install -s"
+    "postinstall": "patch-package && ts-patch install -s",
+    "build:public-rsc": "bundle exec rake public_rsc:build",
+    "build:public-rsc:test": "RAILS_ENV=test NODE_ENV=test npm run build:public-rsc",
+    "generate:public-rsc-packs": "bundle exec rails js:export && bundle exec rake react_on_rails:generate_packs",
+    "watch:public-rsc": "npm run generate:public-rsc-packs && rspack --watch --config config/rspack/public_rsc.config.cjs"
   },
   "repository": {
     "type": "git",

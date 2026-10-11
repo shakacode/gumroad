@@ -165,6 +165,8 @@ type Props = {
   state: State;
   dispatchAction: React.Dispatch<Action>;
   currencyCode: CurrencyCode;
+  initialCards?: React.ReactNode;
+  initialCardCount?: number | undefined;
   title?: string | null;
   hideFilters?: boolean;
   disableFilters?: boolean;
@@ -216,6 +218,8 @@ const FilterCheckboxes = ({
 export const CardGrid = ({
   state,
   dispatchAction,
+  initialCards,
+  initialCardCount,
   title,
   hideFilters,
   disableFilters,
@@ -314,6 +318,7 @@ export const CardGrid = ({
   };
   const [tagsOpen, setTagsOpen] = React.useState(false);
   const [filetypesOpen, setFiletypesOpen] = React.useState(false);
+  const serverCardCount = initialCards !== undefined ? (initialCardCount ?? results?.products.length ?? 0) : 0;
 
   return (
     <div
@@ -490,10 +495,17 @@ export const CardGrid = ({
         <div>
           <ProductCardGrid ref={gridRef}>
             {/* The first 4 images are above the fold, so we eagerily load them */}
-            {results?.products.map((result, idx) => <Card key={result.permalink} product={result} eager={idx < 4} />) ??
-              Array(6)
-                .fill(0)
-                .map((_, i) => <Skeleton key={i} className="h-75 sm:h-95" />)}
+            {initialCards}
+            {results?.products
+              .slice(serverCardCount)
+              .map((result, idx) => (
+                <Card key={result.permalink} product={result} eager={serverCardCount + idx < 4} />
+              )) ??
+              (initialCards === undefined
+                ? Array(6)
+                    .fill(0)
+                    .map((_, i) => <Skeleton key={i} className="h-75 sm:h-95" />)
+                : null)}
           </ProductCardGrid>
           {pagination === "button" &&
           !((state.results?.total ?? 0) < (state.offset ?? 1) + (state.results?.products.length ?? 0)) ? (
