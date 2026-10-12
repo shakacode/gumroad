@@ -79,7 +79,7 @@ compare_env = { "SHAKAPERF_CONTROL_URL" => "http://shakaperf.localhost:#{port(co
                 "SHAKAPERF_EXPERIMENT_URL" => "http://shakaperf.localhost:#{port(experiment)}" }
 measurement_started = Time.now.utc
 status = system(SYSTEM_ENV.merge(compare_env), TOOL, "compare", "--filter", "ab-tests/product-landing.abtest.ts",
-                chdir: ROOT, unsetenv_others: true)
+                chdir: ROOT, unsetenv_others: true, out: [File.join(campaign_dir, "compare-stdout.log"), "a"], err: [File.join(campaign_dir, "compare-stdout.log"), "a"])
 manifest[:compare_exit_status] = $?.exitstatus
 manifest[:compare_started_at] = measurement_started.iso8601
 manifest[:finished_at] = Time.now.utc.iso8601

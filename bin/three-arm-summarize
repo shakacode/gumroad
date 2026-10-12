@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""Summarize one bin/three-arm-compare campaign directory.
+
+Prints, per viewport, every native ShakaPerf metric row (group medians, paired
+estimate, interval, p value, significance) and the aggregate flags, then the
+per-sample work and identity counts recovered from the compare log. Reads only;
+changes nothing. Usage: bin/three-arm-summarize <campaign-dir> [--json]
+"""
+import glob
+import json
+import os
+import re
+import sys
+
+
+def seven(summary):
+    # ShakaPerf's seven-figure summary keys vary by version; pick the median.
+    for key in ("median", "p50", "50"):
+        if key in summary:
+            return summary[key]
+    return summary
+
+
+def rows(report):
+    for section in ("vitalsTableData", "diagnosticsTableData"):
+        for row in report.get(section, []):
+            ci = row.get("confidenceInterval") or [None, None]
+            pct = row.get("asPercent") or {}
+            yield {
+                "section": section.replace("TableData", ""),
+                "metric": row.get("phaseName"),
+                "control_median": seven(row.get("controlSevenFigureSummary") or {}),
+                "experiment_median": seven(row.get("experimentSevenFigureSummary") or {}),
+                "estimate": row.get("estimatorDelta"),
+                "ci": ci,
+                "estimate_pct": pct.get("percentMedian") if isinstance(pct, dict) else None,
+                "ci_pct": [pct.get("percentMin"), pct.get("percentMax")] if isinstance(pct, dict) else None,
+                "p": row.get("pValue"),
+                "significant": row.get("isSignificant"),
+                "n": (row.get("controlSampleCount"), row.get("experimentSampleCount")),
+            }
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__)
+    campaign = sys.argv[1]
+    as_json = "--json" in sys.argv
+    manifest = json.load(open(os.path.join(campaign, "manifest.json")))
+    out = {"campaign": os.path.basename(campaign), "control_arm": manifest.get("control_arm"),
+           "experiment_arm": manifest.get("experiment_arm"), "commit": manifest.get("commit"),
+           "compare_exit_status": manifest.get("compare_exit_status"),
+           "comparison_seconds": manifest.get("comparison_seconds"),
+           "host_before": (manifest.get("host_before") or {}).get("uptime"),
+           "host_after": (manifest.get("host_after") or {}).get("uptime"), "viewports": {}}
+    for report_path in sorted(glob.glob(os.path.join(campaign, "compare-results", "*", "artifacts", "report.json"))):
+        test_dir = os.path.basename(os.path.dirname(os.path.dirname(report_path)))
+        viewport = "phone" if "-phone-" in test_dir else "desktop" if "-desktop-" in test_dir else test_dir
+        report = json.load(open(report_path))
+        out["viewports"][viewport] = {
+            "areResultsSignificant": report.get("areResultsSignificant"),
+            "isBelowRegressionThreshold": report.get("isBelowRegressionThreshold"),
+            "rows": list(rows(report)),
+        }
+    # Work and identity lines from the compare log, if the campaign kept one.
+    work = {"control": [], "experiment": []}
+    identity = {"control": [], "experiment": []}
+    for log_path in glob.glob(os.path.join(campaign, "**", "*.log"), recursive=True) + glob.glob(os.path.join(campaign, "**", "*.txt"), recursive=True):
+        try:
+            text = open(log_path, errors="replace").read()
+        except OSError:
+            continue
+        for side in ("control", "experiment"):
+            for m in re.finditer(r"\[\s*%s\s*\] SHAKAPERF_WORK (\{.*?\})\s*$" % side, text, re.M):
+                work[side].append(json.loads(m.group(1)))
+            for m in re.finditer(r"\[\s*%s\s*\] SHAKAPERF_IDENTITY (\{.*?\})\s*$" % side, text, re.M):
+                identity[side].append(json.loads(m.group(1)))
+    out["work_counts"] = {side: {"samples": len(w), "errors": sum(len(x.get("errors", [])) for x in w),
+                                 "page_errors": sum(len(x.get("pageErrors", [])) for x in w),
+                                 "console_errors": sum(len(x.get("consoleErrors", [])) for x in w),
+                                 "attempted_ne_completed": sum(1 for x in w if x.get("attempted") != x.get("completed"))}
+                          for side, w in work.items()}
+    out["identity"] = {side: sorted({json.dumps(x, sort_keys=True) for x in i}) for side, i in identity.items()}
+    if as_json:
+        print(json.dumps(out, indent=1))
+        return
+    print(f"campaign {out['campaign']}  control={out['control_arm']} experiment={out['experiment_arm']}  commit={out['commit'][:8]}  exit={out['compare_exit_status']}  {out['comparison_seconds']} s")
+    print(f"host before: {out['host_before']}\nhost after:  {out['host_after']}")
+    for viewport, data in out["viewports"].items():
+        print(f"\n[{viewport}] areResultsSignificant={data['areResultsSignificant']} isBelowRegressionThreshold={data['isBelowRegressionThreshold']}")
+        print(f"  {'metric':<14}{'control':>12}{'experiment':>12}{'estimate':>12}{'95% CI':>22}{'est %':>9}{'p':>10}  sig  n")
+        for r in data["rows"]:
+            ci = r["ci"] if isinstance(r["ci"], list) else [None, None]
+            print(f"  {str(r['metric']):<14}{str(r['control_median']):>12}{str(r['experiment_median']):>12}{str(r['estimate']):>12}{str(ci[0]) + '..' + str(ci[1]):>22}{str(r['estimate_pct']):>9}{str(r['p']):>10}  {'YES' if r['significant'] else 'no '}  {r['n'][0]}/{r['n'][1]}")
+    print(f"\nwork counts: {json.dumps(out['work_counts'])}")
+    print(f"identity:    {json.dumps(out['identity'])}")
+
+
+if __name__ == "__main__":
+    main()
