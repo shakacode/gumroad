@@ -28,6 +28,7 @@ import { ProductFooter } from "$app/components/Product/ProductFooter";
 import type { ProductInteractionPageProps } from "$app/components/Product/ProductPage.types";
 import { ProductStateProvider } from "$app/components/Product/ProductStateProvider.client";
 import ProductStickyCta from "$app/components/Product/ProductStickyCta.client";
+import { ProductVariantNavigationProvider } from "$app/components/Product/ProductVariantNavigation.client";
 import { ProductProfileLayout } from "$app/components/Profile/ProductProfileLayout";
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
@@ -107,13 +108,15 @@ export default function ProductPage({
   const serverContent = toServerContent(rscProductContent, productProps, productProps.page_layout === "profile");
   const ctaLabel = productProps.page_layout === "profile" ? "Add to cart" : undefined;
   const productArticle = (
-    <ProductArticle
-      product={productProps.product}
-      purchase={productProps.purchase}
-      wishlists={productProps.wishlists}
-      ctaLabel={ctaLabel}
-      serverContent={serverContent}
-    />
+    <ProductVariantNavigationProvider value={{ productId: productProps.product.id, url: global.href }}>
+      <ProductArticle
+        product={productProps.product}
+        purchase={productProps.purchase}
+        wishlists={productProps.wishlists}
+        ctaLabel={ctaLabel}
+        serverContent={serverContent}
+      />
+    </ProductVariantNavigationProvider>
   );
   const serverProfileSections = Object.fromEntries(
     productProps.sections.flatMap((section) => {

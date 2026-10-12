@@ -86,7 +86,7 @@ describe "Selective product renderer boundary", type: :request do
       errors << error
     end
 
-    expect(errors.map(&:message).join).to include("Cannot read properties of null")
+    expect(errors.map(&:message).join).to match(/Cannot read properties of null|Cannot destructure property.*null/)
     expect(body.to_s).not_to include("<pre", "Product rendering is temporarily unavailable.")
   end
 

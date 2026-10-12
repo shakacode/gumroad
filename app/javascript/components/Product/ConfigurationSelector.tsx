@@ -39,6 +39,7 @@ import { Button } from "$app/components/Button";
 import { LoadingSpinner } from "$app/components/LoadingSpinner";
 import { NumberInput } from "$app/components/NumberInput";
 import { PriceInput } from "$app/components/PriceInput";
+import { useProductVariantNavigation } from "$app/components/Product/ProductVariantNavigation.client";
 import { needsOptionChoice } from "$app/components/Product/purchaseReadiness";
 import {
   useProductHydration,
@@ -325,6 +326,7 @@ export const OptionRadioButton = ({
   quantity = 1,
   hidePrice,
   includeInOffer = true,
+  fallbackHref,
 }: {
   disabled?: boolean;
   selected: boolean;
@@ -342,6 +344,7 @@ export const OptionRadioButton = ({
   quantity?: number;
   hidePrice?: boolean | undefined;
   includeInOffer?: boolean;
+  fallbackHref?: string | undefined;
 }) => {
   priceCents ??= 0;
   const snapshot = useProductHydration();
@@ -355,15 +358,27 @@ export const OptionRadioButton = ({
   const quantityLeftId = quantityLeft != null ? `${uid}-quantity-left` : undefined;
   const descriptionId = description ? `${uid}-description` : undefined;
   const describedBy = [priceId, quantityLeftId, descriptionId].filter(Boolean).join(" ") || undefined;
-  return (
+  const nativeUrl = fallbackHref && !disabled ? new URL(fallbackHref) : null;
+  const formId = nativeUrl ? `${uid}-choice` : undefined;
+  // Server-rendered radios need a native action until React installs their handler.
+  const control = (
     <Tab isSelected={selected} asChild className={recurrence ? "flex-col" : undefined}>
       <Button
+        type={nativeUrl ? "submit" : "button"}
+        form={formId}
         role="radio"
         aria-checked={selected}
         disabled={disabled}
         aria-label={name}
         aria-describedby={describedBy}
-        onClick={onClick}
+        onClick={
+          onClick
+            ? (event) => {
+                if (nativeUrl) event.preventDefault();
+                onClick();
+              }
+            : undefined
+        }
         {...(includeInOffer ? { itemProp: "offer", itemType: "https://schema.org/Offer", itemScope: true } : {})}
         className="items-start justify-start text-left"
       >
@@ -409,6 +424,17 @@ export const OptionRadioButton = ({
         </div>
       </Button>
     </Tab>
+  );
+  if (!nativeUrl) return control;
+  return (
+    <>
+      <form hidden id={formId} action={`${nativeUrl.origin}${nativeUrl.pathname}${nativeUrl.hash}`} method="get">
+        {Array.from(nativeUrl.searchParams, ([name, value], index) => (
+          <input key={`${name}-${index}`} type="hidden" name={name} value={value} />
+        ))}
+      </form>
+      {control}
+    </>
   );
 };
 
@@ -744,6 +770,7 @@ export const ConfigurationSelector = React.forwardRef<
   }
 >((props, ref) => {
   const snapshot = useProductHydration();
+  const variantNavigationUrl = useProductVariantNavigation(props.product.id);
   const {
     product,
     selection,
@@ -793,6 +820,20 @@ export const ConfigurationSelector = React.forwardRef<
   // A new option or recurrence resets the amount, unless no choice can change the minimum.
   const priceAfterChoice = (current: PriceSelection["price"]): PriceSelection["price"] =>
     product.pwyw?.default_price_cents == null ? { value: null, error: false } : current;
+
+  const optionPickerId = variantNavigationUrl ? `product-options-${product.id}` : undefined;
+  const variantHref = (optionId: string) => {
+    if (!variantNavigationUrl) return undefined;
+    const url = new URL(variantNavigationUrl);
+    url.searchParams.set("option", optionId);
+    if (product.is_quantity_enabled || product.is_multiseat_license)
+      url.searchParams.set("quantity", String(selection.quantity));
+    url.searchParams.delete("variant");
+    url.hash = optionPickerId ?? "";
+    if (optionId !== selection.optionId && priceAfterChoice(selection.price).value === null)
+      url.searchParams.delete("price");
+    return url.toString();
+  };
 
   const quantityInputUID = React.useId();
 
@@ -975,7 +1016,7 @@ export const ConfigurationSelector = React.forwardRef<
       ) : null}
       {hasOptions && hasRentOption ? <hr /> : null}
       {hasOptions ? (
-        <div data-option-picker>
+        <div data-option-picker id={optionPickerId}>
           <Tabs
             variant="buttons"
             role="radiogroup"
@@ -990,6 +1031,7 @@ export const ConfigurationSelector = React.forwardRef<
               .map((option) => (
                 <OptionRadioButton
                   key={option.id}
+                  fallbackHref={variantHref(option.id)}
                   disabled={
                     option.quantity_left === 0 ||
                     (product.is_tiered_membership &&
