@@ -528,8 +528,10 @@ class Rack::Attack
   # Do not throttle for health check requests
   safelist("allow from localhost", &:localhost?)
 
-  # Performance samples reuse a single Docker IP, so throttling would turn later samples into 429s.
-  safelist("allow benchmark harness") { true } if Rails.env.benchmark?
+  # Local samples reuse a single Docker IP, so throttling would turn later samples into 429s.
+  if Rails.env.benchmark? && ENV["CONTROL_PLANE_BENCHMARK"] != "true"
+    safelist("allow benchmark harness") { true }
+  end
 end
 
 # Log blocked events

@@ -39,6 +39,7 @@ Rails.application.configure do
   config.asset_host = "#{PROTOCOL}://#{ROOT_DOMAIN}"
   config.active_storage.service = ENV.fetch("BENCHMARK_STORAGE_SERVICE", "benchmark").to_sym
   config.active_storage.content_types_allowed_inline += ["image/webp"]
+  config.active_storage.web_image_content_types += ["image/webp"]
 
   config.action_cable.allowed_request_origins = [
     %r{\Ahttp://(?:[a-z0-9-]+\.)*localhost(?::\d+)?\z}i,
