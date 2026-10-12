@@ -14,7 +14,7 @@ class VerifiedBenchmarkDeployment
   APPS = %w[gumroad-inertia gumroad-rorp].freeze
   WORKLOADS = %w[rails sidekiq renderer].freeze
   REQUIRED_FILES = %w[.agents/bin/setup .agents/bin/test .agents/bin/validate
-                      .controlplane/Dockerfile .controlplane/controlplane.yml .controlplane/release_script.sh
+                      .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore .controlplane/controlplane.yml .controlplane/release_script.sh
                       .controlplane/entrypoint.sh config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb].freeze
 
   def initialize(root:, app:, source:, manifest:, runner: nil, foundation: FOUNDATION, sleeper: nil)
@@ -34,7 +34,8 @@ class VerifiedBenchmarkDeployment
     raise "Manifest already exists; preserve the earlier build record" if File.exist?(@manifest)
     record = { "source_sha" => @source, "source_tree" => command("git", "rev-parse", "HEAD^{tree}").strip,
                "app" => @app, "org" => ORG, "phase" => "building",
-               "dockerfile_sha256" => Digest::SHA256.file("#{@root}/.controlplane/Dockerfile").hexdigest }
+               "dockerfile_sha256" => Digest::SHA256.file("#{@root}/.controlplane/Dockerfile").hexdigest,
+               "dockerignore_sha256" => Digest::SHA256.file("#{@root}/.controlplane/Dockerfile.dockerignore").hexdigest }
     save(record)
     Dir.mktmpdir("gumroad-verified-build") do |directory|
       archive = "#{directory}/source.tar"

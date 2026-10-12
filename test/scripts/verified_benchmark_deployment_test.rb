@@ -19,7 +19,7 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     git("config", "user.name", "Fixture")
     git("config", "user.email", "fixture@example.invalid")
     git("remote", "add", "origin", "https://github.com/shakacode/gumroad.git")
-    %w[.agents/bin/setup .agents/bin/test .agents/bin/validate .controlplane/Dockerfile
+    %w[.agents/bin/setup .agents/bin/test .agents/bin/validate .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore
        .controlplane/controlplane.yml .controlplane/release_script.sh .controlplane/entrypoint.sh
        config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb].each do |path|
       FileUtils.mkdir_p(File.dirname("#{@root}/#{path}"))
@@ -56,7 +56,17 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     assert_equal @source, record.fetch("image_source_sha")
     assert_equal DIGEST, record.fetch("digest")
     assert_equal "built", record.fetch("phase")
+    assert_equal Digest::SHA256.file("#{@root}/.controlplane/Dockerfile.dockerignore").hexdigest, record.fetch("dockerignore_sha256")
     assert @context_verified
+  end
+
+  def test_rejects_a_committed_source_without_the_benchmark_context_policy_before_build
+    git("rm", ".controlplane/Dockerfile.dockerignore")
+    git("commit", "-qm", "Remove benchmark context policy")
+    @source = git("rev-parse", "HEAD").strip
+    assert_match(/Missing or linked deployment support/, assert_raises(RuntimeError) { deployment.build }.message)
+    refute File.exist?(@manifest) # rubocop:disable Rails/RefuteMethods
+    refute @commands.any? { |args| args[0] == "cpflow" } # rubocop:disable Rails/RefuteMethods
   end
 
   def test_rejects_wrong_dirty_untracked_and_missing_foundation_sources_before_build
