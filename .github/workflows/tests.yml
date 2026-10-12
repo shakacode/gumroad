@@ -203,17 +203,20 @@ jobs:
         with:
           path: |
             public/vite-test
+            public/public-rsc
+            ssr-generated
             tmp/cache/vite
             public/js/gumroad-bundle.js
             public/js/gumroad-embed-bundle.js
           key: >-
-            runner-test-assets-v2-${{ runner.os }}-${{ hashFiles(
+            runner-test-assets-v3-${{ runner.os }}-${{ hashFiles(
               'app/javascript/**', 'app/views/**',
               'config/routes.rb', 'config/routes/**', 'config/domain.rb',
               'config/application.rb', 'config/boot.rb', 'config/environment.rb',
               'config/environments/**', 'config/redis.rb',
               'lib/catch_bad_request_errors.rb', 'lib/utilities/global_config.rb',
               'config/initializers/js-routes.rb', 'config/vite.json', 'config/vite/**',
+              'config/rspack/**', 'config/shakapacker.yml', 'config/initializers/react_on_rails*.rb',
               'config/currencies.json', 'lib/json_schemas/**', 'lib/tasks/**', 'Rakefile',
               'public/**', 'vendor/assets/**', 'patches/**', 'scripts/build_pages_tailwind.mjs',
               'docker/base/**', 'docker/web/Dockerfile.test', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks',
@@ -289,6 +292,8 @@ jobs:
         with:
           path: |
             public/vite-test
+            public/public-rsc
+            ssr-generated
             tmp/cache/vite
             public/js/gumroad-bundle.js
             public/js/gumroad-embed-bundle.js
@@ -1174,17 +1179,20 @@ jobs:
         with:
           path: |
             public/vite-test
+            public/public-rsc
+            ssr-generated
             tmp/cache/vite
             public/js/gumroad-bundle.js
             public/js/gumroad-embed-bundle.js
           key: >-
-            runner-test-assets-v2-${{ runner.os }}-${{ hashFiles(
+            runner-test-assets-v3-${{ runner.os }}-${{ hashFiles(
               'app/javascript/**', 'app/views/**',
               'config/routes.rb', 'config/routes/**', 'config/domain.rb',
               'config/application.rb', 'config/boot.rb', 'config/environment.rb',
               'config/environments/**', 'config/redis.rb',
               'lib/catch_bad_request_errors.rb', 'lib/utilities/global_config.rb',
               'config/initializers/js-routes.rb', 'config/vite.json', 'config/vite/**',
+              'config/rspack/**', 'config/shakapacker.yml', 'config/initializers/react_on_rails*.rb',
               'config/currencies.json', 'lib/json_schemas/**', 'lib/tasks/**', 'Rakefile',
               'public/**', 'vendor/assets/**', 'patches/**', 'scripts/build_pages_tailwind.mjs',
               'docker/base/**', 'docker/web/Dockerfile.test', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks',
@@ -1250,6 +1258,8 @@ jobs:
         with:
           path: |
             public/vite-test
+            public/public-rsc
+            ssr-generated
             tmp/cache/vite
             public/js/gumroad-bundle.js
             public/js/gumroad-embed-bundle.js

@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getRemainingCallAvailabilities } from "$app/data/call_availabilities";
@@ -10,12 +12,17 @@ import {
   type PriceSelection,
   type Product,
 } from "$app/components/Product/ConfigurationSelector";
+import { ProductHydrationProvider } from "$app/components/PublicPages/ProductHydration.client";
 
 vi.mock("$app/data/call_availabilities", () => ({
   getRemainingCallAvailabilities: vi.fn(),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const durationOption = {
   id: "duration-30",
@@ -90,6 +97,50 @@ const renderCallSelector = () => {
 };
 
 describe("CallDateAndTimeSelector", () => {
+  it("hydrates a preselected call and loading calendar before adopting the browser timezone", async () => {
+    vi.mocked(getRemainingCallAvailabilities).mockReturnValue(new Promise(() => undefined));
+    vi.spyOn(Date.prototype, "toLocaleString").mockImplementation(function (this: Date, locales, options) {
+      return new Intl.DateTimeFormat(locales, { ...options, timeZone: options?.timeZone ?? "Pacific/Honolulu" }).format(
+        this,
+      );
+    });
+    const content = (
+      <ProductHydrationProvider
+        value={{ locale: "en-US", timeZone: "UTC", referenceTime: Date.parse("2030-01-01T00:00:00Z") }}
+      >
+        <ConfigurationSelector
+          product={callProduct}
+          selection={{ ...initialSelection, callStartTime: "2030-01-02T00:30:00Z" }}
+          discount={null}
+        />
+      </ProductHydrationProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(content);
+    expect(container.textContent).toContain("Wednesday, January 2");
+    expect(container.textContent).toContain("12:30 AM");
+    const serverSelect = container.querySelector("select");
+    const serverStatus = container.querySelector("[aria-live=polite]");
+    const errors = vi.fn();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const root = hydrateRoot(container, content, { onRecoverableError: errors });
+    try {
+      await React.act(async () => {
+        await Promise.resolve();
+      });
+      expect(errors).not.toHaveBeenCalled();
+      expect(container.querySelector("select")).toBe(serverSelect);
+      expect(container.querySelector("[aria-live=polite]")).toBe(serverStatus);
+      expect(container.textContent).toContain("Tuesday, January 1");
+      expect(container.textContent).toContain("02:30 PM");
+    } finally {
+      await React.act(async () => {
+        root.unmount();
+        await Promise.resolve();
+      });
+    }
+  });
+
   it("exposes a labeled date select and native time radios a screen reader can operate", async () => {
     vi.mocked(getRemainingCallAvailabilities).mockResolvedValue([octoberFirstAfternoon, octoberSecondAfternoon]);
 
@@ -97,7 +148,7 @@ describe("CallDateAndTimeSelector", () => {
 
     const dateSelect = await screen.findByLabelText("Select a date");
     if (!(dateSelect instanceof HTMLSelectElement)) throw new Error("expected a native date <select>");
-    expect(dateSelect.disabled).toBe(false);
+    await waitFor(() => expect(dateSelect.disabled).toBe(false));
     expect(Array.from(dateSelect.options).map((option) => option.text)).toEqual([
       "Tuesday, October 1, 2024",
       "Wednesday, October 2, 2024",

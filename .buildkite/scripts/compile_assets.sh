@@ -116,7 +116,7 @@ if [[ ${BUILDKITE_PARALLEL_JOB:-0} = 0 && $BUILDKITE_BRANCH != "main" ]]; then
       $WEB_REPO:web-$WEB_TAG \
       bash -c "cd /app \
         && tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL \
-        && chown -R app:app node_modules public \
+        && chown -R app:app node_modules public ssr-generated \
         && rm -rf spec/" || return 1
     docker commit staging-assets-from-cache $WEB_REPO:staging-$WEB_TAG || return 1
     docker rm staging-assets-from-cache || :

@@ -143,6 +143,16 @@ const nodeConfig = {
   },
 };
 
+const commonJsConfig = {
+  files: ["**/*.cjs"],
+  languageOptions: {
+    sourceType: "commonjs",
+    globals: {
+      ...globals.node,
+    },
+  },
+};
+
 export default [
   includeIgnoreFile(fileURLToPath(import.meta.resolve("./.gitignore"))),
   { ignores: ["vendor", "web/**/*"] },
@@ -152,6 +162,7 @@ export default [
   ...tsConfig,
   ...tsxConfig,
   nodeConfig,
+  commonJsConfig,
   prettierConfig,
   process.env.DISABLE_TYPE_CHECKED ? tseslint.configs.disableTypeChecked : {},
 ];

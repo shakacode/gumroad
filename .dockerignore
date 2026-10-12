@@ -11,3 +11,6 @@ docker/tmp/
 .env
 .env.*.local
 node_modules/
+
+public/public-rsc
+ssr-generated

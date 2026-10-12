@@ -5,6 +5,7 @@ import { AssetPreview } from "$app/parsers/product";
 import { classNames } from "$app/utils/classNames";
 import { MAX_PORTRAIT_FRAME_HEIGHT } from "$app/utils/videoFrame";
 
+import { DEFAULT_IMAGE_WIDTH } from "$app/components/Product/productCover";
 import { useElementDimensions } from "$app/components/useElementDimensions";
 import { useOnChange } from "$app/components/useOnChange";
 import { useScrollableCarousel } from "$app/components/useScrollableCarousel";
@@ -13,12 +14,13 @@ import { Embed } from "./Embed";
 import { Image } from "./Image";
 import { Video } from "./Video";
 
-export const DEFAULT_IMAGE_WIDTH = 1005;
+export { DEFAULT_IMAGE_WIDTH };
 
 export const Covers = ({
   covers,
   activeCoverId,
   setActiveCoverId,
+  initialCover,
   closeButton,
   className,
   isThumbnail,
@@ -27,6 +29,7 @@ export const Covers = ({
   covers: AssetPreview[];
   activeCoverId: string | null;
   setActiveCoverId: (id: string | null) => void;
+  initialCover?: { id: string; content: React.ReactNode } | null;
   closeButton?: React.ReactNode;
   className?: string;
   isThumbnail?: boolean;
@@ -116,7 +119,13 @@ export const Covers = ({
         onScroll={handleScroll}
       >
         {covers.map((cover) => (
-          <CoverItem cover={cover} frameIsShaped={frameIsShaped} productName={productName} key={cover.id} />
+          <CoverItem
+            cover={cover}
+            frameIsShaped={frameIsShaped}
+            initialContent={initialCover?.id === cover.id ? initialCover.content : null}
+            productName={productName}
+            key={cover.id}
+          />
         ))}
       </div>
       {covers.length > 1 && activeCover?.type !== "oembed" && activeCover?.type !== "video" ? (
@@ -173,17 +182,19 @@ const PreviewArrow = ({ direction, onClick }: { direction: "previous" | "next"; 
 const CoverItem = ({
   cover,
   frameIsShaped,
+  initialContent,
   productName,
 }: {
   cover: AssetPreview;
   frameIsShaped: boolean;
+  initialContent: React.ReactNode;
   productName?: string | undefined;
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const dimensions = useElementDimensions(containerRef);
   const width = dimensions?.width;
 
-  let coverComponent: React.ReactNode;
+  let coverComponent = initialContent;
   if (cover.type === "unsplash") {
     coverComponent = <img src={cover.url} alt={productName ?? ""} />;
   } else if (
@@ -205,7 +216,8 @@ const CoverItem = ({
             height: cover.native_height * ratio,
           };
     if (cover.type === "image") {
-      coverComponent = (
+      // Keep the image supplied by Flight so measurement preserves its node and responsive sources.
+      coverComponent = initialContent ?? (
         <Image cover={cover} dimensions={dimensions} frameIsShaped={frameIsShaped} productName={productName} />
       );
     } else if (cover.type === "oembed") {

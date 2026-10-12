@@ -1,0 +1,145 @@
+import * as React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { expect, it } from "vitest";
+
+import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
+
+it("renders safe rich text links without emitting unsafe hrefs", () => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "tiptap-link",
+                attrs: { href: "example.com" },
+                content: [{ type: "text", text: "Read more" }],
+              },
+              { type: "text", text: " and " },
+              {
+                type: "tiptap-link",
+                attrs: { href: "javascript://alert(1)" },
+                content: [{ type: "text", text: "do not run this" }],
+              },
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+
+  expect(html).toContain(
+    '<a href="https://example.com/" target="_blank" rel="noopener noreferrer nofollow">Read more</a>',
+  );
+  expect(html).toContain("do not run this");
+  expect(html).not.toContain("javascript:");
+});
+
+it("renders validated links stored as text marks", () => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Legacy link",
+                marks: [{ type: "link", attrs: { href: "example.com/legacy" } }],
+              },
+              {
+                type: "text",
+                text: "Unsafe link",
+                marks: [{ type: "link", attrs: { href: "javascript://alert(1)" } }],
+              },
+            ],
+          },
+        ],
+      }}
+    />,
+  );
+
+  expect(html).toContain(
+    '<a href="https://example.com/legacy" target="_blank" rel="noopener noreferrer nofollow">Legacy link</a>',
+  );
+  expect(html).toContain("Unsafe link");
+  expect(html).not.toContain("javascript:");
+});
+
+it("renders static custom nodes and leaves interactive embeds to the client", () => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [
+          {
+            type: "image",
+            attrs: { src: "https://example.com/cover.png", link: "https://example.com/details" },
+            content: [{ type: "text", text: "Cover caption" }],
+          },
+          {
+            type: "button",
+            attrs: { href: "https://example.com/buy" },
+            content: [{ type: "text", text: "Learn more" }],
+          },
+          { type: "reviewCard", attrs: { reviewId: "review-id" } },
+          { type: "upsellCard", attrs: { productId: "product-id" } },
+          { type: "raw", attrs: { html: '<script data-danger="true">alert(1)</script>' } },
+        ],
+      }}
+    />,
+  );
+
+  expect(html).toContain(
+    '<figure><a href="https://example.com/details" target="_blank" rel="noopener noreferrer nofollow"><img src="https://example.com/cover.png"/></a><p class="figcaption">Cover caption</p></figure>',
+  );
+  expect(html).toContain(
+    '<a href="https://example.com/buy" class="tiptap__button button primary" target="_blank" rel="noopener noreferrer nofollow">Learn more</a>',
+  );
+  expect(html).not.toContain("review-id");
+  expect(html).not.toContain("product-id");
+  expect(html).not.toContain("data-danger");
+  expect(html.match(/data-slot="skeleton"/gu)).toHaveLength(2);
+});
+
+it("does not emit non-web image sources", () => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent content={{ type: "doc", content: [{ type: "image", attrs: { src: "my-app://open" } }] }} />,
+  );
+
+  expect(html).not.toContain("my-app://open");
+});
+
+it.each([undefined, {}, { level: 0 }, { level: 7 }, { level: 1.5 }, { level: "2" }])(
+  "preserves headings with missing or unsupported levels like the editor (%j)",
+  (attrs) => {
+    const html = renderToStaticMarkup(
+      <ProfileRichTextContent
+        content={{
+          type: "doc",
+          content: [{ type: "heading", attrs, content: [{ type: "text", text: "Default heading" }] }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("<h1>Default heading</h1>");
+  },
+);
+
+it.each([1, 2, 3, 4, 5, 6])("preserves authored heading level %i", (level) => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Authored heading" }] }],
+      }}
+    />,
+  );
+
+  expect(html).toContain(`<h${level}>Authored heading</h${level}>`);
+});
