@@ -18,6 +18,7 @@ export const formatCallDate = (
   } = {},
 ) => {
   const localeStringOptions: Intl.DateTimeFormatOptions = {};
+  localeStringOptions.timeZone = displayOptions.timeZone?.userTimeZone;
 
   if (!displayOptions.date?.hidden) {
     localeStringOptions.weekday = "long";

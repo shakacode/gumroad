@@ -13,6 +13,7 @@ class BaseVariant < ApplicationRecord
   include TouchesProductForPriceCache
 
   MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE = 7
+  CLOSE_TO_NEW_BUYERS_FEATURE = :close_membership_tier_to_new_buyers
 
   has_and_belongs_to_many :purchases
   has_many :subscriptions, through: :purchases
@@ -22,10 +23,19 @@ class BaseVariant < ApplicationRecord
 
   delegate :has_stampable_pdfs?, to: :link
 
+  # SKUs store the product on link_id. Versions and tiers (Variant) leave that
+  # column nil and reach the product through variant_category.
+  def owning_product_id
+    return variant_category&.link_id if is_a?(Variant)
+
+    link_id
+  end
+
   scope :in_order, -> { order(created_at: :asc) }
 
   has_flags 1 => :is_default_sku,
             2 => :apply_price_changes_to_existing_memberships,
+            3 => :closed_to_new_purchases,
             :column => "flags",
             :flag_query_mode => :bit_operator,
             check_for_column: false
@@ -67,6 +77,7 @@ class BaseVariant < ApplicationRecord
 
   def available?
     return false if deleted?
+    return false if closed_to_new_buyers?
     return true if max_purchase_count.nil?
 
     quantity_left > 0
@@ -78,6 +89,15 @@ class BaseVariant < ApplicationRecord
     quantity_left == 0
   end
 
+  # Checked apart from quantity_left: a lapse frees inventory, and that must not reopen the tier.
+  def closed_to_new_buyers?
+    closed_to_new_purchases? && can_close_to_new_buyers?
+  end
+
+  def can_close_to_new_buyers?
+    is_a?(Variant) && link.is_tiered_membership? && Feature.active?(CLOSE_TO_NEW_BUYERS_FEATURE, link.user)
+  end
+
   def free?
     !((price_difference_cents.present? && price_difference_cents > 0) || prices.alive.is_buy.where("price_cents > 0").exists?)
   end
@@ -85,6 +105,8 @@ class BaseVariant < ApplicationRecord
   def as_json(options = {})
     if options[:for_views]
       variant_quantity_left = quantity_left
+      # A close is not inventory. A lapse frees capacity, and this payload must not offer the tier again.
+      variant_quantity_left = 0 if options[:for_seller] != true && closed_to_new_buyers?
       variant_json = {
         "option" => name,
         "name" => name == "Untitled" ? link.name : name,
@@ -128,11 +150,12 @@ class BaseVariant < ApplicationRecord
     end
   end
 
-  def to_option(subscription_attrs: nil)
+  # +subscribed+: the viewer already holds this tier, so a close doesn't apply to them.
+  def to_option(subscription_attrs: nil, subscribed: false)
     {
       id: external_id,
       name: name == "Untitled" ? link.name : name || "",
-      quantity_left:,
+      quantity_left: !subscribed && closed_to_new_buyers? ? 0 : quantity_left,
       description: description || "",
       price_difference_cents:,
       recurrence_price_values: link.is_tiered_membership ? recurrence_price_values(subscription_attrs:) : nil,
@@ -215,9 +238,10 @@ class BaseVariant < ApplicationRecord
     end
 
     def update_product_search_index
-      if link.present? && saved_change_to_price_difference_cents?
-        link.enqueue_index_update_for(["available_price_cents"])
-      end
+      return if link.blank?
+      return unless saved_change_to_price_difference_cents? || saved_change_to_closed_to_new_purchases?
+
+      link.enqueue_index_update_for(["available_price_cents"])
     end
 
     def strip_subscription_price_change_message

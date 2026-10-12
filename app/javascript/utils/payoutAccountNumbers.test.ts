@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COUNTRY_ACCOUNT_NUMBER_HINTS,
+  COUNTRY_IBAN_PLACEHOLDERS,
   accountNumberFormatError,
   normalizeAccountNumber,
 } from "$app/utils/payoutAccountNumbers";
@@ -30,10 +31,12 @@ describe("accountNumberFormatError", () => {
     }
   });
 
-  // Oman's model takes 6 to 16 digits, so the generic example is genuinely valid there — its entry
-  // exists to reject a non-numeric value, not to replace a wrong example.
+  // Oman's model takes 6 to 16 digits and Tanzania's takes 10 to 14, so the generic example is
+  // genuinely valid for both — their entries exist to reject a non-numeric value, not to replace a
+  // wrong example.
+  const COUNTRIES_WHOSE_MODEL_ACCEPTS_THE_GENERIC_EXAMPLE = ["OM", "TZ"];
   const COUNTRIES_THE_GENERIC_EXAMPLE_IS_WRONG_FOR = Object.entries(COUNTRY_ACCOUNT_NUMBER_HINTS).filter(
-    ([countryCode]) => countryCode !== "OM",
+    ([countryCode]) => !COUNTRIES_WHOSE_MODEL_ACCEPTS_THE_GENERIC_EXAMPLE.includes(countryCode),
   );
 
   it("rejects the generic example for every country whose model would reject it", () => {
@@ -42,9 +45,23 @@ describe("accountNumberFormatError", () => {
     }
   });
 
-  it("accepts the generic example for Oman, whose model does allow it", () => {
+  it("accepts the generic example for Oman and Tanzania, whose models do allow it", () => {
     expect(accountNumberFormatError("OM", "1234567890")).toBeNull();
     expect(accountNumberFormatError("OM", "OM810180000001299123456")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.OM?.title);
+    expect(accountNumberFormatError("TZ", "1234567890")).toBeNull();
+  });
+
+  it("rejects a Tanzania account number that carries a letter or the wrong length", () => {
+    expect(accountNumberFormatError("TZ", "0001234567ABCD")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.TZ?.title);
+    expect(accountNumberFormatError("TZ", "ABC12345678")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.TZ?.title);
+    expect(accountNumberFormatError("TZ", "000012345678901")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.TZ?.title);
+  });
+
+  it("rejects an Ethiopia account number that carries a letter or the wrong length", () => {
+    expect(accountNumberFormatError("ET", "0001234567ABCD")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.ET?.title);
+    expect(accountNumberFormatError("ET", "ET00000012345678")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.ET?.title);
+    expect(accountNumberFormatError("ET", "000000001234")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.ET?.title);
+    expect(accountNumberFormatError("ET", "00000000123456789")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.ET?.title);
   });
 
   // These numbers are valid today: UpdatePayoutMethod strips the separators before it validates,
@@ -55,6 +72,8 @@ describe("accountNumberFormatError", () => {
     ["MX", "0321 8000 0118 3597 19"],
     ["AR", "0110 0006 0000 0000 0000 00"],
     ["MZ", "0012 3456 7890 1234 5678 9"],
+    ["TZ", "0123 4567 89"],
+    ["ET", "0000 0000 1234 5"],
   ])("accepts %s's number written with the separators its bank prints", (countryCode, accountNumber) => {
     expect(accountNumberFormatError(countryCode, accountNumber)).toBeNull();
   });
@@ -64,6 +83,16 @@ describe("accountNumberFormatError", () => {
     expect(accountNumberFormatError("MZ", "00123456789012345678")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.MZ?.title);
     // Qatar's IBAN with its last character dropped, the shape a truncating length cap would produce.
     expect(accountNumberFormatError("QA", "QA87CITI12345678901234567890")).toBe(COUNTRY_ACCOUNT_NUMBER_HINTS.QA?.title);
+  });
+
+  it("refuses every IBAN-box example submitted as the seller's own IBAN", () => {
+    for (const [countryCode, example] of Object.entries(COUNTRY_IBAN_PLACEHOLDERS)) {
+      expect(accountNumberFormatError(countryCode, example)).toMatch(/only an example/u);
+      expect(accountNumberFormatError(countryCode, example.toLowerCase().replace(/(.{4})/gu, "$1 "))).toMatch(
+        /only an example/u,
+      );
+    }
+    expect(accountNumberFormatError("DE", "DE62370400440532013001")).toBeNull();
   });
 
   it("defers to the server for countries with no format on record", () => {

@@ -68,6 +68,9 @@ class Checkout::PaymentMethodResolver
   # Brazilian buyers on BRL PaymentIntents only — Pix settles over Brazil's domestic instant-payment
   # rails, so the buyer needs an account at a Brazilian bank. Unknown GeoIP fails safe.
   BR_LOCKED_PAYMENT_METHOD_TYPES = %w[pix].freeze
+  # Withheld from buyers GeoIP places outside the eurozone. Offering one mounts the whole Element in
+  # EUR, so card and Link are billed in EUR too, a currency the product page never showed them.
+  EUR_LOCKED_PAYMENT_METHOD_TYPES = %w[ideal bancontact].freeze
   PIX_PAYMENT_METHOD_TYPE = "pix"
   # Stripe's Pix transaction window: at least 0.50 BRL, at most 3,000 USD per payment
   # (https://docs.stripe.com/payments/pix#transaction-limits). Each bound stays in the currency
@@ -109,6 +112,12 @@ class Checkout::PaymentMethodResolver
   # not re-append a method the resolver correctly dropped.
   def self.klarna_supported_merchant_account?(seller)
     us_based_merchant_account?(seller)
+  end
+
+  # Seller-complete keying: one seller's opt-out must not remove Link from another seller's buyers.
+  # Class-level because Checkout::StripePaymentPresenter gates the element's Link on the same rule.
+  def self.link_disabled_for?(sellers)
+    sellers.present? && sellers.all? { _1.present? && _1.link_disabled? }
   end
 
   # Same US-account rule as Klarna's, for a different reason: Stripe ties each Alipay presentment
@@ -216,17 +225,21 @@ class Checkout::PaymentMethodResolver
     # needs to know about capabilities, or capabilities about policy.
     def launched_method_set(eligible)
       launched = eligible & LAUNCHED_PAYMENT_METHOD_TYPES
+      # Sellers can switch Link off from checkout settings (the "save my information" block under
+      # the card fields is part of Link). Whole-cart only, for the same reason as the presenter's
+      # other seller-complete flags: one seller opting out must not change another's checkout.
+      launched -= [LINK_PAYMENT_METHOD_TYPE] if link_disabled?
       launched += seller_opt_in_methods(eligible)
-      forced = forced_currency_methods(eligible)
+      # Region-gate forced methods before the Klarna/Alipay check: one this buyer cannot see does
+      # not force a non-USD mount, so it must not withhold the USD-lane methods either.
+      forced = without_region_locked(forced_currency_methods(eligible))
       launched += forced
       # Klarna and Alipay never join a forced-currency element mount: a surviving forced-currency
       # method means the Element and the deferred intent are in EUR/INR, but both gates below vet
       # only for the canonical-USD lane, so the two surfaces stay mutually exclusive.
       launched += klarna_methods(eligible) if forced.empty?
       launched += alipay_methods(eligible) if forced.empty?
-      launched -= US_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == US_ALPHA2
-      launched -= IN_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == IN_ALPHA2
-      launched -= BR_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == BR_ALPHA2
+      launched = without_region_locked(launched)
       launched = ppp_method_matrix(launched) if ppp_discounted
       launched & account_supported_methods(launched)
     end
@@ -237,6 +250,25 @@ class Checkout::PaymentMethodResolver
       return [] unless sellers.one? && sellers.first&.ach_payments_enabled?
 
       eligible & SELLER_OPT_IN_PAYMENT_METHOD_TYPES
+    end
+
+    def without_region_locked(methods)
+      methods -= US_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == US_ALPHA2
+      methods -= IN_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == IN_ALPHA2
+      methods -= BR_LOCKED_PAYMENT_METHOD_TYPES unless buyer_country == BR_ALPHA2
+      methods -= EUR_LOCKED_PAYMENT_METHOD_TYPES unless eur_locked_methods_allowed?
+      methods
+    end
+
+    # Unlike the other locks, an unknown GeoIP keeps these: that buyer is shown the EUR listing as-is,
+    # so the EUR Element charges the price they saw.
+    def eur_locked_methods_allowed?
+      buyer_country.blank? || ISO3166::Country[buyer_country]&.currency_code == Currency::EUR.upcase
+    end
+
+    # Seller-complete keying: one seller's opt-out must not remove Link from another seller's buyers.
+    def link_disabled?
+      self.class.link_disabled_for?(sellers)
     end
 
     # No Stripe-test-mode bypass, unlike the forced-currency methods: the flag is the QA switch too

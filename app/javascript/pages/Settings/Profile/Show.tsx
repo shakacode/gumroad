@@ -1,6 +1,6 @@
 import { FontFamily } from "@boxicons/react";
 import { Link, router, usePage } from "@inertiajs/react";
-import { isEqual } from "lodash-es";
+import { capitalize, isEqual } from "lodash-es";
 import * as React from "react";
 import typia from "typia";
 
@@ -61,6 +61,32 @@ const FONT_DESCRIPTIONS: Record<string, string> = {
   "Roboto Mono": "Technical and monospace",
 };
 
+// Shortcuts for the two color pickers. A preset is selected while both pickers match it.
+// "Default" mirrors the SellerProfile after_initialize defaults.
+const COLOR_PRESETS = [
+  { name: "Default", background_color: "#ffffff", highlight_color: "#ff90e8" },
+  { name: "Black and white", background_color: "#ffffff", highlight_color: "#000000" },
+  { name: "Dark", background_color: "#000000", highlight_color: "#ffffff" },
+];
+
+// Keys are the values SellerProfile stores. "none" reads as "no corners" under a Corners title.
+const BORDER_RADIUS_LABELS: Record<string, string> = { none: "Square" };
+
+// Arrow keys move focus and selection through a group of role="radio" buttons, wrapping at the
+// ends. Pair with a roving tabIndex so the group is a single tab stop.
+const RADIO_ARROW_STEPS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+const selectAdjacentRadio = (event: React.KeyboardEvent<HTMLElement>) => {
+  const step = RADIO_ARROW_STEPS[event.key];
+  if (step === undefined) return;
+  const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]:not(:disabled)")];
+  const index = radios.findIndex((radio) => radio === event.target);
+  if (index === -1) return;
+  event.preventDefault();
+  const next = radios[(index + step + radios.length) % radios.length];
+  next?.focus();
+  next?.click();
+};
+
 type ProfilePageProps = {
   profile_settings: ProfileSettingsForm;
   editable_profile: ProfileEditorProps;
@@ -68,6 +94,7 @@ type ProfilePageProps = {
   custom_html_pages_enabled: boolean;
   has_custom_landing_page: boolean;
   seller_fonts_css_source: string;
+  theme_options: { border_radii: Record<string, string>; button_hover_offsets: Record<string, string> };
   username: string;
   email_confirmation?: EmailConfirmation | null;
 } & ProfileProps;
@@ -81,6 +108,7 @@ export default function SettingsPage() {
     custom_html_pages_enabled,
     has_custom_landing_page,
     seller_fonts_css_source,
+    theme_options,
     username,
     email_confirmation,
   } = typia.assert<ProfilePageProps>(usePage().props);
@@ -252,6 +280,15 @@ export default function SettingsPage() {
   // Pin the chosen background too: #ffffff is a saved theme value, not an instruction to inherit
   // the dashboard's colour scheme. The preview must match the buyer-facing stylesheet.
   const profileColors = profileThemeColors(profileSettings.background_color, profileSettings.highlight_color);
+  // --radius-sm is derived from --radius on :root, so the preview has to restate it.
+  const previewRadius = theme_options.border_radii[profileSettings.border_radius];
+  const previewHoverOffset = theme_options.button_hover_offsets[profileSettings.button_hover];
+  // Stored six-digit colors keep the case they were saved with; only shorthand is lowercased.
+  const selectedColorPreset = COLOR_PRESETS.find(
+    (preset) =>
+      preset.background_color === profileSettings.background_color.toLowerCase() &&
+      preset.highlight_color === profileSettings.highlight_color.toLowerCase(),
+  );
 
   const customLandingPageActive = custom_html_pages_enabled && has_custom_landing_page;
   const showPagesTab = !customLandingPageActive;
@@ -327,6 +364,8 @@ export default function SettingsPage() {
             style={{
               fontFamily: profileSettings.font === DEFAULT_PROFILE_FONT ? undefined : profileSettings.font,
               ...profileColors,
+              ...(previewRadius !== undefined ? { "--radius": previewRadius, "--radius-sm": previewRadius } : {}),
+              ...(previewHoverOffset !== undefined ? { "--button-hover-offset": previewHoverOffset } : {}),
               "--primary": "var(--color)",
               "--body-bg": "rgb(var(--filled))",
               "--contrast-filled": "var(--color)",
@@ -508,26 +547,109 @@ export default function SettingsPage() {
                   })}
                 </div>
               </Fieldset>
-              <div className="grid w-fit grid-cols-[max-content_max-content] gap-y-4">
-                <Label className="col-span-2 grid! grid-cols-subgrid items-center" htmlFor={`${uid}-backgroundColor`}>
-                  Background color
-                  <ColorPicker
-                    id={`${uid}-backgroundColor`}
-                    value={profileSettings.background_color}
-                    onChange={(evt) => updateProfileSettings({ background_color: evt.target.value })}
-                    disabled={!canUpdate}
-                  />
-                </Label>
-                <Label className="col-span-2 grid! grid-cols-subgrid items-center" htmlFor={`${uid}-highlightColor`}>
-                  Highlight color
-                  <ColorPicker
-                    id={`${uid}-highlightColor`}
-                    value={profileSettings.highlight_color}
-                    onChange={(evt) => updateProfileSettings({ highlight_color: evt.target.value })}
-                    disabled={!canUpdate}
-                  />
-                </Label>
-              </div>
+              <Fieldset>
+                <FieldsetTitle>Colors</FieldsetTitle>
+                <div
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+                  role="radiogroup"
+                  aria-label="Color presets"
+                  onKeyDown={selectAdjacentRadio}
+                >
+                  {COLOR_PRESETS.map((preset, index) => {
+                    const isSelected = preset === selectedColorPreset;
+                    // Custom colors match no preset; the first one then takes the group's tab stop.
+                    const isTabStop = selectedColorPreset ? isSelected : index === 0;
+                    return (
+                      <Button
+                        role="radio"
+                        key={preset.name}
+                        aria-checked={isSelected}
+                        tabIndex={isTabStop ? 0 : -1}
+                        onClick={() =>
+                          updateProfileSettings({
+                            background_color: preset.background_color,
+                            highlight_color: preset.highlight_color,
+                          })
+                        }
+                        disabled={!canUpdate}
+                        className={classNames("justify-start!", isSelected && "border-accent! ring-1 ring-accent")}
+                      >
+                        <span
+                          aria-hidden
+                          className="size-5 shrink-0 rounded-full border border-border"
+                          style={{
+                            background: `linear-gradient(135deg, ${preset.background_color} 50%, ${preset.highlight_color} 50%)`,
+                          }}
+                        />
+                        {preset.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 grid w-fit grid-cols-[max-content_max-content] gap-y-4">
+                  <Label className="col-span-2 grid! grid-cols-subgrid items-center" htmlFor={`${uid}-backgroundColor`}>
+                    Background color
+                    <ColorPicker
+                      id={`${uid}-backgroundColor`}
+                      value={profileSettings.background_color}
+                      onChange={(evt) => updateProfileSettings({ background_color: evt.target.value })}
+                      disabled={!canUpdate}
+                    />
+                  </Label>
+                  <Label className="col-span-2 grid! grid-cols-subgrid items-center" htmlFor={`${uid}-highlightColor`}>
+                    Highlight color
+                    <ColorPicker
+                      id={`${uid}-highlightColor`}
+                      value={profileSettings.highlight_color}
+                      onChange={(evt) => updateProfileSettings({ highlight_color: evt.target.value })}
+                      disabled={!canUpdate}
+                    />
+                  </Label>
+                </div>
+              </Fieldset>
+              <Fieldset>
+                <FieldsetTitle>Corners</FieldsetTitle>
+                <div
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-4"
+                  role="radiogroup"
+                  aria-label="Corners"
+                  onKeyDown={selectAdjacentRadio}
+                >
+                  {Object.entries(theme_options.border_radii).map(([value, radius], index) => {
+                    const isSelected = value === profileSettings.border_radius;
+                    const isTabStop = previewRadius === undefined ? index === 0 : isSelected;
+                    return (
+                      <Button
+                        role="radio"
+                        key={value}
+                        aria-checked={isSelected}
+                        tabIndex={isTabStop ? 0 : -1}
+                        onClick={() => updateProfileSettings({ border_radius: value })}
+                        disabled={!canUpdate}
+                        className={classNames("justify-start!", isSelected && "border-accent! ring-1 ring-accent")}
+                      >
+                        <span
+                          aria-hidden
+                          className="size-5 shrink-0 border-t-2 border-l-2 border-current"
+                          style={{ borderTopLeftRadius: radius }}
+                        />
+                        {BORDER_RADIUS_LABELS[value] ?? capitalize(value)}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </Fieldset>
+              <Fieldset>
+                <ToggleSettingRow
+                  value={profileSettings.button_hover === "lift"}
+                  onChange={(value) => updateProfileSettings({ button_hover: value ? "lift" : "none" })}
+                  disabled={!canUpdate}
+                  label="Button hover effect"
+                />
+                <FieldsetDescription>
+                  Buttons lift and show a shadow when a visitor points at them. Turn this off for static buttons.
+                </FieldsetDescription>
+              </Fieldset>
             </section>
           ) : tab === "pages" && showPagesTab ? (
             <>

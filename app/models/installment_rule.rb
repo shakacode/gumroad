@@ -48,9 +48,15 @@ class InstallmentRule < ApplicationRecord
 
   ABANDONED_CART_DELAYED_DELIVERY_TIME_IN_SECONDS = 24.hours.to_i
 
+  # delayed_delivery_time is a 4-byte integer column, so a large creator-entered duration overflows it at bind time.
+  MAX_DELAY_SECONDS = (2**31) - 1
+  MAX_DELAY_YEARS = MAX_DELAY_SECONDS / 365.days.to_i
+  OVERFLOW_DELAY_MESSAGE = "Use a delay of #{MAX_DELAY_YEARS} years or less."
+
   validates_presence_of :installment, :version
   validate :to_be_published_at_cannot_be_in_the_past
   validate :to_be_published_at_must_exist_for_non_workflow_posts
+  validate :delayed_delivery_time_must_fit_the_column
 
   # A version change invalidates jobs that use old delivery or publication state.
   # The version starts at 1 although the schema default is 0. Jobs use version 0 when no rule exists.
@@ -196,6 +202,16 @@ class InstallmentRule < ApplicationRecord
 
     def delivery_date_changed?
       delayed_delivery_time_changed? || to_be_published_at_changed?
+    end
+
+    def delayed_delivery_time_must_fit_the_column
+      return if delayed_delivery_time.nil?
+
+      if delayed_delivery_time.negative?
+        errors.add(:delayed_delivery_time, "must not be negative")
+      elsif delayed_delivery_time > MAX_DELAY_SECONDS
+        errors.add(:base, OVERFLOW_DELAY_MESSAGE)
+      end
     end
 
     def to_be_published_at_must_exist_for_non_workflow_posts

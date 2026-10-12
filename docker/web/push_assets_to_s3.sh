@@ -9,14 +9,20 @@ logger() {
 }
 
 logger "Uploading public/vite to S3"
-aws s3 sync /app/public/vite s3://${ASSETS_S3_BUCKET}/vite --acl public-read --cache-control max-age=31536000,immutable
+# cp lists only this build's files and uploads them all, in a few seconds. vite/ keeps
+# every earlier build's hashed files, and a sync lists all of them first: about 65 s per
+# deploy. Nothing is deleted, so the previous release's files keep resolving during a
+# rolling deploy.
+aws s3 cp --recursive --only-show-errors /app/public/vite s3://${ASSETS_S3_BUCKET}/vite --exclude '.vite/*' --acl public-read --cache-control max-age=31536000,immutable
+# The manifests keep fixed names.
+aws s3 sync /app/public/vite/.vite s3://${ASSETS_S3_BUCKET}/vite/.vite --acl public-read --cache-control max-age=31536000,immutable
 logger "Done uploading public/vite to S3"
 
-logger "Uploading public/public-rsc to S3"
-aws s3 sync /app/public/public-rsc s3://${ASSETS_S3_BUCKET}/assets/public-rsc --acl public-read --cache-control max-age=31536000,immutable
-logger "Done uploading public/public-rsc to S3"
+logger "Uploading public RSC browser assets to S3"
+aws s3 cp --recursive --only-show-errors /app/public/public-rsc s3://${ASSETS_S3_BUCKET}/assets/public-rsc --exclude '*.map' --exclude '*manifest*.json' --acl public-read --cache-control max-age=31536000,immutable
 
 logger "Uploading public/js to S3"
+
 aws s3 sync /app/public/js s3://${ASSETS_S3_BUCKET}/js --acl public-read --cache-control max-age=300,public
 logger "Done uploading public/js to S3"
 

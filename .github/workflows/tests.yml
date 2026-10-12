@@ -4,15 +4,20 @@ on:
   push:
     branches:
       - "**"
+    # A deploy pushes production-<sha>/<date> and v<date>.<n> to a commit that
+    # already passed on main.
     tags-ignore:
-      - "production-*"
+      - "**"
   pull_request_target:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.ref }}
+  # One lane per main commit: a shared lane runs one commit at a time and lets
+  # a newer push replace a pending run, so a burst of merges queued every suite
+  # behind the last. A re-run of a commit stays in that commit's lane.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.ref }}${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request_target' || github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -20,26 +25,15 @@ jobs:
     name: CI Gate${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && ' (internal PR noop)' || '' }}
     runs-on: ubicloud-standard-2
     environment: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && 'ci-protected' || '' }}
-    steps:
-      - run: true
-
-  run_scope:
-    # Decides whether this run gets the full Fast/Slow suite or the trimmed
-    # test_relevant job. Full suite: every push to main (deploy gate), or a
-    # PR carrying the run-all-specs label. Push events have no PR payload,
-    # so the label is looked up via the commit's PRs.
-    #
-    # Fork PRs hit this job via pull_request_target (token is the base repo).
-    # No checkout here — only label lookup. Reuse of a prior Fast/Slow run
-    # lives in reuse_scope, which is main-push only.
-    name: Run scope
-    runs-on: ubicloud-standard-2
-    needs: ci_gate
-    if: ${{ github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository }}
+    # The one run-all-specs lookup of the run. The image build, run_scope and
+    # test_relevant_runner read it: two lookups could disagree when the label lands
+    # between them, and a skipped build would then skip the full suite while
+    # ci/green turned green.
     permissions:
       pull-requests: read
     outputs:
       full: ${{ steps.scope.outputs.full }}
+      base_sha: ${{ steps.base.outputs.sha }}
     steps:
       - id: scope
         env:
@@ -60,6 +54,37 @@ jobs:
           else
             echo "full=false" >> "$GITHUB_OUTPUT"
           fi
+      # One base commit for every test_relevant_runner shard: each selects its own
+      # specs, and Knapsack builds the queue from whichever shard's list comes first.
+      - id: base
+        if: steps.scope.outputs.full != 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::could not resolve main's commit"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  run_scope:
+    # Decides whether this run gets the full Fast/Slow suite or the trimmed
+    # test_relevant job. Full suite: every push to main (deploy gate), or a
+    # PR carrying the run-all-specs label. Push events have no PR payload,
+    # so the label is looked up via the commit's PRs.
+    #
+    # The label lookup itself runs in ci_gate, so the image build reads the same
+    # answer. Reuse of a prior Fast/Slow run lives in reuse_scope, which is
+    # main-push only.
+    name: Run scope
+    runs-on: ubicloud-standard-2
+    needs: ci_gate
+    if: ${{ github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository }}
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - id: scope
+        env:
+          FULL: ${{ needs.ci_gate.outputs.full }}
+        run: echo "full=$FULL" >> "$GITHUB_OUTPUT"
 
   reuse_scope:
     # Main-only. Asks whether this exact git tree already passed Fast+Slow on
@@ -98,17 +123,42 @@ jobs:
     needs: ci_gate
     if: ${{ github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository }}
     steps:
+      # Full history without file contents: bin/vitest-ci diffs the branch against
+      # its merge base with main.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
       - uses: actions/setup-node@v4
         with:
           node-version-file: package.json
           cache: npm
+      # Saved only by main pushes: a fork PR's pull_request_target run writes to the
+      # base branch's cache scope and must not be able to plant node_modules there.
+      - uses: actions/cache/restore@v4
+        id: node_modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'package-lock.json', '.npmrc', 'patches/**') }}
       - run: npm ci
+        if: steps.node_modules.outputs.cache-hit != 'true'
+      - uses: actions/cache/save@v4
+        if: steps.node_modules.outputs.cache-hit != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: node_modules
+          key: ${{ steps.node_modules.outputs.cache-primary-key }}
       - run: npm run lint-fast
-      - run: npm test
+      # Branch pushes run the tests related to their changes; main and fork PRs
+      # run the whole suite.
+      - name: Run vitest
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            ruby bin/vitest-ci origin/main
+          else
+            npm test
+          fi
         env:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
@@ -130,7 +180,66 @@ jobs:
         with:
           node-version-file: package.json
           cache: npm
+      - uses: actions/cache/restore@v4
+        id: node_modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'package-lock.json', '.npmrc', 'patches/**') }}
       - run: npm ci
+        if: steps.node_modules.outputs.cache-hit != 'true'
+      - uses: actions/cache/save@v4
+        if: steps.node_modules.outputs.cache-hit != 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          path: node_modules
+          key: ${{ steps.node_modules.outputs.cache-primary-key }}
+      # Builds and saves the test assets that test_relevant_runner restores. It runs
+      # on main, on the same runner type, because the build job's Vite cache lives
+      # with another runner provider. The key hashes that cache's inputs, with this
+      # file as the recipe, before js:export writes into app/javascript.
+      - name: Restore the runner test assets
+        id: test_assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            public/vite-test
+            public/public-rsc
+            ssr-generated
+            tmp/cache/vite
+            public/js/gumroad-bundle.js
+            public/js/gumroad-embed-bundle.js
+          key: >-
+            runner-test-assets-v3-${{ runner.os }}-${{ hashFiles(
+              'app/javascript/**', 'app/views/**',
+              'config/routes.rb', 'config/routes/**', 'config/domain.rb',
+              'config/application.rb', 'config/boot.rb', 'config/environment.rb',
+              'config/environments/**', 'config/redis.rb',
+              'lib/catch_bad_request_errors.rb', 'lib/utilities/global_config.rb',
+              'config/initializers/js-routes.rb', 'config/vite.json', 'config/vite/**',
+              'config/rspack/**', 'config/shakapacker.yml', 'config/initializers/react_on_rails*.rb',
+              'config/currencies.json', 'lib/json_schemas/**', 'lib/tasks/**', 'Rakefile',
+              'public/**', 'vendor/assets/**', 'patches/**', 'scripts/build_pages_tailwind.mjs',
+              'docker/base/**', 'docker/web/Dockerfile.test', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks',
+              'package.json', 'package-lock.json', '.npmrc', 'tsconfig.json',
+              'vite.config.ts', 'vite.config.widget.ts', 'postcss.config.js',
+              'Gemfile.lock', '.ruby-version') }}
+      # After the key above, which hashes public/** and app/javascript/**: these
+      # files would change it. The pages CSS is a fixed class list, so app code
+      # and views never change this key.
+      - name: Restore the runner pages CSS
+        id: pages_tailwind
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            public/pages-tailwind.css
+            public/pages-tailwind-manifest.json
+            public/assets/pages
+            app/javascript/stylesheets/pages_tailwind.generated.html
+          key: >-
+            runner-pages-tailwind-v1-${{ runner.os }}-${{ hashFiles(
+              'scripts/build_pages_tailwind.mjs', 'app/javascript/stylesheets/pages_tailwind.css',
+              'package.json', 'package-lock.json', 'patches/**', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks') }}
       # tsc needs the gitignored js:export output (app/javascript/utils/routes.*
       # and app/javascript/json_schemas/*). The export boots Rails off the
       # committed .env.test but tolerates every backing service being down, so
@@ -139,6 +248,56 @@ jobs:
         env:
           RAILS_ENV: test
       - run: npm run typecheck
+      # Downloads the files test_relevant_runner installs (bin/ci-test-packages), on
+      # the same runner type, so its shards download nothing.
+      - name: Restore the test packages
+        id: test_packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/test-packages
+          key: test-packages-v1-${{ runner.os }}-${{ hashFiles('bin/ci-test-packages') }}
+      # Best-effort: the shards download whatever the cache lacks, so a failed
+      # download must not fail main's checks.
+      - name: Download the test packages
+        id: download_test_packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test_packages.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: bin/ci-test-packages download ~/test-packages
+      - uses: actions/cache/save@v4
+        if: steps.download_test_packages.outcome == 'success'
+        with:
+          path: ~/test-packages
+          key: ${{ steps.test_packages.outputs.cache-primary-key }}
+      - name: Build the runner test assets
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (steps.test_assets.outputs.cache-hit != 'true' || steps.pages_tailwind.outputs.cache-hit != 'true')
+        # The pages CSS first, as in test_relevant_runner.
+        run: bundle exec rake $(bin/ci-test-asset-tasks)
+        env:
+          RAILS_ENV: test
+          NODE_ENV: test
+          PAGES_RESTORED: ${{ steps.pages_tailwind.outputs.cache-hit }}
+          VITE_RESTORED: ${{ steps.test_assets.outputs.cache-hit }}
+      - uses: actions/cache/save@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.pages_tailwind.outputs.cache-hit != 'true'
+        with:
+          path: |
+            public/pages-tailwind.css
+            public/pages-tailwind-manifest.json
+            public/assets/pages
+            app/javascript/stylesheets/pages_tailwind.generated.html
+          key: ${{ steps.pages_tailwind.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test_assets.outputs.cache-hit != 'true'
+        with:
+          path: |
+            public/vite-test
+            public/public-rsc
+            ssr-generated
+            tmp/cache/vite
+            public/js/gumroad-bundle.js
+            public/js/gumroad-embed-bundle.js
+          key: ${{ steps.test_assets.outputs.cache-primary-key }}
 
   lint_ruby:
     name: Lint Ruby
@@ -185,257 +344,50 @@ jobs:
       - name: Self-test the branch-specs selector
         run: ruby spec/bin/branch_specs_test.rb
 
+      - name: Self-test the Test Relevant shard count
+        run: ruby spec/bin/ci_test_relevant_shards_test.rb
+
+      - name: Self-test the main spec-failure classifier
+        run: ruby spec/bin/classify_main_spec_failure_test.rb
+
+      - name: Self-test the timeout re-run classifier
+        run: ruby spec/bin/classify_hung_checkout_test.rb
+
+      - name: Self-test the deploy-before-main-suite gate
+        run: ruby spec/bin/deploy_before_main_suite_gate_test.rb
+
+      - name: Self-test the Buildkite unblock script
+        run: ruby spec/bin/unblock_buildkite_deploy_test.rb
+
       # Hosted here so a reuse-only PR cannot ship on the user_spec.rb floor.
       - name: Self-test reuse-full-suite
         run: bash script/test-reuse-full-suite
 
+      - name: Self-test the revert decision for red main deploys
+        run: ruby spec/bin/revert_red_main_decision_test.rb
+
+      - name: Self-test the vitest selection for branches
+        run: ruby spec/bin/vitest_ci_test.rb
+
+      - name: Self-test the main asset cache save step
+        run: bash .buildkite/scripts/main_asset_cache_save_test.sh
+
+      - name: Self-test serving production assets from the main asset cache
+        run: bash .buildkite/scripts/main_asset_cache_compile_test.sh
+      - name: Self-test the web pre-scale step
+        run: bash .buildkite/scripts/prescale_web_clusters_test.sh
+
+  # Branch pushes build the test image in the Prebuild test image workflow, after
+  # this one, so ci/green does not wait for it. A branch run builds it here only
+  # when its own full-suite jobs use it.
   build:
     name: Build images${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && ' (internal PR noop)' || '' }}
-    runs-on: blacksmith-8vcpu-ubuntu-2204
     needs: ci_gate
-    if: ${{ github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository }}
-    env:
-      DOCKER_BUILDKIT: 1
-    outputs:
-      test_image_tag: ${{ steps.test_image_tag.outputs.tag }}
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        timeout-minutes: 5
-        with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - name: Login to Docker Hub
-        uses: nick-fields/retry@v3
-        with:
-          timeout_seconds: 120
-          max_attempts: 3
-          retry_wait_seconds: 10
-          command: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Build and push base image
-        env:
-          WEB_BASE_REPO: antiwork/gumroad-web_base
-        run: |
-          set -e
-          GREEN='\033[0;32m'
-          NC='\033[0m'
-          logger() {
-            echo -e "${GREEN}$(date '+%Y/%m/%d %H:%M:%S') build.sh: $1${NC}"
-          }
-          logger "pulling ruby:$(cat .ruby-version)-slim-bookworm"
-          docker pull --quiet ruby:$(cat .ruby-version)-slim-bookworm
-          WEB_BASE_SHA=$(WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm docker/base/generate_tag_for_web_base.sh)
-          if ! docker manifest inspect $WEB_BASE_REPO:$WEB_BASE_SHA > /dev/null 2>&1; then
-            logger "Building $WEB_BASE_REPO:$WEB_BASE_SHA"
-            NEW_BASE_REPO=$WEB_BASE_REPO \
-              WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm \
-              BUNDLE_GEMS__CONTRIBSYS__COM=${{ secrets.BUNDLE_GEMS__CONTRIBSYS__COM }} \
-              make build_base
-
-            logger "Pushing $WEB_BASE_REPO:$WEB_BASE_SHA"
-            for i in {1..3}; do
-              logger "Push attempt $i"
-              if docker push --quiet $WEB_BASE_REPO:$WEB_BASE_SHA; then
-                logger "Pushed $WEB_BASE_REPO:$WEB_BASE_SHA"
-                break
-              elif [ $i -eq 3 ]; then
-                logger "Failed to push $WEB_BASE_REPO:$WEB_BASE_SHA"
-                exit 1
-              else
-                sleep 5
-              fi
-            done
-          else
-            logger "$WEB_BASE_REPO:$WEB_BASE_SHA already exists"
-          fi
-      - name: Compute content-addressed test image tag
-        id: test_image_tag
-        env:
-          WEB_BASE_REPO: antiwork/gumroad-web_base
-        run: |
-          set -e
-          # Resolve the base test SHA (used as a hash input).
-          WEB_BASE_TEST_SHA=$(WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm docker/base/generate_tag_for_web_base_test.sh)
-          TAG=test-$(BASE_TEST_SHA=$WEB_BASE_TEST_SHA docker/base/generate_tag_for_test_image.sh)
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Computed test image tag: $TAG"
-      - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@v1
-        with:
-          max-cache-size-mb: "204800"
-      - name: Restore asset precompile cache
-        id: asset_cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/asset-cache
-          key: asset-precompile-${{ hashFiles('app/assets/**', 'app/javascript/**', 'config/rspack/**', 'config/shakapacker.yml', 'Gemfile.lock', 'package-lock.json', '.ruby-version') }}
-          restore-keys: |
-            asset-precompile-
-      - name: Build and push test image
-        env:
-          WEB_BASE_REPO: antiwork/gumroad-web_base
-          WEB_BASE_TEST_REPO: antiwork/gumroad-web_base_test
-          WEB_REPO: antiwork/gumroad-web
-          TEST_IMAGE_TAG: ${{ steps.test_image_tag.outputs.tag }}
-          ASSET_CACHE_HIT: ${{ steps.asset_cache.outputs.cache-hit }}
-        run: |
-          set -e
-          GREEN='\033[0;32m'
-          NC='\033[0m'
-          logger() {
-            echo -e "${GREEN}$(date '+%Y/%m/%d %H:%M:%S') build.sh: $1${NC}"
-          }
-          docker pull --quiet ruby:$(cat .ruby-version)-slim-bookworm
-          WEB_BASE_TEST_SHA=$(WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm docker/base/generate_tag_for_web_base_test.sh)
-
-          # Check if both images already exist (content-addressed cache hit).
-          BASE_TEST_EXISTS=false
-          TEST_EXISTS=false
-          docker manifest inspect $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA > /dev/null 2>&1 && BASE_TEST_EXISTS=true
-          docker manifest inspect $WEB_REPO:$TEST_IMAGE_TAG > /dev/null 2>&1 && TEST_EXISTS=true
-
-          if [ "$TEST_EXISTS" = "true" ]; then
-            logger "$WEB_REPO:$TEST_IMAGE_TAG already exists — nothing to build"
-          else
-            # Build web_base_test if needed
-            if [ "$BASE_TEST_EXISTS" = "false" ]; then
-              logger "building $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA"
-              NEW_BASE_REPO=$WEB_BASE_REPO NEW_WEB_BASE_TEST_REPO=$WEB_BASE_TEST_REPO \
-                WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm \
-                make build_base_test
-              logger "pushing $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA"
-              for i in {1..3}; do
-                if docker push --quiet $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA; then
-                  logger "Pushed $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA"; break
-                elif [ $i -eq 3 ]; then exit 1; else sleep 5; fi
-              done
-            else
-              logger "$WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA already exists"
-            fi
-
-            # Build test image. Blacksmith's setup-docker-builder provides a
-            # sticky-disk-backed BuildKit builder that persists the layer cache
-            # across runs automatically — no explicit --cache-from/--cache-to needed.
-            logger "building $WEB_REPO:$TEST_IMAGE_TAG"
-            WEB_BASE_SHA=$(WEB_BASE_DOCKERFILE_FROM=ruby:$(cat .ruby-version)-slim-bookworm docker/base/generate_tag_for_web_base.sh)
-            # Pull the FROM images that the multi-stage Dockerfile needs.
-            docker pull --quiet $WEB_BASE_REPO:$WEB_BASE_SHA &
-            docker pull --quiet $WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA &
-            wait
-            WEB_DOCKERFILE_FROM=$WEB_BASE_REPO:$WEB_BASE_SHA \
-              WEB_BASE_TEST_DOCKERFILE_FROM=$WEB_BASE_TEST_REPO:$WEB_BASE_TEST_SHA \
-            docker buildx build \
-              --load \
-              --build-arg WEB_DOCKERFILE_FROM \
-              --build-arg WEB_BASE_TEST_DOCKERFILE_FROM \
-              --build-arg BUILDKIT_INLINE_CACHE=1 \
-              --file docker/web/Dockerfile.test \
-              -t $WEB_REPO:test-${TEST_IMAGE_TAG#test-} \
-              .
-            docker tag $WEB_REPO:test-${TEST_IMAGE_TAG#test-} $WEB_REPO:$TEST_IMAGE_TAG
-
-            # Run asset precompile + docker commit (Makefile's post-build steps).
-            # Volume-mount cached precompile artifacts so Sprockets/Shakapacker
-            # can skip recompiling unchanged assets (~4 min → ~30s on cache hit).
-            COMPOSE_PROJECT_NAME=web_${{ github.run_id }}_${{ github.run_attempt }} \
-              docker compose -f docker/docker-compose-test-and-ci.yml up -d db_test redis elasticsearch
-            docker run --rm --entrypoint="" \
-              --network web_${{ github.run_id }}_${{ github.run_attempt }}_default \
-              $WEB_REPO:$TEST_IMAGE_TAG \
-              docker/ci/wait_on_connection.sh db_test 3306
-
-            # Prepare cached asset precompile artifacts.
-            # Copy cached outputs into the container BEFORE running precompile
-            # so Sprockets/Shakapacker can skip recompiling unchanged assets.
-            # (Volume mounts won't work — docker commit ignores mounted paths.)
-            ASSET_MOUNTS=""
-            if [ "$ASSET_CACHE_HIT" = "true" ] || [ -d /tmp/asset-cache/public_assets ]; then
-              logger "Restoring cached asset precompile artifacts"
-              ASSET_MOUNTS="-v /tmp/asset-cache:/tmp/asset-cache:ro"
-            else
-              logger "No asset cache found — full precompile will run"
-            fi
-
-            # shellcheck disable=SC2086
-            docker run \
-              --network web_${{ github.run_id }}_${{ github.run_attempt }}_default \
-              --entrypoint="" \
-              --shm-size="2g" \
-              --memory-swappiness="0" \
-              -e RAILS_ENV="test" \
-              $ASSET_MOUNTS \
-              --label routes_compiled=true \
-              --name worker_web_${{ github.run_id }}_${{ github.run_attempt }} \
-              $WEB_REPO:$TEST_IMAGE_TAG \
-              bash -c '
-                # Restore cached assets if available (before precompile).
-                if [ -d /tmp/asset-cache/public_assets ]; then
-                  echo "Copying cached assets into container..."
-                  cp -a /tmp/asset-cache/public_assets /app/public/assets 2>/dev/null || true
-                  cp -a /tmp/asset-cache/public_packs_test /app/public/packs-test 2>/dev/null || true
-                  mkdir -p /app/tmp/cache
-                  cp -a /tmp/asset-cache/tmp_cache_assets /app/tmp/cache/assets 2>/dev/null || true
-                  cp -a /tmp/asset-cache/tmp_shakapacker /app/tmp/shakapacker 2>/dev/null || true
-                  chown -R app:app /app/public/assets /app/public/packs-test /app/tmp/cache /app/tmp/shakapacker 2>/dev/null || true
-                fi
-                su -c "npm run setup && bundle exec rake db:setup assets:precompile --trace" app
-              '
-
-            # Extract updated asset artifacts for next run's cache.
-            logger "Saving asset precompile artifacts to cache"
-            CONTAINER=worker_web_${{ github.run_id }}_${{ github.run_attempt }}
-            mkdir -p /tmp/asset-cache
-            for dir_pair in \
-              "public/assets:public_assets" \
-              "public/packs-test:public_packs_test" \
-              "tmp/cache/assets:tmp_cache_assets" \
-              "tmp/shakapacker:tmp_shakapacker"; do
-              src="${dir_pair%%:*}"
-              dst="${dir_pair##*:}"
-              rm -rf "/tmp/asset-cache/$dst"
-              docker cp "$CONTAINER:/app/$src" "/tmp/asset-cache/$dst" 2>/dev/null || true
-            done
-
-            # Bake the prepared test database into the image. The db:setup
-            # above left a fully prepared gumroad_test in this stack's MySQL;
-            # snapshotting it here lets every test shard restore the dump in
-            # seconds instead of re-running db:prepare from scratch (see
-            # docker/ci/dump_test_db.sh and docker/ci/restore_test_db.sh).
-            # Non-fatal: if the dump fails, shards detect the missing file
-            # and fall back to rake db:prepare.
-            logger "Baking prepared test database dump into the image"
-            if docker/ci/dump_test_db.sh web_${{ github.run_id }}_${{ github.run_attempt }}_default /tmp/prepared_test_db.sql.gz \
-               && docker cp /tmp/prepared_test_db.sql.gz $CONTAINER:/app/db/prepared_test_db.sql.gz; then
-              logger "Test database dump baked into image"
-            else
-              logger "Test database dump/copy failed (non-fatal) — shards will fall back to db:prepare"
-            fi
-
-            docker ps -lq \
-              --filter='label=routes_compiled=true' \
-              --filter='exited=0' \
-              --filter="name=worker_web_${{ github.run_id }}_${{ github.run_attempt }}" \
-              | xargs -I{} docker commit {} $WEB_REPO:$TEST_IMAGE_TAG
-            COMPOSE_PROJECT_NAME=web_${{ github.run_id }}_${{ github.run_attempt }} \
-              docker compose -f docker/docker-compose-test-and-ci.yml down
-
-            # Push the final image to Docker Hub.
-            logger "pushing $WEB_REPO:$TEST_IMAGE_TAG"
-            for i in {1..3}; do
-              if docker push --quiet $WEB_REPO:$TEST_IMAGE_TAG; then
-                logger "Pushed $WEB_REPO:$TEST_IMAGE_TAG"; break
-              elif [ $i -eq 3 ]; then exit 1; else sleep 5; fi
-            done
-
-            # Update floating test-cache tag.
-            docker tag $WEB_REPO:$TEST_IMAGE_TAG $WEB_REPO:test-cache
-            docker push --quiet $WEB_REPO:test-cache 2>/dev/null \
-              && logger "Pushed $WEB_REPO:test-cache" \
-              || logger "Failed to push test-cache (non-fatal)"
-          fi
+    if: |
+      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository) &&
+      (github.event_name != 'push' || github.ref == 'refs/heads/main' || needs.ci_gate.outputs.full == 'true')
+    uses: ./.github/workflows/build-test-image.yml
+    secrets: inherit
 
   test_minitest:
     name: Test Minitest ${{ matrix.ci_node_index }}${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && ' (internal PR noop)' || '' }}
@@ -446,77 +398,45 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ci_node_total: [2]
-        ci_node_index: [0, 1]
-
-    # Service images are pulled before any step can `docker login`, so each
-    # service carries credentials — anonymous pulls share the runner IP's
-    # 10-pulls/hour budget.
-    services:
-      mysql:
-        image: mysql:8.0.32
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: gumroad_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost -uroot -ppassword"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-      redis:
-        image: redis:7
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        ports:
-          - 6379:6379
-      stripe_mock:
-        image: stripemock/stripe-mock:latest
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        ports:
-          - 12111:12111
-          - 12112:12112
-      # DynamoDB Local for the email engagement store: the test env reads and
-      # dual-writes it unconditionally. Default image command works; port
-      # matches .env.test's localhost:8002.
-      dynamodb:
-        image: amazon/dynamodb-local:3.3.1
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        ports:
-          - 8002:8000
-      # Elasticsearch for the handful of ported tests that index records and query
-      # them back (product search, page-view analytics). Matches the version and
-      # heap the RSpec docker-compose stack uses. Most Minitest tests never touch
-      # it — test_helper stubs the ES client by default and tests opt into this real
-      # cluster via Thread.current[:minitest_real_es] (see RealElasticsearchBridge).
-      elasticsearch:
-        image: elasticsearch:7.9.3
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        env:
-          discovery.type: single-node
-          ES_JAVA_OPTS: -Xms512m -Xmx512m
-        ports:
-          - 9200:9200
-      # MinIO (S3-compatible object storage) is started as a step below rather than
-      # a service: the official quay.io/minio/minio image needs a `server /data` command
-      # that GitHub Actions service containers can't supply.
+        ci_node_total: [8]
+        ci_node_index: [0, 1, 2, 3, 4, 5, 6, 7]
 
     env:
       RAILS_ENV: test
       BUNDLE_GEMS__CONTRIBSYS__COM: ${{ secrets.BUNDLE_GEMS__CONTRIBSYS__COM }}
 
     steps:
+      # Before checkout, so no branch or fork code runs while the Docker Hub login
+      # exists. GitHub service containers cannot pass mysqld flags, and these skip
+      # the disk syncs the tests do not need; the default collation stays. MySQL
+      # and Elasticsearch finish starting while the steps below run.
+      - name: Start services
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 10
+          done
+          docker run -d --name mysql -p 3306:3306 --tmpfs /var/lib/mysql:size=1G \
+            -e MYSQL_ROOT_PASSWORD=password -e MYSQL_DATABASE=gumroad_test mysql:8.4.11 \
+            --innodb-flush-log-at-trx-commit=0 --innodb-doublewrite=0 --sync-binlog=0 \
+            --innodb-flush-method=nosync --skip-log-bin &
+          docker run -d --name redis -p 6379:6379 redis:7 &
+          docker run -d --name stripe_mock -p 12111:12111 -p 12112:12112 stripemock/stripe-mock:latest &
+          docker run -d --name dynamodb -p 8002:8000 amazon/dynamodb-local:3.3.1 &
+          docker run -d --name elasticsearch -p 9200:9200 -e discovery.type=single-node \
+            -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" elasticsearch:7.9.3 &
+          docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1 server /data --console-address ":9001" &
+          status=0
+          for job in $(jobs -p); do wait "$job" || status=1; done
+          docker logout
+          exit "$status"
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
@@ -527,34 +447,30 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Prepare test database
+      # Over TCP: during its first start, MySQL answers on the socket before it
+      # listens on the port.
+      - name: Wait for MySQL
+        run: |
+          for _ in $(seq 1 60); do
+            docker exec mysql mysql --protocol=tcp -h127.0.0.1 -uroot -ppassword -e "SELECT 1" > /dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs mysql | tail -20
+          echo "MySQL did not become ready"
+          exit 1
+
+      - name: Prepare test database and assets
         run: bundle exec rake db:prepare
 
-      # The MinIO steps below `docker run` two Hub images; log in first so the
-      # pulls count against the paid org instead of the runner IP.
-      - name: Login to Docker Hub
-        uses: nick-fields/retry@v3
-        with:
-          timeout_seconds: 120
-          max_attempts: 3
-          retry_wait_seconds: 10
-          command: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Start MinIO (S3-compatible object storage)
+      - name: Set up MinIO buckets
         run: |
-          docker run -d --name minio -p 9000:9000 -p 9001:9001 \
-            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z server /data --console-address ":9001"
           for i in $(seq 1 30); do curl -fsS http://localhost:9000/minio/health/ready >/dev/null 2>&1 && break; sleep 2; done
           curl -fsS http://localhost:9000/minio/health/ready || { echo "MinIO did not become ready"; exit 1; }
           # Provision the buckets the app's :test storage service expects (see
           # config/storage.yml). This mirrors the `createbuckets` service in
           # docker/docker-compose-test-and-ci.yml so the two CI lanes behave the same:
-          # the mc release is pinned to the same version (an unpinned :latest can change
-          # CLI behavior and break this job with no code change), and both buckets get the
+          # mc runs from the same digest-pinned image, which bundles it (an unpinned :latest
+          # can change CLI behavior and break this job with no code change), and both buckets get the
           # public read policy and versioning the compose stack sets. The :test service is
           # declared `public: true`, so without `anonymous set public` any future test that
           # fetches blob.url over plain HTTP would 403 here while passing locally.
@@ -562,7 +478,7 @@ jobs:
           # `mc anonymous set` and `mc version enable` each take exactly ONE bucket — passing
           # two makes mc print its usage text and exit 1 — so they run per bucket in a loop.
           # (`mc mb` does accept several.)
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z -c "
+          docker run --rm --network host --entrypoint /bin/sh cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1 -c "
             set -e
             mc alias set local http://localhost:9000 minioadmin minioadmin
             mc mb --ignore-existing local/gumroad-specs local/gumroad-invoices
@@ -577,16 +493,11 @@ jobs:
           curl -fsS http://localhost:9200/_cluster/health || { echo "Elasticsearch did not become ready"; exit 1; }
 
       - name: Run Minitest
-        run: |
-          FILES=$(bin/minitest-shard "$CI_NODE_INDEX" "$CI_NODE_TOTAL")
-          echo "Shard $CI_NODE_INDEX of $CI_NODE_TOTAL — $(echo "$FILES" | wc -w) files:"
-          echo "$FILES" | tr ' ' '\n' | sed 's/^/  /'
-          bundle exec rails test $FILES
+        run: bundle exec rails test
         env:
           RUBY_YJIT_ENABLE: 1
           CI: true
-          CI_NODE_INDEX: ${{ matrix.ci_node_index }}
-          CI_NODE_TOTAL: ${{ matrix.ci_node_total }}
+          MINITEST_SHARD: ${{ matrix.ci_node_index }}/${{ matrix.ci_node_total }}
 
   test_fast:
     name: Test Fast ${{ matrix.ci_node_index }}${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && ' (internal PR noop)' || '' }}
@@ -606,7 +517,10 @@ jobs:
       needs.run_scope.outputs.full == 'true' &&
       needs.reuse_scope.outputs.reuse != 'true'
     strategy:
-      fail-fast: true
+      # Not on main: Knapsack hands a cancelled shard's unrun tests to nobody, so
+      # a re-run of a fail-fast cancel passes with 0 examples. Main runs must
+      # finish every shard for rerun-main-spec-failure.yml to retry safely.
+      fail-fast: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
       matrix:
         ci_node_total: [18]
         ci_node_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
@@ -945,11 +859,11 @@ jobs:
     # no Docker login, so untrusted code can never sit in front of a
     # credential-bearing step (a $GITHUB_PATH write here can't reach
     # test_relevant — PATH edits don't cross jobs). The list crosses over as
-    # a plain data output.
+    # a plain data output. Fork PRs only: test_relevant_runner selects its own.
     name: Compute relevant specs
     runs-on: ubicloud-standard-2
     needs: run_scope
-    if: ${{ needs.run_scope.outputs.full != 'true' && (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository) }}
+    if: ${{ needs.run_scope.outputs.full != 'true' && github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository }}
     outputs:
       files_csv: ${{ steps.specs.outputs.files_csv }}
     steps:
@@ -1002,11 +916,12 @@ jobs:
       WEB_REPO: antiwork/gumroad-web
     runs-on: ubicloud-standard-4
     needs: [build, run_scope, relevant_specs]
-    # Branch/PR counterpart of test_fast/test_slow: the same docker setup and
+    # Fork PR counterpart of test_fast/test_slow: the same docker setup and
     # Knapsack queue distribution, restricted to the specs relevant_specs
     # mapped from the diff plus the money-path smoke set. Main pushes and
-    # run-all-specs PRs run the full suite instead.
-    if: needs.run_scope.outputs.full != 'true' && (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository)
+    # run-all-specs PRs run the full suite instead. Branch pushes in this
+    # repository use test_relevant_runner below.
+    if: needs.run_scope.outputs.full != 'true' && github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -1158,6 +1073,234 @@ jobs:
           docker volume rm $(docker volume ls -q -f name=${{ env.COMPOSE_PROJECT_NAME }}) 2>/dev/null || true
           docker network rm ${{ env.COMPOSE_PROJECT_NAME }}_default 2>/dev/null || true
 
+  test_relevant_runner:
+    name: Test Relevant ${{ matrix.ci_node_index }}
+    runs-on: ubicloud-standard-4
+    # ci_gate holds the run-all-specs answer and the base commit, so the shards
+    # start without waiting for run_scope.
+    needs: ci_gate
+    # Branch pushes in this repository run the relevant specs on the runner, so
+    # they skip the test image build and pull. Fork PRs keep the image job above:
+    # this job runs the branch's code next to the Knapsack token. For the same
+    # reason each shard selects its specs itself instead of waiting for
+    # relevant_specs, which keeps fork code away from secrets.
+    if: needs.ci_gate.outputs.full != 'true' && github.event_name == 'push'
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        ci_node_total: [12]
+        ci_node_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    env:
+      COMPOSE_FILE: docker/docker-compose-test-and-ci.yml:docker/docker-compose-ci-runner.yml
+      COMPOSE_PROJECT_NAME: relevant_${{ matrix.ci_node_index }}
+      RAILS_ENV: test
+      # No BUNDLE_GEMS__CONTRIBSYS__COM: sidekiq-pro is optional (config/initializers/sidekiq.rb),
+      # and leaving it out reuses the gem cache that the lint jobs save.
+      # From docker/web/Dockerfile.test, which sets them for the asset build too.
+      NODE_ENV: test
+      RAILS_LOG_LEVEL: info
+      # Also selects the headless Chrome drivers in spec/support/capybara_driver.rb.
+      IN_DOCKER: true
+      # The image's locale and time zone: Chrome formats dates from both.
+      LANG: C.UTF-8
+      TZ: UTC
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        timeout-minutes: 5
+        with:
+          persist-credentials: false
+          # bin/branch-specs diffs against main, so the base has to be in the clone.
+          # It reads the history's commits and trees but few old file contents,
+          # which git fetches on demand.
+          fetch-depth: 0
+          filter: blob:none
+      # Before the setup below, so a diff that needs the full suite fails at once.
+      # Shards beyond what the selection needs skip every step after this one.
+      - name: Select relevant specs
+        id: specs
+        run: bin/ci-relevant-specs "$BASE_SHA"
+        env:
+          BASE_SHA: ${{ needs.ci_gate.outputs.base_sha }}
+          CI_NODE_INDEX: ${{ matrix.ci_node_index }}
+          CI_NODE_TOTAL: ${{ matrix.ci_node_total }}
+      - name: Login to Docker Hub
+        if: steps.specs.outputs.run == 'true'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_seconds: 120
+          max_attempts: 3
+          retry_wait_seconds: 10
+          command: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      # In the background, so the image pulls and the MinIO health check overlap
+      # with the setup steps below. "Prepare test database" waits for it.
+      - name: Start services
+        if: steps.specs.outputs.run == 'true'
+        run: (docker compose up -d > /tmp/compose.log 2>&1; echo $? > /tmp/compose.status) &
+      # Saved by the typecheck job on main, so apt downloads nothing on a hit.
+      - name: Restore the test packages
+        if: steps.specs.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/test-packages
+          key: test-packages-v1-${{ runner.os }}-${{ hashFiles('bin/ci-test-packages') }}
+      - name: Install system packages
+        if: steps.specs.outputs.run == 'true'
+        run: bin/ci-test-packages install ~/test-packages
+      - name: Set up Ruby
+        if: steps.specs.outputs.run == 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - uses: actions/setup-node@v4
+        if: steps.specs.outputs.run == 'true'
+        with:
+          node-version-file: package.json
+          cache: npm
+      # Shares lint_js's cache, which only main pushes save.
+      - uses: actions/cache/restore@v4
+        if: steps.specs.outputs.run == 'true'
+        id: node_modules
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package.json', 'package-lock.json', '.npmrc', 'patches/**') }}
+      - run: npm ci
+        if: steps.specs.outputs.run == 'true' && steps.node_modules.outputs.cache-hit != 'true'
+      # Saved by the typecheck job on main, or by shard 0 of an earlier push to
+      # this branch.
+      - name: Restore the test assets
+        if: steps.specs.outputs.run == 'true'
+        id: test_assets
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            public/vite-test
+            public/public-rsc
+            ssr-generated
+            tmp/cache/vite
+            public/js/gumroad-bundle.js
+            public/js/gumroad-embed-bundle.js
+          key: >-
+            runner-test-assets-v3-${{ runner.os }}-${{ hashFiles(
+              'app/javascript/**', 'app/views/**',
+              'config/routes.rb', 'config/routes/**', 'config/domain.rb',
+              'config/application.rb', 'config/boot.rb', 'config/environment.rb',
+              'config/environments/**', 'config/redis.rb',
+              'lib/catch_bad_request_errors.rb', 'lib/utilities/global_config.rb',
+              'config/initializers/js-routes.rb', 'config/vite.json', 'config/vite/**',
+              'config/rspack/**', 'config/shakapacker.yml', 'config/initializers/react_on_rails*.rb',
+              'config/currencies.json', 'lib/json_schemas/**', 'lib/tasks/**', 'Rakefile',
+              'public/**', 'vendor/assets/**', 'patches/**', 'scripts/build_pages_tailwind.mjs',
+              'docker/base/**', 'docker/web/Dockerfile.test', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks',
+              'package.json', 'package-lock.json', '.npmrc', 'tsconfig.json',
+              'vite.config.ts', 'vite.config.widget.ts', 'postcss.config.js',
+              'Gemfile.lock', '.ruby-version') }}
+      # After the key above, as in the typecheck job.
+      - name: Restore the pages CSS
+        if: steps.specs.outputs.run == 'true'
+        id: pages_tailwind
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            public/pages-tailwind.css
+            public/pages-tailwind-manifest.json
+            public/assets/pages
+            app/javascript/stylesheets/pages_tailwind.generated.html
+          key: >-
+            runner-pages-tailwind-v1-${{ runner.os }}-${{ hashFiles(
+              'scripts/build_pages_tailwind.mjs', 'app/javascript/stylesheets/pages_tailwind.css',
+              'package.json', 'package-lock.json', 'patches/**', '.github/workflows/tests.yml', 'bin/ci-test-asset-tasks') }}
+      - name: Prepare test database and assets
+        if: steps.specs.outputs.run == 'true'
+        run: |
+          for _ in $(seq 1 90); do [ -f /tmp/compose.status ] && break; sleep 2; done
+          cat /tmp/compose.log
+          [ "$(cat /tmp/compose.status 2>/dev/null)" = 0 ] || { echo "docker compose up did not finish"; exit 1; }
+          # Over TCP: during its first start, MySQL answers on the socket before it
+          # listens on the port.
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker compose exec -T db_test mysql --protocol=tcp -h127.0.0.1 -uroot -ppassword -e "SELECT 1" > /dev/null 2>&1 \
+              && curl -fsS http://localhost:9200/_cluster/health > /dev/null 2>&1 \
+              && curl -fsS http://localhost:9000/minio/health/ready > /dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          [ "$ready" = true ] || { echo "MySQL, Elasticsearch or MinIO did not become ready"; exit 1; }
+          # The same preparation the build job bakes into the test image (the
+          # database, the Vite test build, the widget bundles and the pages CSS), in
+          # one Rails boot as docker/web/compile_assets.sh does, building only what
+          # the caches above lacked. npm ci already ran above.
+          bundle exec rake js:export db:setup $(bin/ci-test-asset-tasks)
+          # docker wait prints the exit code instead of returning it.
+          copy_status=$(docker wait "$(docker compose ps -aq copyfixturefiles)")
+          [ "$copy_status" = 0 ] || { docker compose logs copyfixturefiles; exit 1; }
+        env:
+          PAGES_RESTORED: ${{ steps.pages_tailwind.outputs.cache-hit }}
+          VITE_RESTORED: ${{ steps.test_assets.outputs.cache-hit }}
+      - uses: actions/cache/save@v4
+        if: steps.specs.outputs.run == 'true' && steps.pages_tailwind.outputs.cache-hit != 'true' && matrix.ci_node_index == 0
+        with:
+          path: |
+            public/pages-tailwind.css
+            public/pages-tailwind-manifest.json
+            public/assets/pages
+            app/javascript/stylesheets/pages_tailwind.generated.html
+          key: ${{ steps.pages_tailwind.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v4
+        if: steps.specs.outputs.run == 'true' && steps.test_assets.outputs.cache-hit != 'true' && matrix.ci_node_index == 0
+        with:
+          path: |
+            public/vite-test
+            public/public-rsc
+            ssr-generated
+            tmp/cache/vite
+            public/js/gumroad-bundle.js
+            public/js/gumroad-embed-bundle.js
+          key: ${{ steps.test_assets.outputs.cache-primary-key }}
+      - name: Run tests
+        if: steps.specs.outputs.run == 'true'
+        timeout-minutes: 25
+        run: bundle exec rake "knapsack_pro:queue:rspec[--format RSpec::Github::Formatter --tag ~skip --format progress]"
+        env:
+          RUBY_YJIT_ENABLE: 1
+          KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC_FAST }}
+          KNAPSACK_PRO_CI_NODE_TOTAL: ${{ steps.specs.outputs.shards }}
+          KNAPSACK_PRO_CI_NODE_INDEX: ${{ matrix.ci_node_index }}
+          KNAPSACK_PRO_LOG_LEVEL: info
+          KNAPSACK_PRO_TEST_FILE_LIST: ${{ steps.specs.outputs.files_csv }}
+          KNAPSACK_PRO_COMMIT_HASH: ${{ github.sha }}
+          KNAPSACK_PRO_BRANCH: ${{ github.ref_name }}
+          KNAPSACK_PRO_CI_NODE_BUILD_ID: ${{ github.run_id }}
+          # Knapsack 10 keys the queue on this. It would read GITHUB_RUN_ID, which every
+          # runner job in this run shares.
+          KNAPSACK_PRO_TEST_QUEUE_ID: ${{ github.run_id }}-relevant
+          KNAPSACK_PRO_CI_NODE_RETRY_COUNT: ${{ github.run_attempt }}
+          KNAPSACK_PRO_FIXED_QUEUE_SPLIT: true
+          CI: true
+      - name: Archive capybara artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capybara-screenshots-relevant-${{ matrix.ci_node_index }}-attempt-${{ github.run_attempt }}
+          path: tmp/capybara/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Archive test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-relevant-${{ matrix.ci_node_index }}-attempt-${{ github.run_attempt }}
+          path: log/test.log
+          retention-days: 7
+          if-no-files-found: ignore
+
   unblock_deployment_from_buildkite:
     name: Unblock deployment from Buildkite
     runs-on: ubicloud-standard-2
@@ -1176,85 +1319,35 @@ jobs:
         (needs.test_fast.result == 'success' && needs.test_slow.result == 'success')
       )
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            bin/unblock-buildkite-deploy
+          sparse-checkout-cone-mode: false
+
+      # The gate appears only after the asset compile passes (#7316). Poll every 20 s, and cap
+      # the step at 30 minutes: a shorter window leaves the deploy for a person to unblock, and
+      # slow attempts could otherwise stretch 90 attempts to about an hour.
       - name: Unblock corresponding Buildkite build
+        timeout-minutes: 30
         uses: nick-fields/retry@v3
         with:
           timeout_seconds: 20
-          retry_wait_seconds: 300
-          max_attempts: 3
+          retry_wait_seconds: 20
+          max_attempts: 90
+          warning_on_retry: false
           command: |
             if [ "$UNBLOCK_DEPLOYMENT" != "true" ]; then
               echo "UNBLOCK_DEPLOYMENT_FROM_BUILDKITE is not set to 'true'. Skipping unblock."
               exit 0
             fi
 
-            # No time-of-day deploy block here. Deploys used to be blocked
-            # outright between midnight and 6am ET, because that is when the
-            # long nightly jobs run (finance/tax report generation, monthly
-            # closes) and a deploy recycles the worker pods they run on, which
-            # silently killed multi-hour jobs. That window has been replaced by
-            # asking the app whether such a job is actually running:
-            # /healthcheck/long_running_jobs answers 503 while one is in
-            # flight, and .buildkite/scripts/deploy_production.sh waits on it
-            # (as it already did for payout batches). Deploys are therefore
-            # held only on the nights something long is genuinely running,
-            # instead of on every night.
-            echo "Looking for Buildkite build for commit $COMMIT_SHA on pipeline $ORG_SLUG/$PIPELINE_SLUG..."
-            # Fetch builds for the specific commit, including jobs
-            BUILD_DATA=$(curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
-              "https://api.buildkite.com/v2/organizations/$ORG_SLUG/pipelines/$PIPELINE_SLUG/builds?commit=$COMMIT_SHA&include_retried_jobs=true")
-
-            # The gate job only exists once every earlier step (image builds, asset compiles)
-            # has passed; until then the build reports "running". Select the build by either
-            # state and inspect the gate job directly, retrying until it is actually blocked.
-            BUILD_NUMBER=$(echo "$BUILD_DATA" | jq -r --arg commit "$COMMIT_SHA" '[.[] | select(.commit == $commit and (.state == "running" or .state == "blocked"))] | sort_by(.created_at) | last | .number // empty')
-
-            if [ -z "$BUILD_NUMBER" ]; then
-              echo "No running or blocked Buildkite build found for commit $COMMIT_SHA on pipeline $ORG_SLUG/$PIPELINE_SLUG."
-              exit 1
-            fi
-
-            echo "Found Buildkite build number: $BUILD_NUMBER. Fetching job details..."
-            # Fetch detailed data for the specific build to get job IDs
-            BUILD_DETAIL_DATA=$(curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
-               "https://api.buildkite.com/v2/organizations/$ORG_SLUG/pipelines/$PIPELINE_SLUG/builds/$BUILD_NUMBER")
-
-            BLOCK_JOB_STATE=$(echo "$BUILD_DETAIL_DATA" | jq -r '[.jobs[] | select(.type == "manual" and .step_key == "require-approval")] | first | .state // empty')
-
-            if [ "$BLOCK_JOB_STATE" = "unblocked" ]; then
-              echo "Block job 'require-approval' in build $BUILD_NUMBER is already unblocked. Nothing to do."
-              exit 0
-            fi
-
-            if [ "$BLOCK_JOB_STATE" != "blocked" ]; then
-              echo "Block job 'require-approval' in build $BUILD_NUMBER is not unblockable yet (state: ${BLOCK_JOB_STATE:-absent})."
-              exit 1
-            fi
-
-            BLOCK_JOB_ID=$(echo "$BUILD_DETAIL_DATA" | jq -r '[.jobs[] | select(.type == "manual" and .step_key == "require-approval")] | first | .id // empty')
-
-            echo "Found block job ID: $BLOCK_JOB_ID for build $BUILD_NUMBER. Attempting to unblock job..."
-            # Send the unblock request using PUT to the job-specific endpoint
-            RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-              -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d '{}' \
-              "https://api.buildkite.com/v2/organizations/$ORG_SLUG/pipelines/$PIPELINE_SLUG/builds/$BUILD_NUMBER/jobs/$BLOCK_JOB_ID/unblock")
-
-            # Check the response code
-            if [ "$RESPONSE_CODE" -ge 200 ] && [ "$RESPONSE_CODE" -lt 300 ]; then
-              echo "Successfully sent unblock request for job $BLOCK_JOB_ID in build $BUILD_NUMBER. Response code: $RESPONSE_CODE"
-            else
-              echo "Error sending unblock request for job $BLOCK_JOB_ID in build $BUILD_NUMBER. Response code: $RESPONSE_CODE"
-              # Attempt to fetch error details from Buildkite if available
-              ERROR_DETAILS=$(curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
-                "https://api.buildkite.com/v2/organizations/$ORG_SLUG/pipelines/$PIPELINE_SLUG/builds/$BUILD_NUMBER/jobs/$BLOCK_JOB_ID")
-              echo "API Response details for failed unblock: $ERROR_DETAILS"
-              exit 1 # Exit with error if the API call failed
-            fi
+            bin/unblock-buildkite-deploy
         env:
           UNBLOCK_DEPLOYMENT: ${{ secrets.UNBLOCK_DEPLOYMENT_FROM_BUILDKITE }}
           BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           COMMIT_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
           ORG_SLUG: gumroad-inc
           PIPELINE_SLUG: ${{ secrets.BUILDKITE_PIPELINE_SLUG }}

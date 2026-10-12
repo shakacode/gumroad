@@ -8,6 +8,7 @@ import { InteractiveProduct, RatingsSummary, type ServerContent } from "$app/com
 import { getStandalonePrice } from "$app/components/Product/pricing";
 import {
   ProductAvailabilityNotice,
+  ProductTitle,
   ProductBundleItemContent,
   ProductDescriptionContent,
   ProductMembershipNotices,
@@ -22,6 +23,7 @@ import { Card, CardContent } from "$app/components/ui/Card";
 
 type Props = Omit<React.ComponentProps<typeof InteractiveProduct>, "serverContent"> & {
   hideSellerByline?: boolean | undefined;
+  scaleLongTitle?: boolean | undefined;
 };
 
 export const legacyProductContent = ({
@@ -30,7 +32,11 @@ export const legacyProductContent = ({
   discountCode,
   selection,
   hideSellerByline,
-}: Pick<Props, "product" | "purchase" | "discountCode" | "selection" | "hideSellerByline">): ServerContent => {
+  scaleLongTitle,
+}: Pick<
+  Props,
+  "product" | "purchase" | "discountCode" | "selection" | "hideSellerByline" | "scaleLongTitle"
+>): ServerContent => {
   let { basePriceCents } = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
   if (product.bundle_products.length > 0) basePriceCents = getStandalonePrice(product);
   const showPrice =
@@ -57,7 +63,6 @@ export const legacyProductContent = ({
       ]),
     ),
     description: <ProductDescriptionContent content={{ ...product, show_price: showPrice }} />,
-    descriptionNeedsClientEnhancement: true,
     initialCover: null,
     membershipNotices: <ProductMembershipNotices content={{ ...product, show_price: showPrice }} />,
     quantityRemaining: <ProductQuantityRemaining quantityRemaining={product.quantity_remaining} />,
@@ -79,11 +84,7 @@ export const legacyProductContent = ({
         hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
       />
     ),
-    title: (
-      <h1 itemProp="name" dir="auto" className="wrap-break-word">
-        {product.name}
-      </h1>
-    ),
+    title: <ProductTitle content={product} scaleLongTitle={scaleLongTitle} />,
     sellerAndRatings: (
       <>
         {sellerByline ? (
@@ -136,6 +137,6 @@ export const legacyProductContent = ({
   };
 };
 
-export const Product = ({ hideSellerByline, ...props }: Props) => (
-  <InteractiveProduct {...props} serverContent={legacyProductContent({ ...props, hideSellerByline })} />
+export const Product = ({ hideSellerByline, scaleLongTitle, ...props }: Props) => (
+  <InteractiveProduct {...props} serverContent={legacyProductContent({ ...props, hideSellerByline, scaleLongTitle })} />
 );

@@ -64,12 +64,15 @@ describe User::OmniauthCallbacksController do
         expect(response).to redirect_to safe_redirect_path(oauth_completions_stripe_path)
       end
 
-      it "does not create a new user if the email is already taken" do
+      it "does not sign in an existing user that only shares the Stripe account email" do
         create(:user, email: "stripe.connect@gum.co")
 
         expect { post :stripe_connect }.not_to change { User.count }
 
-        expect(response).to redirect_to safe_redirect_path(oauth_completions_stripe_path)
+        expect(controller.user_signed_in?).to be false
+        expect(session[:stripe_connect_data]).to be_nil
+        expect(flash[:alert]).to eq "An account already exists with this email."
+        expect(response).to redirect_to safe_redirect_path(request.env["omniauth.params"]["referer"])
       end
     end
 
@@ -197,12 +200,13 @@ describe User::OmniauthCallbacksController do
         expect(response).to redirect_to safe_redirect_path(oauth_completions_stripe_path)
       end
 
-      it "allows existing users with matching email (without Stripe connected) to log in" do
+      it "does not log in existing users with matching email (without Stripe connected)" do
         create(:user, email: "stripe.connect@gum.co")
 
         expect { post :stripe_connect }.not_to change { User.count }
 
-        expect(response).to redirect_to safe_redirect_path(oauth_completions_stripe_path)
+        expect(controller.user_signed_in?).to be false
+        expect(response).to redirect_to signup_url
       end
 
       it "allows existing users without email to log in" do
@@ -416,6 +420,24 @@ describe User::OmniauthCallbacksController do
         expect(@user.twitter_handle).to_not be(nil)
       end
 
+      it "clears a recorded read-only X reason so the seller can post after reconnecting", :vcr do
+        user = create(:user)
+        action = create(:marketing_action, user:)
+        action.update!(error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
+        other = create(:marketing_action)
+        other.update!(error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
+        request.env["omniauth.params"] = { "state" => "link_twitter_account" }
+        OmniAuth.config.mock_auth[:twitter] = OmniAuth::AuthHash.new fetch_json("twitter")
+        request.env["omniauth.auth"] = OmniAuth.config.mock_auth[:twitter]
+        allow(controller).to receive(:current_user).and_return(user)
+
+        post :twitter
+
+        expect(action.reload.error_code).to be_nil
+        expect(action).not_to be_terminal
+        expect(other.reload.error_code).to eq(Marketing::Action::X_WRITE_PERMISSION_MISSING)
+      end
+
       it "updates the Twitter OAuth credentials on account creation", :vcr do
         user = create(:user)
         allow(User).to receive(:new).and_return(user)
@@ -521,13 +543,96 @@ describe User::OmniauthCallbacksController do
     end
 
     context "when user is marked as deleted" do
-      let!(:user) { create(:user, google_uid: "101656774483284362141", deleted_at: Time.current) }
+      let!(:user) { create(:user, google_uid: "101656774483284362141", email: "pdragunas@example.com", deleted_at: Time.current) }
 
       it "does not allow user to login" do
-        post :google_oauth2
+        expect { post :google_oauth2 }.not_to change(User, :count)
 
         expect(flash[:alert]).to eq ACCOUNT_DELETION_ERROR_MSG
         expect(response).to redirect_to login_path
+        expect(controller.user_signed_in?).to be false
+      end
+    end
+
+    context "when a deleted husk keeps the Google uid on a placeholder email" do
+      let(:google_uid) { "101656774483284362141" }
+      let(:google_email) { "pdragunas@example.com" }
+      let!(:husk) { create(:user) }
+
+      before do
+        husk.update_columns(
+          google_uid:,
+          email: "released-#{google_uid}@deleted.invalid",
+          deleted_at: Time.current
+        )
+        allow_any_instance_of(User).to receive(:google_picture_url).and_return(nil)
+      end
+
+      it "signs in the live user and leaves both Google uids unchanged" do
+        live_user = create(:user, google_uid: "live-google-uid", email: google_email)
+        husk_email = husk.reload.email
+        husk_deleted_at = husk.deleted_at
+
+        expect { post :google_oauth2 }.not_to change(User, :count)
+
+        expect(controller.user_signed_in?).to be true
+        expect(controller.current_user).to eq(live_user)
+        expect(flash[:alert]).not_to eq ACCOUNT_DELETION_ERROR_MSG
+        expect(live_user.reload.google_uid).to eq("live-google-uid")
+        expect(husk.reload.google_uid).to eq(google_uid)
+        expect(husk.email).to eq(husk_email)
+        expect(husk.deleted_at).to be_within(1.second).of(husk_deleted_at)
+      end
+
+      it "refuses login and does not create an account when no live user has the Google email" do
+        husk_email = husk.reload.email
+
+        expect { post :google_oauth2 }.not_to change(User, :count)
+
+        expect(flash[:alert]).to eq ACCOUNT_DELETION_ERROR_MSG
+        expect(response).to redirect_to login_path
+        expect(controller.user_signed_in?).to be false
+        expect(husk.reload.google_uid).to eq(google_uid)
+        expect(husk.email).to eq(husk_email)
+        expect(husk).to be_deleted
+      end
+    end
+
+    context "when the Google identity is parked on a deleted account whose address moved to a live account with its own identity" do
+      let(:google_auth) { fetch_json("google").tap { |auth| auth["info"]["image"] = nil } }
+      let!(:deleted_user) { create(:user, google_uid: "101656774483284362141", email: "pdragunas-freed-1@deleted.invalid", deleted_at: Time.current) }
+      let!(:live_user) { create(:user, email: "pdragunas@example.com", google_uid: "202020202020") }
+
+      before { request.env["omniauth.auth"] = google_auth }
+
+      it "signs in the live account and keeps both identities", :aggregate_failures do
+        expect { post :google_oauth2 }.not_to change { User.count }
+
+        expect(flash[:alert]).to be_nil
+        expect(controller.current_user).to eq(live_user)
+        expect(response).to redirect_to dashboard_path
+        expect(live_user.reload.google_uid).to eq("202020202020")
+        expect(deleted_user.reload.google_uid).to eq("101656774483284362141")
+        expect(deleted_user.email).to eq("pdragunas-freed-1@deleted.invalid")
+      end
+
+      it "keeps signing in the live account without applying its pending email change", :aggregate_failures do
+        live_user.update!(email: "pdragunas-pending@example.com")
+        expect(live_user.reload.unconfirmed_email).to eq("pdragunas-pending@example.com")
+
+        post :google_oauth2
+        expect(controller.current_user).to eq(live_user)
+
+        sign_out :user
+        request.env["omniauth.auth"] = google_auth
+        post :google_oauth2
+
+        expect(flash[:alert]).to be_nil
+        expect(controller.current_user).to eq(live_user)
+        expect(live_user.reload.email).to eq("pdragunas@example.com")
+        expect(live_user.unconfirmed_email).to eq("pdragunas-pending@example.com")
+        expect(live_user.google_uid).to eq("202020202020")
+        expect(deleted_user.reload.google_uid).to eq("101656774483284362141")
       end
     end
 
@@ -853,6 +958,12 @@ describe User::OmniauthCallbacksController do
 
       expect(response).to redirect_to settings_social_connections_path
       expect(flash[:alert]).to eq "Couldn't connect X. Please try again."
+    end
+
+    it "redirects a request with no OAuth strategy to login" do
+      get :failure
+
+      expect(response).to redirect_to login_path
     end
   end
 end

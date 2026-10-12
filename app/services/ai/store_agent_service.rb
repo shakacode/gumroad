@@ -16,16 +16,14 @@ class Ai::StoreAgentService
   class Error < StandardError; end
 
   MODEL = Ai::AnthropicClient::DEFAULT_MODEL
-  # Grok and DeepSeek are only reachable through OpenRouter, so the cutover keys off routing: a
-  # direct-Anthropic config keeps serving Opus unchanged.
-  OPENROUTER_MODEL = "x-ai/grok-4.5"
-  # When Grok errors (provider down, rate limited), OpenRouter retries the turn on this model
+  # The Grok and DeepSeek ramps also need OpenRouter, which replays the Opus fallback when Vercel fails.
+  GROK_MODEL = "x-ai/grok-4.5"
+  # When Grok errors (provider down, rate limited), the gateway retries the turn on this model
   # rather than the client's default GPT fallback.
-  OPENROUTER_FALLBACK_MODEL = "anthropic/claude-opus-5"
+  GROK_FALLBACK_MODEL = "anthropic/claude-opus-5"
   # Below 100%, gates Grok vs Opus per seller in addition to OPENROUTER_API_KEY being configured.
   GROK_RAMP_FEATURE = :store_agent_grok
-  # DeepSeek V4.1 Flash: cheap, fast MoE model. Routed through Vercel AI Gateway
-  # (OpenRouter if that config is blank) with Opus as the model fallback.
+  # DeepSeek V4.1 Flash: cheap, fast MoE model, with Opus as the model fallback.
   DEEPSEEK_MODEL = "deepseek/deepseek-v4.1-flash"
   DEEPSEEK_FALLBACK_MODEL = "anthropic/claude-opus-5"
   # Below 100%, gates DeepSeek vs Opus per seller in addition to OPENROUTER_API_KEY being
@@ -36,6 +34,12 @@ class Ai::StoreAgentService
   # which is most of a turn's per-call latency. Below 100%, disables it per seller; models that
   # don't reason this way keep the request they send today.
   NO_HIDDEN_REASONING_FEATURE = :store_agent_deepseek_no_hidden_reasoning
+  # DeepSeek's latency tail is calls that sit before their first token, and the generous read timeout
+  # below means a stalled attempt spends it — plus its retries — before the Opus fallback is tried.
+  # Below 100%, bounds the wait for the first output on streamed tool-loop turns.
+  TTFT_DEADLINE_FEATURE = :store_agent_deepseek_ttft_deadline
+  # Above the usual time to first token, so a healthy slow call is untouched.
+  TTFT_DEADLINE_IN_SECONDS = 15
   # Ai::AnthropicClient's READ timeout, so for the streamed reply it bounds silence between chunks
   # rather than total generation time. Deliberately generous — the client fails fast on connect
   # problems and retries transient failures itself, so a tighter cap only kills slow-but-working
@@ -64,11 +68,23 @@ class Ai::StoreAgentService
   # turn's arguments, so re-ask it once at double the cap. Only truncating turns pay this.
   MAX_TRUNCATION_RETRY_TOKENS = 16_384
   MAX_TRUNCATION_RETRIES = 1
-  # What the seller sees when a turn still hits MAX_REPLY_TOKENS. A truncated turn is unusable (a
-  # cut-off tool call has unparseable arguments; a cut-off reply would present half an answer as
-  # complete), so ask for something smaller instead of streaming garbage or raising.
-  TRUNCATED_REPLY = "That's too much for me to handle in one go — try asking me to change or " \
-                    "summarize a smaller section, and I'll take it from there."
+  # What the seller sees when a turn still hits MAX_REPLY_TOKENS: a truncated turn is unusable, and
+  # the ask has to hold on every surface, including a page that is one whole document.
+  TRUNCATED_REPLY = "That's more than I can write in a single reply. Let's do it in smaller " \
+                    "steps — ask me for one part at a time and I'll take it from there."
+  # The re-ask only. A byte-identical retry at a bigger cap truncates identically when the attempt's
+  # SIZE is the problem, so this one tells the model to go smaller instead.
+  TRUNCATION_RECOVERY_INSTRUCTION = <<~PROMPT.strip
+    Your last response ran out of room before it finished, so it was discarded and the creator has
+    not seen it. Sending the same thing again the same way fails the same way — send it in smaller
+    pieces instead, and keep every value you emit small. For a whole custom page: publish a complete
+    but minimal page first (name and bio, the product grid read from gumroad-data, prices, footer)
+    with a <!-- gumroad:sections --> marker where the sections go, then add ONE section per reply
+    with edit_user_custom_html, replacing the marker with that section plus the marker again, and
+    drop the marker in the edit that completes the page. For an oversized change of any other kind,
+    never send half a value — a description or a bio is replaced as a whole — so cover fewer items
+    this turn and tell the creator what is still left.
+  PROMPT
   # Phrases a reply uses when it asserts THIS turn staged a change. Such a reply is only TRUE when
   # the same turn produced a proposed action — the confirmation card is rendered from that action, so
   # with no action there is no card and the creator hunts a button that cannot exist. The model does
@@ -405,7 +421,7 @@ class Ai::StoreAgentService
     Your last response did not finish with a valid complete_turn call. Call complete_turn exactly
     once as the only tool in that response, and put the creator-facing text in complete_turn.reply.
     Use outcome reply_only when this turn has no proposed change. Use outcome proposal_ready only
-    after api_write returned proposed: true in this same turn. Do not send a text-only response.
+    after api_write or prepare_html_undo returned proposed: true in this same turn. Do not send a text-only response.
   TEXT
   BLANK_REPLY_CORRECTION = <<~TEXT.strip
     Your complete_turn had no creator-facing reply. Call complete_turn exactly once as the only tool,
@@ -413,16 +429,16 @@ class Ai::StoreAgentService
     text-only response.
   TEXT
   PROPOSAL_OUTCOME_CORRECTION = <<~TEXT.strip
-    This turn already has a proposed change from api_write, but your final outcome did not report it.
-    Do not call api_write again. Finish with complete_turn as the only tool and use outcome
-    proposal_ready.
+    This turn already has a proposed change from api_write or prepare_html_undo, but your final
+    outcome did not report it. Do not call api_write or prepare_html_undo again. Finish with
+    complete_turn as the only tool and use outcome proposal_ready.
   TEXT
   # Fed back to the model when it claimed a staged change without calling api_write, so it can
   # either make the call for real or correct itself. Phrased as the tool-protocol fact it is.
   STAGED_CLAIM_CORRECTION = <<~TEXT.strip
     Your last reply told the creator a change is staged and waiting for their confirmation, but you
-    did not call api_write in that reply, so no change was prepared and no confirmation card exists
-    for them to click. Call api_write now only if the creator explicitly asked you to prepare or
+    did not call api_write or prepare_html_undo in that reply, so no change was prepared and no
+    confirmation card exists for them to click. Call api_write now only if the creator explicitly asked you to prepare or
     re-stage this change. If they only reported a missing card, or did not explicitly ask you to
     re-stage it, do not create another proposal: say plainly that no new change is prepared, ask
     whether they want you to stage it again, and do not refer them to a card.
@@ -432,6 +448,9 @@ class Ai::StoreAgentService
   # that was never rendered. Must not itself match STAGED_CLAIM_PATTERNS above.
   NOTHING_STAGED_REPLY = "That change wasn't prepared, so there's nothing here for you to approve " \
                          "yet. Ask me again and I'll redo it."
+  # Keep inverse snippets and digests out of model tool results; only the server owns the undo.
+  UNDO_PREPARED_SUMMARY = "Prepared an exact undo of the last applied targeted HTML edit as a new " \
+                          "confirmation card. Nothing has changed yet; the creator must confirm it."
   # How many prior turns of context we forward to the model. Keeps token usage bounded and avoids
   # echoing an unbounded client-supplied history back to the model.
   MAX_HISTORY_MESSAGES = 20
@@ -465,15 +484,24 @@ class Ai::StoreAgentService
     You are Gumroad's store assistant. You help a creator understand and manage their own Gumroad
     store through a chat interface in their dashboard.
 
-    You have three tools:
+    You have four tools:
+    - prepare_html_undo: prepare an exact undo of the LAST APPLIED change in THIS conversation, and
+      only if that change was a targeted HTML edit (edit_user_custom_html or
+      edit_product_custom_html). It never reaches back past a more recent applied change of another
+      kind. The server selects the saved edit, re-reads the current page, and creates a NEW
+      confirmation card. Pass no arguments. For "undo/revert that formatting", use this tool; never
+      reconstruct find/replace from chat history or delete the original instruction text. If it
+      reports the undo is unavailable, explain that limitation and ask what the creator wants
+      changed; do not fall back to api_write with a guessed inverse. Older changes and other
+      conversations cannot be undone with this tool. Nothing changes until the new card is confirmed.
     - api_read: run any READ endpoint to fetch live data (products, sales, payouts, discounts,
       subscribers, upsells, emails, tax forms, earnings, profile, and more). These run immediately.
     - api_write: prepare any change (create/update/delete products, discounts, variants, upsells,
       emails, refunds, shipping, licenses, profile, and more; existing Store Agent webhooks can be
       listed and deleted, but the Store Agent cannot create webhooks). Writes never take effect
       immediately — they produce a proposed change the creator reviews and confirms in the UI.
-    - complete_turn: finish every creator-facing reply with a typed outcome after all api_read or
-      api_write results are back.
+    - complete_turn: finish every creator-facing reply with a typed outcome after every other
+      tool's results are back.
 
     To call a tool you pass `endpoint` (one of the ids listed below), `path_params` (the ids the
     endpoint's path needs, e.g. the product id), and `params` (query for reads, body for writes).
@@ -482,6 +510,23 @@ class Ai::StoreAgentService
     - Be helpful and proactive. If the creator describes a change they want, go ahead and prepare it
       for them with api_write so it's ready to confirm — don't just explain how they could do it
       themselves. Offer to make the change.
+    - Never silently drop a requested restriction. The discount endpoints cannot enforce subscriber-only redemption:
+      universal controls which products a code covers, not who can redeem it. Universal percentage codes
+      cover all products; universal fixed-amount codes cover only products priced in the target
+      product's currency. A product-specific
+      code is not subscriber-only either. Sharing a code only with subscribers restricts distribution,
+      not redemption. Explain this limitation in a reply_only turn before proposing a supported alternative.
+      Wait for the creator to agree to that alternative before api_write; the confirmation click
+      approves a supported change, not an undisclosed relaxation of their request.
+      You also cannot configure existing-customer or product-ownership eligibility through these
+      endpoints. Do not offer to set those up as an alternative, even if other Gumroad interfaces
+      support them. Offer only the product coverage, discount, usage limit, or minimum spend
+      options explicitly listed in the endpoint; none enforces subscriber eligibility.
+    - For email to buyers of a particular product, create_email needs audience=product and a real
+      product_id or link_id from the conversation or api_read. If missing or rejected, look up the
+      requested product with api_read within the tool budget, or ask which product they mean.
+      Never invent a product identifier or broaden the audience to bypass an error. For a draft,
+      keep draft=true and publish=false; do not call send_email or schedule_email.
     - Only ever act on the current creator's own store. You cannot access other creators' data; the
       API enforces this and an endpoint the creator's role can't use will simply fail.
     - Always use api_read to get real ids and live numbers before acting. Never invent ids.
@@ -490,10 +535,11 @@ class Ai::StoreAgentService
       and keep going until the response has no next_page_key. Any task covering "all" of something
       (all products, all sales, the whole catalog) requires walking every page first. Never state or
       imply you checked items you did not actually fetch — if you can't or didn't fetch a page, say so.
-    - Never claim a change has already been made. On a turn where you called api_write, your final
-      text is replaced with fixed server copy telling the creator the change is ready to confirm, so
-      answer any informational part of their request BEFORE calling api_write — in the text you write
-      before the call, or in an earlier turn — and keep the final text after api_write minimal.
+    - Never claim a change has already been made. On a turn where you called api_write or
+      prepare_html_undo, your final
+      text is replaced with fixed server copy telling the creator the change is ready to confirm.
+      Any necessary explanation or limitation must be given in an earlier reply_only turn;
+      preamble text before api_write is discarded too.
     - You cannot see the creator's dashboard. Never invent or describe dashboard screens, settings
       pages, pickers, or menus, and never send the creator to a screen you are not certain exists.
       If a task needs something you have no endpoint for, say so plainly instead of guessing at UI
@@ -622,6 +668,15 @@ class Ai::StoreAgentService
       picture, served from a host custom pages are not allowed to load images from, so
       embedding it renders a broken image. Never author an empty image slot, and never
       expect an avatar in the gumroad-data JSON — it isn't there.
+    - A page with several sections is usually too big to write in one reply: the write carries the
+      ENTIRE page in its arguments, so a long page runs out of reply budget before the call is
+      finished and the creator gets an error instead of a page. Build it in pieces instead of one
+      giant write: publish a complete but minimal page first — the header with name and bio, the
+      product grid read from gumroad-data, the prices, the footer — with a <!-- gumroad:sections -->
+      marker where the sections will go, then add ONE section per reply with edit_user_custom_html,
+      replacing the marker with that section plus the marker again. The marker is an HTML comment,
+      invisible on the rendered page, and it comes out in the edit that completes the page. Say you
+      are building it section by section so the confirmations make sense to the creator.
     - Never publish a page that drops the creator's products or reduces the storefront to a
       colored background.
     - A PRODUCT's landing page (the /l/ page buyers see for one product) is a different surface
@@ -639,7 +694,7 @@ class Ai::StoreAgentService
       reviews hidden or the product has none, so whatever the page already has inside those
       elements stays — put a sensible fallback there rather than a placeholder.
     - Never tell the creator a change is prepared, staged, or waiting for their confirmation unless
-      you actually called api_write in this same reply. If the creator agrees to go ahead and
+      you actually called api_write or prepare_html_undo in this same reply. If the creator agrees to go ahead and
       nothing is staged yet, that is your cue to call api_write now — not to ask for confirmation
       again.
     - If the creator says they cannot see a confirmation card or button, believe them. Never send
@@ -661,8 +716,8 @@ class Ai::StoreAgentService
       Put the creator-facing text in complete_turn.reply so the outcome and the answer arrive
       together. You may also write the same text before the call; on a proposal turn that text is replaced with
       fixed server copy and never shown, so keep it minimal there. Use reply_only when this turn has
-      no proposed change. Use proposal_ready only after api_write returned proposed: true in this
-      same turn. Never mix complete_turn with api_read or api_write. Never send a text-only final
+      no proposed change. Use proposal_ready only after api_write or prepare_html_undo returned proposed: true in this
+      same turn. Never mix complete_turn with any other tool. Never send a text-only final
       response.
 
     How to write:
@@ -688,9 +743,10 @@ class Ai::StoreAgentService
     def as_json(*) = { type:, params:, summary:, title:, fields: fields || [] }
   end
 
-  def initialize(seller:, pundit_user:)
+  def initialize(seller:, pundit_user:, conversation: nil)
     @seller = seller
     @pundit_user = pundit_user
+    @agent_conversation = conversation
   end
 
   # @param messages [Array<Hash>] prior conversation, each { role: "user"|"assistant", content: String }
@@ -711,10 +767,11 @@ class Ai::StoreAgentService
     while remaining_iterations.positive?
       remaining_iterations -= 1
       result = client.messages(
-        system: system_prompt,
+        system: system_prompt_for(truncation_retries),
         messages: conversation,
         tools: tool_schemas,
         max_tokens: truncation_retries.zero? ? MAX_REPLY_TOKENS : MAX_TRUNCATION_RETRY_TOKENS,
+        recover_token_cutoff: true,
         **tool_loop_thinking,
       )
       @last_stop_reason = result.stop_reason
@@ -807,11 +864,13 @@ class Ai::StoreAgentService
       result =
         begin
           client.stream_messages(
-            system: system_prompt,
+            system: system_prompt_for(truncation_retries),
             messages: conversation,
             tools: tool_schemas,
             max_tokens: truncation_retries.zero? ? MAX_REPLY_TOKENS : MAX_TRUNCATION_RETRY_TOKENS,
+            recover_token_cutoff: true,
             **tool_loop_thinking,
+            ttft_deadline: tool_loop_ttft_deadline,
             # A corrupted tool call is recovered by replaying the turn without streaming, which
             # regenerates the reply from the start. Tool-use turns usually stream a sentence of
             # preamble first, so without a way to clear it that recovery could never run — the
@@ -912,8 +971,10 @@ class Ai::StoreAgentService
 
     def turn_result(reply:, proposed_action:)
       outcome = proposed_action ? TURN_OUTCOME_PROPOSAL_READY : TURN_OUTCOME_REPLY_ONLY
-      log_turn_metrics(outcome:)
+      telemetry_turn_id = SecureRandom.uuid
+      log_turn_metrics(outcome:, telemetry_turn_id:)
       {
+        telemetry_turn_id:,
         outcome:,
         reply:,
         proposed_action: proposed_action&.as_json,
@@ -925,12 +986,13 @@ class Ai::StoreAgentService
     # retries, and latency are the signals the ramp's pass bar checks each step against. The
     # upstream calls ride along, since turn latency alone cannot say which request stalled. Every
     # pre-existing key keeps its name and meaning.
-    def log_turn_metrics(outcome:)
+    def log_turn_metrics(outcome:, telemetry_turn_id:)
       latency_ms = @turn_started_at ? ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - @turn_started_at) * 1000).round : nil
       calls = call_metrics(purpose: "turn")
       @logged_turn_call_count = calls.length
       payload = {
         event: "store_agent_turn",
+        telemetry_turn_id:,
         model: @_client_model,
         requested_model: @_client_model,
         served_models: (@_client.respond_to?(:served_models) ? Array(@_client.served_models).uniq : []),
@@ -941,6 +1003,7 @@ class Ai::StoreAgentService
         contract_retries: @turn_contract_retries,
         contract_failure: @turn_contract_failure,
         latency_ms:,
+        latency_flags:,
       }.compact
       # The call fields are added after compressing so they are always present: a reader must be able
       # to tell "no call reported this" (null) from "not instrumented" (absent key).
@@ -1249,16 +1312,33 @@ class Ai::StoreAgentService
       { thinking: { type: "disabled" } }
     end
 
+    # Keep request options and telemetry on the same snapshot, even if a flag changes mid-turn.
+    def latency_flags
+      @latency_flags ||= {
+        no_hidden_reasoning: Feature.active?(NO_HIDDEN_REASONING_FEATURE, seller),
+        ttft_deadline: Feature.active?(TTFT_DEADLINE_FEATURE, seller),
+      }.freeze
+    end
+
     # Per-turn thinking override for the tool loop, which spends real tokens on reasoning it never
     # reads. Flag-gated per seller so it reverts without a deploy, and empty otherwise so every
     # other model's request body is byte-identical to today's.
     def tool_loop_thinking
-      return {} unless Feature.active?(NO_HIDDEN_REASONING_FEATURE, seller)
+      return {} unless latency_flags[:no_hidden_reasoning]
 
       # Resolving `client` here is what sets @_client_model, and callers splat this into the request
       # before the memoized reader would otherwise run.
       client
       @_client_model.to_s.start_with?("deepseek/") ? { thinking: { type: "disabled" } } : {}
+    end
+
+    # First-output deadline for the streamed tool loop, in the same shape as #tool_loop_thinking: nil
+    # for every other model and while the flag is off, so nothing changes about the request.
+    def tool_loop_ttft_deadline
+      return nil unless latency_flags[:ttft_deadline]
+
+      client
+      @_client_model.to_s.start_with?("deepseek/") ? TTFT_DEADLINE_IN_SECONDS : nil
     end
 
     # Coerce the model's reply into a clean list of suggestion strings. Prefers a JSON array but
@@ -1332,6 +1412,13 @@ class Ai::StoreAgentService
       )
     end
 
+    # The re-ask after a truncated turn carries one extra instruction the ordinary turns must not
+    # see (TRUNCATION_RECOVERY_INSTRUCTION). It rides on the system prompt so the conversation itself
+    # stays exactly what the creator said.
+    def system_prompt_for(truncation_retries)
+      truncation_retries.zero? ? system_prompt : "#{system_prompt}\n\n#{TRUNCATION_RECOVERY_INSTRUCTION}"
+    end
+
     # Two generic API tools drive the whole catalog. `complete_turn` is a terminal marker: unlike
     # the API tools it never runs an operation, and the service validates it before accepting the
     # model's text as the final seller-facing reply.
@@ -1339,9 +1426,40 @@ class Ai::StoreAgentService
       case name
       when "api_read" then run_api_read(arguments)
       when "api_write" then propose_api_write(arguments)
+      when "prepare_html_undo" then prepare_html_undo(arguments)
       else
         [{ error: "Unknown tool: #{name}" }, nil]
       end
+    end
+
+    def prepare_html_undo(arguments)
+      return [{ error: "prepare_html_undo accepts no arguments; the server selects the last applied change." }, nil] if arguments.any?
+
+      inverse = Ai::StoreAgentHtmlUndo.latest_for(seller:, conversation: @agent_conversation)
+      unless inverse
+        return [{ error: "An exact undo of the last applied change is unavailable in this conversation. Explain this limitation; do not guess an inverse or delete the original content." }, nil]
+      end
+      endpoint = Ai::StoreAgentApiCatalog.find(inverse.fetch("endpoint"))
+      required_read = Ai::StoreAgentApiCatalog.find(endpoint.requires_read)
+      unless endpoint_permitted?(endpoint) && endpoint_permitted?(required_read)
+        return [{ error: "The current user's role can't undo this change." }, nil]
+      end
+
+      # This server-owned read must not unlock speculative model writes in the same batch.
+      current = api_client.get(required_read.expand_path(inverse.fetch("path_params")), {})
+      html = current["custom_html"] if successful_api_read?(current)
+      body = inverse.fetch("params")
+      check = Pages::CustomHtmlWriter.check_guarded_edit(html, **body.symbolize_keys) if html.is_a?(String) && html.present?
+      unless check && check.error.nil?
+        return [{ error: "The page changed or the original edit cannot be restored exactly. Explain that exact undo is unavailable; do not guess a replacement." }, nil]
+      end
+
+      result, action = propose_api_write(inverse, verified_html_undo: true)
+      return [result, nil] if action.nil?
+
+      [{ proposed: true, status: "undo_prepared", summary: UNDO_PREPARED_SUMMARY }, action]
+    rescue ArgumentError
+      [{ error: "The original edit's target is unavailable. No undo was prepared." }, nil]
     end
 
     # ---- api_read: auto-executed, creator-scoped via the real v2 API ----
@@ -1374,7 +1492,10 @@ class Ai::StoreAgentService
       result = api_client.get(path, params)
       record_successful_read(endpoint:, expanded_path: path, result:)
       # Collect any renderable objects from the response so the chat can show them inline as cards.
-      @objects.concat(Ai::StoreAgentObjectFormatter.from_response(endpoint, result)) if @objects
+      if @objects && @objects.size < MAX_DISPLAY_OBJECTS
+        objects = Ai::StoreAgentObjectFormatter.from_response(endpoint, result, seller:, limit: MAX_DISPLAY_OBJECTS - @objects.size, existing_objects: @objects)
+        @objects = (@objects + objects).uniq.first(MAX_DISPLAY_OBJECTS)
+      end
       [result, nil]
     rescue ArgumentError => e
       # Missing/blank path param (e.g. the model forgot the product id).
@@ -1383,7 +1504,7 @@ class Ai::StoreAgentService
 
     # ---- api_write: returns a proposed action; never mutates ----
 
-    def propose_api_write(arguments)
+    def propose_api_write(arguments, verified_html_undo: false)
       endpoint = Ai::StoreAgentApiCatalog.find(arguments["endpoint"])
       if endpoint.nil?
         return [{ error: "Unknown endpoint. Use one of the write endpoint ids listed for api_write." }, nil]
@@ -1417,28 +1538,12 @@ class Ai::StoreAgentService
 
         required_path = required_read.expand_path(path_params)
         required_target = [required_read.id, required_path]
-        unless @completed_read_targets&.key?(required_target)
+        unless verified_html_undo || @completed_read_targets&.key?(required_target)
           log_missing_required_read(endpoint:, required_read:)
           return [
             {
-              error: "#{endpoint.id} requires a successful full read of this exact target first. Only if the seller explicitly requested this custom-page work, call #{required_read.id} with api_read, wait for its result, then retry #{endpoint.id} in this turn. Otherwise, do not read the page body and do not retry the write. Status or metadata-only reads do not count.",
-              corrective_action: {
-                condition: "The seller explicitly requested this custom-page work.",
-                if_requested: {
-                  tool: "api_read",
-                  endpoint: required_read.id,
-                  path_params: path_params.slice(*required_read.path_params),
-                  after_success: {
-                    action: "retry_write",
-                    endpoint: endpoint.id,
-                    timing: "this_turn",
-                  },
-                },
-                otherwise: {
-                  action: "do_not_read_or_retry",
-                  instruction: "Do not read the page body and do not retry the write.",
-                },
-              },
+              error: required_read_error(endpoint:, required_read:),
+              corrective_action: required_read_corrective_action(endpoint:, required_read:, path_params:),
             },
             nil,
           ]
@@ -1451,12 +1556,22 @@ class Ai::StoreAgentService
       # payload, fails there with a confusing internal error, and the model retries the same wrong
       # key forever. Naming the unknown and allowed keys here lets the model correct itself within
       # the same turn instead of doom-looping.
-      if (error = unknown_body_keys_error(endpoint, body))
+      # Server-only keys (the undo checksums) are accepted only on the verified undo path; a model
+      # that supplies them on api_write gets the ordinary unknown-key correction, which never
+      # advertises them.
+      if (error = endpoint.unknown_param_keys_error(body, server_params_allowed: verified_html_undo))
+        return [{ error: }, nil]
+      end
+      if (error = endpoint.email_audience_error(body, seller:))
         return [{ error: }, nil]
       end
       normalize_product_currency_param!(endpoint, body)
 
       summary = write_summary(endpoint, path_params, body)
+      # One read feeds both the card and the pin, so they cannot disagree about which sections exist.
+      sections = sections_snapshot(endpoint, path_params)
+      fields = write_fields(endpoint, path_params, body, sections:)
+      body = body.merge("known_section_ids" => sections.map(&:external_id)) if sections
       action = ProposedAction.new(
         type: "api_write",
         # Everything the executor needs to replay the exact same call after the creator confirms.
@@ -1464,7 +1579,7 @@ class Ai::StoreAgentService
         summary:,
         # The operation itself (e.g. "Delete a discount code."), shown as the card's heading.
         title: endpoint.summary,
-        fields: write_fields(endpoint, path_params, body),
+        fields:,
       )
       [{ proposed: true, summary: }, action]
     end
@@ -1501,6 +1616,51 @@ class Ai::StoreAgentService
       )
     end
 
+    # A required read whose response IS a whole custom page is expensive to fetch, so its block
+    # message keeps the custom-page guardrail: only read it when the seller asked for that page work.
+    PAGE_BODY_READ_ENDPOINTS = Ai::StoreAgentApiCatalog::ENDPOINTS
+      .select { _1.write? && _1.id.include?("custom_html") }
+      .filter_map(&:requires_read)
+      .uniq
+      .freeze
+
+    def required_read_error(endpoint:, required_read:)
+      first = "#{endpoint.id} requires a successful full read of this exact target first."
+      return "#{first} Only if the seller explicitly requested this custom-page work, call #{required_read.id} with api_read, wait for its result, then retry #{endpoint.id} in this turn. Otherwise, do not read the page body and do not retry the write. Status or metadata-only reads do not count." if page_body_read?(required_read)
+
+      "#{first} Call #{required_read.id} with api_read, wait for its result, then retry #{endpoint.id} in this turn. Status or metadata-only reads do not count."
+    end
+
+    # A page-body read may be skipped when the seller did not ask for it, so its corrective action has
+    # two branches. Every other required read is just the precondition: one unconditional read-then-retry
+    # step, with no escape hatch.
+    def required_read_corrective_action(endpoint:, required_read:, path_params:)
+      read_then_retry = {
+        tool: "api_read",
+        endpoint: required_read.id,
+        path_params: path_params.slice(*required_read.path_params),
+        after_success: {
+          action: "retry_write",
+          endpoint: endpoint.id,
+          timing: "this_turn",
+        },
+      }
+      return read_then_retry unless page_body_read?(required_read)
+
+      {
+        condition: "The seller explicitly requested this custom-page work.",
+        if_requested: read_then_retry,
+        otherwise: {
+          action: "do_not_read_or_retry",
+          instruction: "Do not read the page body and do not retry the write.",
+        },
+      }
+    end
+
+    def page_body_read?(required_read)
+      PAGE_BODY_READ_ENDPOINTS.include?(required_read.id)
+    end
+
     # A human-readable description of the pending change for the confirmation card. Built from the
     # catalog summary plus the concrete ids/params so the creator sees exactly what will happen.
     def write_summary(endpoint, path_params, body)
@@ -1521,7 +1681,7 @@ class Ai::StoreAgentService
     # rendered nicely — the discount amount + type as one row, cents as currency, and product ids as
     # names — but nothing is dropped. Values are coerced to strings (non-scalar tool output is
     # JSON-encoded rather than formatted), so a hallucinated array/object can't raise here.
-    def write_fields(endpoint, path_params, body)
+    def write_fields(endpoint, path_params, body, sections: nil)
       body = body.dup
       offer_code = endpoint.id.include?("offer_code")
       product = target_product(endpoint, path_params)
@@ -1537,18 +1697,66 @@ class Ai::StoreAgentService
                  product&.price_currency_type ||
                  (seller.currency_type if endpoint.id == "create_product")
 
+      # Form encoding turns boolean true into "true"; other truthy values do not enable universal.
+      universal_offer_code = endpoint.id == "create_offer_code" && body["universal"].to_s == "true"
+      if universal_offer_code
+        coverage = if body["offer_type"] == "percent"
+          "All products"
+        elsif currency
+          "All #{currency.upcase}-priced products"
+        else
+          "Products priced in the target product's currency"
+        end
+      end
+
       # Target identity (path params are validated non-blank) — names the record being changed.
-      rows = path_params.filter_map { |key, value| preview_field(path_label(endpoint, key), path_value(endpoint, key, value, product)) }
+      rows = path_params.filter_map do |key, value|
+        label = universal_offer_code && key == "link_id" ? "Product" : path_label(endpoint, key)
+        preview_field(label, path_value(endpoint, key, value, product))
+      end
 
       # Body keys are intentional mutations, so each gets a row even when blank (a blank renders as
       # "(blank)") — otherwise a destructive clear like description: "" would execute invisibly. The
       # discount amount + type collapse into one readable row; both are still represented.
       if body.key?("amount_off") || body.key?("offer_type")
-        rows << { label: "Discount", value: discount_amount(body.delete("amount_off"), body.delete("offer_type"), currency).presence || BLANK_VALUE }
+        offer_type = body["offer_type"]
+        body.delete("offer_type") if %w[percent cents].include?(offer_type)
+        rows << { label: "Discount", value: discount_amount(body.delete("amount_off"), offer_type, currency).presence || BLANK_VALUE }
       end
-      body.each { |key, value| rows << { label: field_label(key, offer_code:), value: display_value(key, value, currency).presence || BLANK_VALUE } }
+      body.each do |key, value|
+        if endpoint.id == "update_product_sections" && key == "sections" && value.is_a?(Array)
+          rows.concat(section_rows(sections || [], value))
+          next
+        end
+        rows << if universal_offer_code && key == "universal"
+          { label: "Applies to", value: coverage }
+        else
+          { label: field_label(key, offer_code:), value: display_value(key, value, currency).presence || BLANK_VALUE }
+        end
+      end
       rows << { label: "Max uses", value: "Unlimited" } if endpoint.id == "create_offer_code" && !body.key?("max_purchase_count")
+      rows << { label: "Redemption", value: "Anyone with the code; no subscriber check" } if endpoint.id == "create_offer_code"
 
+      rows
+    end
+
+    # The sections the card will show. Pinned as known_section_ids so confirming later cannot delete
+    # one that was added in between.
+    def sections_snapshot(endpoint, path_params)
+      return unless endpoint.id == "update_product_sections" && (product = target_product(endpoint, path_params))
+
+      product.seller_profile_sections.to_a
+    end
+
+    # Names the sections a sections write keeps and the ones it destroys, so the seller sees the
+    # deletion before confirming. An unresolvable id shows raw.
+    def section_rows(current, external_ids)
+      by_external_id = current.index_by(&:external_id)
+      label = ->(section) { section.header.presence || section.type.to_s.delete_prefix("SellerProfile").delete_suffix("Section").underscore.humanize }
+      kept = external_ids.map { |id| by_external_id[id.to_s] }
+      rows = [{ label: "Sections", value: external_ids.empty? ? "(none)" : external_ids.each_with_index.map { |id, i| kept[i] ? label.(kept[i]) : id.to_s }.join(" → ") }]
+      deleted = current - kept.compact
+      rows << { label: "Deleted", value: "#{deleted.size} #{"section".pluralize(deleted.size)} will be deleted: #{deleted.map(&label).join(", ")}" } if deleted.any?
       rows
     end
 
@@ -1643,13 +1851,6 @@ class Ai::StoreAgentService
       raw.transform_keys(&:to_s)
     end
 
-    # A corrective message when the proposed body carries keys the endpoint doesn't declare, or nil
-    # when the body is fine. Delegates to the catalog Endpoint so this propose-path message and the
-    # executor's confirm-path message can't drift apart.
-    def unknown_body_keys_error(endpoint, body)
-      endpoint.unknown_param_keys_error(body)
-    end
-
     def api_client
       @_api_client ||= Ai::StoreAgentApiClient.new(seller:, pundit_user:)
     end
@@ -1676,10 +1877,10 @@ class Ai::StoreAgentService
     def client
       @_client ||= if Ai::AnthropicClient.openrouter_configured? && Feature.active?(DEEPSEEK_RAMP_FEATURE, seller)
         @_client_model = DEEPSEEK_MODEL
-        Ai::AnthropicClient.new(timeout: REQUEST_TIMEOUT_IN_SECONDS, model: DEEPSEEK_MODEL, fallback_model: DEEPSEEK_FALLBACK_MODEL, gateway: :vercel)
+        Ai::AnthropicClient.new(timeout: REQUEST_TIMEOUT_IN_SECONDS, model: DEEPSEEK_MODEL, fallback_model: DEEPSEEK_FALLBACK_MODEL)
       elsif Ai::AnthropicClient.openrouter_configured? && Feature.active?(GROK_RAMP_FEATURE, seller)
-        @_client_model = OPENROUTER_MODEL
-        Ai::AnthropicClient.new(timeout: REQUEST_TIMEOUT_IN_SECONDS, model: OPENROUTER_MODEL, fallback_model: OPENROUTER_FALLBACK_MODEL)
+        @_client_model = GROK_MODEL
+        Ai::AnthropicClient.new(timeout: REQUEST_TIMEOUT_IN_SECONDS, model: GROK_MODEL, fallback_model: GROK_FALLBACK_MODEL)
       else
         @_client_model = MODEL
         Ai::AnthropicClient.new(timeout: REQUEST_TIMEOUT_IN_SECONDS, model: MODEL)
@@ -1712,9 +1913,10 @@ class Ai::StoreAgentService
           },
           required: ["endpoint"],
         ),
+        tool_schema("prepare_html_undo", "Prepare an exact undo of the LAST applied change in this conversation, only if that change was a targeted HTML edit; it never reaches back to an older edit. The server selects the saved edit and re-checks the current page. Takes no arguments. Returns proposed: true only when a new confirmation card is ready; never applies the change.", {}),
         tool_schema(
           COMPLETE_TURN_TOOL,
-          "Finish the creator-facing reply after every API tool result is back. Call exactly once and as the only tool in the final response. Put the creator-facing text in reply; on a proposal turn that text is replaced with fixed server copy and never shown. Use proposal_ready only when api_write returned proposed: true in this same turn; otherwise use reply_only.",
+          "Finish the creator-facing reply after every API tool result is back. Call exactly once and as the only tool in the final response. Put the creator-facing text in reply; on a proposal turn that text is replaced with fixed server copy and never shown. Use proposal_ready only when api_write or prepare_html_undo returned proposed: true in this same turn; otherwise use reply_only.",
           {
             outcome: {
               type: "string",

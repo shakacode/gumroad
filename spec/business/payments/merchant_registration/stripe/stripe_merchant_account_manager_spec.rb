@@ -80,7 +80,7 @@ describe StripeMerchantAccountManager, :vcr do
         allow_any_instance_of(UserComplianceInfo).to receive(:external_id).and_return("G_-mnBf9b1j9A7a4ub4nFQ==")
         allow_any_instance_of(TosAgreement).to receive(:external_id).and_return("G_-mnBf9b1j9A7a4ub4nFQ==")
         allow_any_instance_of(BankAccount).to receive(:external_id).and_return("G_-mnBf9b1j9A7a4ub4nFQ==")
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         merchant_account = subject.create_account(user, passphrase: "1234")
         stripe_account = Stripe::Account.retrieve(merchant_account.charge_processor_merchant_id)
         expect(stripe_account["metadata"]["user_id"]).to eq(user.external_id)
@@ -163,7 +163,7 @@ describe StripeMerchantAccountManager, :vcr do
         end
 
         it "strips out params whitespaces" do
-          expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+          expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
           merchant_account = subject.create_account(user, passphrase: "1234")
           expect(merchant_account.charge_processor_id).to eq(StripeChargeProcessor.charge_processor_id)
           expect(merchant_account.charge_processor_merchant_id).to be_present
@@ -262,7 +262,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the account params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
 
@@ -371,7 +371,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
 
@@ -492,7 +492,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:create_person).with(anything, expected_person_params).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
@@ -526,9 +526,9 @@ describe StripeMerchantAccountManager, :vcr do
           end
         end
 
-        allow(Stripe::Account).to receive(:create).and_wrap_original do |original, params|
+        allow(Stripe::Account).to receive(:create).and_wrap_original do |original, params, opts = nil|
           collect_binary.call(params)
-          original.call(params)
+          original.call(params, opts)
         end
         allow(Stripe::Account).to receive(:create_person).and_wrap_original do |original, account_id, params|
           collect_binary.call(params)
@@ -538,6 +538,35 @@ describe StripeMerchantAccountManager, :vcr do
         subject.create_account(user, passphrase: "1234")
 
         expect(binary_strings).to be_empty
+      end
+    end
+
+    describe "US LLC with an Algerian representative (person_hash)" do
+      let(:user) { create(:user, email: "representative@example.com") }
+      let(:compliance_info) do
+        create(:user_compliance_info_business, user:, country: "Algeria", business_country: "United States",
+                                               business_type: "single_member_llc", individual_tax_id: tax_id)
+      end
+      let(:person) { described_class.send(:person_hash, compliance_info, GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD")) }
+
+      context "with a nine-digit ITIN" do
+        let(:tax_id) { "000000000" }
+
+        it "forwards id_number regardless of the representative country" do
+          expect(person[:address][:country]).to eq("DZ")
+          expect(person[:id_number]).to eq(tax_id)
+          expect(person).not_to have_key(:ssn_last_4)
+        end
+      end
+
+      context "with four digits" do
+        let(:tax_id) { "0000" }
+
+        it "never forwards ssn_last_4 for a non-US resident" do
+          expect(person[:address][:country]).to eq("DZ")
+          expect(person).not_to have_key(:ssn_last_4)
+          expect(person).not_to have_key(:id_number)
+        end
       end
     end
 
@@ -571,12 +600,35 @@ describe StripeMerchantAccountManager, :vcr do
           expect(person_hash).not_to have_key(:ssn_last_4)
         end
 
-        it "omits nationality because the Stripe account country (US) does not require it" do
+        it "omits nationality only because this rep has none on file" do
+          # Stripe accepts nationality for any country, so its absence here is the absent value,
+          # not the US account country.
           expect(person_hash).not_to have_key(:nationality)
         end
 
         it "still carries the rep's foreign address so Stripe knows where they live" do
           expect(person_hash[:address]).to include(country: "BD", city: "Rajshahi", postal_code: "6203")
+        end
+      end
+
+      context "with a nationality on file" do
+        let(:user_compliance_info) do
+          create(:user_compliance_info_business,
+                 user:,
+                 first_name: "Rashed",
+                 last_name: "Khan",
+                 city: "Rajshahi",
+                 state: nil,
+                 zip_code: "6203",
+                 country: "Bangladesh",
+                 nationality: "BD",
+                 individual_tax_id: "1234567890")
+        end
+
+        it "submits nationality for a US account, because Stripe decides when it wants it" do
+          person_hash = described_class.send(:person_hash, user_compliance_info, GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"))
+
+          expect(person_hash[:nationality]).to eq("BD")
         end
       end
 
@@ -729,6 +781,30 @@ describe StripeMerchantAccountManager, :vcr do
       end
     end
 
+    describe "an individual outside the four countries that used to be hardcoded (person_hash)" do
+      context "with a nationality on file" do
+        let(:user_compliance_info) do
+          create(:user_compliance_info, user:, country: "Greece", nationality: "GR")
+        end
+
+        it "submits nationality" do
+          person_hash = described_class.send(:person_hash, user_compliance_info, GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"))
+
+          expect(person_hash[:nationality]).to eq("GR")
+        end
+      end
+
+      context "with no nationality on file" do
+        let(:user_compliance_info) { create(:user_compliance_info, user:, country: "Greece") }
+
+        it "omits the key rather than sending a null Stripe rejects" do
+          person_hash = described_class.send(:person_hash, user_compliance_info, GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"))
+
+          expect(person_hash).not_to have_key(:nationality)
+        end
+      end
+    end
+
     describe "all info provided of an individual (non-US)" do
       let(:user_compliance_info) { create(:user_compliance_info, user:, zip_code: "M4C 1T2", city: "Toronto", state: nil, country: "Canada") }
       let(:bank_account) { create(:ach_account_stripe_succeed, user:) }
@@ -796,7 +872,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
 
@@ -924,7 +1000,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:create_person).with(anything, expected_person_params).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
@@ -1002,7 +1078,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
 
@@ -1127,7 +1203,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:create_person).with(anything, expected_person_params).and_call_original
         subject.create_account(user, passphrase: "1234")
       end
@@ -1206,7 +1282,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1307,7 +1383,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1435,7 +1511,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1537,7 +1613,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:update_person).with(anything, anything, hash_including(full_name_aliases: [""])).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -1637,7 +1713,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1747,7 +1823,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1848,7 +1924,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -1930,7 +2006,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2011,7 +2087,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2092,7 +2168,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2173,7 +2249,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2266,7 +2342,7 @@ describe StripeMerchantAccountManager, :vcr do
         before { stub_const("StripeMerchantAccountManager::NEW_ACCOUNT_CREATION_BLOCKED_COUNTRIES", []) }
 
         it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-          expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+          expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
           merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2348,7 +2424,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2430,7 +2506,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2511,7 +2587,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2592,7 +2668,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2673,7 +2749,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2754,7 +2830,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2835,7 +2911,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2916,7 +2992,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -2999,7 +3075,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3081,7 +3157,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3161,7 +3237,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3243,7 +3319,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3325,7 +3401,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3407,7 +3483,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3425,7 +3501,7 @@ describe StripeMerchantAccountManager, :vcr do
 
         it "constructs an IBAN from the SWIFT/BIC and account number before sending to Stripe" do
           captured_params = nil
-          allow(Stripe::Account).to receive(:create) do |params|
+          allow(Stripe::Account).to receive(:create) do |params, _opts = nil|
             captured_params = params
             raise Stripe::APIError, "stop_here"
           end
@@ -3505,7 +3581,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3586,7 +3662,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3668,7 +3744,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3749,7 +3825,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3829,7 +3905,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3912,7 +3988,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -3993,7 +4069,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4073,7 +4149,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4175,7 +4251,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:create_person).with(anything, expected_person_params).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -4253,7 +4329,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4334,7 +4410,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4414,7 +4490,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4495,7 +4571,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4576,7 +4652,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4657,7 +4733,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4738,7 +4814,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4819,7 +4895,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4900,7 +4976,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -4979,7 +5055,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5060,7 +5136,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5141,7 +5217,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5223,7 +5299,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5304,7 +5380,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5386,7 +5462,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5467,7 +5543,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5565,7 +5641,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
         expect(Stripe::Account).to receive(:create_person).with(anything, expected_person_params).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -5642,7 +5718,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5723,7 +5799,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5805,7 +5881,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5886,7 +5962,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -5966,7 +6042,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6047,7 +6123,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6130,7 +6206,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6210,7 +6286,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6291,7 +6367,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6372,7 +6448,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6453,7 +6529,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6534,7 +6610,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6615,7 +6691,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6696,7 +6772,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6777,7 +6853,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6858,7 +6934,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -6938,7 +7014,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7019,7 +7095,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7100,7 +7176,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7183,7 +7259,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7264,7 +7340,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7345,7 +7421,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7427,7 +7503,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7508,7 +7584,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7589,7 +7665,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7670,7 +7746,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7751,7 +7827,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7832,7 +7908,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7913,7 +7989,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -7994,7 +8070,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8075,7 +8151,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8156,7 +8232,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8237,7 +8313,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8317,7 +8393,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8398,7 +8474,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8479,7 +8555,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8560,7 +8636,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8641,7 +8717,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8722,7 +8798,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8802,7 +8878,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8882,7 +8958,7 @@ describe StripeMerchantAccountManager, :vcr do
       end
 
       it "creates an account at stripe with all the params and returns the corresponding merchant account" do
-        expect(Stripe::Account).to receive(:create).with(expected_account_params).and_call_original
+        expect(Stripe::Account).to receive(:create).with(expected_account_params, hash_including(idempotency_key: a_kind_of(String))).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
 
@@ -8968,6 +9044,7 @@ describe StripeMerchantAccountManager, :vcr do
 
       it "still marks the merchant account as deleted when Stripe account deletion fails" do
         allow(Stripe::Account).to receive(:delete).and_raise(Stripe::APIError.new("cleanup failed"))
+        allow(Stripe::Account).to receive(:retrieve).and_return(fake_stripe_account)
 
         expect do
           subject.create_account(user, passphrase: "1234")
@@ -9948,6 +10025,27 @@ describe StripeMerchantAccountManager, :vcr do
           subject.update_account(user, passphrase: "1234")
         end
 
+        context "when Stripe holds a company but our previous record is individual" do
+          let(:user_compliance_info_1) { create(:user_compliance_info, user:) }
+
+          it "sends business_type individual with the individual params" do
+            original_stripe_account_retrieve = Stripe::Account.method(:retrieve)
+            expect(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id) do |*args|
+              stripe_account = original_stripe_account_retrieve.call(*args)
+              stripe_account["metadata"]["user_compliance_info_id"] = user_compliance_info_1.external_id
+              stripe_account["business_type"] = "company"
+              stripe_account
+            end
+            full_individual = described_class.send(:account_hash, user, nil, user_compliance_info_2, passphrase: "1234")[:individual]
+
+            expect(Stripe::Account).to receive(:update).with(
+              user.stripe_account.charge_processor_merchant_id,
+              hash_including(business_type: "individual", company: { name: user_compliance_info_2.first_and_last_name }, individual: full_individual.except(:ssn_last_4))
+            )
+            subject.update_account(user, passphrase: "1234")
+          end
+        end
+
         context "when the previous business type was sole proprietorship" do
           let(:user_compliance_info_1) { create(:user_compliance_info_business, user:, business_type: UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP) }
 
@@ -10009,7 +10107,7 @@ describe StripeMerchantAccountManager, :vcr do
           let(:user_compliance_info_1) { create(:user_compliance_info_business, user:, business_type: UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP) }
           let(:user_compliance_info_2) { create(:user_compliance_info_business, user:, business_type: UserComplianceInfo::BusinessTypes::CORPORATION) }
 
-          it "sets the structure to nil in company params" do
+          it "sends the corporation structure with the company params" do
             original_stripe_account_retrieve = Stripe::Account.method(:retrieve)
             expect(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id) do |*args|
               stripe_account = original_stripe_account_retrieve.call(*args)
@@ -10030,6 +10128,7 @@ describe StripeMerchantAccountManager, :vcr do
               user.stripe_account.charge_processor_merchant_id,
               hash_including(
                 company: hash_including(
+                  structure: "private_corporation",
                   directors_provided: true,
                   executives_provided: true
                 )
@@ -10479,11 +10578,10 @@ describe StripeMerchantAccountManager, :vcr do
     describe "all info provided previously, bank account not changed" do
       it "does not update an account at stripe with all the params" do
         expect(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id) do
-          stripe_account = {
-            "metadata" => {
-              "bank_account_id" => bank_account_1.external_id
-            }
-          }
+          stripe_account = Stripe::Account.construct_from(
+            id: merchant_account.charge_processor_merchant_id,
+            metadata: { bank_account_id: bank_account_1.external_id }
+          )
           expect(Stripe::Account).not_to receive(:update)
           stripe_account
         end
@@ -10563,7 +10661,8 @@ describe StripeMerchantAccountManager, :vcr do
             country: "BG",
             default_currency: "eur",
             bank_account: hash_including(country: "LT", currency: "eur", account_number: "LT121000011101001000")
-          )
+          ),
+          hash_including(idempotency_key: a_kind_of(String))
         ).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -10627,7 +10726,8 @@ describe StripeMerchantAccountManager, :vcr do
             country: "DK",
             default_currency: "dkk",
             bank_account: hash_including(country: "LT", currency: "eur", account_number: "LT121000011101001000")
-          )
+          ),
+          hash_including(idempotency_key: a_kind_of(String))
         ).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -10657,7 +10757,8 @@ describe StripeMerchantAccountManager, :vcr do
             country: "BG",
             default_currency: "eur",
             bank_account: hash_including(country: "BG", currency: "eur", account_number: "BG80BNBG96611020345678")
-          )
+          ),
+          hash_including(idempotency_key: a_kind_of(String))
         ).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -10686,7 +10787,8 @@ describe StripeMerchantAccountManager, :vcr do
             country: "DK",
             default_currency: "dkk",
             bank_account: hash_including(country: "DK", currency: "dkk", account_number: "DK5000400440116243")
-          )
+          ),
+          hash_including(idempotency_key: a_kind_of(String))
         ).and_call_original
 
         merchant_account = subject.create_account(user, passphrase: "1234")
@@ -10706,6 +10808,426 @@ describe StripeMerchantAccountManager, :vcr do
         expect(bank_account).not_to be_valid
         expect(bank_account.errors.full_messages.to_sentence).to eq("The account number is invalid.")
       end
+    end
+  end
+
+  describe "#update_bank_account account holder name for an Ecuador company" do
+    let(:user) { create(:named_user) }
+    let!(:user_compliance_info) do
+      create(:user_compliance_info_business, user:, country: "Ecuador", business_country: "Ecuador",
+                                             business_state: nil, business_zip_code: "170102", business_city: "Quito")
+    end
+    let!(:merchant_account) { create(:merchant_account, user:, charge_processor_merchant_id: "acct_ec") }
+    let!(:bank_account) do
+      create(:ecuador_bank_account, user:, account_holder_full_name: "Personal Name",
+                                    stripe_connect_account_id: "acct_ec", stripe_bank_account_id: "ba_ec")
+    end
+    let(:stripe_holder_name) { nil }
+    let(:stripe_external_account_id) { "ba_ec" }
+    let(:stripe_metadata_bank_account_id) { bank_account.external_id }
+    let(:stripe_match_details) { {} }
+    let(:stripe_account) do
+      Stripe::Account.construct_from(
+        id: "acct_ec",
+        business_type: "company",
+        metadata: { bank_account_id: stripe_metadata_bank_account_id },
+        external_accounts: { object: "list", data: [
+          { id: "ba_other", object: "bank_account", account_holder_name: "Someone Else" },
+          { id: "ba_ec", object: "bank_account", account_holder_name: stripe_holder_name }.merge(stripe_match_details)
+        ] }
+      )
+    end
+    let(:retrieved_external_account) do
+      Stripe::BankAccount.construct_from(id: stripe_external_account_id, object: "bank_account", account_holder_name: stripe_holder_name)
+    end
+
+    before do
+      allow(Stripe::Account).to receive(:retrieve).with("acct_ec").and_return(stripe_account)
+      allow(Stripe::Account).to receive(:retrieve_external_account).with("acct_ec", "ba_ec").and_return(retrieved_external_account)
+      allow(Stripe::Account).to receive(:update)
+      allow(Stripe::Account).to receive(:update_external_account)
+    end
+
+    it "updates only account_holder_name on the existing external account when Stripe has none" do
+      expect(subject).not_to receive(:clear_stale_bank_sync_failure_notes)
+
+      expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:synced)
+
+      expect(Stripe::Account).to have_received(:update_external_account).with("acct_ec", "ba_ec", { account_holder_name: "Personal Name" })
+      expect(Stripe::Account).not_to have_received(:update)
+    end
+
+    it "does not record a bank-sync failure when the name update is rejected" do
+      allow(Stripe::Account).to receive(:update_external_account).and_raise(
+        Stripe::InvalidRequestError.new("The name is not accepted", "account_holder_name", code: "account_number_invalid")
+      )
+      expect(subject).not_to receive(:record_bank_sync_failure_note)
+      allow(ErrorNotifier).to receive(:notify)
+
+      expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:stripe_invalid_request)
+    end
+
+    context "when the name changed from a different one already on Stripe" do
+      let(:stripe_holder_name) { "Buy More, LLC" }
+
+      it "sends the local holder name without replacing the bank account" do
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:synced)
+
+        expect(Stripe::Account).to have_received(:update_external_account).with("acct_ec", "ba_ec", { account_holder_name: "Personal Name" })
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+
+      it "updates the linked account in place on a full sync when only the holder name differs" do
+        retrieved_external_account["last4"] = "6789"
+        retrieved_external_account["routing_number"] = "AAAAECE1XXX"
+        retrieved_external_account["currency"] = "usd"
+        retrieved_external_account["country"] = "EC"
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes).and_call_original
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update_external_account).with("acct_ec", "ba_ec", { account_holder_name: "Personal Name" })
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(subject).to have_received(:clear_stale_bank_sync_failure_notes).with(user)
+      end
+
+      it "replaces the linked bank on a full sync when the account details changed" do
+        stripe_account["external_accounts"]["data"].first["account_holder_name"] = "Personal Name"
+        retrieved_external_account["last4"] = "0000"
+        retrieved_external_account["routing_number"] = "AAAAECE1XXX"
+        retrieved_external_account["currency"] = "usd"
+        retrieved_external_account["country"] = "EC"
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      it "replaces the linked bank when only the retrieved last four differs" do
+        stripe_account["external_accounts"]["data"].first["account_holder_name"] = "Personal Name"
+        retrieved_external_account["last4"] = "0000"
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+
+    context "when Stripe already has the local holder name" do
+      let(:stripe_holder_name) { "Personal Name" }
+
+      it "does not call Stripe" do
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:noop_metadata_match)
+
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+
+      it "clears a stale bank failure note on a full sync when the holder name already matches" do
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes).and_call_original
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:noop_metadata_match)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(subject).to have_received(:clear_stale_bank_sync_failure_notes).with(user)
+      end
+    end
+
+    context "when Stripe's metadata is stale but the local external account exists" do
+      let(:stripe_metadata_bank_account_id) { "older-bank-record" }
+
+      it "updates that external account without reattaching bank details" do
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update_external_account).with("acct_ec", "ba_ec", { account_holder_name: "Personal Name" })
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+
+      it "still syncs bank details on a full retry" do
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+
+    context "when Stripe's connected account is not a company" do
+      before { stripe_account["business_type"] = "individual" }
+
+      it "does not update the external account" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+    end
+
+    context "when Stripe's external account is not the one the local record points at" do
+      let(:stripe_external_account_id) { "ba_other" }
+
+      it "leaves Stripe untouched and reports the mismatch" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(ErrorNotifier).to have_received(:notify).with(a_string_including("bank_account=#{bank_account.id}"))
+      end
+    end
+
+    context "when the local record has no Stripe external account id" do
+      before { bank_account.update_columns(stripe_bank_account_id: nil) }
+
+      it "does not replace the bank if Stripe's external account cannot be verified" do
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:bank_link_not_restored)
+
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+
+      context "when Stripe's existing bank details match uniquely" do
+        let(:stripe_match_details) do
+          { last4: "6789", routing_number: "AAAAECE1XXX", currency: "usd", country: "EC", fingerprint: "synthetic_ec_fingerprint" }
+        end
+
+        it "restores the local link and updates the holder name without replacing bank details" do
+          expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+          expect(bank_account.reload.stripe_external_account_id).to eq("ba_ec")
+          expect(Stripe::Account).to have_received(:update_external_account).with("acct_ec", "ba_ec", { account_holder_name: "Personal Name" })
+          expect(Stripe::Account).not_to have_received(:update)
+        end
+
+        it "does not report success when the restored account is gone before retrieval" do
+          allow(Stripe::Account).to receive(:retrieve_external_account).with("acct_ec", "ba_ec").and_raise(
+            Stripe::InvalidRequestError.new("No such external account: 'ba_ec'", "id", code: "resource_missing", http_status: 404)
+          )
+          expect(subject).not_to receive(:clear_stale_bank_sync_failure_notes)
+
+          expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:bank_link_not_restored)
+          expect(Stripe::Account).not_to have_received(:update)
+          expect(Stripe::Account).not_to have_received(:update_external_account)
+        end
+
+        it "keeps the bank failure note when the restored name update is rejected" do
+          allow(Stripe::Account).to receive(:update_external_account).and_raise(
+            Stripe::InvalidRequestError.new("The name is not accepted", "account_holder_name", code: "account_number_invalid")
+          )
+          allow(ErrorNotifier).to receive(:notify)
+          expect(subject).not_to receive(:clear_stale_bank_sync_failure_notes)
+
+          expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:stripe_invalid_request)
+        end
+      end
+    end
+
+    context "when both local Stripe links are missing and metadata is stale" do
+      let(:stripe_metadata_bank_account_id) { "older-bank-record" }
+
+      before { bank_account.update_columns(stripe_bank_account_id: nil, stripe_connect_account_id: nil) }
+
+      it "does not replace the payout account" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      it "still replaces the bank when the seller submits a new account" do
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      context "when Stripe's existing bank details match uniquely" do
+        let(:stripe_match_details) do
+          { last4: "6789", routing_number: "AAAAECE1XXX", currency: "usd", country: "EC", fingerprint: "synthetic_ec_fingerprint" }
+        end
+
+        it "does not link a name-only edit when Stripe metadata names another bank" do
+          allow(ErrorNotifier).to receive(:notify)
+
+          expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+          expect(bank_account.reload.stripe_external_account_id).to be_nil
+          expect(Stripe::Account).not_to have_received(:update)
+          expect(Stripe::Account).not_to have_received(:update_external_account)
+        end
+
+        it "does not treat a new bank with the same last four as the existing payout account" do
+          allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+          allow(subject).to receive(:save_stripe_bank_account_info)
+          allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+          expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+          expect(bank_account.reload.stripe_external_account_id).to be_nil
+          expect(Stripe::Account).to have_received(:update)
+          expect(Stripe::Account).not_to have_received(:update_external_account)
+        end
+      end
+    end
+
+    context "when a name-only edit cannot identify an external account" do
+      let(:stripe_metadata_bank_account_id) { "older-bank-record" }
+      let(:stripe_account) do
+        Stripe::Account.construct_from(
+          id: "acct_ec",
+          business_type: "company",
+          metadata: { bank_account_id: stripe_metadata_bank_account_id },
+          external_accounts: { object: "list", data: [] }
+        )
+      end
+
+      before { bank_account.update_columns(stripe_bank_account_id: nil, stripe_connect_account_id: nil) }
+
+      it "does not resubmit bank details" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+    context "when Stripe no longer has the linked external account" do
+      before do
+        allow(Stripe::Account).to receive(:retrieve_external_account).with("acct_ec", "ba_ec").and_raise(
+          Stripe::InvalidRequestError.new("No such external account: 'ba_ec'", "id", code: "resource_missing", http_status: 404)
+        )
+      end
+
+      it "does not resubmit bank details for a name-only edit" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      it "sends the saved bank details on a full sync" do
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      it "does not report success when the linked account is missing and another account has the local name" do
+        stripe_account["external_accounts"]["data"].first["account_holder_name"] = "Personal Name"
+        allow(stripe_account).to receive(:refresh).and_return(stripe_account)
+        allow(subject).to receive(:save_stripe_bank_account_info)
+        allow(subject).to receive(:clear_stale_bank_sync_failure_notes)
+
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:synced)
+        expect(Stripe::Account).to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+
+    context "when metadata does not name the bank and only visible details match" do
+      let(:stripe_metadata_bank_account_id) { nil }
+      let(:stripe_match_details) do
+        { last4: "6789", routing_number: "AAAAECE1XXX", currency: "usd", country: "EC", fingerprint: "synthetic_ec_fingerprint" }
+      end
+
+      before { bank_account.update_columns(stripe_bank_account_id: nil, stripe_connect_account_id: nil) }
+
+      it "does not link a name-only edit from the last four and routing number" do
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(bank_account.reload.stripe_external_account_id).to be_nil
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+
+      it "does not link a name-only edit when metadata names the row but not a Stripe account" do
+        allow(ErrorNotifier).to receive(:notify)
+        bank_account.update_columns(stripe_bank_account_id: nil)
+        stripe_account["metadata"]["bank_account_id"] = bank_account.external_id
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(bank_account.reload.stripe_external_account_id).to be_nil
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+
+    context "when a name-only job is stale" do
+      it "does not sync after the seller submits a newer bank" do
+        create(:ecuador_bank_account, user:)
+        bank_account.mark_deleted!
+
+        expect(subject).not_to receive(:update_bank_account)
+        expect(Stripe::Account).not_to receive(:update)
+
+        subject.handle_new_bank_account(bank_account, holder_name_only: true)
+      end
+    end
+
+    context "when the Ecuador seller is an individual" do
+      before { user_compliance_info.update_columns(is_business: false) }
+
+      it "does not sync the holder name" do
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:noop_metadata_match)
+
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+
+      it "does not resubmit bank details for a queued name-only edit" do
+        allow(ErrorNotifier).to receive(:notify)
+        stripe_account["metadata"]["bank_account_id"] = "older-bank-record"
+
+        expect(subject.update_bank_account(user, passphrase: "1234", holder_name_only: true)).to eq(:external_account_mismatch)
+        expect(Stripe::Account).not_to have_received(:update)
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+      end
+    end
+
+    context "when the company is in another country outside the holder name sync list" do
+      before { user_compliance_info.update_columns(business_country: "Colombia") }
+
+      it "does not sync the holder name" do
+        expect(subject.update_bank_account(user, passphrase: "1234")).to eq(:noop_metadata_match)
+
+        expect(Stripe::Account).not_to have_received(:update_external_account)
+        expect(Stripe::Account).not_to have_received(:update)
+      end
+    end
+  end
+
+  describe ".bank_account_hash account holder name" do
+    let(:user) { create(:named_user) }
+    let(:bank_account) { create(:ecuador_bank_account, user:, account_holder_full_name: "Personal Name") }
+
+    it "includes the holder name for an Ecuador company so new accounts are created with it" do
+      create(:user_compliance_info_business, user:, country: "Ecuador", business_country: "Ecuador",
+                                             business_state: nil, business_zip_code: "170102", business_city: "Quito")
+
+      hash = described_class.send(:bank_account_hash, bank_account, passphrase: "1234")
+
+      expect(hash[:bank_account]).to include(account_holder_name: "Personal Name")
+    end
+
+    it "omits the holder name for an Ecuador individual" do
+      create(:user_compliance_info, user:, country: "Ecuador", state: nil, zip_code: "170102", city: "Quito")
+
+      hash = described_class.send(:bank_account_hash, bank_account, passphrase: "1234")
+
+      expect(hash[:bank_account]).not_to have_key(:account_holder_name)
     end
   end
 
@@ -13646,7 +14168,7 @@ describe StripeMerchantAccountManager, :vcr do
         before { merchant_account }
 
         it "calls update account for the user" do
-          expect(subject).to receive(:update_account).with(user, passphrase: "1234", notify: true, force_address_resync: false)
+          expect(subject).to receive(:update_account).with(user, passphrase: "1234", notify: true, force_address_resync: false, on_provider_mutation: nil)
           subject.handle_new_user_compliance_info(user_compliance_info)
         end
       end
@@ -13666,7 +14188,7 @@ describe StripeMerchantAccountManager, :vcr do
         before { merchant_account }
 
         it "calls update account for the user" do
-          expect(subject).to receive(:update_bank_account).with(user, passphrase: "1234")
+          expect(subject).to receive(:update_bank_account).with(user, passphrase: "1234", holder_name_only: false)
           subject.handle_new_bank_account(user_compliance_info)
         end
       end
@@ -13690,7 +14212,9 @@ describe StripeMerchantAccountManager, :vcr do
         id: "person_representative",
         object: "person",
         account: stripe_account.id,
-        relationship: { representative: true, owner: true, percent_ownership: 33.33 }
+        # A title Stripe already holds — set through the beneficial-owners UI — which a resync must
+        # leave alone: only a blank one is filled (see the re-created-person context below).
+        relationship: { representative: true, owner: true, percent_ownership: 33.33, title: "COO" }
       )
     end
     let(:co_director_owner) do
@@ -13740,6 +14264,206 @@ describe StripeMerchantAccountManager, :vcr do
         described_class.update_person(user, stripe_account, nil, "1234")
 
         expect(captured_attributes[:relationship]).to eq(representative: true)
+      end
+    end
+
+    context "when Stripe has replaced the representative person with a blank record" do
+      # Stripe's own KYC pass re-verifies an account and replaces the representative person; the
+      # version in the account metadata still names the last version we synced, so the diff comes out
+      # empty and the blank record is never refilled (gumroad-private#2990).
+      let(:blank_representative) do
+        Stripe::Person.construct_from(
+          id: "person_recreated_blank",
+          object: "person",
+          account: stripe_account.id,
+          relationship: { representative: true }
+        )
+      end
+
+      # Same values as the alive record, which is exactly what makes the diff empty.
+      let(:last_synced_user_compliance_info) do
+        info = create(:user_compliance_info_business, user:)
+        info.mark_deleted!
+        info
+      end
+
+      before do
+        allow(Stripe::Account).to receive(:list_persons)
+          .with(stripe_account.id, relationship: { representative: true }, limit: 1)
+          .and_return("data" => [blank_representative])
+      end
+
+      def captured_refill(last_synced_info)
+        captured_attributes = nil
+        expect(Stripe::Account).to receive(:update_person) do |_account_id, _person_id, attributes|
+          captured_attributes = attributes
+          true
+        end
+
+        described_class.update_person(user, stripe_account, last_synced_info.external_id, "1234")
+        captured_attributes
+      end
+
+      it "refills the name, date of birth and address from the seller's compliance record" do
+        captured_attributes = captured_refill(last_synced_user_compliance_info)
+
+        expect(captured_attributes[:first_name]).to eq(user_compliance_info.first_name)
+        expect(captured_attributes[:last_name]).to eq(user_compliance_info.last_name)
+        expect(captured_attributes[:dob]).to eq(
+          day: user_compliance_info.birthday.day,
+          month: user_compliance_info.birthday.month,
+          year: user_compliance_info.birthday.year
+        )
+        expect(captured_attributes[:address]).to include(
+          line1: user_compliance_info.street_address,
+          city: user_compliance_info.city
+        )
+      end
+
+      it "sends the representative title, which no other update path carried" do
+        captured_attributes = captured_refill(last_synced_user_compliance_info)
+
+        expect(captured_attributes[:relationship]).to eq(
+          representative: true,
+          title: user_compliance_info.job_title.presence || StripeMerchantAccountManager::DEFAULT_RELATIONSHIP_TITLE
+        )
+      end
+
+      it "refills the Japanese name fields and a recorded nationality" do
+        user_compliance_info.mark_deleted!
+        create(:user_compliance_info_business, user:, country: "Japan", business_country: "Japan",
+                                               first_name_kanji: "太郎", last_name_kanji: "山田",
+                                               first_name_kana: "タロウ", last_name_kana: "ヤマダ",
+                                               nationality: "JP")
+        last_jp_info = create(:user_compliance_info_business, user:, country: "Japan", business_country: "Japan",
+                                                              first_name_kanji: "太郎", last_name_kanji: "山田",
+                                                              first_name_kana: "タロウ", last_name_kana: "ヤマダ",
+                                                              nationality: "JP")
+        last_jp_info.mark_deleted!
+
+        captured_attributes = captured_refill(last_jp_info)
+
+        expect(captured_attributes[:first_name_kanji]).to eq("太郎")
+        expect(captured_attributes[:last_name_kanji]).to eq("山田")
+        expect(captured_attributes[:first_name_kana]).to eq("タロウ")
+        expect(captured_attributes[:last_name_kana]).to eq("ヤマダ")
+        expect(captured_attributes[:nationality]).to eq("JP")
+      end
+
+      it "refills the address leaves Stripe is missing when the seller changed one of them" do
+        user_compliance_info.mark_deleted!
+        changed = create(:user_compliance_info_business, user:, city: "Portland")
+        marker = create(:user_compliance_info_business, user:, city: "Oakland",
+                                                        street_address: changed.street_address,
+                                                        state: changed.state,
+                                                        zip_code: changed.zip_code,
+                                                        country: changed.country)
+        marker.mark_deleted!
+        held_line = Stripe::Person.construct_from(
+          id: "person_recreated_blank",
+          object: "person",
+          account: stripe_account.id,
+          address: { line1: "Kept By Stripe" },
+          relationship: { representative: true }
+        )
+        allow(Stripe::Account).to receive(:list_persons)
+          .with(stripe_account.id, relationship: { representative: true }, limit: 1)
+          .and_return("data" => [held_line])
+
+        captured_attributes = captured_refill(marker)
+
+        expect(captured_attributes[:address]).to include(city: "Portland", state: changed.state)
+        expect(captured_attributes[:address]).not_to have_key(:line1)
+      end
+
+      it "sends the seller's new address line when Stripe already holds the old one" do
+        user_compliance_info.mark_deleted!
+        changed = create(:user_compliance_info_business, user:, street_address: "100 New Street", city: "Portland")
+        marker = create(:user_compliance_info_business, user:, street_address: "1 Old Street", city: changed.city,
+                                                        state: changed.state, zip_code: changed.zip_code,
+                                                        country: changed.country)
+        marker.mark_deleted!
+        held_line = Stripe::Person.construct_from(
+          id: "person_recreated_blank",
+          object: "person",
+          account: stripe_account.id,
+          address: { line1: "1 Old Street" },
+          relationship: { representative: true }
+        )
+        allow(Stripe::Account).to receive(:list_persons)
+          .with(stripe_account.id, relationship: { representative: true }, limit: 1)
+          .and_return("data" => [held_line])
+
+        captured_attributes = captured_refill(marker)
+
+        expect(captured_attributes[:address]).to include(line1: "100 New Street", city: "Portland")
+      end
+
+      it "seeds only what Stripe's person is missing, leaving the values it holds alone" do
+        partially_populated = Stripe::Person.construct_from(
+          id: "person_recreated_partial",
+          object: "person",
+          account: stripe_account.id,
+          first_name: "Kept By Stripe",
+          dob: { day: 1, month: 1 },
+          address: { line1: "Kept By Stripe", country: "US" },
+          relationship: { representative: true, title: "COO" }
+        )
+        allow(Stripe::Account).to receive(:list_persons)
+          .with(stripe_account.id, relationship: { representative: true }, limit: 1)
+          .and_return("data" => [partially_populated])
+
+        captured_attributes = captured_refill(last_synced_user_compliance_info)
+
+        expect(captured_attributes).not_to have_key(:first_name)
+        expect(captured_attributes[:last_name]).to eq(user_compliance_info.last_name)
+        # `dob` is one value to Stripe, so a missing year sends the whole date.
+        expect(captured_attributes[:dob]).to eq(
+          day: user_compliance_info.birthday.day,
+          month: user_compliance_info.birthday.month,
+          year: user_compliance_info.birthday.year
+        )
+        expect(captured_attributes[:address]).to include(city: user_compliance_info.city)
+        expect(captured_attributes[:address]).not_to have_key(:line1)
+        expect(captured_attributes[:relationship]).to eq(representative: true)
+      end
+
+      it "does not treat the refilled address as a postal re-validation" do
+        allow(Stripe::Account).to receive(:update_person).and_return(true)
+
+        expect(
+          described_class.update_person(user, stripe_account, last_synced_user_compliance_info.external_id, "1234")
+        ).to be false
+      end
+
+      context "with a postal-code rejection outstanding" do
+        before do
+          user.add_payout_note(
+            content: "#{StripeMerchantAccountManager::POSTAL_CODE_FAILURE_NOTE_PREFIX}: postal_code_invalid — The postal code you entered is not valid."
+          )
+        end
+
+        it "refills the rest of the address but leaves the postal code to force_address_resync" do
+          captured_attributes = captured_refill(last_synced_user_compliance_info)
+
+          expect(captured_attributes[:address]).to include(line1: user_compliance_info.street_address, city: user_compliance_info.city)
+          expect(captured_attributes[:address]).not_to have_key(:postal_code)
+          expect(captured_attributes[:first_name]).to eq(user_compliance_info.first_name)
+        end
+
+        it "does not report a postal re-validation when the seller changed only another address field" do
+          user_compliance_info.mark_deleted!
+          changed = create(:user_compliance_info_business, user:, city: "Portland")
+          marker = create(:user_compliance_info_business, user:, city: "Oakland",
+                                                          street_address: changed.street_address,
+                                                          state: changed.state,
+                                                          zip_code: changed.zip_code,
+                                                          country: changed.country)
+          marker.mark_deleted!
+          allow(Stripe::Account).to receive(:update_person).and_return(true)
+
+          expect(described_class.update_person(user, stripe_account, marker.external_id, "1234")).to be false
+        end
       end
     end
 
@@ -14036,7 +14760,12 @@ describe StripeMerchantAccountManager, :vcr do
 
         described_class.update_person(user, stripe_account, nil, "1234", seed_representative_ownership: false)
 
-        expect(captured_attributes[:relationship]).to eq(representative: true)
+        # The title is filled because this person has none (gumroad-private#2990); ownership is what
+        # this example is about and stays untouched.
+        expect(captured_attributes[:relationship]).to eq(
+          representative: true,
+          title: StripeMerchantAccountManager::DEFAULT_RELATIONSHIP_TITLE
+        )
       end
     end
 
@@ -14097,7 +14826,10 @@ describe StripeMerchantAccountManager, :vcr do
         id: "person_representative",
         object: "person",
         account: "acct_stuck_migration",
-        relationship: { representative: true, owner: false }
+        # A title Stripe already holds, so a heal on this account sends the minimal payload these
+        # examples pin. The blank-title case (a person Stripe re-created) is covered in the
+        # `.update_person` describe.
+        relationship: { representative: true, owner: false, title: "COO" }
       )
     end
 
@@ -14406,6 +15138,79 @@ describe StripeMerchantAccountManager, :vcr do
       expect(attested).to be(false)
     end
 
+    # The seller's own save: it replaces the business record the Stripe marker names with a newer one,
+    # so the record before the live one is a business and the switch history no longer shows. Stripe's
+    # live state is all that is left to decide from (gumroad-private#3353).
+    context "when a save has replaced the business record the Stripe marker names" do
+      let!(:saved_business_info) do
+        business_info.dup_and_save! { |info| info.business_name = "Renamed Co" }
+      end
+
+      def sole_owner_percent(percent)
+        Stripe::Person.construct_from(
+          id: "person_representative",
+          object: "person",
+          account: "acct_stuck_migration",
+          relationship: { representative: true, owner: true, percent_ownership: percent }
+        )
+      end
+
+      def run_update(owners:)
+        allow(Stripe::Account).to receive(:list_persons)
+          .with("acct_stuck_migration", relationship: { owner: true }, limit: 100)
+          .and_return("data" => owners)
+        account = stuck_account(owners_provided_in: :past_due)
+        allow(Stripe::Account).to receive(:retrieve).with("acct_stuck_migration").and_return(account)
+        attested = false
+        seeded = nil
+        allow(Stripe::Account).to receive(:update) do |_id, params|
+          attested = true if params.dig(:company, :owners_provided)
+          account
+        end
+        allow(Stripe::Account).to receive(:update_person) do |_id, _person_id, attributes|
+          seeded = attributes[:relationship]
+          true
+        end
+
+        described_class.update_account(user, passphrase: "1234")
+
+        [attested, seeded]
+      end
+
+      it "attests the owner list when the representative already holds 100%" do
+        attested, seeded = run_update(owners: [sole_owner_percent(100)])
+
+        expect(attested).to be(true)
+        expect(seeded).to eq(representative: true)
+      end
+
+      it "does not attest a list that accounts for only part of the company" do
+        attested, = run_update(owners: [sole_owner_percent(25)])
+
+        expect(attested).to be(false)
+      end
+
+      it "does not attest, or seed, an empty owner list" do
+        attested, seeded = run_update(owners: [])
+
+        expect(attested).to be(false)
+        expect(seeded).not_to have_key(:percent_ownership)
+      end
+
+      it "does not attest when the ownership read fails" do
+        allow(ErrorNotifier).to receive(:notify)
+        allow(Stripe::Account).to receive(:list_persons)
+          .with("acct_stuck_migration", relationship: { owner: true }, limit: 100)
+          .and_raise(Stripe::APIError.new("Stripe is down"))
+        account = stuck_account(owners_provided_in: :past_due)
+        allow(Stripe::Account).to receive(:retrieve).with("acct_stuck_migration").and_return(account)
+        expect(Stripe::Account).not_to receive(:update).with(anything, hash_including(company: { owners_provided: true }))
+        allow(Stripe::Account).to receive(:update).and_return(account)
+
+        described_class.update_account(user, passphrase: "1234")
+      end
+    end
+
     # A zero-ownership list on an account the seller has entered people into is a shape they
     # configured — the beneficial-owners form can clear the representative's own share — so seeding
     # 100% there would overwrite a claim they deliberately gave up.
@@ -14604,6 +15409,115 @@ describe StripeMerchantAccountManager, :vcr do
     end
   end
 
+  describe ".attest_owners_provided_if_blocking" do
+    let(:user) { create(:user) }
+    let!(:business_info) { create(:user_compliance_info_business, user:) }
+    let!(:merchant_account) { create(:merchant_account, user:, charge_processor_merchant_id: "acct_unchanged_save") }
+
+    def account_with(owners_provided_in:, owners_provided: false)
+      requirements = { currently_due: [], past_due: [], eventually_due: [] }
+      requirements[owners_provided_in] = ["company.owners_provided"] if owners_provided_in
+      Stripe::Account.construct_from(
+        id: "acct_unchanged_save",
+        object: "account",
+        business_type: "company",
+        company: { owners_provided: },
+        requirements:
+      )
+    end
+
+    def stub_owners(percent)
+      owners = percent ? [Stripe::Person.construct_from(
+        id: "person_representative",
+        object: "person",
+        account: "acct_unchanged_save",
+        relationship: { representative: true, owner: true, percent_ownership: percent }
+      )] : []
+      allow(Stripe::Account).to receive(:list_persons)
+        .with("acct_unchanged_save", relationship: { owner: true }, limit: 100)
+        .and_return("data" => owners)
+    end
+
+    def stub_account(account)
+      allow(Stripe::Account).to receive(:retrieve).with("acct_unchanged_save").and_return(account)
+    end
+
+    it "tells Stripe the owner list is complete when it holds the whole company and Stripe is blocked on it" do
+      stub_account(account_with(owners_provided_in: :currently_due))
+      stub_owners(100)
+
+      expect(Stripe::Account).to receive(:update).with("acct_unchanged_save", { company: { owners_provided: true } })
+
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "does nothing for a seller who is not a business" do
+      business_info.mark_deleted!
+      create(:user_compliance_info, user:)
+
+      expect(Stripe::Account).not_to receive(:retrieve)
+      expect(Stripe::Account).not_to receive(:update)
+
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "does nothing for a seller without a Stripe account" do
+      merchant_account.destroy!
+
+      expect(Stripe::Account).not_to receive(:retrieve)
+
+      described_class.attest_owners_provided_if_blocking(user.reload)
+    end
+
+    it "does nothing when the requirement is only eventually due" do
+      stub_account(account_with(owners_provided_in: :eventually_due))
+      stub_owners(100)
+
+      expect(Stripe::Account).not_to receive(:update)
+
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "does nothing once Stripe has the statement" do
+      stub_account(account_with(owners_provided_in: nil, owners_provided: true))
+
+      expect(Stripe::Account).not_to receive(:list_persons)
+      expect(Stripe::Account).not_to receive(:update)
+
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "does not attest an empty owner list or one that covers only part of the company" do
+      stub_account(account_with(owners_provided_in: :past_due))
+      expect(Stripe::Account).not_to receive(:update)
+
+      stub_owners(nil)
+      described_class.attest_owners_provided_if_blocking(user)
+
+      stub_owners(25)
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "never sends person or account details" do
+      stub_account(account_with(owners_provided_in: :past_due))
+      stub_owners(100)
+      allow(Stripe::Account).to receive(:update)
+
+      expect(Stripe::Account).not_to receive(:update_person)
+      expect(Stripe::Account).not_to receive(:create_person)
+
+      described_class.attest_owners_provided_if_blocking(user)
+    end
+
+    it "reports a Stripe failure without raising, so the seller's save still succeeds" do
+      allow(Stripe::Account).to receive(:retrieve).and_raise(Stripe::APIError.new("Stripe is down"))
+
+      expect(ErrorNotifier).to receive(:notify).with(instance_of(Stripe::APIError))
+
+      expect { described_class.attest_owners_provided_if_blocking(user) }.not_to raise_error
+    end
+  end
+
   describe "soft-future requirement skip" do
     let(:user) { create(:user) }
     let(:merchant_account) { create(:merchant_account, user:) }
@@ -14789,6 +15703,257 @@ describe StripeMerchantAccountManager, :vcr do
         expect(company).not_to have_key(:address_kana)
         expect(company).not_to have_key(:name_kanji)
         expect(company).not_to have_key(:name_kana)
+      end
+    end
+  end
+
+  # The form's US business types are ours; Stripe's US `company[structure]` values differ, and Stripe
+  # validates the field against the legal entity's country, not the seller's residence.
+  describe "US company structure" do
+    let(:user) { create(:user, email: "gp2609-us-structure@example.com", username: "gp2609usstructure") }
+    let(:passphrase) { GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD") }
+
+    def company_for(business_type, factory: :user_compliance_info_business, **attrs)
+      info = create(factory, user:, business_type:, **attrs)
+      described_class.send(:company_hash, info, passphrase)[:company]
+    end
+
+    {
+      UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP => "sole_proprietorship",
+      UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC => "single_member_llc",
+      UserComplianceInfo::BusinessTypes::MULTI_MEMBER_LLC => "multi_member_llc",
+      UserComplianceInfo::BusinessTypes::CORPORATION => "private_corporation",
+      UserComplianceInfo::BusinessTypes::PARTNERSHIP => "private_partnership",
+    }.each do |business_type, structure|
+      it "maps #{business_type} to #{structure} for a US legal entity" do
+        expect(company_for(business_type)[:structure]).to eq(structure)
+      end
+    end
+
+    it "sends no structure for the generic llc, which does not say how many members the LLC has" do
+      expect(company_for(UserComplianceInfo::BusinessTypes::LLC)).not_to have_key(:structure)
+    end
+
+    it "sends no structure for a non-profit, whose Stripe structures need a non_profit business type" do
+      expect(company_for(UserComplianceInfo::BusinessTypes::NON_PROFIT)).not_to have_key(:structure)
+    end
+
+    it "keys on the legal entity, so a non-resident seller's US company still gets its structure" do
+      company = company_for(UserComplianceInfo::BusinessTypes::MULTI_MEMBER_LLC,
+                            factory: :user_compliance_info_uae_business,
+                            business_country: "United States",
+                            business_state: "California",
+                            business_city: "Burbank",
+                            business_zip_code: "91506")
+
+      expect(company[:address]).to include(country: "US")
+      expect(company[:structure]).to eq("multi_member_llc")
+      expect(company).not_to have_key(:vat_id)
+    end
+
+    it "does not apply the US mapping to a UAE legal entity" do
+      company = company_for("llc", factory: :user_compliance_info_uae_business, business_vat_id_number: "100000000000003")
+
+      expect(company[:structure]).to eq("llc")
+      expect(company[:vat_id]).to eq("100000000000003")
+    end
+
+    it "does not apply the US mapping to a US-resident seller's non-US company" do
+      company = company_for(UserComplianceInfo::BusinessTypes::CORPORATION,
+                            business_country: "United Kingdom",
+                            business_state: nil,
+                            business_city: "London",
+                            business_zip_code: "SW1A 1AA")
+
+      expect(company[:address]).to include(country: "GB")
+      expect(company).not_to have_key(:structure)
+    end
+
+    describe "update_account" do
+      # No Stripe account is created; every call the update makes is stubbed below.
+      let(:merchant_account) { create(:merchant_account, user:) }
+
+      def stub_stripe_account(previous_info, **attributes)
+        stripe_account = Stripe::Account.construct_from(
+          id: merchant_account.charge_processor_merchant_id,
+          object: "account",
+          metadata: { user_compliance_info_id: previous_info.external_id },
+          **attributes,
+          capabilities: {},
+          requirements: { currently_due: [], eventually_due: [], past_due: [] }
+        )
+        allow(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id).and_return(stripe_account)
+        allow(Stripe::Account).to receive(:list_persons).and_return({ "data" => [] })
+        allow(Stripe::Account).to receive(:update_person)
+        allow(Stripe::Account).to receive(:create_person)
+        allow(StripeGuardianManager).to receive(:sync)
+        stripe_account
+      end
+
+      before do
+        merchant_account
+        create(:tos_agreement, user:)
+      end
+
+      it "sends the mapped structure for a non-resident seller's US company" do
+        previous = create(:user_compliance_info_uae_business, user:,
+                                                              business_country: "United States", business_state: "California",
+                                                              business_city: "Burbank", business_zip_code: "91506",
+                                                              business_type: UserComplianceInfo::BusinessTypes::LLC)
+        previous.mark_deleted!
+        create(:user_compliance_info_uae_business, user:,
+                                                   business_country: "United States", business_state: "California",
+                                                   business_city: "Burbank", business_zip_code: "91506",
+                                                   business_type: UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC)
+        stub_stripe_account(previous)
+
+        expect(Stripe::Account).to receive(:update).with(
+          merchant_account.charge_processor_merchant_id,
+          hash_including(company: hash_including(structure: "single_member_llc"))
+        )
+
+        described_class.update_account(user, passphrase:)
+      end
+
+      it "clears the structure before a US company with a mapped structure becomes an individual" do
+        previous = create(:user_compliance_info_business, user:, business_type: UserComplianceInfo::BusinessTypes::MULTI_MEMBER_LLC)
+        previous.mark_deleted!
+        create(:user_compliance_info, user:)
+        stub_stripe_account(previous)
+
+        expect(Stripe::Account).to receive(:update).with(
+          merchant_account.charge_processor_merchant_id,
+          { company: { structure: "" } }
+        ).ordered
+        expect(Stripe::Account).to receive(:update).with(
+          merchant_account.charge_processor_merchant_id,
+          hash_including(business_type: "individual")
+        ).ordered
+
+        described_class.update_account(user, passphrase:)
+      end
+
+      context "when Stripe holds a company but our previous record is individual" do
+        let(:previous) { create(:user_compliance_info, user:) }
+        let(:current_factory) { :user_compliance_info }
+
+        before do
+          previous.mark_deleted!
+          create(current_factory, user:)
+        end
+
+        it "clears an LLC structure in a separate call before sending business_type individual" do
+          stub_stripe_account(previous, business_type: "company", company: { structure: "llc" }, country: "US")
+
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            { company: { structure: "" } }
+          ).ordered
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            hash_including(business_type: "individual", individual: hash_including(:first_name, :last_name, :dob))
+          ).ordered
+
+          described_class.update_account(user, passphrase:)
+        end
+
+        it "does not clear the structure when Stripe holds none" do
+          stub_stripe_account(previous, business_type: "company", company: { structure: nil }, country: "US")
+
+          expect(Stripe::Account).not_to receive(:update).with(anything, { company: { structure: "" } })
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            hash_including(business_type: "individual")
+          )
+
+          described_class.update_account(user, passphrase:)
+        end
+
+        context "when the seller is in Canada" do
+          let(:current_factory) { :user_compliance_info_canada }
+
+          it "does not clear a non-US account's structure" do
+            stub_stripe_account(previous, business_type: "company", company: { structure: "llc" }, country: "CA")
+
+            expect(Stripe::Account).not_to receive(:update).with(anything, { company: { structure: "" } })
+            expect(Stripe::Account).to receive(:update).with(
+              merchant_account.charge_processor_merchant_id,
+              hash_including(business_type: "individual")
+            )
+
+            described_class.update_account(user, passphrase:)
+          end
+        end
+
+        context "when the account is US but the seller's record has since moved country" do
+          let(:current_factory) { :user_compliance_info_canada }
+
+          # A Canadian record on a US account splits the identity fields into their own update, so the
+          # strict ordered expectations used elsewhere would trip on that extra call.
+          it "clears on the account's country, not the record's" do
+            stub_stripe_account(previous, business_type: "company", company: { structure: "llc" }, country: "US")
+            allow(Stripe::Account).to receive(:update)
+
+            described_class.update_account(user, passphrase:)
+
+            expect(Stripe::Account).to have_received(:update).with(merchant_account.charge_processor_merchant_id, { company: { structure: "" } }).ordered
+            expect(Stripe::Account).to have_received(:update).with(merchant_account.charge_processor_merchant_id, hash_including(business_type: "individual")).ordered
+          end
+        end
+
+        it "retires the representative's rejection note, since the company is gone" do
+          representative_note = user.add_payout_note(
+            content: "#{StripeMerchantAccountManager::IDENTITY_REJECTION_NOTE_PREFIX} (representative) — still outstanding",
+            seller_visible: false
+          )
+          stub_stripe_account(previous, business_type: "company")
+          allow(Stripe::Account).to receive(:update)
+
+          described_class.update_account(user, passphrase:)
+
+          expect(representative_note.reload.deleted_at).to be_present
+        end
+
+        %w[non_profit government_entity].each do |type|
+          it "clears the structure, then sends business_type individual for a #{type} account" do
+            stub_stripe_account(previous, business_type: type, company: { structure: "tax_exempt_government_instrumentality" }, country: "US")
+
+            expect(Stripe::Account).to receive(:update).with(
+              merchant_account.charge_processor_merchant_id,
+              { company: { structure: "" } }
+            ).ordered
+            expect(Stripe::Account).to receive(:update).with(
+              merchant_account.charge_processor_merchant_id,
+              hash_including(business_type: "individual", company: { name: user.alive_user_compliance_info.first_and_last_name }, individual: hash_including(:first_name, :last_name, :dob))
+            ).ordered
+
+            described_class.update_account(user, passphrase:)
+          end
+
+          it "retires the representative's rejection note for a #{type} account" do
+            representative_note = user.add_payout_note(
+              content: "#{StripeMerchantAccountManager::IDENTITY_REJECTION_NOTE_PREFIX} (representative) — still outstanding",
+              seller_visible: false
+            )
+            stub_stripe_account(previous, business_type: type)
+            allow(Stripe::Account).to receive(:update)
+
+            described_class.update_account(user, passphrase:)
+
+            expect(representative_note.reload.deleted_at).to be_present
+          end
+        end
+
+        it "leaves an individual account's type alone" do
+          stub_stripe_account(previous, business_type: "individual")
+
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            hash_not_including(:business_type)
+          )
+
+          described_class.update_account(user, passphrase:)
+        end
       end
     end
   end

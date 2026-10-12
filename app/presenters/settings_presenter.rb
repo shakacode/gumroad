@@ -126,6 +126,7 @@ class SettingsPresenter
       end,
       allow_deactivation: Pundit.policy!(pundit_user, [:user]).deactivate?,
       formatted_balance_to_forfeit_on_account_deletion: seller.formatted_balance_to_forfeit(:account_closure),
+      recent_ping_deliveries: seller.ping_deliveries.recent.limit(PingDelivery::MAX_RECENT).includes(:purchase).map(&:as_props),
     }
   end
 
@@ -181,6 +182,9 @@ class SettingsPresenter
     {
       twitter_connected: seller.twitter_user_id.present?,
       twitter_handle: seller.twitter_handle,
+      # A read-only token still reads as connected, so the row would show a green check for a
+      # connection that cannot post. Reconnecting is the fix, and only the seller can do it.
+      twitter_write_permission_missing: Marketing::Action.awaiting_reconnect.where(user: seller).exists?,
       youtube_connect_enabled: Feature.active?(:youtube_connect, seller),
       youtube_connected: seller.youtube_identity.present?,
       youtube_handle: seller.youtube_identity&.handle,
@@ -259,6 +263,7 @@ class SettingsPresenter
       user: user_details(user_compliance_info),
       compliance_info: compliance_info_details(user_compliance_info),
       min_dob_year: Date.today.year - UserComplianceInfo::MINIMUM_DATE_OF_BIRTH_AGE,
+      us_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_US.map { |code, name| { code:, name: } },
       uae_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_UAE.map { |code, name| { code:, name: } },
       india_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_INDIA.map { |code, name| { code:, name: } },
       canada_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_CANADA.map { |code, name| { code:, name: } },
@@ -266,7 +271,9 @@ class SettingsPresenter
       saved_card: CheckoutPresenter.saved_card(seller.credit_card),
       formatted_balance_to_forfeit_on_country_change: seller.formatted_balance_to_forfeit(:country_change),
       formatted_balance_to_forfeit_on_payout_method_change: seller.formatted_balance_to_forfeit(:payout_method_change),
+      paypal_switch_loses_bank_rail: seller.paypal_switch_loses_bank_rail?,
       payouts_paused_internally: seller.payouts_paused_internally?,
+      payout_reserve_available: seller.chargeback_rate_payout_reserve_available?,
       payouts_paused_by: seller.payouts_paused_by_source,
       payout_reserve_percent: seller.chargeback_rate_payout_reserve_active? ? User::CHARGEBACK_RATE_PAYOUT_RESERVE_PERCENT : nil,
       account_status: account_status_details(payments_policy),
@@ -638,6 +645,7 @@ class SettingsPresenter
         individual_tax_id_last_four: tax_id_last_four(user_compliance_info.individual_tax_id),
         individual_tax_id_is_last_four: tax_id_is_last_four_only?(user_compliance_info.individual_tax_id),
         has_outstanding_full_ssn_requirement: outstanding_full_ssn_requirement,
+        has_outstanding_nationality_requirement: has_outstanding_nationality_requirement?,
         business_tax_id_entered: user_compliance_info.business_tax_id.present?,
         business_tax_id_last_four: tax_id_last_four(user_compliance_info.business_tax_id),
         requires_credit_card: seller.requires_credit_card?,
@@ -668,6 +676,13 @@ class SettingsPresenter
             .requested
             .where(field_needed: UserComplianceInfoFields::Individual::TAX_ID)
             .only_needs_field_to_be_partially_provided(false)
+            .exists?
+    end
+
+    def has_outstanding_nationality_requirement?
+      seller.user_compliance_info_requests
+            .requested
+            .where(field_needed: UserComplianceInfoFields::Individual::NATIONALITY_FIELDS)
             .exists?
     end
 

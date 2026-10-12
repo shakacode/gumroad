@@ -449,6 +449,7 @@ const CheckoutIndexPage = () => {
         creator: item.product.creator,
         requireShipping: item.product.require_shipping,
         supportsPaypal: item.product.supports_paypal,
+        paypalCardFundingDisabled: item.product.paypal_card_funding_disabled,
         customFields: item.product.custom_fields,
         bundleProductCustomFields: item.product.bundle_products.map(({ product_id, name, custom_fields }) => ({
           product: { id: product_id, name },
@@ -519,6 +520,7 @@ const CheckoutIndexPage = () => {
     if (state.status.type !== "finished") return;
     if (isTipSuspiciouslyLarge(state) && !largeTipConfirmedRef.current) {
       setShowLargeTipConfirmation(true);
+      dispatch({ type: "set-awaiting-buyer-confirmation", awaiting: true });
       return;
     }
     try {
@@ -563,8 +565,8 @@ const CheckoutIndexPage = () => {
         vatId: state.vatId,
         giftInfo: state.gift
           ? state.gift.type === "anonymous"
-            ? { giftNote: state.gift.note, gifteeId: state.gift.id }
-            : { giftNote: state.gift.note, gifteeEmail: state.gift.email }
+            ? { giftNote: state.gift.note, gifteeId: state.gift.id, hideGifter: !!state.gift.hideGifter }
+            : { giftNote: state.gift.note, gifteeEmail: state.gift.email, hideGifter: !!state.gift.hideGifter }
           : null,
         eventAttributes: {
           plugins: getPlugins(),
@@ -650,6 +652,7 @@ const CheckoutIndexPage = () => {
                 item.price !== 0,
               acceptsPppDiscount: !!item.product.ppp_details && !cartForm.data.cart.rejectPppDiscount,
               forceNewSubscription: item.force_new_subscription,
+              restartIntent: item.restart_intent ?? null,
               confirmedDuplicatePurchase: confirmedDuplicatePurchaseUidsRef.current.has(getCartItemUid(item)),
               acceptedOffer: item.accepted_offer ?? null,
               bundleProducts: item.product.bundle_products.map((bundleProduct) => ({
@@ -746,6 +749,7 @@ const CheckoutIndexPage = () => {
           uids: duplicatePurchaseResults.map(({ item }) => getCartItemUid(item)),
           productNames: duplicatePurchaseResults.map(({ item }) => item.product.name),
         });
+        dispatch({ type: "set-awaiting-buyer-confirmation", awaiting: true });
         return;
       }
 
@@ -1188,6 +1192,8 @@ const CheckoutIndexPage = () => {
               onClick={() => {
                 largeTipConfirmedRef.current = true;
                 setShowLargeTipConfirmation(false);
+                // The retry below resubmits on `finished`; until it does, Pay is charging again.
+                dispatch({ type: "set-awaiting-buyer-confirmation", awaiting: false });
               }}
             >
               Yes, leave tip
@@ -1237,6 +1243,7 @@ const CheckoutIndexPage = () => {
                   for (const uid of duplicatePurchaseConfirmation.uids)
                     confirmedDuplicatePurchaseUidsRef.current.add(uid);
                 setDuplicatePurchaseConfirmation(null);
+                dispatch({ type: "set-awaiting-buyer-confirmation", awaiting: false });
               }}
             >
               Buy again
@@ -1244,10 +1251,8 @@ const CheckoutIndexPage = () => {
           </>
         }
       >
-        <p>
-          You already paid for {duplicatePurchaseConfirmation?.productNames.join(", ") ?? ""}. Do you want to buy{" "}
-          {(duplicatePurchaseConfirmation?.productNames.length ?? 0) > 1 ? "them" : "it"} again?
-        </p>
+        {/* The heading already carries ownership — saying it again here read as the same point twice. */}
+        <p>Do you want to buy {duplicatePurchaseConfirmation?.productNames.join(", ") ?? ""} again?</p>
       </Modal>
     </StateContext.Provider>
   );

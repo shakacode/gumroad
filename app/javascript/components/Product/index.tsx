@@ -5,3 +5,4 @@ export * from "$app/components/Product/Interactive";
 
 export type Product = ProductData;
 export const Product = LegacyProduct;
+export { LONG_TITLE_LENGTH } from "$app/components/Product/ProductContent";

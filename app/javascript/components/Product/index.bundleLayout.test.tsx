@@ -1,11 +1,19 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Product, type Product as ProductData } from "$app/components/Product";
+import { trackUserProductAction } from "$app/data/user_action_event";
+
+import { LONG_TITLE_LENGTH, Product, type Product as ProductData } from "$app/components/Product";
 import type { PriceSelection } from "$app/components/Product/ConfigurationSelector";
 import { Layout } from "$app/components/Product/Layout";
+
+const selectionFlags = vi.hoisted(() => ({
+  hasRentOption: false,
+  hasMultipleRecurrences: false,
+  hasConfigurableQuantity: false,
+}));
 
 vi.stubGlobal("SSR", false);
 vi.stubGlobal("Routes", {
@@ -17,7 +25,7 @@ vi.stubGlobal("Routes", {
 vi.mock("$app/utils/classNames", () => ({
   classNames: (...xs: unknown[]) => xs.filter((x): x is string => typeof x === "string" && x.length > 0).join(" "),
 }));
-vi.mock("$app/data/user_action_event", () => ({ trackUserProductAction: vi.fn() }));
+vi.mock("$app/data/user_action_event", () => ({ trackUserProductAction: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("$app/data/view_event", () => ({ incrementProductViews: vi.fn() }));
 vi.mock("$app/utils/user_analytics", () => ({
   startTrackingForSeller: vi.fn(),
@@ -49,9 +57,7 @@ vi.mock("$app/components/Product/ConfigurationSelector", () => {
       isPWYW: false,
       maxQuantity: null,
       selectedOption: null,
-      hasRentOption: false,
-      hasMultipleRecurrences: false,
-      hasConfigurableQuantity: false,
+      ...selectionFlags,
     }),
     buyerLocalPriceCentsForSelection: (priceCents?: number) => priceCents,
     buyerLocalContextFor: (product: ProductData) => ({
@@ -68,6 +74,7 @@ vi.mock("$app/components/Product/ShareSection", () => ({ ShareSection: () => nul
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 const selection: PriceSelection = {
@@ -148,7 +155,64 @@ const product: ProductData = {
   public_files: [],
 };
 
+describe("long product titles", () => {
+  const longName = "A".repeat(LONG_TITLE_LENGTH + 1);
+  const renderTitle = (name: string, props: Partial<React.ComponentProps<typeof Product>> = {}) => {
+    render(
+      <Product product={{ ...product, name }} purchase={null} selection={selection} disableAnalytics {...props} />,
+    );
+    return screen.getByRole("heading", { level: 1 });
+  };
+
+  it("steps a long title down to 32px, and 24px on phones", () => {
+    const title = renderTitle(longName);
+
+    expect(title.className).toContain("text-[2rem]");
+    expect(title.className).toContain("max-sm:text-[1.5rem]");
+  });
+
+  it("keeps a title of exactly the threshold length at the stock size", () => {
+    expect(renderTitle("A".repeat(LONG_TITLE_LENGTH)).className).not.toContain("text-[2rem]");
+  });
+
+  it("ignores surrounding whitespace when measuring", () => {
+    expect(renderTitle(`  ${"A".repeat(LONG_TITLE_LENGTH)}  `).className).not.toContain("text-[2rem]");
+  });
+
+  it("leaves the heading at its stock size when the surface opts out", () => {
+    expect(renderTitle(longName, { scaleLongTitle: false }).className).not.toContain("text-[2rem]");
+  });
+});
+
 describe("product page recovery prompt", () => {
+  it("places recovery after the main purchase button", () => {
+    render(<Product product={product} purchase={null} selection={selection} disableAnalytics />);
+
+    const purchaseButton = screen.getByRole("link", { name: "I want this!" });
+    const recoveryLink = screen.getByRole("link", { name: "Get your download link" });
+    expect(purchaseButton.compareDocumentPosition(recoveryLink) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(purchaseButton.closest("section")).toBe(recoveryLink.closest("section"));
+  });
+
+  it("tracks recovery without blocking navigation", () => {
+    render(<Product product={product} purchase={null} selection={selection} />);
+
+    const recoveryLink = screen.getByRole("link", { name: "Get your download link" });
+    expect(fireEvent.click(recoveryLink)).toBe(true);
+    expect(trackUserProductAction).toHaveBeenCalledExactlyOnceWith({
+      name: "product_purchase_recovery_click",
+      permalink: product.permalink,
+      keepalive: true,
+    });
+  });
+
+  it("does not track recovery in a preview with analytics disabled", () => {
+    render(<Product product={product} purchase={null} selection={selection} disableAnalytics />);
+
+    fireEvent.click(screen.getByRole("link", { name: "Get your download link" }));
+    expect(trackUserProductAction).not.toHaveBeenCalled();
+  });
+
   it.each([
     [false, false, "Get your download link"],
     [true, false, "View your information"],
@@ -172,6 +236,94 @@ describe("product page recovery prompt", () => {
     } else {
       expect(screen.queryByText("Already bought this?")).toBeNull();
     }
+  });
+});
+
+describe("product page sticky CTA readiness", () => {
+  const renderLayout = (p: ProductData) => {
+    class FakeIntersectionObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
+
+    render(
+      <Layout
+        product={p}
+        purchase={null}
+        discount_code={null}
+        wishlists={[]}
+        main_section_index={0}
+        sections={[]}
+        creator_profile={{
+          external_id: "seller",
+          name: "Measure Twice Digital",
+          avatar_url: "https://example.com/avatar.png",
+          twitter_handle: null,
+          subdomain: null,
+          is_verified: false,
+          can_edit: false,
+        }}
+        currency_code="usd"
+      />,
+    );
+
+    return screen.getByRole("region", { name: "Product information bar" });
+  };
+
+  const option = (id: string): ProductData["options"][number] => ({
+    id,
+    name: id,
+    quantity_left: null,
+    description: "",
+    price_difference_cents: 0,
+    recurrence_price_values: null,
+    is_pwyw: false,
+    duration_in_minutes: null,
+  });
+
+  // The bar mirrors the in-page CTA's validation: it holds the click back only while the buyer still
+  // owes the page a choice. Rent/quantity/recurrence controls being present is not a missing choice —
+  // intercepting for those is what made bar taps feel dead before this change.
+  it("navigates for a rent-or-buy, quantity-enabled product with nothing left to choose", () => {
+    selectionFlags.hasRentOption = true;
+    selectionFlags.hasConfigurableQuantity = true;
+
+    const bar = renderLayout(product);
+    const cta = within(bar).getByRole("link", { name: "I want this!" });
+
+    expect(fireEvent.click(cta)).toBe(true);
+  });
+
+  it("holds the click back and relabels while an option is unchosen", () => {
+    selectionFlags.hasMultipleRecurrences = true;
+
+    const bar = renderLayout({ ...product, options: [option("standard"), option("deluxe")] });
+    const cta = within(bar).getByRole("link", { name: "Choose an option" });
+
+    expect(fireEvent.click(cta)).toBe(false);
+  });
+
+  it("lets the bar through when every option is sold out", () => {
+    const soldOut = {
+      ...product,
+      options: [
+        { ...option("standard"), quantity_left: 0 },
+        { ...option("deluxe"), quantity_left: 0 },
+      ],
+    };
+
+    const bar = renderLayout(soldOut);
+    const cta = within(bar).getByRole("link", { name: "I want this!" });
+
+    expect(fireEvent.click(cta)).toBe(true);
+  });
+
+  afterEach(() => {
+    selectionFlags.hasRentOption = false;
+    selectionFlags.hasMultipleRecurrences = false;
+    selectionFlags.hasConfigurableQuantity = false;
   });
 });
 

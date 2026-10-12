@@ -18,10 +18,13 @@ import {
   removedFileEmbedIdsForPage,
   resolveServerIdMapping,
   richContentMoveSourceIds,
+  saveProduct,
   saveProductError,
   scalarSettingsForSave,
   StaleContentConflictError,
   StaleDeletionConflictError,
+  UnconfirmedSaveError,
+  UnmarkedInstallmentPlanClearConflictError,
 } from "$app/data/product_edit";
 import { ResponseError } from "$app/utils/request";
 
@@ -45,21 +48,188 @@ describe("filesForSave", () => {
     expect(editorFiles).toEqual([file]);
     expect(filesForSave(editorFiles, new Set(), true)).toEqual([file]);
   });
+
+  it("drops a file whose upload failed, on both the embedded-only and keep-all paths", () => {
+    const uploaded = { id: "uploaded-id" };
+    const failed = { id: "failed-id", status: { type: "unsaved", uploadStatus: { type: "failed" } } };
+    const editorFiles = [uploaded, failed];
+
+    expect(filesForSave(editorFiles, new Set(["uploaded-id", "failed-id"]), false)).toEqual([uploaded]);
+    expect(filesForSave(editorFiles, new Set(), true)).toEqual([uploaded]);
+  });
+});
+
+const requestMock = vi.hoisted(() => vi.fn());
+vi.mock("$app/utils/request", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("$app/utils/request")>()),
+  request: requestMock,
+}));
+
+describe("saveProduct with a failed upload", () => {
+  const failedId = "failed-file";
+  const productWithFailedEmbed = () => ({
+    files: [
+      { id: "saved-file", status: { type: "saved" } },
+      { id: failedId, status: { type: "unsaved", uploadStatus: { type: "failed" } } },
+    ],
+    public_files: [],
+    rich_content: [
+      {
+        id: "page-1",
+        title: "Page",
+        description: {
+          type: "doc",
+          content: [
+            { type: "fileEmbed", attrs: { id: failedId, uid: "uid-1" } },
+            { type: "fileEmbed", attrs: { id: "saved-file", uid: "uid-2" } },
+          ],
+        },
+      },
+    ],
+    variants: [],
+    has_same_rich_content_for_all_variants: true,
+    covers: [],
+    availabilities: [],
+    confirmed_removed_variant_ids: [],
+    confirmed_removed_rich_content_ids: [],
+    preserved_rich_content_ids: [],
+    editor_revision: null,
+    allow_installment_plan: false,
+  });
+
+  it("saves neither the failed file nor the embed it left in the content", async () => {
+    // Rails injects this global; the save URL goes through it.
+    Object.assign(globalThis, { Routes: { link_path: () => "/p/demo" } });
+    requestMock.mockReset().mockResolvedValue({ ok: true, status: 204 });
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only carries the fields the save reads
+    const product = productWithFailedEmbed() as unknown as Parameters<typeof saveProduct>[2];
+
+    await saveProduct("demo", "product-id", product, "usd", { keepAllFiles: true });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          files: [{ id: "saved-file", status: { type: "saved" } }],
+          rich_content: [
+            {
+              id: "page-1",
+              title: "Page",
+              description: { type: "doc", content: [{ type: "fileEmbed", attrs: { id: "saved-file", uid: "uid-2" } }] },
+            },
+          ],
+        }),
+      }),
+    );
+  });
+});
+
+describe("saveProduct with an unreadable response", () => {
+  const minimalProduct = () =>
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only carries the fields the save reads
+    ({
+      files: [],
+      public_files: [],
+      rich_content: [],
+      variants: [],
+      has_same_rich_content_for_all_variants: true,
+      covers: [],
+      availabilities: [],
+      confirmed_removed_variant_ids: [],
+      confirmed_removed_rich_content_ids: [],
+      preserved_rich_content_ids: [],
+      editor_revision: null,
+      allow_installment_plan: false,
+    }) as unknown as Parameters<typeof saveProduct>[2];
+  const respond = (response: object) => {
+    Object.assign(globalThis, { Routes: { link_path: () => "/p/demo" } });
+    requestMock.mockReset().mockResolvedValue(response);
+  };
+  const notJson = () => Promise.reject(new SyntaxError("Unexpected end of JSON input"));
+
+  it("answers a failed response that is not JSON with a plain ResponseError", async () => {
+    respond({ ok: false, status: 400, json: notJson });
+
+    const error = await saveProduct("demo", "product-id", minimalProduct(), "usd").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ResponseError);
+    expect(error).not.toBeInstanceOf(UnconfirmedSaveError);
+  });
+
+  it.each([
+    ["is not JSON", notJson],
+    ["has the wrong shape", () => Promise.resolve({ variant_id_mappings: "nope" })],
+  ])("tells the seller to reload when a successful response %s", async (_label, json) => {
+    respond({ ok: true, status: 200, json });
+
+    const error = await saveProduct("demo", "product-id", minimalProduct(), "usd").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(UnconfirmedSaveError);
+    expect(error).toHaveProperty(
+      "message",
+      "We could not confirm that your changes saved. Reload the page to check before saving again.",
+    );
+    expect(error).toHaveProperty("originalError");
+  });
+});
+
+describe("saveProduct with membership tiers", () => {
+  it("sends an explicit close setting and leaves an unserved one out", async () => {
+    Object.assign(globalThis, { Routes: { link_path: () => "/p/demo" } });
+    requestMock.mockReset().mockResolvedValue({ ok: true, status: 204 });
+    const tier = { id: "tier", name: "Tier", rich_content: [] };
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only carries the fields the save reads
+    const product = {
+      files: [],
+      public_files: [],
+      rich_content: [],
+      variants: [
+        { ...tier, closed_to_new_purchases: false },
+        { ...tier, id: "legacy-tier" },
+      ],
+      has_same_rich_content_for_all_variants: false,
+      covers: [],
+      availabilities: [],
+      confirmed_removed_variant_ids: [],
+      confirmed_removed_rich_content_ids: [],
+      preserved_rich_content_ids: [],
+      editor_revision: null,
+      allow_installment_plan: false,
+    } as unknown as Parameters<typeof saveProduct>[2];
+
+    await saveProduct("demo", "product-id", product, "usd");
+
+    expect(requestMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          variants: [
+            { ...tier, closed_to_new_purchases: false },
+            { ...tier, id: "legacy-tier" },
+          ],
+        }),
+      }),
+    );
+  });
 });
 
 describe("scalarSettingsForSave", () => {
   const product = (overrides = {}) => ({
     custom_permalink: null,
+    description: "",
     customizable_price: false,
     price_cents: 100,
     hasPaidVariantPricing: false,
+    installment_plan: null,
+    allow_installment_plan: false,
     ...overrides,
   });
   const lastSaved = (overrides = {}) => ({
     custom_permalink: null,
+    description: null,
     customizable_price: false,
     price_cents: 100,
     hasPaidVariantPricing: false,
+    installment_plan: null,
+    allow_installment_plan: false,
     ...overrides,
   });
 
@@ -112,12 +282,140 @@ describe("scalarSettingsForSave", () => {
     ).toEqual({ customizable_price: false });
   });
 
+  it("omits a blank description unless this session edited the field", () => {
+    expect(scalarSettingsForSave(product({ description: "" }), lastSaved())).toEqual({});
+    expect(scalarSettingsForSave(product({ description: "", description_changed: true }), lastSaved())).toEqual({
+      description: null,
+      description_changed: true,
+    });
+    expect(scalarSettingsForSave(product({ description: "", description_changed: false }), lastSaved())).toEqual({});
+  });
+
+  it("sends a non-empty description", () => {
+    expect(scalarSettingsForSave(product({ description: "<p>Hi</p>" }), lastSaved())).toEqual({
+      description: "<p>Hi</p>",
+    });
+  });
+
+  it("omits a description unchanged from the last-saved one", () => {
+    // Two editor instances can hold divergent copies of this field. The one
+    // whose copy still matches what it last saved must not re-post it, or an
+    // unrelated save reverts the copy the other instance already stored.
+    expect(
+      scalarSettingsForSave(product({ description: "<p>Hi</p>" }), lastSaved({ description: "<p>Hi</p>" })),
+    ).toEqual({});
+    expect(
+      scalarSettingsForSave(
+        product({ description: "<p>Hi</p>", description_changed: true }),
+        lastSaved({ description: "<p>Hi</p>" }),
+      ),
+    ).toEqual({});
+  });
+
+  it("sends a description that differs from the last-saved one", () => {
+    expect(
+      scalarSettingsForSave(product({ description: "<p>New</p>" }), lastSaved({ description: "<p>Old</p>" })),
+    ).toEqual({ description: "<p>New</p>" });
+    // A seller who empties the field and retypes is a change in both directions.
+    expect(
+      scalarSettingsForSave(product({ description: "<p>Old</p>" }), lastSaved({ description: "<p>New</p>" })),
+    ).toEqual({ description: "<p>Old</p>" });
+    // A caller that does not track a baseline keeps the always-submit behavior.
+    expect(scalarSettingsForSave(product({ description: "<p>Hi</p>" }), lastSaved({ description: undefined }))).toEqual(
+      { description: "<p>Hi</p>" },
+    );
+  });
+
+  it("treats the editor's empty document as blank", () => {
+    // An emptied rich-text editor serializes to markup, so truthiness alone
+    // would let an unmarked stale snapshot overwrite newer copy with it.
+    expect(scalarSettingsForSave(product({ description: "<p><br></p>" }), lastSaved())).toEqual({});
+    expect(scalarSettingsForSave(product({ description: "<p>&nbsp;</p>" }), lastSaved())).toEqual({});
+    expect(scalarSettingsForSave(product({ description: "<ul><li><p><br></p></li></ul>" }), lastSaved())).toEqual({});
+    expect(scalarSettingsForSave(product({ description: "<h2></h2>" }), lastSaved())).toEqual({});
+  });
+
+  it("still sends a description that renders something, embed-only included", () => {
+    expect(scalarSettingsForSave(product({ description: "<img src='x.png'>" }), lastSaved())).toEqual({
+      description: "<img src='x.png'>",
+    });
+    expect(scalarSettingsForSave(product({ description: "<figure><audio></audio></figure>" }), lastSaved())).toEqual({
+      description: "<figure><audio></audio></figure>",
+    });
+    expect(scalarSettingsForSave(product({ description: "<p> <br> hi </p>" }), lastSaved())).toEqual({
+      description: "<p> <br> hi </p>",
+    });
+    // The media node serializes as an attribute-only wrapper — the payload is in
+    // the attributes, so it is content even with nothing between the tags. A
+    // session that edited the field would otherwise send a clear and drop it.
+    const mediaEmbed =
+      '<div class="tiptap__raw" data-url="https://example.com/x.mp4" data-thumbnail="https://example.com/x.png"></div>';
+    expect(scalarSettingsForSave(product({ description: mediaEmbed }), lastSaved())).toEqual({
+      description: mediaEmbed,
+    });
+    expect(scalarSettingsForSave(product({ description: mediaEmbed, description_changed: true }), lastSaved())).toEqual(
+      { description: mediaEmbed },
+    );
+  });
+
+  it("clears when the session emptied the editor", () => {
+    expect(
+      scalarSettingsForSave(product({ description: "<p><br></p>", description_changed: true }), lastSaved()),
+    ).toEqual({ description: null, description_changed: true });
+  });
+
   it("always sends customizable_price when the caller has no baseline", () => {
     // A caller that does not track the last-saved value (null baseline) must
     // keep the pre-fix always-submit behavior, so disabling PWYW still lands.
     expect(
       scalarSettingsForSave(product({ customizable_price: false }), { ...lastSaved(), customizable_price: null }),
     ).toEqual({ customizable_price: false });
+  });
+
+  it("omits an unchanged installment plan so a stale tab cannot delete the seller's plan", () => {
+    expect(scalarSettingsForSave(product(), lastSaved())).toEqual({});
+  });
+
+  it("sends the plan when this session turned the toggle on", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ allow_installment_plan: true, installment_plan: { number_of_installments: 2 } }),
+        lastSaved(),
+      ),
+    ).toEqual({ installment_plan: { number_of_installments: 2 } });
+  });
+
+  it("sends the plan when this session changed the installment count", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ allow_installment_plan: true, installment_plan: { number_of_installments: 4 } }),
+        lastSaved({ allow_installment_plan: true, installment_plan: { number_of_installments: 2 } }),
+      ),
+    ).toEqual({ installment_plan: { number_of_installments: 4 } });
+  });
+
+  it("marks a deliberate toggle-off as a clear so the server can tell it from a stale tab", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ allow_installment_plan: false, installment_plan: null }),
+        lastSaved({ allow_installment_plan: true, installment_plan: { number_of_installments: 2 } }),
+      ),
+    ).toEqual({ installment_plan: null, installment_plan_changed: true });
+  });
+
+  it("always sends installment_plan when the caller has no baseline", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ allow_installment_plan: true, installment_plan: { number_of_installments: 2 } }),
+        { ...lastSaved(), allow_installment_plan: null },
+      ),
+    ).toEqual({ installment_plan: { number_of_installments: 2 } });
+    expect(
+      scalarSettingsForSave(product({ allow_installment_plan: false }), {
+        ...lastSaved(),
+        allow_installment_plan: null,
+      }),
+    ).toEqual({ installment_plan: null, installment_plan_changed: true });
   });
 });
 
@@ -645,5 +943,17 @@ describe("save contract conflict responses", () => {
     const unknown = saveProductError({ error_message: "Nope.", error_code: "some_future_code" });
     expect(unknown).toBeInstanceOf(ResponseError);
     expect(unknown).not.toBeInstanceOf(StaleDeletionConflictError);
+  });
+
+  it("maps unmarked_installment_plan_clear_conflict to its own typed error", () => {
+    const error = saveProductError({
+      error_message: "This page is out of date.",
+      error_code: "unmarked_installment_plan_clear_conflict",
+    });
+
+    expect(error).toBeInstanceOf(UnmarkedInstallmentPlanClearConflictError);
+    expect(error).not.toBeInstanceOf(ResponseError);
+    expect(error).not.toBeInstanceOf(StaleDeletionConflictError);
+    expect(error.message).toBe("This page is out of date.");
   });
 });

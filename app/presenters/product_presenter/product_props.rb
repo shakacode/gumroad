@@ -19,6 +19,8 @@ class ProductPresenter::ProductProps
     displayed_price_cents = displayed_price_cents(discount_code_result:, ppp_details:, quantity:)
     original_price_cents = product.price_cents if displayed_price_cents.present? && displayed_price_cents < product.price_cents
     buyer_currency_display = buyer_currency_display_props(product:, price_cents: displayed_price_cents, ip: request.remote_ip, preferred_currency: buyer_currency_preference(request))
+    options = product.options
+    rental = product.rental
 
     {
       product: {
@@ -36,7 +38,7 @@ class ProductPresenter::ProductProps
         ratings: product.display_product_reviews? ? product.rating_stats : nil,
         # Excludes this product so its own reviews never inflate the seller
         # rollup shown on its page (gumroad-private#1669).
-        **(seller.reputation_summary_enabled? ? { seller_reputation: seller.seller_reputation_summary(exclude_product: product) } : {}),
+        **(seller.reputation_summary_enabled? ? { seller_reputation: seller.seller_reputation_summary(exclude_product: product, snapshot_only: true) } : {}),
         custom_button_text_option: product.custom_button_text_option,
         is_compliance_blocked: product.compliance_blocked(request.remote_ip),
         is_published: !product.draft && product.alive?,
@@ -51,7 +53,7 @@ class ProductPresenter::ProductProps
         buyer_currency_display:,
         **buyer_local_price_props(product:, original_price_cents:, buyer_currency_display:),
         rental_price_cents: product.rental_price_cents,
-        pwyw: product.customizable_price ? { suggested_price_cents: product.suggested_price_cents } : nil,
+        pwyw: product.customizable_price ? { suggested_price_cents: product.suggested_price_cents, default_price_cents: pwyw_default_price_cents(options:, rental:) } : nil,
         **ProductPresenter::InstallmentPlanProps.new(product:).props,
         is_legacy_subscription: product.is_legacy_subscription?,
         is_tiered_membership: product.is_tiered_membership,
@@ -64,7 +66,7 @@ class ProductPresenter::ProductProps
         native_type: product.native_type,
         preorder: product.is_in_preorder_state ? { release_date: product.preorder_link.release_at } : nil,
         duration_in_months: product.duration_in_months,
-        rental: product.rental,
+        rental:,
         is_quantity_enabled: product.quantity_enabled,
         free_trial: product.free_trial_enabled ? {
           duration: {
@@ -73,7 +75,7 @@ class ProductPresenter::ProductProps
           }
         } : nil,
         recurrences: product.recurrences,
-        options: product.options,
+        options:,
         analytics: product.analytics_data,
         has_third_party_analytics: product.has_third_party_analytics?("product"),
         ppp_details:,
@@ -83,7 +85,7 @@ class ProductPresenter::ProductProps
         public_files: product.alive_public_files.attached.map { PublicFilePresenter.new(public_file: _1).props },
       },
       discount_code: discount_code_result,
-      purchase: purchase_props(product.purchase_info_for_product_page(pundit_user&.user, request.cookie_jar[:_gumroad_guid], purchase_id:, purchase_email_digest:)),
+      purchase: purchase_props(product.purchase_info_for_product_page(pundit_user&.user, incoming_browser_guid(request), purchase_id:, purchase_email_digest:)),
       wishlists: pundit_user&.seller.present? ? (
         pundit_user.seller.wishlists.alive.includes(:alive_wishlist_products).map { |wishlist| WishlistPresenter.new(wishlist:).listing_props(product:) }
       ) : [],
@@ -92,6 +94,25 @@ class ProductPresenter::ProductProps
 
   private
     attr_reader :product, :seller
+
+    # The amount the pay-what-you-want box starts with. It is 0 only when nothing the buyer can pick
+    # (option or rental) raises the minimum above $0 and the seller suggests no amount,
+    # because a suggested price shows as the empty box's placeholder.
+    def pwyw_default_price_cents(options:, rental:)
+      return if product.is_tiered_membership || product.is_legacy_subscription?
+      return unless product.price_cents.zero? && product.suggested_price_cents.to_i.zero?
+      return unless rental.nil? || rental[:price_cents].zero?
+
+      0 if options.all? { _1[:price_difference_cents].to_i.zero? }
+    end
+
+    # A guid ApplicationController#set_gumroad_guid minted for this response cannot
+    # be on any purchase, so skip the purchases lookup for it.
+    def incoming_browser_guid(request)
+      return if request.try(:env)&.[](ApplicationController::MINTED_GUMROAD_GUID_ENV_KEY)
+
+      request.cookie_jar[:_gumroad_guid]
+    end
 
     def discount_code_props(discount_code_from_url, quantity, buyer)
       BestOfferCodeService.new(
@@ -110,6 +131,7 @@ class ProductPresenter::ProductProps
         email_digest: purchase_info[:email_digest],
         created_at: purchase_info[:created_at],
         review: purchase_info[:review],
+        review_account_name: purchase_info[:review_account_name],
         should_show_receipt: purchase_info[:should_show_receipt],
         was_paid: purchase_info[:was_paid],
         is_gift_receiver_purchase: purchase_info[:is_gift_receiver_purchase],

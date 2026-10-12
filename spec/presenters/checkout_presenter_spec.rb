@@ -138,6 +138,27 @@ describe CheckoutPresenter do
       expect(upsell_props[:description]).to eq("")
     end
 
+    it "returns an empty offer text for upsells without offer text" do
+      product = create(:product_with_digital_versions, user: create(:named_user))
+      upsell = create(:upsell, seller: product.user, product:, text: nil)
+      params = { product: product.unique_permalink }
+
+      upsell_props = @instance.checkout_props(params:, browser_guid:)[:add_products].first[:product][:upsell]
+      expect(upsell_props[:id]).to eq(upsell.external_id)
+      expect(upsell_props[:text]).to eq("")
+    end
+
+    it "returns an empty offer text for cross-sells without offer text" do
+      product = create(:product, user: create(:named_user))
+      offered_product = create(:product, user: product.user)
+      cross_sell = create(:upsell, selected_products: [product], seller: product.user, product: offered_product, cross_sell: true, text: nil)
+      params = { product: product.unique_permalink }
+
+      cross_sells = @instance.checkout_props(params:, browser_guid:)[:add_products].first[:product][:cross_sells]
+      expect(cross_sells.first[:id]).to eq(cross_sell.external_id)
+      expect(cross_sells.first[:text]).to eq("")
+    end
+
     it "does not accept paused upsells as accepted offers" do
       product = create(:product_with_digital_versions, user: create(:named_user))
       upsell = create(:upsell, seller: product.user, product:)
@@ -147,6 +168,64 @@ describe CheckoutPresenter do
 
       upsell.update!(paused: true)
       expect(@instance.checkout_props(params:, browser_guid:)[:add_products].first[:accepted_offer]).to be_nil
+    end
+
+    describe "restart intent" do
+      let(:membership) { create(:membership_product, user: create(:named_user)) }
+
+      it "signs a restart intent for a recurring product arriving at checkout" do
+        token = @instance.checkout_props(params: { product: membership.unique_permalink }, browser_guid:)[:add_products].sole[:restart_intent]
+
+        expect(Checkout::RestartIntentToken.restart_intended?(token, product: membership, buyer: @user, lapsed_at: 1.minute.ago)).to be true
+      end
+
+      it "omits the restart intent for a product that cannot be restarted" do
+        product = create(:product, user: create(:named_user))
+
+        expect(@instance.checkout_props(params: { product: product.unique_permalink }, browser_guid:)[:add_products].sole).not_to have_key(:restart_intent)
+      end
+
+      context "with a cross-sell offering a membership" do
+        let(:product) { create(:product, user: membership.user) }
+
+        def offered_product_for(presenter)
+          line = presenter.checkout_props(params: { product: product.unique_permalink }, browser_guid:)[:add_products].sole
+          line[:product][:cross_sells].sole[:offered_product]
+        end
+
+        let!(:cross_sell) { create(:upsell, selected_products: [product], seller: membership.user, product: membership, cross_sell: true) }
+
+        it "signs a restart intent for the signed-in buyer on the offered membership" do
+          token = offered_product_for(@instance)[:restart_intent]
+
+          expect(Checkout::RestartIntentToken.restart_intended?(token, product: membership, buyer: @user, lapsed_at: 1.minute.ago)).to be true
+          expect(Checkout::RestartIntentToken.restart_intended?(token, product: membership, buyer: create(:user), lapsed_at: 1.minute.ago)).to be false
+        end
+
+        it "signs a guest-bound restart intent on the offered membership for a logged-out buyer" do
+          token = offered_product_for(described_class.new(logged_in_user: nil, ip: "104.193.168.19"))[:restart_intent]
+
+          expect(Checkout::RestartIntentToken.restart_intended?(token, product: membership, buyer: nil, lapsed_at: 1.minute.ago)).to be true
+          expect(Checkout::RestartIntentToken.restart_intended?(token, product: membership, buyer: @user, lapsed_at: 1.minute.ago)).to be false
+        end
+
+        it "omits the restart intent when the offered product is not recurring" do
+          cross_sell.update!(product: create(:product, user: membership.user))
+
+          expect(offered_product_for(@instance)).not_to have_key(:restart_intent)
+        end
+      end
+
+      it "does not issue a restart intent for lines read back from the saved cart" do
+        cart = create(:cart, user: @user)
+        create(:cart_product, cart:, product: membership)
+
+        items = CartPresenter.new(logged_in_user: @user, ip: "104.193.168.19", browser_guid:).cart_props[:items]
+
+        expect(items.sole[:product][:id]).to eq(membership.external_id)
+        expect(items.sole).not_to have_key(:restart_intent)
+        expect(items.sole[:force_new_subscription]).to be(false)
+      end
     end
 
     it "allows adding a product" do
@@ -199,6 +278,8 @@ describe CheckoutPresenter do
             shippable_country_codes: [],
             custom_fields: [],
             supports_paypal: nil,
+            paypal_card_funding_disabled: false,
+            link_disabled: false,
             has_offer_codes: false,
             has_tipping_enabled: false,
             analytics: product.analytics_data,
@@ -331,7 +412,8 @@ describe CheckoutPresenter do
             call_start_time: nil,
             accepted_offer: nil,
             pay_in_installments: false,
-            force_new_subscription: false
+            force_new_subscription: false,
+            restart_intent: a_kind_of(String)
           },
           {
             product: a_hash_including(id: versioned_product.external_id),
@@ -350,6 +432,19 @@ describe CheckoutPresenter do
           }
         ]
       )
+    end
+
+    it "does not raise when the wishlist owner has no global affiliate" do
+      wishlist = create(:wishlist)
+      product = create(:product)
+      create(:wishlist_product, wishlist:, product:)
+
+      wishlist.user.global_affiliate.mark_deleted!
+      wishlist.user.reload
+
+      props = @instance.checkout_props(params: { wishlist: wishlist.external_id, recommended_by: "discover" }, browser_guid:)
+
+      expect(props[:add_products].map { |item| item[:affiliate_id] }).to all(be_nil)
     end
 
     it "does not add deleted wishlist products" do
@@ -405,7 +500,8 @@ describe CheckoutPresenter do
             type: "anonymous",
             id: wishlist.user.external_id,
             name: wishlist.user.name,
-            note: ""
+            note: "",
+            hideGifter: false
           },
           add_products: [{
             product: a_hash_including(id: wishlist_product.product.external_id),
@@ -433,7 +529,8 @@ describe CheckoutPresenter do
             type: "anonymous",
             id: wishlist.user.external_id,
             name: wishlist.user.username,
-            note: ""
+            note: "",
+            hideGifter: false
           }
         )
       end
@@ -819,6 +916,44 @@ describe CheckoutPresenter do
       expect(instance.checkout_product(product, cart_item, {})[:product][:cross_sells]).to be_empty
     end
 
+    context "when a cross-sell follows the version the buyer selected" do
+      let(:seller) { create(:named_user) }
+      let(:product) { create(:product, user: seller) }
+      let(:offered_product) { create(:product, user: seller) }
+      let(:source_versions) do
+        category = create(:variant_category, title: "License", link: product)
+        ["Single License", "Team License"].map { |name| create(:variant, variant_category: category, name:) }
+      end
+      let(:offered_versions) do
+        category = create(:variant_category, title: "License", link: offered_product)
+        ["Single License", "Team License"].map { |name| create(:variant, variant_category: category, name:) }
+      end
+      let(:cart_item) { product.cart_item({ option: source_versions.second.external_id }) }
+
+      def offered_option_id
+        create(:upsell, selected_products: [product], seller:, product: offered_product, cross_sell: true,
+                        variant: offered_versions.first, offer_matching_version: @matching)
+        instance = described_class.new(logged_in_user: nil, ip: "127.0.0.1")
+        instance.checkout_product(product, cart_item, {})[:product][:cross_sells].first[:offered_product][:option_id]
+      end
+
+      it "offers the offered product's version with the same name" do
+        @matching = true
+        expect(offered_option_id).to eq(offered_versions.second.external_id)
+      end
+
+      it "offers the configured version when the offer doesn't follow the buyer's selection" do
+        @matching = false
+        expect(offered_option_id).to eq(offered_versions.first.external_id)
+      end
+
+      it "offers the configured version when the products share no version name" do
+        @matching = true
+        source_versions.second.update!(name: "Studio License")
+        expect(offered_option_id).to eq(offered_versions.first.external_id)
+      end
+    end
+
     it "only queries purchases of the cross-sell candidate products, not the buyer's whole history" do
       seller = create(:named_user)
       product = create(:product, user: seller)
@@ -883,9 +1018,12 @@ describe CheckoutPresenter do
         result = described_class.new(logged_in_user: nil, ip: "127.0.0.1").subscription_manager_props(subscription: @subscription)
         expect(result).to eq({
                                product: {
+                                 id: @product.external_id,
                                  name: @product.name,
                                  native_type: @product.native_type,
                                  supports_paypal: nil,
+                                 paypal_card_funding_disabled: false,
+                                 link_disabled: false,
                                  creator: {
                                    id: @product.user.external_id,
                                    name: @product.user.username,
@@ -1016,6 +1154,17 @@ describe CheckoutPresenter do
         result = described_class.new(logged_in_user: nil, ip: "127.0.0.1").subscription_manager_props(subscription: @subscription.reload)
 
         expect(result[:request_apple_pay_merchant_tokens]).to eq(true)
+      end
+
+      it "carries the seller's Link opt-out onto the manage page's own payment config",
+         vcr: { cassette_name: "CheckoutPresenter/_subscription_manager_props/tiered_membership_product/returns_subscription_data_object_for_the_subscription_manage_page" } do
+        @product.user.update!(link_disabled: true)
+
+        result = described_class.new(logged_in_user: nil, ip: "127.0.0.1").subscription_manager_props(subscription: @subscription.reload)
+
+        # The manage page builds its own card-element config instead of taking checkout's, so this
+        # payload key is the only thing that stops Link's save-info block there.
+        expect(result[:product][:link_disabled]).to eq(true)
       end
 
       it "does not return a deleted original offer code discount",
@@ -1362,6 +1511,30 @@ describe CheckoutPresenter do
         duration_in_billing_cycles: nil,
         minimum_amount_cents: nil,
       )
+    end
+
+    it "adds the persisted code's option scope to the discount for the next charge" do
+      product = create(:product, price_cents: 2_000)
+      category = create(:variant_category, link: product)
+      tier = create(:variant, variant_category: category, name: "Basic")
+      persisted_code = create(:offer_code, user: product.user, products: [product], amount_cents: 100, variants: [tier])
+      # The cached discount is priced off a stub with no scope of its own, which is what the Manage
+      # page reads, so the scope has to come from the persisted code.
+      pricing_stub = OfferCode.new(amount_cents: 100, code: persisted_code.code, name: persisted_code.name, flags: persisted_code.flags)
+      cached_discount = instance_double(PurchaseOfferCodeDiscount, offer_code: persisted_code)
+      subscription = instance_double(
+        Subscription,
+        auto_renewal_offer_code: nil,
+        discount_applies_to_next_charge?: true,
+        original_offer_code: pricing_stub,
+        original_purchase: instance_double(Purchase, purchase_offer_code_discount: cached_discount),
+        link: product
+      )
+      presenter = described_class.new(logged_in_user: nil, ip: "127.0.0.1")
+
+      result = presenter.send(:subscription_discount_for_next_charge, subscription, buyer: create(:user))
+
+      expect(result[:option_ids_by_product]).to eq(ObfuscateIds.encrypt(product.id) => [tier.external_id])
     end
 
     context "non-tiered membership product" do

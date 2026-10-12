@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { stripeRequirementLabel } from "$app/utils/personalTaxId";
 
 import BeneficialOwnersSection from "$app/components/Settings/PaymentsPage/BeneficialOwnersSection";
 
@@ -17,6 +19,13 @@ beforeAll(() => {
 });
 
 afterEach(cleanup);
+
+// happy-dom's compareDocumentPosition does not report source order, so read the form controls back
+// in the order the DOM actually has them.
+const passportFieldsInOrder = (number: HTMLElement, issuingCountry: HTMLElement): HTMLElement[] =>
+  Array.from(document.querySelectorAll<HTMLElement>("input, select")).filter(
+    (field) => field === number || field === issuingCountry,
+  );
 
 // A co-director with no ID number on file: exactly the shape Stripe asks us to complete with a DOB,
 // an address and a title, and never asks for an ID number for.
@@ -43,7 +52,7 @@ const ownerWithoutIdNumber = {
   requirements_currently_due: ["dob.day", "dob.month", "dob.year", "address.line1", "relationship.title"],
 };
 
-const renderSection = (owners: unknown[]) => {
+const renderSection = (owners: unknown[], defaultCountry = "GB") => {
   vi.stubGlobal(
     "fetch",
     vi.fn(() =>
@@ -57,9 +66,9 @@ const renderSection = (owners: unknown[]) => {
   );
   return render(
     <BeneficialOwnersSection
-      countries={{ GB: "United Kingdom" }}
+      countries={{ GB: "United Kingdom", AE: "United Arab Emirates", HK: "Hong Kong" }}
       states={{ us: [], ca: [], au: [], mx: [], ae: [], ir: [], br: [], jp: [] }}
-      defaultCountry="GB"
+      defaultCountry={defaultCountry}
       minDobYear={1900}
       isFormDisabled={false}
     />,
@@ -68,6 +77,48 @@ const renderSection = (owners: unknown[]) => {
 
 // GB has no country-specific config, so the field carries the fallback "Personal ID number" label.
 const idNumberInput = () => screen.getByLabelText("Personal ID number");
+
+describe("Stripe requirement labels", () => {
+  it("does not repeat a title that is already listed as a role", async () => {
+    renderSection([
+      {
+        ...ownerWithoutIdNumber,
+        relationship: {
+          ...ownerWithoutIdNumber.relationship,
+          director: false,
+          executive: false,
+          title: "Owner",
+          percent_ownership: 100,
+        },
+      },
+    ]);
+    expect(await screen.findByText("Owner · 100%")).toBeTruthy();
+    expect(screen.queryByText("Owner · 100% · Owner")).toBeNull();
+  });
+
+  it.each([
+    ["id_number", "Personal tax ID"],
+    ["verification.document", "Identity document"],
+    ["ssn_last_4", "Last 4 of SSN"],
+    ["dob.day", "Date of birth"],
+    ["dob.month", "Date of birth"],
+    ["dob.year", "Date of birth"],
+    ["address.line1", "Address"],
+    ["address.postal_code", "Address"],
+    ["relationship.title", "Relationship title"],
+    ["verification.additional_document", "Verification additional document"],
+  ])("labels %s as %s", (key, label) => expect(stripeRequirementLabel(key)).toBe(label));
+
+  it("renders human labels without duplicate date-of-birth or address requirements", async () => {
+    renderSection([
+      {
+        ...ownerWithoutIdNumber,
+        requirements_currently_due: ["id_number", "dob.day", "dob.month", "address.line1", "address.city"],
+      },
+    ]);
+    expect(await screen.findByText("Stripe needs: Personal tax ID, Date of birth, Address")).toBeTruthy();
+  });
+});
 
 describe("BeneficialOwnersSection ID number requirement", () => {
   // The server requires an ID number only when creating an owner
@@ -88,5 +139,100 @@ describe("BeneficialOwnersSection ID number requirement", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add beneficial owner" }));
 
     await waitFor(() => expect(idNumberInput().hasAttribute("required")).toBe(true));
+  });
+});
+
+describe("BeneficialOwnersSection nationality note", () => {
+  // The select silently omits four nationalities; without this the owner cannot tell that from a bug.
+  it("says why the sanctioned nationalities are missing when the field is shown", async () => {
+    renderSection([], "AE");
+    fireEvent.click(await screen.findByRole("button", { name: "Add beneficial owner" }));
+
+    const note = await screen.findByText(
+      "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so their nationalities are not listed.",
+    );
+
+    expect(screen.getByLabelText("Nationality").getAttribute("aria-describedby")).toBe(note.id);
+  });
+
+  it("does not carry the note for a country that does not ask for nationality", async () => {
+    renderSection([], "GB");
+    fireEvent.click(await screen.findByRole("button", { name: "Add beneficial owner" }));
+
+    expect(screen.queryByText(/Nationals of Cuba/u)).toBeNull();
+  });
+});
+
+describe("BeneficialOwnersSection Hong Kong passport", () => {
+  const openAddForm = async () => {
+    renderSection([], "HK");
+    fireEvent.click(await screen.findByRole("button", { name: "Add beneficial owner" }));
+    await screen.findByLabelText("Hong Kong ID Number");
+  };
+
+  it("keeps the Hong Kong ID number while the owner's address is in Hong Kong", async () => {
+    await openAddForm();
+
+    expect(screen.queryByLabelText("Passport issuing country")).toBeNull();
+  });
+
+  it("asks for a passport number and issuing country once the address is outside Hong Kong", async () => {
+    await openAddForm();
+
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "GB" } });
+
+    expect(await screen.findByLabelText("Passport number")).toBeTruthy();
+    expect(screen.queryByLabelText("Hong Kong ID Number")).toBeNull();
+    expect(screen.getByLabelText<HTMLSelectElement>("Passport issuing country").required).toBe(true);
+  });
+
+  it("puts the passport number before the issuing country", async () => {
+    await openAddForm();
+
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "GB" } });
+
+    const number = await screen.findByLabelText("Passport number");
+    const issuingCountry = screen.getByLabelText("Passport issuing country");
+
+    expect(passportFieldsInOrder(number, issuingCountry)).toEqual([number, issuingCountry]);
+    expect(within(issuingCountry).getByRole("option", { name: "Select country" })).toBeTruthy();
+  });
+
+  it("explains why a passport is asked for under the passport number", async () => {
+    await openAddForm();
+    expect(
+      screen.getByText("We are required to collect this information to satisfy regulatory obligations."),
+    ).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "GB" } });
+
+    expect(
+      await screen.findByText(
+        "Enter their passport number instead of a Hong Kong ID number, since they live outside Hong Kong.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("We are required to collect this information to satisfy regulatory obligations."),
+    ).toBeNull();
+  });
+
+  it("explains the omitted countries on the issuing-country note only", async () => {
+    await openAddForm();
+
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "GB" } });
+
+    const note = await screen.findByText(
+      "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so those countries are not listed.",
+    );
+
+    expect(screen.getByLabelText("Passport issuing country").getAttribute("aria-describedby")).toBe(note.id);
+  });
+
+  it("does not require the issuing country when editing an owner abroad who has none on file", async () => {
+    renderSection([ownerWithoutIdNumber], "HK");
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Chloe Flexman" }));
+
+    const select = await screen.findByLabelText<HTMLSelectElement>("Passport issuing country");
+    expect(select.required).toBe(false);
   });
 });

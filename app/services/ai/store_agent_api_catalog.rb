@@ -26,9 +26,13 @@
 # is exactly what the system-prompt manifest teaches the model, so the agent only drives the surface
 # it was told about.
 module Ai::StoreAgentApiCatalog
-  Endpoint = Struct.new(:id, :method, :path, :read, :scope, :admin_only, :summary, :path_params, :params, :forced_params, :requires_read, keyword_init: true) do
+  Endpoint = Struct.new(:id, :method, :path, :read, :scope, :admin_only, :summary, :path_params, :params, :forced_params, :requires_read, :server_params, :json_body, keyword_init: true) do
     def read? = read == true
     def write? = !read?
+
+    # Form encoding turns an empty list into `[""]`, so a write that must accept `[]` needs a JSON body.
+    # Opt-in per endpoint: v2 params such as `metadata_only` expect the string "true", not a JSON boolean.
+    def json_body? = json_body == true
 
     # True if this endpoint may only be driven by an owner/admin (not a marketing member), even
     # though the underlying v2 endpoint's scope (e.g. view_sales) is broader. Used for capabilities
@@ -69,26 +73,56 @@ module Ai::StoreAgentApiCatalog
     # `price` on create_product) would silently drop the value the model meant to send — the call
     # then fails downstream with a confusing validation error. Both the propose path (service) and
     # the confirm path (executor) refuse such bodies up front using this list.
-    def unknown_param_keys(body)
-      (body || {}).keys.map(&:to_s) - params - forced_params.keys
+    #
+    # `server_params` are body keys only the server may set (the undo checksums, the sections the
+    # card showed): the executor replays them from a persisted proposal, but a model-authored
+    # api_write carrying them is refused and the manifest never lists them.
+    def unknown_param_keys(body, server_params_allowed: false)
+      allowed = params + forced_params.keys
+      allowed += server_params if server_params_allowed
+      (body || {}).keys.map(&:to_s) - allowed
     end
 
     # The corrective message for a body carrying undeclared keys, or nil when the body is fine.
     # Names both the bad keys and the accepted keys so the model (propose path) can immediately
     # retry with the right ones — a bare "invalid params" would leave it guessing. Lives here so
     # the propose path (StoreAgentService) and confirm path (StoreAgentActionExecutor) can't drift.
-    def unknown_param_keys_error(body)
-      unknown = unknown_param_keys(body)
+    def unknown_param_keys_error(body, server_params_allowed: false)
+      unknown = unknown_param_keys(body, server_params_allowed:)
       return nil if unknown.empty?
 
       accepted_params = (params + forced_params.keys).uniq
       accepted = accepted_params.any? ? "this endpoint accepts: #{accepted_params.join(', ')}" : "this endpoint accepts no params"
       "Unknown param#{"s" if unknown.size > 1} #{unknown.join(', ')} for #{id}; #{accepted}."
     end
+
+    # Match the email controller's audience aliases, identifier precedence, and seller scope.
+    # Run before staging and again before dispatch so stale proposals cannot bypass the contract.
+    def email_audience_error(body, seller:)
+      return unless id == "create_email"
+
+      body = body.with_indifferent_access
+      audience = body[:audience]
+      audiences = Api::V2::EmailsController::AUDIENCE_TYPES_BY_PARAM
+      unless (audience.nil? || audience.is_a?(String)) && audiences.key?((audience.presence || Installment::AUDIENCE_TYPE).downcase)
+        return "Invalid audience. Valid values are: #{audiences.keys.join(', ')}."
+      end
+      return unless audience.to_s.downcase == Installment::PRODUCT_TYPE
+
+      identifier = body[:product_id]
+      identifier = body[:link_id] if identifier.nil? || (identifier.is_a?(String) && identifier.blank?)
+      if identifier.nil? || (identifier.is_a?(String) && identifier.blank?)
+        return "Product audience requires a product_id or link_id."
+      end
+      return "Product not found." unless identifier.is_a?(String)
+
+      product = seller.links.visible.find_by_external_id(identifier) || seller.links.visible.find_by(unique_permalink: identifier)
+      "Product not found." unless product
+    end
   end
 
   # Build one endpoint row. read defaults to false (i.e. a write that must be confirmed).
-  def self.ep(id, method, path, summary, read: false, scope: nil, admin_only: false, path_params: [], params: [], forced_params: {}, requires_read: nil)
+  def self.ep(id, method, path, summary, read: false, scope: nil, admin_only: false, path_params: [], params: [], forced_params: {}, requires_read: nil, server_params: [], json_body: false)
     Endpoint.new(
       id:,
       method:,
@@ -101,8 +135,13 @@ module Ai::StoreAgentApiCatalog
       params:,
       forced_params: forced_params.transform_keys(&:to_s).freeze,
       requires_read:,
+      server_params:,
+      json_body:,
     )
   end
+
+  # Checksums the server-built HTML undo binds a replayed edit to (see Ai::StoreAgentHtmlUndo).
+  HTML_UNDO_SERVER_PARAMS = %w[expected_custom_html_sha256 result_custom_html_sha256].freeze
 
   ENDPOINTS = [
     # ---- Account / profile ----
@@ -123,7 +162,7 @@ module Ai::StoreAgentApiCatalog
     # (gumroad-private#1466). The heading was his own section header all along.
     ep("get_user_profile_layout", :get, "/user/profile_layout", "Get the layout of the creator's DEFAULT storefront profile: their tabs, the sections in each tab, and each section's heading (the <h2> the visitor sees above it). Use this for questions about the default profile's tabs, sections, or headings. A standalone page is a different surface; use list_pages and get_page for that. On a store with no custom HTML this layout is still creator-owned, and get_user_custom_html returning nothing does NOT mean the profile is Gumroad's untouched default. rendering says which surface the visitor actually sees (custom_html takes over the whole storefront when published). tab_bar_visible is false when there is only one tab, because the public profile hides the tab bar until there are two — that is why a creator's single named tab appears to have vanished. The creator edits all of this in the dashboard; you have no endpoint to change it.", read: true, scope: "view_profile"),
     ep("update_user_custom_html", :patch, "/user/custom_html", "Replace the creator's ENTIRE profile custom HTML with a new page. Destructive: anything not included in custom_html is lost, and the page becomes the whole storefront — so it must show everything the store shows: render all products (with working links) dynamically from the gumroad-data JSON injected into every served page — and when products_total exceeds the products array's length, or posts_total exceeds the posts array's length, that list is capped, so the page must show the count for that section rather than silently omitting the rest — plus the creator's name and bio via data-gumroad-field elements the server fills at render time (they are NOT in the JSON). Only use this to author a brand-new page; to change part of an existing page, use edit_user_custom_html.", scope: "edit_profile", params: %w[custom_html], requires_read: "get_user_custom_html"),
-    ep("edit_user_custom_html", :post, "/user/custom_html/edit", "Make a targeted edit to the creator's existing profile custom HTML: replaces one exact snippet (find) with new HTML (replace) and leaves the rest of the page untouched. find must match the current HTML exactly once — include enough surrounding context. Always prefer this over update_user_custom_html when a page already exists.", scope: "edit_profile", params: %w[find replace], requires_read: "get_user_custom_html"),
+    ep("edit_user_custom_html", :post, "/user/custom_html/edit", "Make a targeted edit to the creator's existing profile custom HTML: replaces one exact snippet (find) with new HTML (replace) and leaves the rest of the page untouched. find must match the current HTML exactly once — include enough surrounding context. Always prefer this over update_user_custom_html when a page already exists.", scope: "edit_profile", params: %w[find replace], server_params: HTML_UNDO_SERVER_PARAMS, requires_read: "get_user_custom_html"),
 
     # ---- Standalone storefront pages (first-class Pages, addressed by slug) ----
     # A separate surface from the profile root above: additional pages a creator publishes under
@@ -164,7 +203,7 @@ module Ai::StoreAgentApiCatalog
     # ---- Products ----
     ep("list_products", :get, "/products", "List the creator's products with price, status, and stats. Returns 10 per page, newest first; when the response includes next_page_key, pass it back as page_key to fetch the next page.", read: true, scope: "view_sales",
                                                                                                                                                                                                                                        params: %w[page_key]),
-    ep("get_product", :get, "/products/:id", "Get one product by its id.", read: true, scope: "view_sales", path_params: %w[id]),
+    ep("get_product", :get, "/products/:id", "Get one product by its id. Also returns the product's per-product profile sections — the ordered `sections` array, each with its id, type, and header — and main_section_index, the position of the product itself, so sections listed before it render ABOVE the product. This is the product page's own layout, not the storefront profile's. Read it before changing the sections.", read: true, scope: "view_sales", path_params: %w[id]),
     ep("create_product", :post, "/products", "Create a new product. It is published and for sale immediately unless you pass draft=true (or published=false) to save an unpublished draft. When publishing is blocked (unconfirmed email, no payout method, content moderation), the product is still created as a draft and the response includes a warning saying why.", scope: "edit_products",
                                                                                                                                                                                                                                                                                                                                                                            params: %w[name price description custom_permalink price_currency_type max_purchase_count draft published]),
     ep("update_product", :put, "/products/:id", "Update a product's fields (name, price, description, etc.).", scope: "edit_products",
@@ -172,6 +211,9 @@ module Ai::StoreAgentApiCatalog
     ep("delete_product", :delete, "/products/:id", "Delete a product permanently.", scope: "edit_products", path_params: %w[id]),
     ep("enable_product", :put, "/products/:id/enable", "Publish a product so it is available for sale.", scope: "edit_products", path_params: %w[id]),
     ep("disable_product", :put, "/products/:id/disable", "Unpublish a product so it is no longer for sale.", scope: "edit_products", path_params: %w[id]),
+
+    # ---- Per-product profile sections ---- (read through get_product's `sections`)
+    ep("update_product_sections", :put, "/products/:id/sections", "Set which per-product profile sections render on a product page, and in what order. sections is the COMPLETE ordered list of section ids to keep — reorder them here, and any section of this product you leave out is DELETED. Send an empty list to remove every section (this is how a stale section stuck above a product is cleared). main_section_index is the position of the product itself, so sections listed before it render ABOVE the product; pass 0 to move them all below it. Read get_product first and send back every section you mean to keep.", scope: "edit_products", path_params: %w[id], params: %w[sections main_section_index], requires_read: "get_product", server_params: %w[known_section_ids], json_body: true),
 
     # ---- Product custom landing pages ----
     # A product's landing page is a separate surface from the profile page (see the /user/custom_html
@@ -182,7 +224,7 @@ module Ai::StoreAgentApiCatalog
     # summary carries that warning.
     ep("get_product_custom_html", :get, "/products/:id/custom_html", "Get a product's custom landing page HTML (the /l/ page buyers see). has_landing_page says whether a custom page is currently published; when it is false the product serves its native Gumroad page.", read: true, scope: "view_sales", path_params: %w[id]),
     ep("update_product_custom_html", :put, "/products/:id", "Replace a product's ENTIRE custom landing page with a new page (or clear it by sending blank custom_html, restoring the native product page). Destructive: anything not included in custom_html is lost. A published page REPLACES the product's native page — price and buy button included — so the page MUST contain a buy element like <a data-gumroad-action=\"buy\">Buy now</a>; publishing HTML without one makes the product unpurchasable. The server fills elements marked data-gumroad-field=\"name\", \"price\", \"description\", \"rating\", or \"review-count\" with live product values on every render; \"rating\" and \"review-count\" leave the element's existing contents alone when the seller has reviews hidden or the product has none, so give those a fallback. Product pages do NOT receive the gumroad-data JSON (that exists only on profile pages). Only use this to author a brand-new page; to change part of an existing page, use edit_product_custom_html.", scope: "edit_products", path_params: %w[id], params: %w[custom_html], requires_read: "get_product_custom_html"),
-    ep("edit_product_custom_html", :post, "/products/:id/custom_html/edit", "Make a targeted edit to a product's existing custom landing page: replaces one exact snippet (find) with new HTML (replace) and leaves the rest of the page untouched. find must match the current HTML exactly once — include enough surrounding context. Always prefer this over update_product_custom_html when a page already exists. Keep the page's buy element intact — a page without one makes the product unpurchasable.", scope: "edit_products", path_params: %w[id], params: %w[find replace], requires_read: "get_product_custom_html"),
+    ep("edit_product_custom_html", :post, "/products/:id/custom_html/edit", "Make a targeted edit to a product's existing custom landing page: replaces one exact snippet (find) with new HTML (replace) and leaves the rest of the page untouched. find must match the current HTML exactly once — include enough surrounding context. Always prefer this over update_product_custom_html when a page already exists. Keep the page's buy element intact — a page without one makes the product unpurchasable.", scope: "edit_products", path_params: %w[id], params: %w[find replace], server_params: HTML_UNDO_SERVER_PARAMS, requires_read: "get_product_custom_html"),
 
     # ---- Custom fields (per product) ----
     ep("list_custom_fields", :get, "/products/:link_id/custom_fields", "List a product's custom fields.", read: true, scope: "view_sales", path_params: %w[link_id]),
@@ -195,8 +237,8 @@ module Ai::StoreAgentApiCatalog
     # ---- Offer codes / discounts (per product) ----
     ep("list_offer_codes", :get, "/products/:link_id/offer_codes", "List a product's discount codes.", read: true, scope: "view_sales", path_params: %w[link_id]),
     ep("get_offer_code", :get, "/products/:link_id/offer_codes/:id", "Get one discount code.", read: true, scope: "view_sales", path_params: %w[link_id id]),
-    ep("create_offer_code", :post, "/products/:link_id/offer_codes", "Create a discount code on a product.", scope: "edit_products",
-                                                                                                             path_params: %w[link_id], params: %w[name amount_off offer_type max_purchase_count universal amount_cents minimum_amount_cents]),
+    ep("create_offer_code", :post, "/products/:link_id/offer_codes", "Create a discount code.", scope: "edit_products",
+                                                                                                path_params: %w[link_id], params: %w[name amount_off offer_type max_purchase_count universal amount_cents minimum_amount_cents]),
     ep("update_offer_code", :put, "/products/:link_id/offer_codes/:id", "Update a discount code (max purchase count).", scope: "edit_products",
                                                                                                                         path_params: %w[link_id id], params: %w[max_purchase_count minimum_amount_cents]),
     ep("delete_offer_code", :delete, "/products/:link_id/offer_codes/:id", "Delete a discount code.", scope: "edit_products", path_params: %w[link_id id]),

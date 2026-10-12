@@ -105,7 +105,10 @@ class CheckoutPresenter
     }
   end
 
-  def checkout_product(product, cart_item, params, include_cross_sells: true)
+  # `arrival` marks a product the buyer is adding to the cart right now, by arriving at checkout or by
+  # accepting a cross-sell (as opposed to one read back from the saved cart); only an arrival can carry
+  # proof that they want a cancelled membership restarted.
+  def checkout_product(product, cart_item, params, include_cross_sells: true, arrival: false)
     return unless product.present?
     upsell_variants = product.available_upsell_variants.alive.includes(:selected_variant, :offered_variant)
     bundle_products = product.bundle_products.in_order.includes(:product, :variant).alive.load
@@ -156,7 +159,7 @@ class CheckoutPresenter
         ppp_details: product.ppp_details(@ip),
         upsell: product.available_upsell.present? ? {
           id: product.available_upsell.external_id,
-          text: product.available_upsell.text,
+          text: product.available_upsell.text.to_s,
           description: Rinku.auto_link(sanitize(product.available_upsell.description).to_s, :all, 'target="_blank" rel="noopener"'),
         } : nil,
         archived: product.archived?,
@@ -186,29 +189,32 @@ class CheckoutPresenter
       recommender_model_name: params[:recommender_model_name],
       accepted_offer: accepted_offer ? { id: accepted_offer.external_id, variant_id: accepted_offer&.variant&.external_id, discount: accepted_offer.offer_code&.discount_for_display(buyer: logged_in_user, product: accepted_offer.product) } : nil,
     }
+    value[:restart_intent] = Checkout::RestartIntentToken.issue(product:, buyer: logged_in_user) if arrival && product.is_recurring_billing
     if include_cross_sells
+      selected_option_name = value[:product][:options].find { |option| option[:id] == option_id }&.[](:name)
       value[:product][:cross_sells] = product.available_cross_sells.filter_map do |cross_sell|
+        offered_variant = cross_sell.offered_variant_for(selected_option_name)
         next unless cross_sell.product.alive? &&
           (cross_sell.product.remaining_for_sale_count.nil? || cross_sell.product.remaining_for_sale_count > 0) &&
-          (cross_sell.variant.blank? || cross_sell.variant.available?) &&
+          (offered_variant.blank? || offered_variant.available?) &&
           (
             cross_sell.seller == logged_in_user ||
-            !already_purchased?(cross_sell.product, cross_sell.variant)
+            !already_purchased?(cross_sell.product, offered_variant)
           )
 
         offered_product = cross_sell.product
         offered_product_cart_item = offered_product.cart_item(
           {
-            option: cross_sell.variant&.external_id,
+            option: offered_variant&.external_id,
             recurrence: offered_product.default_price_recurrence&.recurrence
           }
         )
         {
           id: cross_sell.external_id,
           replace_selected_products: cross_sell.replace_selected_products,
-          text: cross_sell.text,
+          text: cross_sell.text.to_s,
           description: Rinku.auto_link(sanitize(cross_sell.description).to_s, :all, 'target="_blank" rel="noopener"'),
-          offered_product: checkout_product(offered_product, offered_product_cart_item, {}, include_cross_sells: false),
+          offered_product: checkout_product(offered_product, offered_product_cart_item, {}, include_cross_sells: false, arrival: true),
           discount: cross_sell.offer_code&.discount_for_display(buyer: logged_in_user, product: cross_sell.product),
           ratings: offered_product.display_product_reviews? ? {
             count: offered_product.reviews_count,
@@ -233,12 +239,13 @@ class CheckoutPresenter
     # still offered. A retired recurrence is only present via subscription_attrs.
     show_current_prices = subscription.deactivated? ||
       (current_recurrence_alive && (subscription.alive? || subscription.overdue_for_charge?))
-    options = (variant_category = product.variant_categories_alive.first) ? variant_category.variants.in_order.alive.map do
-      |variant| show_current_prices ? variant.to_option : variant.to_option(subscription_attrs: tier_attrs)
+    options = (variant_category = product.variant_categories_alive.first) ? variant_category.variants.in_order.alive.map do |variant|
+      subscribed = !subscription.deactivated? && tier_attrs[:variants].include?(variant)
+      show_current_prices ? variant.to_option(subscribed:) : variant.to_option(subscription_attrs: tier_attrs, subscribed:)
     end : []
     tier = subscription.original_purchase.variant_attributes.first
     if tier.present? && !options.any? { |option| option[:id] == tier.external_id }
-      options << tier.to_option(subscription_attrs: tier_attrs)
+      options << tier.to_option(subscription_attrs: tier_attrs, subscribed: !subscription.deactivated?)
     end
     discount = subscription_discount_for_next_charge(subscription, buyer: logged_in_user)
     subscription_price = subscription.current_subscription_price_cents(authenticated_offer_code_buyer: logged_in_user)
@@ -258,6 +265,7 @@ class CheckoutPresenter
       **checkout_common,
       product: {
         **product_common(product, recommended_by: nil),
+        id: product.external_id,
         native_type: product.native_type,
         require_shipping: product.require_shipping?,
         recurrences: subscription.is_installment_plan ? [] : prices
@@ -334,7 +342,7 @@ class CheckoutPresenter
       product = single_product(params, user:)
       cart_item = product.cart_item(params) if product
       {
-        add_products: [checkout_product(product, cart_item, params)].compact
+        add_products: [checkout_product(product, cart_item, params, arrival: true)].compact
       }
     end
 
@@ -343,7 +351,7 @@ class CheckoutPresenter
       return {} if wishlist_with_products.nil?
 
       wishlist, products = wishlist_with_products
-      affiliate_id = wishlist.user.global_affiliate.external_id_numeric.to_s
+      affiliate_id = wishlist.user.global_affiliate&.external_id_numeric&.to_s
 
       {
         add_products: products.map do |wishlist_product|
@@ -359,7 +367,7 @@ class CheckoutPresenter
       {
         clear_cart: true,
         add_products: [checkout_wishlist_product(wishlist_product, params)],
-        gift: { type: "anonymous", id: wishlist_product.wishlist.user.external_id, name: wishlist_product.wishlist.user.name_or_username, note: "" }
+        gift: { type: "anonymous", id: wishlist_product.wishlist.user.external_id, name: wishlist_product.wishlist.user.name_or_username, note: "", hideGifter: false }
       }
     end
 
@@ -374,6 +382,7 @@ class CheckoutPresenter
         wishlist_product.product,
         cart_item,
         params.reverse_merge(recommended_by: RecommendationType::WISHLIST_RECOMMENDATION),
+        arrival: true,
       )
     end
 
@@ -437,6 +446,12 @@ class CheckoutPresenter
         price_cents: product.price_cents,
         buyer_currency_display:,
         supports_paypal: supports_paypal(product),
+        # Whole-cart opt-out: the PayPal button set is page-level, so the client ANDs this across
+        # every product in the cart before hiding PayPal's card funding button.
+        paypal_card_funding_disabled: product.user.paypal_card_funding_disabled?,
+        # Per-product for the surfaces that build their own payment config (the subscription manage
+        # page and the dashboard preview) and so never see checkoutPayment.stripe_link_enabled.
+        link_disabled: product.user.link_disabled?,
         custom_fields: product.custom_field_descriptors,
         exchange_rate: get_rate(product.price_currency_type).to_f / (is_currency_type_single_unit?(product.price_currency_type) ? 100 : 1),
         is_tiered_membership: product.is_tiered_membership,
@@ -502,6 +517,12 @@ class CheckoutPresenter
       original_offer_code = original_purchase&.purchase_offer_code_discount&.offer_code || original_purchase&.offer_code
       return nil if original_offer_code&.tiered?
 
-      subscription.original_offer_code&.discount_for_display(buyer:, product: subscription.link, fallback_purchase: original_purchase)
+      displayed = subscription.original_offer_code&.discount_for_display(buyer:, product: subscription.link, fallback_purchase: original_purchase)
+      # The cached discount is a pricing stub with no scope of its own, so without this the Manage
+      # page offers the discount on every option while the charge keeps it to the scoped ones.
+      persisted_code = original_purchase&.purchase_offer_code_discount&.offer_code
+      return displayed unless displayed.present? && persisted_code&.variants&.any?
+
+      displayed.merge(option_ids_by_product: persisted_code.option_ids_by_product)
     end
 end

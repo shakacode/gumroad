@@ -263,6 +263,47 @@ describe("Product Edit Memberships", type: :system, js: true) do
       expect(@product.variant_categories.first.variants.alive.first.max_purchase_count).to eq 250
     end
 
+    context "when the seller may close tiers to new supporters" do
+      before { Feature.activate_user(:close_membership_tier_to_new_buyers, seller) }
+
+      it "closes a tier and reopens it without touching its prices" do
+        tier = @product.default_tier
+        prices = tier.prices.alive.pluck(:recurrence, :price_cents)
+        visit edit_link_path(@product.unique_permalink)
+
+        within tier_rows[0] do
+          check "Stop accepting new supporters"
+        end
+        save_change
+        expect(tier.reload.closed_to_new_purchases?).to be(true)
+
+        refresh
+        within tier_rows[0] do
+          expect(page).to have_checked_field("Stop accepting new supporters")
+          uncheck "Stop accepting new supporters"
+        end
+        save_change
+        expect(tier.reload.closed_to_new_purchases?).to be(false)
+        expect(tier.prices.alive.pluck(:recurrence, :price_cents)).to eq(prices)
+      end
+
+      it "offers the control on a tier added after every tier was removed" do
+        visit edit_link_path(@product.unique_permalink)
+
+        within tier_rows[0] do
+          click_on "Remove"
+        end
+        within_modal "Remove Untitled?" do
+          click_on "Yes, remove"
+        end
+        click_on "Add tier"
+
+        within tier_rows[0] do
+          expect(page).to have_unchecked_field("Stop accepting new supporters")
+        end
+      end
+    end
+
     context "when membership has rich content" do
       let(:membership_product) { create(:membership_product_with_preset_tiered_pricing, user: seller) }
 
@@ -500,7 +541,7 @@ describe("Product Edit Memberships", type: :system, js: true) do
 
           # The selector drives the single product-wide currency, so the other tier follows.
           within tier_rows[1] do
-            expect(page).to have_select("Currency", selected: "€", visible: false)
+            expect(page).to have_select("Currency", selected: "€ (Euro)", visible: false)
           end
 
           save_change
@@ -720,7 +761,8 @@ describe("Product Edit Memberships", type: :system, js: true) do
 
           within tier_rows[0] do
             check "Apply price changes to existing customers"
-            fill_in "Effective date for existing customers", with: "01-01-2020\t"
+            fill_in "Effective date for existing customers", with: "01-01-2020"
+            find("[aria-label='Custom message']").click
           end
           expect(page).to have_text "The effective date must be at least 7 days from today"
 
@@ -731,7 +773,8 @@ describe("Product Edit Memberships", type: :system, js: true) do
           expect(page).to have_alert(text: "Validation failed: The effective date must be at least 7 days from today")
 
           within tier_rows[0] do
-            fill_in "Effective date for existing customers", with: "01-01-#{Date.today.year + 2}\t"
+            fill_in "Effective date for existing customers", with: "01-01-#{Date.today.year + 2}"
+            find("[aria-label='Custom message']").click
           end
           expect(page).not_to have_text "The effective date must be at least 7 days from today"
         end

@@ -23,7 +23,7 @@ SELECTOR = File.expand_path("../../bin/branch-specs", __dir__)
 $failures = []
 $count = 0
 
-def build_repo(dir, base_files:, head_files:, quote_path: nil)
+def build_repo(dir, base_files:, head_files:, head_deletes: [], quote_path: nil)
   Dir.chdir(dir) do
     system("git init -q -b main .", exception: true)
     system("git config user.email t@t.t", exception: true)
@@ -42,6 +42,7 @@ def build_repo(dir, base_files:, head_files:, quote_path: nil)
 
     write.call(base_files)
     system("git branch -f base HEAD", exception: true)
+    FileUtils.rm(head_deletes)
     write.call(head_files)
   end
 end
@@ -56,10 +57,10 @@ ASCII_LOCALE = { "LC_ALL" => "C", "LANG" => "C", "LC_CTYPE" => nil, "LANGUAGE" =
 # non-ASCII expectations below compare as text rather than raising.
 def utf8(str) = str.dup.force_encoding(Encoding::UTF_8)
 
-def check(name, base_files:, head_files:, expect_specs: nil, expect_escalate: false, env: {}, quote_path: nil)
+def check(name, base_files:, head_files:, head_deletes: [], expect_specs: nil, reject_specs: [], expect_escalate: false, expect_reason: nil, env: {}, quote_path: nil)
   $count += 1
   Dir.mktmpdir do |dir|
-    build_repo(dir, base_files:, head_files:, quote_path:)
+    build_repo(dir, base_files:, head_files:, head_deletes:, quote_path:)
     stdout, stderr, status = Open3.capture3(env, "ruby", SELECTOR, "--base", "base", chdir: dir)
     stdout = utf8(stdout)
     stderr = utf8(stderr)
@@ -67,6 +68,9 @@ def check(name, base_files:, head_files:, expect_specs: nil, expect_escalate: fa
     if expect_escalate
       unless status.exitstatus == 3
         $failures << "#{name}: expected escalate (exit 3), got #{status.exitstatus}\nstdout: #{stdout}\nstderr: #{stderr}"
+      end
+      if expect_reason && !stderr.include?(expect_reason)
+        $failures << "#{name}: expected escalate reason #{expect_reason.inspect}\nstderr: #{stderr}"
       end
     else
       unless status.success?
@@ -77,6 +81,12 @@ def check(name, base_files:, head_files:, expect_specs: nil, expect_escalate: fa
       missing = (expect_specs || []) - got
       if missing.any?
         $failures << "#{name}: missing expected specs #{missing.inspect}\ngot: #{got.inspect}"
+      end
+      leaked = reject_specs & got
+      $failures << "#{name}: selected specs it must not select #{leaked.inspect}" if leaked.any?
+      # A non-empty list is a floor; an empty one means the selector prints nothing.
+      if expect_specs == [] && got.any?
+        $failures << "#{name}: expected no specs\ngot: #{got.inspect}"
       end
     end
   end
@@ -125,6 +135,36 @@ check(
   expect_specs: %w[spec/requests/rack_attack_spec.rb],
 )
 
+# Piracy report pages -> the signing system spec and the controller spec
+check(
+  "piracy report pages map to their system and controller specs",
+  base_files: {
+    "spec/requests/piracy_report_signing_spec.rb" => SPEC_STUB,
+    "spec/controllers/piracy_reports_controller_spec.rb" => SPEC_STUB,
+    "app/javascript/pages/PiracyReports/Show.tsx" => "old",
+  },
+  head_files: { "app/javascript/pages/PiracyReports/Show.tsx" => "new" },
+  expect_specs: %w[
+    spec/controllers/piracy_reports_controller_spec.rb
+    spec/requests/piracy_report_signing_spec.rb
+  ],
+)
+
+# Piracy recipient registry -> the registry and screening specs
+check(
+  "piracy recipient registry maps to its service specs instead of escalating",
+  base_files: {
+    "spec/services/piracy_reports/recipient_registry_spec.rb" => SPEC_STUB,
+    "spec/services/piracy_reports/screen_service_spec.rb" => SPEC_STUB,
+    "config/piracy_recipients.yml" => "old",
+  },
+  head_files: { "config/piracy_recipients.yml" => "new" },
+  expect_specs: %w[
+    spec/services/piracy_reports/recipient_registry_spec.rb
+    spec/services/piracy_reports/screen_service_spec.rb
+  ],
+)
+
 # Nested oauth/device_authorizations controller -> flattened request spec name
 check(
   "nested oauth controller maps to flattened request spec",
@@ -168,6 +208,24 @@ check(
   expect_escalate: true,
 )
 
+check(
+  "revert decision script, its test, and workflow do not escalate",
+  base_files: {
+    ".github/workflows/revert-red-main-deploy.yml" => "old",
+    "bin/revert-red-main-decision" => "old",
+    "spec/bin/revert_red_main_decision_test.rb" => "old",
+    "app/models/widget.rb" => "old",
+    "spec/models/widget_spec.rb" => SPEC_STUB,
+  },
+  head_files: {
+    ".github/workflows/revert-red-main-deploy.yml" => "new",
+    "bin/revert-red-main-decision" => "new",
+    "spec/bin/revert_red_main_decision_test.rb" => "new",
+    "app/models/widget.rb" => "new",
+  },
+  expect_specs: %w[spec/models/widget_spec.rb],
+)
+
 # Hung-checkout files are standalone ruby + a workflow that only invokes
 # them, so they must not trip the mapping-gap escalate the way an unmapped
 # helper would. Sibling model+spec so the run is not an empty selection.
@@ -189,11 +247,61 @@ check(
   expect_specs: %w[spec/models/widget_spec.rb],
 )
 
+check(
+  "main spec-failure classifier, its test, and workflow do not escalate",
+  base_files: {
+    ".github/workflows/rerun-main-spec-failure.yml" => "old",
+    "bin/classify-main-spec-failure" => "old",
+    "spec/bin/classify_main_spec_failure_test.rb" => "old",
+    "app/models/widget.rb" => "old",
+    "spec/models/widget_spec.rb" => SPEC_STUB,
+  },
+  head_files: {
+    ".github/workflows/rerun-main-spec-failure.yml" => "new",
+    "bin/classify-main-spec-failure" => "new",
+    "spec/bin/classify_main_spec_failure_test.rb" => "new",
+    "app/models/widget.rb" => "new",
+  },
+  expect_specs: %w[spec/models/widget_spec.rb],
+)
+
+check(
+  "deploy gate and unblock scripts, their tests, and workflow do not escalate",
+  base_files: {
+    ".github/workflows/deploy-before-main-suite.yml" => "old",
+    "bin/deploy-before-main-suite" => "old",
+    "bin/deploy-before-main-suite-gate" => "old",
+    "spec/bin/deploy_before_main_suite_gate_test.rb" => "old",
+    "bin/unblock-buildkite-deploy" => "old",
+    "spec/bin/unblock_buildkite_deploy_test.rb" => "old",
+    "app/models/widget.rb" => "old",
+    "spec/models/widget_spec.rb" => SPEC_STUB,
+  },
+  head_files: {
+    ".github/workflows/deploy-before-main-suite.yml" => "new",
+    "bin/deploy-before-main-suite" => "new",
+    "bin/deploy-before-main-suite-gate" => "new",
+    "spec/bin/deploy_before_main_suite_gate_test.rb" => "new",
+    "bin/unblock-buildkite-deploy" => "new",
+    "spec/bin/unblock_buildkite_deploy_test.rb" => "new",
+    "app/models/widget.rb" => "new",
+  },
+  expect_specs: %w[spec/models/widget_spec.rb],
+)
+
 # tests.yml is the suite itself and must still force the full suite.
 check(
   "tests.yml still escalates",
   base_files: { ".github/workflows/tests.yml" => "old" },
   head_files: { ".github/workflows/tests.yml" => "new" },
+  expect_escalate: true,
+)
+
+# Tests builds its image from this workflow, so a recipe change needs the full suite.
+check(
+  "the test image build workflow escalates",
+  base_files: { ".github/workflows/build-test-image.yml" => "old" },
+  head_files: { ".github/workflows/build-test-image.yml" => "new" },
   expect_escalate: true,
 )
 
@@ -222,14 +330,14 @@ check(
   base_files: {
     "app/javascript/components/EvaporateUploader.tsx" => "old",
     "app/javascript/types/evaporate.d.ts" => "old",
-    "vendor/assets/javascripts/evaporate.cjs" => "old",
+    "vendor/assets/javascripts/evaporate.js" => "old",
     "app/models/widget.rb" => "old",
     "spec/models/widget_spec.rb" => SPEC_STUB,
   },
   head_files: {
     "app/javascript/components/EvaporateUploader.tsx" => "new",
     "app/javascript/types/evaporate.d.ts" => "new",
-    "vendor/assets/javascripts/evaporate.cjs" => "new",
+    "vendor/assets/javascripts/evaporate.js" => "new",
     "app/models/widget.rb" => "new",
   },
   expect_specs: %w[spec/models/widget_spec.rb],
@@ -245,6 +353,24 @@ check(
   },
   head_files: { "lib/utilities/compliance/colombia_id_number.rb" => "new" },
   expect_specs: %w[spec/services/update_user_compliance_info_spec.rb],
+)
+
+check(
+  "rake task maps to its spec/lib/tasks spec",
+  base_files: {
+    "lib/tasks/taxonomy.rake" => "old",
+    "spec/lib/tasks/taxonomy_spec.rb" => SPEC_STUB,
+  },
+  head_files: { "lib/tasks/taxonomy.rake" => "new" },
+  expect_specs: %w[spec/lib/tasks/taxonomy_spec.rb],
+)
+
+check(
+  "rake task without a spec escalates as a mapping gap",
+  base_files: { "lib/tasks/taxonomy.rake" => "old" },
+  head_files: { "lib/tasks/taxonomy.rake" => "new" },
+  expect_escalate: true,
+  expect_reason: "lib/tasks/taxonomy.rake but no specs were selected for it (mapping gap)",
 )
 
 # help_center article partial -> help_center request specs
@@ -739,8 +865,11 @@ check(
 
 check(
   "Tiptap extension still escalates (shared editor, multi-flow consumers)",
-  base_files: { "app/javascript/components/TiptapExtensions/FileUpload.tsx" => "old" },
-  head_files: { "app/javascript/components/TiptapExtensions/FileUpload.tsx" => "new" },
+  base_files: {
+    "spec/requests/products/edit/rich_text_editor_spec.rb" => SPEC_STUB,
+    "app/javascript/components/TiptapExtensions/Link.tsx" => "old",
+  },
+  head_files: { "app/javascript/components/TiptapExtensions/Link.tsx" => "new" },
   expect_escalate: true,
 )
 
@@ -776,6 +905,13 @@ check(
   "docker production server.sh-only change does not escalate (#7260)",
   base_files: { "docker/web/server.sh" => "old" },
   head_files: { "docker/web/server.sh" => "new" },
+  expect_specs: [],
+)
+
+check(
+  "buildkite deploy script-only change does not escalate",
+  base_files: { ".buildkite/scripts/preview_asset_cache.sh" => "old" },
+  head_files: { ".buildkite/scripts/preview_asset_cache.sh" => "new" },
   expect_specs: [],
 )
 
@@ -952,30 +1088,70 @@ check(
 )
 
 check(
-  "components/DownloadPage/Layout escalates (UrlRedirects pages render it)",
+  "components/DownloadPage/Layout escalates even with a co-located vitest",
   base_files: {
     "spec/requests/download_page/download_page_spec.rb" => SPEC_STUB,
     "app/javascript/components/DownloadPage/Layout.tsx" => "old",
+    "app/javascript/components/DownloadPage/Layout.test.tsx" => "old test",
   },
   head_files: { "app/javascript/components/DownloadPage/Layout.tsx" => "new" },
   expect_escalate: true,
 )
 
 check(
-  "components/DownloadPage/WithContent escalates (its exports reach ProductEdit/ContentTab)",
+  "components/DownloadPage/WithContent escalates even with a co-located vitest",
   base_files: {
     "spec/requests/download_page/download_page_spec.rb" => SPEC_STUB,
     "app/javascript/components/DownloadPage/WithContent.tsx" => "old",
+    "app/javascript/components/DownloadPage/WithContent.test.tsx" => "old test",
   },
   head_files: { "app/javascript/components/DownloadPage/WithContent.tsx" => "new" },
   expect_escalate: true,
 )
 
+# One check per block, so a name that stops matching the mapping fails on its own.
+%w[LicenseKey ShortAnswer LongAnswer TextInputNodeView FileUpload Posts MoreLikeThis].each do |block|
+  check(
+    "content-only editor block #{block} selects the product and download specs",
+    base_files: {
+      "spec/requests/products/edit/rich_text_editor_spec.rb" => SPEC_STUB,
+      "spec/requests/products/show/show_spec.rb" => SPEC_STUB,
+      "spec/requests/download_page/download_page_spec.rb" => SPEC_STUB,
+      "spec/requests/reading_spec.rb" => SPEC_STUB,
+      "spec/requests/video_streaming_spec.rb" => SPEC_STUB,
+      "app/javascript/components/TiptapExtensions/#{block}.tsx" => "old",
+    },
+    head_files: { "app/javascript/components/TiptapExtensions/#{block}.tsx" => "new" },
+    expect_specs: %w[
+      spec/requests/download_page/download_page_spec.rb
+      spec/requests/products/edit/rich_text_editor_spec.rb
+      spec/requests/products/show/show_spec.rb
+      spec/requests/reading_spec.rb
+      spec/requests/video_streaming_spec.rb
+    ],
+  )
+end
+
 check(
-  "pages/UrlRedirects/Read still escalates (EPUB reader is not download_page)",
-  base_files: { "app/javascript/pages/UrlRedirects/Read.tsx" => "old" },
+  "pages/UrlRedirects/Read escalates even with its co-located vitest",
+  base_files: {
+    "app/javascript/pages/UrlRedirects/Read.tsx" => "old",
+    "app/javascript/pages/UrlRedirects/Read.test.tsx" => "old test",
+  },
   head_files: { "app/javascript/pages/UrlRedirects/Read.tsx" => "new" },
   expect_escalate: true,
+)
+
+# The escalation above must not spread: a module with no mapping and a
+# co-located vitest is still covered by vitest alone (lint_js runs npm test).
+check(
+  "a leaf component with a co-located vitest still rides the vitest shortcut",
+  base_files: {
+    "app/javascript/components/TipButton/TipButton.tsx" => "old",
+    "app/javascript/components/TipButton/TipButton.test.tsx" => "old test",
+  },
+  head_files: { "app/javascript/components/TipButton/TipButton.tsx" => "new" },
+  expect_escalate: false,
 )
 
 check(
@@ -1254,6 +1430,451 @@ check(
   head_files: { "config/initializers/devise_pwned_password_safe_params.rb" => "new" },
   expect_escalate: true,
 )
+
+# Deleted spec files have nothing left to run. The rest of the diff still maps.
+check(
+  "deleted spec files do not escalate alongside a mapped spec edit",
+  base_files: {
+    "spec/models/discover_search_spec.rb" => SPEC_STUB,
+    "spec/sidekiq/refresh_sitemap_daily_worker_spec.rb" => SPEC_STUB,
+  },
+  head_files: { "spec/sidekiq/refresh_sitemap_daily_worker_spec.rb" => "# edited\n" },
+  head_deletes: %w[spec/models/discover_search_spec.rb],
+  expect_specs: %w[spec/sidekiq/refresh_sitemap_daily_worker_spec.rb],
+)
+
+check(
+  "a diff that only deletes spec files selects nothing",
+  base_files: {
+    "spec/models/discover_search_spec.rb" => SPEC_STUB,
+    "spec/models/sales_export_chunk_spec.rb" => SPEC_STUB,
+  },
+  head_files: {},
+  head_deletes: %w[spec/models/discover_search_spec.rb spec/models/sales_export_chunk_spec.rb],
+  expect_specs: [],
+)
+
+check(
+  "deleted app code still escalates when its spec is deleted with it",
+  base_files: {
+    "lib/utilities/xml_helpers.rb" => "module XmlHelpers; end\n",
+    "spec/lib/utilities/xml_helpers_spec.rb" => SPEC_STUB,
+  },
+  head_files: {},
+  head_deletes: %w[lib/utilities/xml_helpers.rb spec/lib/utilities/xml_helpers_spec.rb],
+  expect_escalate: true,
+)
+
+check(
+  "a deleted spec support file still escalates",
+  base_files: { "spec/support/some_helper.rb" => "# helper\n" },
+  head_files: {},
+  head_deletes: %w[spec/support/some_helper.rb],
+  expect_escalate: true,
+)
+
+# Purely additive migrations map to the specs that name their tables; any other
+# db/ change keeps escalating. Escalate cases assert the reason, so they fail
+# against a selector that escalates every db/ path for the old reason.
+WIDGET_SPEC = "# frozen_string_literal: true\n\nRSpec.describe Widget do\nend\n"
+WIDGETS_REQUEST_SPEC = "# frozen_string_literal: true\n\nRSpec.describe \"widgets\" do\nend\n"
+UNRELATED_SPEC = "# frozen_string_literal: true\n\nRSpec.describe Unrelated do\nend\n"
+DB_SPECS = {
+  "spec/models/widget_spec.rb" => WIDGET_SPEC,
+  "spec/requests/widgets_spec.rb" => WIDGETS_REQUEST_SPEC,
+  "spec/models/unrelated_spec.rb" => UNRELATED_SPEC,
+}.freeze
+WIDGET_SPECS = %w[spec/models/widget_spec.rb spec/requests/widgets_spec.rb].freeze
+ADDITIVE_REASON = "is not a purely additive migration"
+MIGRATION_PATH_FOR_TEST = "db/migrate/20261216120002_change_widgets.rb"
+
+def migration_rb(methods, superclass: "ActiveRecord::Migration[8.1]")
+  "# frozen_string_literal: true\n\nclass ChangeWidgets < #{superclass}\n#{methods}end\n"
+end
+
+def schema_rb(version: "2026_12_16_120001", widget_columns: [], gadget_columns: [], extra_tables: "")
+  out = +"# comment\n\nActiveRecord::Schema[7.1].define(version: #{version}) do\n"
+  out << %(  create_table "widgets", charset: "utf8mb4" do |t|\n    t.string "name"\n)
+  widget_columns.each { |column| out << "    #{column}\n" }
+  out << %(    t.index ["name"], name: "index_widgets_on_name"\n  end\n\n)
+  out << %(  create_table "gadgets", charset: "utf8mb4" do |t|\n    t.string "kind"\n)
+  gadget_columns.each { |column| out << "    #{column}\n" }
+  out << "  end\n#{extra_tables}end\n"
+end
+
+def additive_check(name, body, schema: nil, **options)
+  base_files = DB_SPECS.merge("db/schema.rb" => schema_rb)
+  head_files = { MIGRATION_PATH_FOR_TEST => migration_rb(body) }
+  head_files["db/schema.rb"] = schema if schema
+  check(name, base_files:, head_files:, expect_specs: WIDGET_SPECS, reject_specs: %w[spec/models/unrelated_spec.rb], **options)
+end
+
+def non_additive_check(name, body, reason: ADDITIVE_REASON, schema: nil)
+  head_files = { MIGRATION_PATH_FOR_TEST => migration_rb(body) }
+  head_files["db/schema.rb"] = schema if schema
+  check(name, base_files: DB_SPECS.merge("db/schema.rb" => schema_rb), head_files:, expect_escalate: true, expect_reason: reason)
+end
+
+WIDGET_SCHEMA = schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.string "border_radius")])
+
+additive_check(
+  "additive change_table migration maps to specs naming the model and the table",
+  "  def change\n    change_table :widgets, bulk: true do |t|\n      t.string :border_radius\n    end\n  end\n",
+  schema: WIDGET_SCHEMA,
+)
+
+additive_check(
+  "additive add_column migration maps to specs naming the table",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: WIDGET_SCHEMA,
+)
+
+additive_check(
+  "add_column in parentheses with a NOT NULL default is additive",
+  "  def change\n    add_column(:widgets, :border_radius, :integer, null: false, default: 0, limit: 2)\n  end\n",
+  schema: WIDGET_SCHEMA,
+)
+
+additive_check(
+  "additive add_index migration maps to specs naming the table",
+  "  def change\n    add_index :widgets, [:name, :kind], name: \"index_widgets_on_name_and_kind\"\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.index ["name", "kind"], name: "index_widgets_on_name_and_kind")]),
+)
+
+additive_check(
+  "additive up-only migration maps to specs naming the table",
+  "  def up\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: WIDGET_SCHEMA,
+)
+
+additive_check(
+  "additive migration without a schema.rb change is accepted",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+)
+
+additive_check(
+  "additive change_table migration with an index and a nullable reference is accepted",
+  "  def change\n    change_table :widgets do |t|\n      t.references :owner\n      t.index :owner_id\n    end\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.bigint "owner_id"), %(t.index ["owner_id"], name: "index_widgets_on_owner_id")]),
+)
+
+check(
+  "additive create_table migration maps to specs naming the new model, with its schema block",
+  base_files: {
+    "spec/models/thing_spec.rb" => "# frozen_string_literal: true\n\nRSpec.describe Thing do\nend\n",
+    "spec/models/unrelated_spec.rb" => UNRELATED_SPEC,
+    "db/schema.rb" => schema_rb,
+  },
+  head_files: {
+    "db/migrate/20261216120002_create_things.rb" => migration_rb(
+      "  def change\n    create_table :things do |t|\n      t.string :name, null: false\n      t.index :name, unique: true\n      t.timestamps\n    end\n  end\n",
+    ),
+    "db/schema.rb" => schema_rb(
+      version: "2026_12_16_120002",
+      extra_tables: %(\n  create_table "things", charset: "utf8mb4" do |t|\n    t.string "name", null: false\n    t.datetime "created_at", null: false\n    t.index ["name"], name: "index_things_on_name", unique: true\n  end\n),
+    ),
+  },
+  expect_specs: %w[spec/models/thing_spec.rb],
+  reject_specs: %w[spec/models/unrelated_spec.rb],
+)
+
+check(
+  "plural table name maps to specs naming the singular model",
+  base_files: {
+    "spec/models/category_spec.rb" => "# frozen_string_literal: true\n\nRSpec.describe Category do\nend\n",
+    "spec/models/unrelated_spec.rb" => UNRELATED_SPEC,
+  },
+  head_files: { "db/migrate/20261216120002_add_slug_to_categories.rb" => migration_rb("  def change\n    add_column :categories, :slug, :string\n  end\n") },
+  expect_specs: %w[spec/models/category_spec.rb],
+  reject_specs: %w[spec/models/unrelated_spec.rb],
+)
+
+non_additive_check("migration that removes a column escalates", "  def change\n    remove_column :widgets, :name, :string\n  end\n")
+non_additive_check("migration that renames a column escalates", "  def change\n    rename_column :widgets, :name, :title\n  end\n")
+non_additive_check("migration that changes a column escalates", "  def change\n    change_column :widgets, :name, :text\n  end\n")
+non_additive_check("migration that drops a table escalates", "  def change\n    drop_table :widgets\n  end\n")
+non_additive_check("migration that runs execute escalates", "  def up\n    execute \"UPDATE widgets SET name = 'x'\"\n  end\n")
+non_additive_check(
+  "migration with an update of existing rows escalates",
+  "  def change\n    add_column :widgets, :label, :string\n    Widget.update_all(label: \"x\")\n  end\n",
+)
+non_additive_check(
+  "migration with reversible escalates",
+  "  def change\n    reversible do |direction|\n      direction.up { add_column :widgets, :label, :string }\n    end\n  end\n",
+)
+non_additive_check(
+  "migration with an up and a down method escalates",
+  "  def up\n    add_column :widgets, :label, :string\n  end\n\n  def down\n    remove_column :widgets, :label\n  end\n",
+)
+non_additive_check(
+  "migration with one removal next to an addition escalates",
+  "  def change\n    add_column :widgets, :label, :string\n    remove_column :widgets, :name, :string\n  end\n",
+)
+non_additive_check(
+  "change_table that removes a column escalates",
+  "  def change\n    change_table :widgets, bulk: true do |t|\n      t.string :label\n      t.remove :name\n    end\n  end\n",
+)
+non_additive_check(
+  "change_table that changes a column escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.change :name, :text\n    end\n  end\n",
+)
+non_additive_check(
+  "change_table that renames a column escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.rename :name, :title\n    end\n  end\n",
+)
+non_additive_check(
+  "create_table with force escalates",
+  "  def change\n    create_table :widgets, force: true do |t|\n      t.string :name\n    end\n  end\n",
+)
+non_additive_check(
+  "add_column with a default computed by code escalates",
+  "  def change\n    add_column :widgets, :label, :string, default: Widget.default_label\n  end\n",
+)
+non_additive_check(
+  "add_column with an interpolated default escalates",
+  "  def change\n    add_column :widgets, :label, :string, default: \"a\#{1}\"\n  end\n",
+)
+non_additive_check(
+  "add_column that is NOT NULL without a default escalates",
+  "  def change\n    add_column :widgets, :label, :string, null: false\n  end\n",
+)
+non_additive_check(
+  "change_table column that is NOT NULL without a default escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.string :label, null: false\n    end\n  end\n",
+)
+non_additive_check(
+  "add_column called on a receiver escalates",
+  "  def change\n    SomeHelper.add_column(:widgets, :label, :string)\n  end\n",
+)
+non_additive_check(
+  "add_column that is NOT NULL with a nil default escalates",
+  "  def change\n    add_column :widgets, :label, :string, null: false, default: nil\n  end\n",
+)
+non_additive_check(
+  "change_table timestamps on an existing table escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.timestamps\n    end\n  end\n",
+)
+non_additive_check(
+  "change_table timestamps with NOT NULL escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.timestamps null: false\n    end\n  end\n",
+)
+non_additive_check(
+  "unique add_index on an existing table escalates",
+  "  def change\n    add_index :widgets, :name, unique: true\n  end\n",
+)
+non_additive_check(
+  "unique index in change_table escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.index :name, unique: true\n    end\n  end\n",
+)
+non_additive_check(
+  "change_table column call with a block escalates",
+  "  def change\n    change_table :widgets do |t|\n      t.string(:label) { puts 1 }\n    end\n  end\n",
+)
+non_additive_check(
+  "migration with an unknown statement escalates",
+  "  def change\n    add_column :widgets, :label, :string\n    say \"done\"\n  end\n",
+)
+non_additive_check(
+  "migration with a helper method next to change escalates",
+  "  def change\n    add_column :widgets, :label, :string\n  end\n\n  def helper\n  end\n",
+)
+check(
+  "migration class with a look-alike superclass escalates",
+  base_files: DB_SPECS,
+  head_files: { MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n", superclass: "Other::Migration[8.1]") },
+  expect_escalate: true,
+  expect_reason: ADDITIVE_REASON,
+)
+check(
+  "migration that does not parse escalates",
+  base_files: DB_SPECS,
+  head_files: { MIGRATION_PATH_FOR_TEST => "class ChangeWidgets < ActiveRecord::Migration[8.1]\n  def change\n" },
+  expect_escalate: true,
+  expect_reason: ADDITIVE_REASON,
+)
+check(
+  "deleted migration escalates",
+  base_files: DB_SPECS.merge(MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n")),
+  head_files: { "app/models/widget.rb" => "# noop\n" },
+  head_deletes: [MIGRATION_PATH_FOR_TEST],
+  expect_escalate: true,
+  expect_reason: ADDITIVE_REASON,
+)
+additive_check(
+  "change_table timestamps that allow NULL are accepted on an existing table",
+  "  def change\n    change_table :widgets do |t|\n      t.timestamps null: true\n    end\n  end\n",
+)
+
+check(
+  "migration touching two tables selects the specs of both",
+  base_files: DB_SPECS.merge("spec/models/gadget_spec.rb" => "RSpec.describe Gadget do\nend\n"),
+  head_files: {
+    MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n    add_column :gadgets, :label, :string\n  end\n"),
+  },
+  expect_specs: WIDGET_SPECS + %w[spec/models/gadget_spec.rb],
+  reject_specs: %w[spec/models/unrelated_spec.rb],
+)
+check(
+  "migration touching two tables escalates when only one table has a spec",
+  base_files: DB_SPECS,
+  head_files: {
+    MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n    add_column :gadgets, :label, :string\n  end\n"),
+  },
+  expect_escalate: true,
+  expect_reason: "no spec names gadgets",
+)
+check(
+  "additive migration on a table no spec names escalates",
+  base_files: { "spec/models/unrelated_spec.rb" => UNRELATED_SPEC },
+  head_files: { MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n") },
+  expect_escalate: true,
+  expect_reason: "no spec names widgets",
+)
+check(
+  "additive migration whose specs exceed the file cap escalates",
+  base_files: (1..121).to_h { |i| ["spec/models/widget_#{i}_spec.rb", "RSpec.describe Widget do\nend\n"] },
+  head_files: { MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n") },
+  expect_escalate: true,
+  expect_reason: "exceeds",
+)
+
+SCHEMA_REASON = "changes more than the additive migration's tables"
+
+non_additive_check(
+  "schema.rb change in a table the migration does not touch escalates",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.string "border_radius")], gadget_columns: [%(t.string "extra")]),
+  reason: SCHEMA_REASON,
+)
+non_additive_check(
+  "schema.rb line removed from a touched table escalates",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.string "border_radius")]).sub(%(    t.string "name"\n), ""),
+  reason: SCHEMA_REASON,
+)
+non_additive_check(
+  "schema.rb foreign key outside a table block escalates",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.string "border_radius")]).sub(/^end\n\z/, %(  add_foreign_key "widgets", "gadgets"\nend\n)),
+  reason: SCHEMA_REASON,
+)
+non_additive_check(
+  "schema.rb change with a different table header escalates",
+  "  def change\n    add_column :widgets, :border_radius, :string\n  end\n",
+  schema: schema_rb(version: "2026_12_16_120002", widget_columns: [%(t.string "border_radius")]).sub(%(create_table "widgets", charset: "utf8mb4"), %(create_table "widgets", charset: "latin1")),
+  reason: SCHEMA_REASON,
+)
+
+check(
+  "schema.rb without a migration escalates",
+  base_files: DB_SPECS.merge("db/schema.rb" => schema_rb),
+  head_files: { "db/schema.rb" => WIDGET_SCHEMA },
+  expect_escalate: true,
+  expect_reason: "db/schema.rb changed without a migration",
+)
+check(
+  "db/ file that is neither a migration nor schema.rb escalates",
+  base_files: DB_SPECS,
+  head_files: { "db/seeds.rb" => "puts 1\n" },
+  expect_escalate: true,
+  expect_reason: "db/seeds.rb is not a migration or db/schema.rb",
+)
+check(
+  "additive migration next to a data migration escalates",
+  base_files: DB_SPECS,
+  head_files: {
+    MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n"),
+    "db/data/20261216120003_backfill_widgets.rb" => "# noop\n",
+  },
+  expect_escalate: true,
+  expect_reason: "db/data/20261216120003_backfill_widgets.rb is not a migration or db/schema.rb",
+)
+check(
+  "additive migration next to an unmapped file escalates on the file",
+  base_files: DB_SPECS.merge("app/javascript/stylesheets/tailwind.css" => "old"),
+  head_files: {
+    MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :label, :string\n  end\n"),
+    "app/javascript/stylesheets/tailwind.css" => "new",
+  },
+  expect_escalate: true,
+  expect_reason: "diff touches app/javascript/stylesheets/tailwind.css but no specs",
+)
+
+# The custom_styles template renders only through SellerProfile#custom_styles,
+# so the specs that name custom_styles cover it.
+check(
+  "custom_styles template maps to the specs that name custom_styles",
+  base_files: {
+    "spec/models/seller_profile_spec.rb" => "expect(subject.custom_styles).to include(\"--accent\")\n",
+    "spec/controllers/checkout_controller_spec.rb" => "expect(css).to eq(profile.custom_styles)\n",
+    "spec/models/unrelated_spec.rb" => UNRELATED_SPEC,
+    "app/views/layouts/custom_styles/styles.scss.erb" => "old",
+  },
+  head_files: { "app/views/layouts/custom_styles/styles.scss.erb" => "new" },
+  expect_specs: %w[spec/models/seller_profile_spec.rb spec/controllers/checkout_controller_spec.rb],
+  reject_specs: %w[spec/models/unrelated_spec.rb],
+)
+check(
+  "custom_styles partial is not mapped by the template rule",
+  base_files: {
+    "spec/models/seller_profile_spec.rb" => "expect(subject.custom_styles).to be_present\n",
+    "app/views/layouts/custom_styles/_style.html.erb" => "old",
+    "app/views/layouts/custom_styles/styles.scss.erb" => "old",
+  },
+  head_files: {
+    "app/views/layouts/custom_styles/_style.html.erb" => "new",
+    "app/views/layouts/custom_styles/styles.scss.erb" => "new",
+  },
+  expect_escalate: true,
+  expect_reason: "diff touches app/views/layouts/custom_styles/_style.html.erb but no specs",
+)
+check(
+  "global tailwind.css beside the custom_styles template still escalates on tailwind.css",
+  base_files: {
+    "spec/models/seller_profile_spec.rb" => "expect(subject.custom_styles).to be_present\n",
+    "app/views/layouts/custom_styles/styles.scss.erb" => "old",
+    "app/javascript/stylesheets/tailwind.css" => "old",
+  },
+  head_files: {
+    "app/views/layouts/custom_styles/styles.scss.erb" => "new",
+    "app/javascript/stylesheets/tailwind.css" => "new",
+  },
+  expect_escalate: true,
+  expect_reason: "diff touches app/javascript/stylesheets/tailwind.css but no specs",
+)
+
+# CI clones without file contents (tests.yml, filter: blob:none), so the schema
+# diff fetches the base's db/schema.rb on demand. The selection must still be
+# right when that fetch works, and must stop when it fails: an empty diff would
+# read as an unchanged schema.
+def blobless_clone_check(name, remove_source:)
+  $count += 1
+  Dir.mktmpdir do |dir|
+    source = File.join(dir, "source")
+    clone = File.join(dir, "clone")
+    FileUtils.mkdir_p(source)
+    build_repo(source,
+               base_files: DB_SPECS.merge("db/schema.rb" => schema_rb),
+               head_files: { MIGRATION_PATH_FOR_TEST => migration_rb("  def change\n    add_column :widgets, :border_radius, :string\n  end\n"), "db/schema.rb" => WIDGET_SCHEMA })
+    system("git", "-C", source, "config", "uploadpack.allowFilter", "true", exception: true)
+    system("git", "clone", "-q", "--filter=blob:none", "--no-local", "file://#{source}", clone, exception: true)
+    FileUtils.rm_rf(source) if remove_source
+    stdout, stderr, status = Open3.capture3("ruby", SELECTOR, "--base", "origin/base", chdir: clone)
+    if remove_source
+      unless status.exitstatus == 1 && stderr.include?("failed")
+        $failures << "#{name}: expected exit 1 naming the failed git call, got #{status.exitstatus}\nstdout: #{stdout}\nstderr: #{stderr}"
+      end
+    else
+      got = stdout.split("\n").sort
+      unless status.success? && got == WIDGET_SPECS.sort
+        $failures << "#{name}: expected #{WIDGET_SPECS.sort}, got #{got} (exit #{status.exitstatus})\nstderr: #{stderr}"
+      end
+    end
+  end
+end
+
+blobless_clone_check("a clone without file contents selects the same specs", remove_source: false)
+blobless_clone_check("a git call that fails stops the selector instead of trimming the selection", remove_source: true)
 
 WORKFLOW = File.expand_path("../../.github/workflows/tests.yml", __dir__)
 workflow = YAML.load_file(WORKFLOW)

@@ -144,6 +144,14 @@ describe UrlRedirect do
           .to eq(url)
       end
     end
+
+    it "does not sign the original upload when the only file still needs a stamp" do
+      product = create(:product)
+      product.product_files << create(:readable_document, pdf_stamp_enabled: true)
+      url_redirect = create(:url_redirect, link: product)
+
+      expect(url_redirect.redirect_or_s3_location).to eq(url_redirect.download_page_url)
+    end
   end
 
   describe "#is_file_downloadable" do
@@ -246,6 +254,36 @@ describe UrlRedirect do
       expect(bundle.product_files_archives.alive).to be_empty
     end
 
+    it "includes the bundle's own files alongside the members'" do
+      add_member_files
+      own_file = create(:product_file, link: bundle, display_name: "bundle-own")
+      bundle_purchase.create_artifacts_and_send_receipt!
+
+      file_ids = bundle_purchase.url_redirect.bundle_archive_product_files.map(&:id)
+      member_file_ids = bundle.bundle_products.flat_map { |bundle_product| bundle_product.product.product_files.alive.map(&:id) }
+
+      expect(file_ids).to match_array(member_file_ids + [own_file.id])
+    end
+
+    it "leaves the bundle's own deleted files out of the archive" do
+      add_member_files
+      own_file = create(:product_file, link: bundle, display_name: "bundle-own")
+      bundle_purchase.create_artifacts_and_send_receipt!
+      own_file.mark_deleted!
+
+      expect(bundle_purchase.url_redirect.bundle_archive_product_files.map(&:id)).not_to include(own_file.id)
+    end
+
+    it "keeps the members' files in the archive when the bundle's own file is a stampable pdf" do
+      add_member_files
+      create(:readable_document, pdf_stamp_enabled: true, link: bundle, display_name: "stamped-own")
+      bundle_purchase.create_artifacts_and_send_receipt!
+
+      file_ids = bundle_purchase.url_redirect.bundle_archive_product_files.map(&:id)
+
+      expect(file_ids).to match_array(bundle.bundle_products.flat_map { |bundle_product| bundle_product.product.product_files.alive.map(&:id) })
+    end
+
     it "does not include files from another purchase of the same bundle" do
       add_member_files
       bundle_purchase.create_artifacts_and_send_receipt!
@@ -261,6 +299,74 @@ describe UrlRedirect do
       files_for_original_token = bundle_purchase.url_redirect.bundle_archive_product_files
       expect(files_for_original_token.map(&:link_id)).to match_array(original_product_ids)
       expect(files_for_original_token.map(&:link_id)).not_to include(new_bundle_product.product_id)
+    end
+
+    def entity_archive_count
+      ProductFilesArchive.alive.where(link_id: bundle.id, folder_id: nil).count
+    end
+
+    it "does not queue a replacement ZIP while a too-large archive is inside its retry window" do
+      add_member_files
+      bundle_purchase.create_artifacts_and_send_receipt!
+      redirect = bundle_purchase.url_redirect
+      redirect.bundle_archive
+      redirect.matching_bundle_archives(redirect.bundle_archive_product_files).each(&:mark_too_large!)
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 1.hour.ago) }
+
+      expect { redirect.bundle_archive }.not_to change { entity_archive_count }
+    end
+
+    it "retries a too-large archive once its retry window has passed instead of spending the failure budget" do
+      add_member_files
+      bundle_purchase.create_artifacts_and_send_receipt!
+      redirect = bundle_purchase.url_redirect
+      redirect.bundle_archive
+      redirect.matching_bundle_archives(redirect.bundle_archive_product_files).each(&:mark_too_large!)
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 25.hours.ago) }
+
+      expect { redirect.bundle_archive }.to change { entity_archive_count }.by(1)
+      expect(bundle.product_files_archives.alive.order(:id).last).to be_queueing
+    end
+
+    it "widens the too-large retry window as attempts accumulate" do
+      add_member_files
+      bundle_purchase.create_artifacts_and_send_receipt!
+      redirect = bundle_purchase.url_redirect
+      bundle_files = redirect.bundle_archive_product_files
+      3.times { redirect.product_files_archives.create!(product_files: bundle_files).mark_too_large! }
+      expect(entity_archive_count).to eq(3)
+
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 25.hours.ago) }
+      expect { redirect.bundle_archive }.not_to change { entity_archive_count }
+
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 4.days.ago - 1.hour) }
+      expect { redirect.bundle_archive }.to change { entity_archive_count }.by(1)
+    end
+
+    it "caps the too-large retry window at a week" do
+      add_member_files
+      bundle_purchase.create_artifacts_and_send_receipt!
+      redirect = bundle_purchase.url_redirect
+      bundle_files = redirect.bundle_archive_product_files
+      8.times { redirect.product_files_archives.create!(product_files: bundle_files).mark_too_large! }
+
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 6.days.ago) }
+      expect { redirect.bundle_archive }.not_to change { entity_archive_count }
+
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 8.days.ago) }
+      expect { redirect.bundle_archive }.to change { entity_archive_count }.by(1)
+    end
+
+    it "follows the failed-archive retry rules when the latest attempt failed after an older too-large one" do
+      add_member_files
+      bundle_purchase.create_artifacts_and_send_receipt!
+      redirect = bundle_purchase.url_redirect
+      bundle_files = redirect.bundle_archive_product_files
+      3.times { redirect.product_files_archives.create!(product_files: bundle_files).mark_too_large! }
+      redirect.product_files_archives.alive.each { _1.update_columns(updated_at: 2.days.ago) }
+      redirect.product_files_archives.create!(product_files: bundle_files).mark_failed!
+
+      expect { redirect.bundle_archive }.to change { entity_archive_count }.by(1)
     end
   end
 
@@ -296,6 +402,24 @@ describe UrlRedirect do
       signed_s3_url = @url_redirect.signed_location_for_file(pdf_product_file)
       expect(signed_s3_url).to match(/X-Amz-Signature=/)
       expect(signed_s3_url).to match(/stamped_manual/)
+    end
+
+    it "does not sign the original upload when a stampable PDF has no stamped copy" do
+      pdf_product_file = @product.product_files.alive.pdf.last
+      pdf_product_file.update!(pdf_stamp_enabled: true)
+
+      expect(@url_redirect.signed_location_for_file(pdf_product_file)).to be_nil
+      expect(@url_redirect.signed_location_for_file(pdf_product_file, allow_unstamped: true)).to match(/manual/)
+    end
+
+    it "omits an unstamped PDF from the Dropbox file list" do
+      pdf_product_file = @product.product_files.alive.pdf.last
+      pdf_product_file.update!(pdf_stamp_enabled: true)
+
+      filenames = JSON.parse(@url_redirect.product_files_hash).map { _1["filename"] }
+
+      expect(filenames).to include(@product.product_files.first.s3_filename)
+      expect(filenames).not_to include(pdf_product_file.s3_filename)
     end
   end
 

@@ -74,6 +74,71 @@ describe UpdateUserComplianceInfo do
       end
     end
 
+    context "when an unchanged save is made by a company seller" do
+      let!(:individual_info) { create(:user_compliance_info, user:) }
+      let!(:compliance_info) do
+        individual_info.mark_deleted!
+        create(:user_compliance_info_business, user:)
+      end
+      let!(:merchant_account) { create(:merchant_account, user:, charge_processor_merchant_id: "acct_unchanged_save") }
+      let(:params) { ActionController::Parameters.new(first_name: compliance_info.first_name, last_name: compliance_info.last_name) }
+
+      def stripe_account(owners_provided_in:)
+        Stripe::Account.construct_from(
+          id: "acct_unchanged_save",
+          object: "account",
+          business_type: "company",
+          company: { owners_provided: false },
+          requirements: { currently_due: owners_provided_in ? ["company.owners_provided"] : [], past_due: [], eventually_due: [] }
+        )
+      end
+
+      def sole_owner(percent)
+        Stripe::Person.construct_from(
+          id: "person_representative",
+          object: "person",
+          account: "acct_unchanged_save",
+          relationship: { representative: true, owner: true, percent_ownership: percent }
+        )
+      end
+
+      def stub_stripe(owners_provided_in: true, percent: 100)
+        allow(Stripe::Account).to receive(:retrieve).with("acct_unchanged_save").and_return(stripe_account(owners_provided_in:))
+        allow(Stripe::Account).to receive(:list_persons)
+          .with("acct_unchanged_save", relationship: { owner: true }, limit: 100)
+          .and_return("data" => [sole_owner(percent)])
+      end
+
+      # No Stripe sync runs for an unchanged save, so this is the only chance to state the owner list
+      # on a company Stripe holds on company.owners_provided (gumroad-private#3353).
+      it "tells Stripe the owner list is complete without syncing the account" do
+        stub_stripe
+        expect(StripeMerchantAccountManager).not_to receive(:update_account)
+        expect(Stripe::Account).to receive(:update).with("acct_unchanged_save", { company: { owners_provided: true } })
+
+        result = nil
+        expect do
+          result = described_class.new(compliance_params: params, user:).process
+        end.not_to change { UserComplianceInfo.count }
+
+        expect(result[:success]).to be true
+      end
+
+      it "leaves a list that covers only part of the company alone" do
+        stub_stripe(percent: 25)
+        expect(Stripe::Account).not_to receive(:update)
+
+        expect(described_class.new(compliance_params: params, user:).process[:success]).to be true
+      end
+
+      it "does not look at Stripe on a save that changes the compliance info" do
+        allow(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+        expect(StripeMerchantAccountManager).not_to receive(:attest_owners_provided_if_blocking)
+
+        described_class.new(compliance_params: ActionController::Parameters.new(first_name: "Changed"), user:).process
+      end
+    end
+
     context "when submitted compliance values match the current compliance info" do
       let!(:compliance_info) { create(:user_compliance_info, user:) }
 
@@ -127,6 +192,33 @@ describe UpdateUserComplianceInfo do
         expect(result[:success]).to be true
         expect(user.reload.alive_user_compliance_info.first_name).to eq("Morgan")
         expect(user.alive_user_compliance_info.id).not_to eq(compliance_info.id)
+      end
+
+      it "persists nationality and submits it to Stripe" do
+        params = ActionController::Parameters.new(nationality: "GR")
+
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info) do |new_compliance_info|
+          expect(new_compliance_info.nationality).to eq("GR")
+        end
+
+        result = described_class.new(compliance_params: params, user: user).process
+
+        expect(result[:success]).to be true
+        expect(user.reload.alive_user_compliance_info.nationality).to eq("GR")
+      end
+
+      it "keeps mapped and raw individual nationality requests open until Stripe resolves them" do
+        mapped_request = create(:user_compliance_info_request, user:, field_needed: UserComplianceInfoFields::Individual::NATIONALITY)
+        raw_request = create(:user_compliance_info_request, user:, field_needed: UserComplianceInfoFields::Individual::STRIPE_NATIONALITY)
+        params = ActionController::Parameters.new(nationality: "GR")
+
+        allow(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = described_class.new(compliance_params: params, user: user).process
+
+        expect(result[:success]).to be true
+        expect(mapped_request.reload.state).to eq("requested")
+        expect(raw_request.reload.state).to eq("requested")
       end
 
       it "persists the Japanese city kana fields (city_kana and business_city_kana)" do
@@ -585,6 +677,30 @@ describe UpdateUserComplianceInfo do
 
         expect(result[:success]).to be true
       end
+
+      it "accepts a representative's non-DNI personal tax ID for a Peru business whose representative lives outside Peru" do
+        user = create(:user).tap do |u|
+          create(
+            :user_compliance_info_business,
+            user: u,
+            country: "Vietnam",
+            business_country: "Peru",
+            business_type: UserComplianceInfo::BusinessTypes::CORPORATION,
+            individual_tax_id: "12345678-9",
+          )
+        end
+
+        params = ActionController::Parameters.new(
+          is_business: true,
+          individual_tax_id: "B1234567",
+        )
+
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = described_class.new(compliance_params: params, user:).process
+
+        expect(result[:success]).to be true
+      end
     end
 
     context "with a Singapore individual" do
@@ -705,6 +821,180 @@ describe UpdateUserComplianceInfo do
 
         expect(result[:success]).to be true
         expect(user.reload.alive_user_compliance_info.city).to eq("Bukit Timah")
+      end
+    end
+
+    context "with a Singapore business" do
+      def create_singapore_business_user(country:, business_country:)
+        create(:user).tap do |u|
+          create(
+            :user_compliance_info_business,
+            user: u,
+            country:,
+            business_country:,
+            business_type: UserComplianceInfo::BusinessTypes::CORPORATION,
+            individual_tax_id: "S1234567A",
+          )
+        end
+      end
+
+      it "accepts a representative's non-NRIC personal tax ID when the representative lives outside Singapore" do
+        user = create_singapore_business_user(country: "Vietnam", business_country: "Singapore")
+
+        params = ActionController::Parameters.new(
+          is_business: true,
+          individual_tax_id: "B1234567",
+        )
+
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = described_class.new(compliance_params: params, user:).process
+
+        expect(result[:success]).to be true
+      end
+
+      it "rejects a malformed NRIC when the representative lives in Singapore" do
+        user = create_singapore_business_user(country: "Singapore", business_country: "Singapore")
+
+        params = ActionController::Parameters.new(
+          is_business: true,
+          individual_tax_id: "123456789",
+        )
+
+        expect(StripeMerchantAccountManager).not_to receive(:handle_new_user_compliance_info)
+
+        result = described_class.new(compliance_params: params, user:).process
+
+        expect(result[:success]).to be false
+        expect(result[:error_message]).to eq("Your NRIC/FIN must start with S, T, F, G or M and end with a letter (for example, S1234567A). Please enter it exactly as it appears on your ID.")
+      end
+    end
+
+    context "with a Hong Kong company" do
+      def create_hong_kong_business_user(country:)
+        create(:user).tap do |u|
+          create(
+            :user_compliance_info_business,
+            user: u,
+            country:,
+            business_country: "Hong Kong",
+            business_type: UserComplianceInfo::BusinessTypes::CORPORATION,
+            individual_tax_id: "A1234567",
+          )
+        end
+      end
+
+      def process_with(user, **extra)
+        params = ActionController::Parameters.new(is_business: true, **extra)
+        described_class.new(compliance_params: params, user:).process
+      end
+
+      it "stores a passport number and its issuing country for a representative who lives outside Hong Kong" do
+        user = create_hong_kong_business_user(country: "United Kingdom")
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = process_with(user, individual_tax_id: "GB1234567", nationality: "GB")
+
+        expect(result[:success]).to be true
+        info = user.reload.alive_user_compliance_info
+        expect(info.individual_tax_id.decrypt(GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"))).to eq("GB1234567")
+        expect(info.nationality).to eq("GB")
+        expect(info.country).to eq("United Kingdom")
+        expect(info.business_country).to eq("Hong Kong")
+      end
+
+      it "rejects a passport number without an issuing country" do
+        user = create_hong_kong_business_user(country: "United Kingdom")
+        expect(StripeMerchantAccountManager).not_to receive(:handle_new_user_compliance_info)
+
+        result = process_with(user, individual_tax_id: "GB1234567")
+
+        expect(result[:success]).to be false
+        expect(result[:error_message]).to eq("Choose the country that issued your passport.")
+      end
+
+      it "does not ask a Hong Kong resident for an issuing country" do
+        user = create_hong_kong_business_user(country: "Hong Kong")
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = process_with(user, individual_tax_id: "B7654321")
+
+        expect(result[:success]).to be true
+      end
+    end
+
+    context "with a Guatemalan individual" do
+      let!(:user) do
+        create(:user).tap do |u|
+          create(:user_compliance_info, user: u, country: "Guatemala", state: nil, city: "Guatemala City", zip_code: "01001", individual_tax_id: "12345678")
+        end
+      end
+
+      def process_with(individual_tax_id)
+        params = ActionController::Parameters.new(is_business: false, individual_tax_id:)
+        described_class.new(compliance_params: params, user:).process
+      end
+
+      %w[4829137K 4829137-K 48291374K 48291374 482913749].each do |value|
+        it "accepts #{value}, which Stripe accepts" do
+          expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+          expect(process_with(value)[:success]).to be true
+        end
+      end
+
+      it "stores the dash-stripped value that was checked" do
+        expect(process_with("482-9137-4")[:success]).to be true
+
+        expect(user.reload.alive_user_compliance_info.individual_tax_id.decrypt("1234")).to eq("48291374")
+      end
+
+      it "validates an ID submitted as ssn_last_four" do
+        expect(StripeMerchantAccountManager).not_to receive(:handle_new_user_compliance_info)
+
+        params = ActionController::Parameters.new(is_business: false, ssn_last_four: "4829137")
+        result = described_class.new(compliance_params: params, user:).process
+
+        expect(result[:success]).to be false
+        expect(result[:error_message]).to eq(Compliance::GuatemalaNit::ERROR_MESSAGE)
+      end
+
+      %w[4829137 482913K 482913-4 482913749K 4829137490].each do |value|
+        it "rejects #{value}, which Stripe refuses" do
+          expect(StripeMerchantAccountManager).not_to receive(:handle_new_user_compliance_info)
+
+          result = nil
+          expect { result = process_with(value) }.not_to change { UserComplianceInfo.count }
+
+          expect(result[:success]).to be false
+          expect(result[:error_message]).to eq(Compliance::GuatemalaNit::ERROR_MESSAGE)
+        end
+      end
+
+      context "as a business whose representative lives outside Guatemala" do
+        let!(:user) do
+          create(:user).tap do |u|
+            create(
+              :user_compliance_info_business,
+              user: u,
+              country: "Peru",
+              business_country: "Guatemala",
+              business_type: UserComplianceInfo::BusinessTypes::CORPORATION,
+              individual_tax_id: "12345678",
+            )
+          end
+        end
+
+        it "stores the representative's own document as entered, separators and all" do
+          params = ActionController::Parameters.new(is_business: true, individual_tax_id: "12345678-9")
+
+          expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+          result = described_class.new(compliance_params: params, user:).process
+
+          expect(result[:success]).to be true
+          expect(user.reload.alive_user_compliance_info.individual_tax_id.decrypt("1234")).to eq("12345678-9")
+        end
       end
     end
 
@@ -888,6 +1178,31 @@ describe UpdateUserComplianceInfo do
         # invariant part of the sentence is what catches a reworded message on one side only.
         expect(helper).to include("digits. Enter it exactly as it appears on your document")
         expect(helper).to include("do not add leading zeros")
+      end
+
+      it "accepts a representative's non-Cédula personal tax ID for a Colombian business whose representative lives outside Colombia" do
+        user = create(:user).tap do |u|
+          create(
+            :user_compliance_info_business,
+            user: u,
+            country: "Vietnam",
+            business_country: "Colombia",
+            business_type: UserComplianceInfo::BusinessTypes::CORPORATION,
+            individual_tax_id: "1234567",
+          )
+        end
+
+        params = ActionController::Parameters.new(
+          is_business: true,
+          individual_tax_id: "B12345",
+        )
+
+        expect(StripeMerchantAccountManager).to receive(:handle_new_user_compliance_info)
+
+        result = described_class.new(compliance_params: params, user:).process
+
+        expect(result[:success]).to be true
+        expect(user.reload.alive_user_compliance_info.individual_tax_id.decrypt("1234")).to eq("B12345")
       end
     end
 
@@ -1133,6 +1448,190 @@ describe UpdateUserComplianceInfo do
         expect(result[:success]).to be false
         expect(result[:error_message]).to include("Invalid value for individual[id_number]")
       end
+    end
+  end
+end
+
+
+describe UpdateUserComplianceInfo, "Stripe failure after a partial update" do
+  self.use_transactional_tests = false
+
+  before do
+    @user = create(:user)
+    @compliance_info = create(:user_compliance_info_business, user: @user, business_type: UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC)
+    @merchant_account = create(:merchant_account, user: @user)
+    @stripe_account = Stripe::Account.construct_from(
+      id: @merchant_account.charge_processor_merchant_id,
+      country: "US",
+      capabilities: {},
+      metadata: { user_compliance_info_id: @compliance_info.external_id },
+      company: { structure: "single_member_llc" }
+    )
+    allow(Stripe::Account).to receive(:retrieve).with(@stripe_account.id).and_return(@stripe_account)
+  end
+
+  after do
+    @user.user_compliance_info_requests.destroy_all
+    @user.user_compliance_infos.destroy_all
+    @user.merchant_accounts.destroy_all
+    @user.comments.destroy_all
+    GlobalAffiliate.where(affiliate_user_id: @user.id).delete_all
+    @user.destroy!
+  end
+
+  it "commits the revision when the structure clear reaches Stripe but its response is lost" do
+    provider_error = Stripe::APIConnectionError.new("Synthetic provider failure")
+    submitted_revision_id = nil
+    allow(Stripe::Account).to receive(:update).with(@stripe_account.id, { company: { structure: "" } }) do
+      @stripe_account.company.structure = nil
+      submitted_revision_id = @user.reload.alive_user_compliance_info.id
+      raise provider_error
+    end
+
+    expect do
+      described_class.new(compliance_params: ActionController::Parameters.new(is_business: false, first_name: "Updated"), user: @user).process
+    end.to raise_error { |error| expect(error).to equal(provider_error) }
+
+    committed = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        User.find(@user.id).alive_user_compliance_info.attributes.slice("id", "first_name", "is_business")
+      end
+    end.value
+    expect(committed).to include("id" => submitted_revision_id, "first_name" => "Updated", "is_business" => false)
+    expect(@compliance_info.reload).to be_deleted
+    expect(@user.user_compliance_infos.alive.count).to eq(1)
+    expect(@stripe_account.company.structure).to be_nil
+    expect(Stripe::Account).to have_received(:update).once
+  end
+
+  [Stripe::APIConnectionError, Stripe::AuthenticationError, Stripe::RateLimitError].each do |error_class|
+    it "commits the revision before propagating #{error_class.name} without releasing the lock during Stripe work" do
+      provider_error = error_class.new("Synthetic provider failure")
+      submitted_revision_id = nil
+      allow(Stripe::Account).to receive(:update).with(@stripe_account.id, anything) do |_id, attributes|
+        if attributes == { company: { structure: "" } }
+          @stripe_account.company.structure = nil
+          @stripe_account
+        else
+          expect(@stripe_account.company.structure).to be_nil
+          submitted_revision_id = @user.reload.alive_user_compliance_info.id
+          country_writer = Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do |connection|
+              connection.execute("SET SESSION innodb_lock_wait_timeout = 1")
+              begin
+                UpdateUserCountry.new(new_country_code: "CA", user: User.find(@user.id)).process
+              rescue ActiveRecord::LockWaitTimeout => error
+                error
+              ensure
+                connection.execute("SET SESSION innodb_lock_wait_timeout = DEFAULT")
+              end
+            end
+          end
+          expect(country_writer.value).to be_a(ActiveRecord::LockWaitTimeout)
+          raise provider_error
+        end
+      end
+      params = ActionController::Parameters.new(is_business: false, first_name: "Updated")
+
+      expect do
+        described_class.new(compliance_params: params, user: @user).process
+      end.to raise_error { |error| expect(error).to equal(provider_error) }
+
+      committed = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          User.find(@user.id).alive_user_compliance_info.attributes.slice("id", "first_name", "is_business")
+        end
+      end.value
+      expect(committed).to include("id" => submitted_revision_id, "first_name" => "Updated", "is_business" => false)
+      expect(@compliance_info.reload).to be_deleted
+      expect(@user.user_compliance_infos.alive.count).to eq(1)
+      expect(@stripe_account.company.structure).to be_nil
+      expect(Stripe::Account).to have_received(:update).twice
+    end
+  end
+end
+describe UpdateUserComplianceInfo, "Stripe failure before the first provider write" do
+  self.use_transactional_tests = false
+
+  before do
+    @user = create(:user)
+    @compliance_info = create(:user_compliance_info_business, user: @user, business_type: UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC)
+    @merchant_account = create(:merchant_account, user: @user)
+    @original_first_name = @compliance_info.first_name
+    allow(Stripe::Account).to receive(:update)
+  end
+
+  after do
+    @user.user_compliance_info_requests.destroy_all
+    @user.user_compliance_infos.destroy_all
+    @user.merchant_accounts.destroy_all
+    @user.comments.destroy_all
+    GlobalAffiliate.where(affiliate_user_id: @user.id).delete_all
+    @user.destroy!
+  end
+
+  it "rolls the revision back when reading owners fails before the account update" do
+    saved, @compliance_info = @compliance_info.dup_and_save { |info| info.is_business = false }
+    expect(saved).to be true
+    stripe_account = Stripe::Account.construct_from(
+      id: @merchant_account.charge_processor_merchant_id,
+      country: "US",
+      capabilities: {},
+      metadata: { user_compliance_info_id: @compliance_info.external_id }
+    )
+    provider_error = Stripe::APIConnectionError.new("Synthetic provider failure")
+    allow(Stripe::Account).to receive(:retrieve).and_return(stripe_account)
+    allow(Stripe::Account).to receive(:list_persons).and_raise(provider_error)
+
+    expect do
+      described_class.new(compliance_params: ActionController::Parameters.new(is_business: true, first_name: "Updated"), user: @user).process
+    end.to raise_error { |error| expect(error).to equal(provider_error) }
+
+    committed = Thread.new do
+      ActiveRecord::Base.connection_pool.with_connection do
+        User.find(@user.id).alive_user_compliance_info.attributes.slice("id", "first_name", "is_business")
+      end
+    end.value
+    expect(committed).to include("id" => @compliance_info.id, "first_name" => @original_first_name, "is_business" => false)
+    expect(@compliance_info.reload).not_to be_deleted
+    expect(Stripe::Account).to have_received(:list_persons).once
+    expect(Stripe::Account).not_to have_received(:update)
+  end
+
+  [Stripe::APIConnectionError, Stripe::AuthenticationError, Stripe::RateLimitError].each do |error_class|
+    it "rolls the submitted revision back when #{error_class.name} arrives before any provider write" do
+      provider_error = error_class.new("Synthetic provider failure")
+      allow(Stripe::Account).to receive(:retrieve).and_raise(provider_error)
+      params = ActionController::Parameters.new(is_business: false, first_name: "Updated")
+
+      expect do
+        described_class.new(compliance_params: params, user: @user).process
+      end.to raise_error { |error| expect(error).to equal(provider_error) }
+
+      committed = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          User.find(@user.id).alive_user_compliance_info.attributes.slice("id", "first_name", "is_business")
+        end
+      end.value
+      expect(committed).to include("id" => @compliance_info.id, "first_name" => @original_first_name, "is_business" => true)
+      expect(@compliance_info.reload).not_to be_deleted
+      expect(Stripe::Account).not_to have_received(:update)
+
+      stripe_account = Stripe::Account.construct_from(
+        id: @merchant_account.charge_processor_merchant_id,
+        country: "US",
+        capabilities: {},
+        metadata: { user_compliance_info_id: @compliance_info.external_id },
+        company: { structure: "single_member_llc" }
+      )
+      allow(Stripe::Account).to receive(:retrieve).and_return(stripe_account)
+      allow(Stripe::Account).to receive(:update).and_return(stripe_account)
+
+      expect(described_class.new(compliance_params: params, user: @user).process).to eq(success: true)
+      expect(@user.reload.alive_user_compliance_info.first_name).to eq("Updated")
+      expect(@compliance_info.reload).to be_deleted
+      expect(Stripe::Account).to have_received(:update).with(stripe_account.id, hash_including(individual: hash_including(first_name: "Updated")))
+      expect(Stripe::Account).to have_received(:update).twice
     end
   end
 end

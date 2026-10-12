@@ -46,12 +46,15 @@ import { useOriginalLocation } from "$app/components/useOriginalLocation";
 
 type Props = {
   product: {
+    id: string;
     permalink: string;
     name: string;
     native_type: ProductNativeType;
     require_shipping: boolean;
     custom_fields: CustomFieldDescriptor[];
     supports_paypal: "native" | "braintree" | null;
+    paypal_card_funding_disabled: boolean;
+    link_disabled: boolean;
     creator: Creator;
     currency_code: CurrencyCode;
     options: Option[];
@@ -283,6 +286,7 @@ export default function SubscriptionsManage() {
     customFields: [], // Custom fields were already collected during original purchase
     bundleProductCustomFields: [],
     supportsPaypal: product.supports_paypal,
+    paypalCardFundingDisabled: product.paypal_card_funding_disabled,
     testPurchase: subscription.is_test,
     requirePayment,
     subscription_id: subscription.id,
@@ -326,6 +330,9 @@ export default function SubscriptionsManage() {
       request_apple_pay_merchant_tokens,
       payment_element_wallets: false,
       flat_payment_methods: false,
+      // This page builds its own card-element config, so the seller's Link opt-out has to come off
+      // the product payload — the checkout page's own config never reaches here.
+      stripe_link_enabled: !product.link_disabled,
       elements_options: null,
     },
   });
@@ -388,6 +395,12 @@ export default function SubscriptionsManage() {
         if (itemResult.success) {
           showAlert(`Your ${subscriptionEntity} has been updated.`, "success");
           router.reload();
+        } else {
+          showAlert(
+            itemResult.error_message ??
+              "We couldn't confirm your payment. Refresh this page to check your membership before you try again.",
+            "error",
+          );
         }
       });
     } else if (result.restartAtCheckoutUrl) {

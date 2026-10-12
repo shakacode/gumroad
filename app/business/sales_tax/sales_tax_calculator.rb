@@ -83,7 +83,7 @@ class SalesTaxCalculator
         state:
       }
 
-      product_tax_code = Link::NATIVE_TYPES_TO_TAX_CODE[product.native_type]
+      product_tax_code = product.taxjar_product_tax_code
 
       unit_price_dollars = price_cents / 100.0 / quantity
       shipping_dollars = shipping_cents / 100.0
@@ -227,6 +227,12 @@ class SalesTaxCalculator
       return unless tax_rate
       if Compliance::Countries::EU_VAT_APPLICABLE_COUNTRY_CODES.include?(tax_rate.country)
         if tax_rate.country == "ES"
+          # Set by the subscription when support has confirmed the buyer is in an exempt territory;
+          # renewals reuse the checkout IP, so geocoding it again would repeat the original mistake.
+          return true if buyer_location[:vat_exempt_territory]
+          # The buyer's own postal code beats the connection: mainland ISPs and VPNs put Canary
+          # buyers in Catalonia, and a 35xxx/38xxx code cannot.
+          return true if Compliance.es_postal_code_vat_exempt?(buyer_location[:postal_code])
           if buyer_location[:ip_address] && (geocode = GEOIP.city(buyer_location[:ip_address]) rescue nil)
             geocode.country.iso_code == "ES" &&
               geocode.subdivisions.collect(&:name).any? { |division_name| Compliance::VAT_EXEMPT_REGIONS.include?(division_name) }

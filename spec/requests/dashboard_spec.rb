@@ -85,7 +85,8 @@ describe "Dashboard", js: true, type: :system do
       expect(page).to have_button("Connect to X")
       expect(page).not_to have_button("Connect to YouTube")
       expect(page).not_to have_button("Connect to Instagram")
-      expect(page).not_to have_button("Disconnect @example_creator from X")
+      # A hand-typed handle is not a connection, so there is nothing to manage yet.
+      expect(page).not_to have_button("Open X connection menu")
     end
 
     it "shows a connected account without making social connections required for checklist completion" do
@@ -94,6 +95,8 @@ describe "Dashboard", js: true, type: :system do
       expect(page).to have_text("Connected: X")
       click_on "Manage connections"
       click_on "Disconnect X"
+      within("[role=dialog]") { click_on "Disconnect" }
+      wait_for_ajax
       expect(page).to have_button("Connect to X")
       expect(seller.reload.twitter_user_id).to be_nil
       visit dashboard_path

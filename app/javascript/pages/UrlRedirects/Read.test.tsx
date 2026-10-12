@@ -4,25 +4,37 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import Read, { canResumePdfFromLocation, downloadEpubArchive } from "./Read";
+import Read, {
+  canResumePdfFromLocation,
+  downloadEpubArchive,
+  ensureDefiniteReaderHeight,
+  syncPinnedReaderHeight,
+} from "./Read";
 
-const mocks = vi.hoisted(() => ({
-  createEpub: vi.fn(),
-  trackMediaLocationChanged: vi.fn(),
-  usePage: vi.fn(),
-  getDocument: vi.fn(),
-  // Shared pdfjs harness state. The module mocks below are hoisted above any test, so the
-  // constructors have to read these lazily rather than close over a per-test object.
-  on: vi.fn<(type: string, listener: () => void) => void>(),
-  off: vi.fn<(type: string, listener: () => void) => void>(),
-  viewer: {
-    cleanup: vi.fn(),
-    setDocument: vi.fn(),
-    currentScaleValue: "",
-    currentScale: 1,
-    pdfDocument: { numPages: 3 },
-  },
-}));
+const mocks = vi.hoisted(() => {
+  const linkServiceOptions: Record<string, unknown>[] = [];
+
+  return {
+    createEpub: vi.fn(),
+    trackMediaLocationChanged: vi.fn(),
+    usePage: vi.fn(),
+    getDocument: vi.fn(),
+    // Shared pdfjs harness state. The module mocks below are hoisted above any test, so the
+    // constructors have to read these lazily rather than close over a per-test object.
+    on: vi.fn<(type: string, listener: () => void) => void>(),
+    off: vi.fn<(type: string, listener: () => void) => void>(),
+    viewer: {
+      cleanup: vi.fn(),
+      setDocument: vi.fn(),
+      currentScaleValue: "",
+      currentScale: 1,
+      pdfDocument: { numPages: 3 },
+    },
+    // Copy of pdf.js's LinkTarget, which the module mock replaces.
+    LinkTarget: { NONE: 0, SELF: 1, BLANK: 2, PARENT: 3, TOP: 4 },
+    linkServiceOptions,
+  };
+});
 
 vi.mock("@inertiajs/react", () => ({ usePage: mocks.usePage }));
 vi.mock("$app/data/media_location", () => ({ trackMediaLocationChanged: mocks.trackMediaLocationChanged }));
@@ -41,7 +53,11 @@ vi.mock("pdfjs-dist/legacy/web/pdf_viewer.mjs", () => ({
     on = mocks.on;
     off = mocks.off;
   },
+  LinkTarget: mocks.LinkTarget,
   PDFLinkService: class {
+    constructor(options: Record<string, unknown>) {
+      mocks.linkServiceOptions.push(options);
+    }
     setViewer = vi.fn();
     setDocument = vi.fn();
   },
@@ -238,6 +254,16 @@ describe("PDF reader teardown", () => {
     unmount();
 
     expect(pdf.destroy).toHaveBeenCalled();
+  });
+
+  it("opens a link inside the PDF in a new tab instead of replacing the reader", async () => {
+    // The hoisted mock collects constructor options across tests.
+    mocks.linkServiceOptions.length = 0;
+
+    render(<Read />);
+
+    await waitFor(() => expect(mocks.linkServiceOptions).toHaveLength(1));
+    expect(mocks.linkServiceOptions.map((options) => options.externalLinkTarget)).toEqual([mocks.LinkTarget.BLANK]);
   });
 });
 
@@ -557,5 +583,83 @@ describe("EPUB reader lifecycle", () => {
     expect(harness.book.destroy).not.toHaveBeenCalled();
     unmount();
     expect(harness.book.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("renders the book into a container with a definite pixel height", async () => {
+    // The container is pinned before epub.js measures it, and the pin has to survive the re-render
+    // that hides the loading overlay. happy-dom has no layout, so the reading area measures zero and
+    // the pin falls back to the viewport here; real pagination needs the local reader capture.
+    render(<Read />);
+    await waitFor(() => expect(harness.rendition.display).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("One moment while we prepare your reading experience")).toBeNull());
+
+    const container = document.querySelector('[role="document"] > div');
+    if (!(container instanceof HTMLElement)) throw new Error("reader container is not an element");
+    expect(container.style.height).toBe(`${window.innerHeight}px`);
+  });
+
+  it("lays the reader out in a definite-height flex column", async () => {
+    render(<Read />);
+    await waitFor(() => expect(harness.book.renderTo).toHaveBeenCalled());
+
+    expect(document.querySelector('[role="application"]')?.className).toContain("h-dvh");
+    expect(document.querySelector(".main")?.className).toContain("min-h-0");
+  });
+});
+
+describe("reader height chain", () => {
+  it("pins the reading area's height when the container measures zero", () => {
+    const readingArea = document.createElement("div");
+    readingArea.setAttribute("role", "document");
+    Object.defineProperty(readingArea, "clientHeight", { value: 640, configurable: true });
+    const container = document.createElement("div");
+    readingArea.appendChild(container);
+
+    expect(ensureDefiniteReaderHeight(container)).toBe(640);
+    expect(container.style.height).toBe("640px");
+  });
+
+  it("falls back to the viewport when the reading area also measures zero", () => {
+    const container = document.createElement("div");
+
+    expect(ensureDefiniteReaderHeight(container)).toBe(window.innerHeight);
+    expect(container.style.height).toBe(`${window.innerHeight}px`);
+  });
+
+  it("keeps a measurable container's height untouched", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientHeight", { value: 540 });
+
+    expect(ensureDefiniteReaderHeight(container)).toBe(540);
+    expect(container.style.height).toBe("");
+  });
+
+  it("moves a pinned height with the reading area on resize", () => {
+    const readingArea = document.createElement("div");
+    readingArea.setAttribute("role", "document");
+    Object.defineProperty(readingArea, "clientHeight", { value: 720, configurable: true });
+    const container = document.createElement("div");
+    container.style.height = "720px";
+    readingArea.appendChild(container);
+    const release = syncPinnedReaderHeight(container);
+
+    Object.defineProperty(readingArea, "clientHeight", { value: 640, configurable: true });
+    window.dispatchEvent(new Event("resize"));
+    expect(container.style.height).toBe("640px");
+
+    release();
+    Object.defineProperty(readingArea, "clientHeight", { value: 500, configurable: true });
+    window.dispatchEvent(new Event("resize"));
+    expect(container.style.height).toBe("640px");
+  });
+
+  it("leaves an unpinned container alone on resize", () => {
+    const container = document.createElement("div");
+    const release = syncPinnedReaderHeight(container);
+
+    window.dispatchEvent(new Event("resize"));
+    expect(container.style.height).toBe("");
+
+    release();
   });
 });

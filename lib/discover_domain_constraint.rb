@@ -2,27 +2,7 @@
 
 class DiscoverDomainConstraint
   def self.matches?(request)
-    canonical_discover_host?(request.host) || control_plane_branch_discover_request?(request)
+    request.host == VALID_DISCOVER_REQUEST_HOST ||
+      GumroadDomainConstraint.control_plane_branch_host?(request.host) && request.path != "/"
   end
-
-  def self.canonical_discover_host?(host)
-    host == VALID_DISCOVER_REQUEST_HOST
-  end
-
-  def self.control_plane_branch_host?(host)
-    GumroadDomainConstraint.control_plane_branch_host?(host)
-  end
-
-  def self.control_plane_branch_discover_request?(request)
-    return false unless control_plane_branch_host?(request.host)
-
-    discover_request?(request)
-  end
-
-  def self.discover_request?(request)
-    request.path != "/"
-  end
-  private_class_method :control_plane_branch_discover_request?
-  private_class_method :control_plane_branch_host?
-  private_class_method :discover_request?
 end

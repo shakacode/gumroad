@@ -7,15 +7,20 @@ import typia from "typia";
 import {
   applyRichContentPageSaveResponse,
   canonicalRichContentScope,
+  embeddedFailedUploadIds,
+  failedUploadFileIds,
   hasMoveSourceScope,
   HiddenVariantContentConflictError,
   reconcileConfirmedRemovalIds,
   richContentMoveSourceIds,
   SaveProductResponse,
   StaleContentConflictError,
+  UnconfirmedSaveError,
   StaleDeletionConflictError,
+  UnmarkedInstallmentPlanClearConflictError,
   saveProduct,
   scopedRichContentPageKey,
+  withoutFailedFileEmbeds,
 } from "$app/data/product_edit";
 import { OtherRefundPolicy } from "$app/data/products/other_refund_policies";
 import { Thumbnail } from "$app/data/thumbnails";
@@ -25,7 +30,7 @@ import { useDedupeInFlight } from "$app/utils/dedupeInFlight";
 import { Taxonomy } from "$app/utils/discover";
 import { ALLOWED_EXTENSIONS } from "$app/utils/file";
 import GuidGenerator from "$app/utils/guid_generator";
-import { assertResponseError, request } from "$app/utils/request";
+import { assertResponseError, request, ResponseError } from "$app/utils/request";
 
 import { Button } from "$app/components/Button";
 import { Modal } from "$app/components/Modal";
@@ -50,6 +55,7 @@ import {
 } from "$app/components/ProductEdit/state";
 import { ImageUploadSettingsContext } from "$app/components/RichTextEditor";
 import { showAlert } from "$app/components/server-components/Alert";
+import { Alert } from "$app/components/ui/Alert";
 
 const routes: RouteObject[] = [
   {
@@ -82,6 +88,7 @@ type Props = {
   refund_policies: OtherRefundPolicy[];
   currency_type: CurrencyCode;
   is_tiered_membership: boolean;
+  can_close_membership_tiers: boolean;
   is_listed_on_discover: boolean;
   is_physical: boolean;
   profile_sections: ProfileSection[];
@@ -93,6 +100,7 @@ type Props = {
   successful_sales_count: number;
   ratings: RatingsWithPercentages;
   seller: Seller;
+  current_seller_external_id: string;
   existing_files: ExistingFileEntry[];
   aws_key: string;
   s3_url: string;
@@ -104,6 +112,7 @@ type Props = {
   receipt_email_from: string;
   price_checker_enabled: boolean;
   custom_html_pages_enabled: boolean;
+  auto_marketing_enabled: boolean;
   custom_html_store_hostnames: string[];
   custom_html_global_nav_hosts: string[];
   custom_html_global_nav_paths: string[];
@@ -122,6 +131,7 @@ const createContextValue = (props: Props) => ({
   thumbnail: props.thumbnail,
   currencyType: props.currency_type,
   isTieredMembership: props.is_tiered_membership,
+  canCloseMembershipTiers: props.can_close_membership_tiers,
   isListedOnDiscover: props.is_listed_on_discover,
   isPhysical: props.is_physical,
   profileSections: props.profile_sections,
@@ -133,12 +143,14 @@ const createContextValue = (props: Props) => ({
   successfulSalesCount: props.successful_sales_count,
   ratings: props.ratings,
   seller: props.seller,
+  currentSellerExternalId: props.current_seller_external_id,
   existingFiles: props.existing_files,
   setExistingFiles: () => {},
   awsKey: props.aws_key,
   s3Url: props.s3_url,
   availableCountries: props.available_countries,
   saving: false,
+  saveBlocked: false,
   save: () => Promise.resolve(false),
   variantIdMappings: {},
   richContentIdMappings: {},
@@ -151,6 +163,7 @@ const createContextValue = (props: Props) => ({
   receiptEmailFrom: props.receipt_email_from,
   priceCheckerEnabled: props.price_checker_enabled,
   customHtmlPagesEnabled: props.custom_html_pages_enabled,
+  autoMarketingEnabled: props.auto_marketing_enabled,
   customHtmlStoreHostnames: props.custom_html_store_hostnames,
   customHtmlGlobalNavHosts: props.custom_html_global_nav_hosts,
   customHtmlGlobalNavPaths: props.custom_html_global_nav_paths,
@@ -481,14 +494,25 @@ const scopedConfirmedPageIdMappings = (
 };
 
 const findUpdatedContent = (product: Product, lastSavedProduct: Product) => {
+  // Same pruning the save applies to the request: an embed the save strips was
+  // never published, so it cannot count as changed content. Each snapshot uses
+  // its own failed files, because "Upload again" reuses the file id.
+  const failedFileIds = failedUploadFileIds(product.files);
+  const lastSavedFailedFileIds = failedUploadFileIds(lastSavedProduct.files);
+  const sameContent = (pages: Page[], lastSavedPages: Page[]) =>
+    pagesHaveSameContent(
+      withoutFailedFileEmbeds(pages, failedFileIds),
+      withoutFailedFileEmbeds(lastSavedPages, lastSavedFailedFileIds),
+    );
+
   const contentUpdatedVariantIds = product.variants
     .filter((variant) => {
       const lastSavedVariant = lastSavedProduct.variants.find((v) => v.id === variant.id);
-      return !pagesHaveSameContent(variant.rich_content, lastSavedVariant?.rich_content ?? []);
+      return !sameContent(variant.rich_content, lastSavedVariant?.rich_content ?? []);
     })
     .map((variant) => variant.id);
 
-  const sharedContentUpdated = !pagesHaveSameContent(product.rich_content, lastSavedProduct.rich_content);
+  const sharedContentUpdated = !sameContent(product.rich_content, lastSavedProduct.rich_content);
 
   return {
     sharedContentUpdated,
@@ -553,6 +577,20 @@ const ProductEditPage = (props: Props) => {
   // because this session cannot tell which of its own field values are also
   // stale.
   const [staleDeletionConflict, setStaleDeletionConflict] = React.useState<string | null>(null);
+  // Set when a save may have reached the server but this editor cannot save again safely (it holds
+  // stale ids). Save stays disabled, so the reason has to stay on screen until the seller reloads.
+  const [reloadRequired, setReloadRequired] = React.useState<string | null>(null);
+  const [reloadModalOpen, setReloadModalOpen] = React.useState(false);
+  // Shown inline rather than as a toast so it cannot cover the header or tabs
+  // while the seller copies their unsaved edits. An object so a repeated
+  // refusal re-focuses it.
+  const [installmentPlanClearConflict, setInstallmentPlanClearConflict] = React.useState<{ message: string } | null>(
+    null,
+  );
+  const installmentPlanClearConflictRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (installmentPlanClearConflict) installmentPlanClearConflictRef.current?.focus();
+  }, [installmentPlanClearConflict]);
   // Client-generated id → canonical server id, accumulated separately because
   // variant and page external ids are not distinct namespaces.
   const [variantIdMappings, setVariantIdMappings] = React.useState<Record<string, string>>({});
@@ -636,12 +674,19 @@ const ProductEditPage = (props: Props) => {
         lastSavedCustomizablePrice: lastSavedProductRef.current.customizable_price,
         lastSavedPriceCents: lastSavedProductRef.current.price_cents,
         lastSavedHasPaidVariantPricing: hasPaidVariantPricing(lastSavedProductRef.current),
+        lastSavedInstallmentPlan: lastSavedProductRef.current.installment_plan,
+        lastSavedAllowInstallmentPlan: lastSavedProductRef.current.allow_installment_plan,
+        lastSavedDescription: lastSavedProductRef.current.description,
       });
       saved = true;
+      setInstallmentPlanClearConflict(null);
       // The version pages the seller chose to keep were never loaded into this
       // editor session (the shared-content flag hid them), so the in-memory
       // state can't render the outcome. Reload to pick up the kept content.
       if (conflictResolution?.choice === "keep_version") {
+        // Leave Save disabled until the page is gone, so a second click cannot save again.
+        setReloadRequired("Your changes were saved. Reloading the page to show them.");
+        setReloadModalOpen(true);
         window.location.reload();
         return true;
       }
@@ -662,6 +707,9 @@ const ProductEditPage = (props: Props) => {
       applyCanonicalIds(reconciled, response, sentPagesById);
       reconciled.confirmed_removed_variant_ids = [];
       reconciled.confirmed_removed_rich_content_ids = [];
+      // The marker is per-save. Keeping it would let a later content-tab
+      // snapshot still claim a description clear.
+      reconciled.description_changed = false;
       lastSavedProductRef.current = reconciled;
       setVariantIdMappings((previous) => ({ ...previous, ...response.variant_id_mappings }));
       setRichContentIdMappings((previous) => {
@@ -697,13 +745,29 @@ const ProductEditPage = (props: Props) => {
           sentConfirmedPageIds,
           confirmedPageIdMappings,
         );
+        // The marker this request carried is spent. A description edited while
+        // the save was in flight was not part of it, so its marker stays.
+        if (current.description === productSent.description) current.description_changed = false;
       });
 
-      if (response.warning_message) showAlert(response.warning_message, "warning");
+      const failedUploadCount = embeddedFailedUploadIds(
+        productSent.files,
+        allScopedRichContentPages(productSent).map(({ page }) => page),
+      ).size;
+      const failedUploadNote =
+        failedUploadCount > 0
+          ? `Changes saved, except ${failedUploadCount === 1 ? "1 file" : `${failedUploadCount} files`} that did not upload.`
+          : null;
+      if (response.warning_message)
+        showAlert(
+          failedUploadNote ? `${failedUploadNote} ${response.warning_message}` : response.warning_message,
+          "warning",
+        );
       else {
         const contentUpdated = sharedContentUpdated || contentUpdatedVariantIds.length > 0;
+        const offerContentUpdateEmail = props.successful_sales_count > 0 && contentUpdated;
 
-        if (props.successful_sales_count > 0 && contentUpdated) {
+        if (offerContentUpdateEmail) {
           const uniquePermalinkOrVariantIds = productSent.has_same_rich_content_for_all_variants
             ? [props.unique_permalink]
             : // Report canonical ids for variants created by this very save.
@@ -712,7 +776,10 @@ const ProductEditPage = (props: Props) => {
           setContentUpdates({
             uniquePermalinkOrVariantIds,
           });
-        } else {
+        }
+        if (failedUploadNote) {
+          showAlert(failedUploadNote, "warning");
+        } else if (!offerContentUpdateEmail) {
           showAlert("Changes saved!", "success");
         }
       }
@@ -729,15 +796,35 @@ const ProductEditPage = (props: Props) => {
         // whole product and the write path is not gated on the token. So say
         // plainly that the deletion did not happen and send them to a reload.
         setStaleDeletionConflict(e.message);
-      } else {
-        assertResponseError(e);
+      } else if (e instanceof UnmarkedInstallmentPlanClearConflictError) {
+        setInstallmentPlanClearConflict({ message: e.message });
+      } else if (e instanceof UnconfirmedSaveError) {
+        // Keep Save disabled: a retry could resend stale ids for records the server already kept.
+        if (typeof reportError === "function") reportError(e.originalError);
+        setReloadRequired(e.message);
+        setReloadModalOpen(true);
+      } else if (e instanceof ResponseError) {
         showAlert(e.message, "error");
+      } else {
+        // Release the save for any other error too; reportError raises a window `error` event
+        // for a global handler, and older browsers lack it.
+        if (typeof reportError === "function") reportError(e);
+        if (saved) {
+          // The server kept the save but this editor could not adopt the result (canonical ids,
+          // new baseline). Another save would resend stale ids, so Save stays disabled until reload.
+          saved = false;
+          setReloadRequired("Your changes were saved, but this page could not refresh to match them.");
+          setReloadModalOpen(true);
+        } else showAlert("Something went wrong while saving. Please try again.", "error");
       }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
     return saved;
   };
   const runSave = (): Promise<boolean> => {
+    // Callers other than the buttons, such as a file download, also reach this: refuse the same way.
+    if (reloadRequired !== null) return Promise.resolve(false);
     const { confirmed, unexpected } = findPendingDeletions(product, lastSavedProductRef.current);
     // Content missing without recorded intent means the session lost state:
     // fail closed and ask for a reload instead of offering it as a deletion.
@@ -790,6 +877,7 @@ const ProductEditPage = (props: Props) => {
       updateProduct,
       save,
       saving,
+      saveBlocked: reloadRequired !== null,
       variantIdMappings,
       richContentIdMappings,
       fileIdMappings,
@@ -1014,6 +1102,37 @@ const ProductEditPage = (props: Props) => {
             </div>
           </Modal>
         ) : null}
+        {reloadRequired ? (
+          <>
+            <Modal
+              open={reloadModalOpen}
+              onClose={() => setReloadModalOpen(false)}
+              title="Reload the page to keep editing"
+              footer={
+                <>
+                  <Button onClick={() => setReloadModalOpen(false)}>Keep this page open</Button>
+                  <Button color="accent" onClick={() => window.location.reload()}>
+                    Reload page
+                  </Button>
+                </>
+              }
+            >
+              <div className="flex flex-col gap-4">
+                <p>{reloadRequired}</p>
+                <p>
+                  Save is turned off on this page until you reload, because saving again could repeat changes. Copy
+                  anything you still need first — unsaved edits on this page are lost when you reload.
+                </p>
+              </div>
+            </Modal>
+            <Alert variant="danger" className="mx-4 mt-4 md:mx-8 md:mt-8">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>{reloadRequired} Save is turned off until you reload.</span>
+                <Button onClick={() => window.location.reload()}>Reload page</Button>
+              </div>
+            </Alert>
+          </>
+        ) : null}
         {staleDeletionConflict ? (
           <Modal
             open
@@ -1039,6 +1158,16 @@ const ProductEditPage = (props: Props) => {
               </p>
             </div>
           </Modal>
+        ) : null}
+        {installmentPlanClearConflict ? (
+          <Alert
+            ref={installmentPlanClearConflictRef}
+            tabIndex={-1}
+            variant="danger"
+            className="mx-4 mt-4 md:mx-8 md:mt-8"
+          >
+            {installmentPlanClearConflict.message}
+          </Alert>
         ) : null}
         <RouterProvider router={router} />
       </ImageUploadSettingsContext.Provider>

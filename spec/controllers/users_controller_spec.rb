@@ -87,6 +87,33 @@ describe UsersController do
       expect(response.cookies[affiliate.cookie_key]).to be_present
     end
 
+    describe "profile meta description" do
+      before do
+        stub_const("ROOT_DOMAIN", "test.gumroad.com")
+        @request.host = "#{creator.username}.test.gumroad.com"
+      end
+
+      it "uses the creator's bio when they have one" do
+        creator.update!(bio: "I write about woodworking.")
+
+        get :show, params: { username: creator.username }
+
+        html = Nokogiri::HTML.parse(response.body)
+        expect(html.at_css('meta[name="description"]')["content"]).to eq("I write about woodworking.")
+        expect(html.at_css('meta[property="og:description"]')["content"]).to eq("I write about woodworking.")
+      end
+
+      it "names the creator and the action when they have no bio" do
+        creator.update!(bio: nil)
+
+        get :show, params: { username: creator.username }
+
+        html = Nokogiri::HTML.parse(response.body)
+        expect(html.at_css('meta[name="description"]')["content"]).to eq("Get the latest products and updates from creator on Gumroad.")
+        expect(html.at_css('meta[property="og:description"]')["content"]).to eq("Get the latest products and updates from creator on Gumroad.")
+      end
+    end
+
     context "when the user is deleted" do
       let(:creator) { create(:user, username: "creator", deleted_at: Time.current) }
 
@@ -893,6 +920,29 @@ describe UsersController do
       expect(@purchase.reload.purchaser).to eq @user
     end
 
+    it "does not move a customer's purchase into the signed-in seller's account" do
+      sign_in(@purchase.link.user)
+      post :add_purchase_to_library, params: @params
+
+      expect(@purchase.reload.purchaser).to be_nil
+      expect(response.parsed_body["success"]).to eq false
+      expect(response.parsed_body["error_message"]).to eq "This is your customer's purchase, so it can't be moved into your account."
+    end
+
+    it "does not let the seller take a buyer's purchase that was made with the seller's email" do
+      seller = @purchase.link.user
+      buyer = create(:user)
+      @purchase.update!(email: seller.email, purchaser: buyer)
+      @params["user"]["purchase_email"] = seller.email
+
+      sign_in(seller)
+      post :add_purchase_to_library, params: @params
+
+      expect(@purchase.reload.purchaser).to eq buyer
+      expect(response.parsed_body["success"]).to eq false
+      expect(response.parsed_body["error_message"]).to eq "This is your customer's purchase, so it can't be moved into your account."
+    end
+
     it "doesn't associate the purchase with the user if the password is incorrect" do
       @params["user"]["password"] = "wrong password"
       post :add_purchase_to_library, params: @params
@@ -903,6 +953,18 @@ describe UsersController do
       @params["user"]["purchase_email"] = "wrong@example.com"
       post :add_purchase_to_library, params: @params
       expect(@purchase.reload.purchaser).to be(nil)
+    end
+
+    it "does not move a seller's own test purchase onto another signed-in user" do
+      seller = @purchase.link.user
+      @purchase.update!(purchaser: seller, email: seller.email, purchase_state: "test_successful")
+      @params["user"]["purchase_email"] = seller.email
+
+      sign_in(create(:user))
+      post :add_purchase_to_library, params: @params
+
+      expect(@purchase.reload.purchaser).to eq(seller)
+      expect(response.parsed_body["success"]).to eq(false)
     end
 
     it "doesn't associate a reassignment-locked purchase with the signed_in user even when the email matches" do
@@ -923,6 +985,19 @@ describe UsersController do
       expect(@purchase.reload.purchaser).to be(nil)
       expect(response.parsed_body["success"]).to eq false
       expect(controller.logged_in_user).to be(nil)
+    end
+
+    it "attaches a bundle's unclaimed member purchases to the same account" do
+      bundle = create(:product, :bundle, user: @purchase.seller)
+      @purchase.update!(link: bundle, is_bundle_purchase: true)
+      member = create(:purchase, email: @purchase.email, purchaser: nil, seller: @purchase.seller, link: create(:product, user: @purchase.seller))
+      create(:bundle_product_purchase, bundle_purchase: @purchase, product_purchase: member)
+
+      sign_in(@user)
+      post :add_purchase_to_library, params: @params
+
+      expect(@purchase.reload.purchaser).to eq(@user)
+      expect(member.reload.purchaser).to eq(@user)
     end
 
     context "when two factor authentication is enabled for the user" do

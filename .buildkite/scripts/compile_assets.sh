@@ -18,6 +18,9 @@ quietly() {
 }
 
 source .buildkite/scripts/preview_asset_cache.sh
+source .buildkite/scripts/main_asset_cache.sh
+source .buildkite/scripts/main_node_modules_cache.sh
+source .buildkite/scripts/main_pages_tailwind_cache.sh
 
 # Skip the whole production pipeline when this commit changes nothing that ships
 # (specs, workflows, docs, the pipeline itself). See deploy_relevance.sh.
@@ -112,7 +115,7 @@ if [[ ${BUILDKITE_PARALLEL_JOB:-0} = 0 && $BUILDKITE_BRANCH != "main" ]]; then
       --label assets_compiled=true \
       $WEB_REPO:web-$WEB_TAG \
       bash -c "cd /app \
-        && rm -rf public/public-rsc ssr-generated && tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL \
+        && tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL \
         && chown -R app:app node_modules public ssr-generated \
         && rm -rf spec/" || return 1
     docker commit staging-assets-from-cache $WEB_REPO:staging-$WEB_TAG || return 1
@@ -191,18 +194,178 @@ if [[ ${BUILDKITE_PARALLEL_JOB:-0} = 0 && $BUILDKITE_BRANCH != "main" ]]; then
   push_image staging || exit 1
 fi
 
+# Raises the web clusters for the deploy's scale_up, timed to land a few minutes before
+# it: soon enough for the new instances to boot (about 2.5 minutes), late enough that
+# target tracking has not scaled the idle ones back in (about 5.5 minutes after a raise).
+# A full compile ends about 3 minutes after the delay below; a cache hit starts it once its
+# image is built. It never fails the compile. A compile that ends or fails before it starts
+# cancels it; one that has started finishes its few-second raise within its own deadline.
+PRESCALE_DELAY_SECONDS=${PRESCALE_DELAY_SECONDS:-210}
+PRESCALE_SCRIPT=${PRESCALE_SCRIPT:-.buildkite/scripts/prescale_web_clusters.sh}
+PRESCALE_PID=""
+PRESCALE_LOG=$(mktemp)
+start_web_prescale() {
+  local delay=$1
+  [[ $BUILDKITE_BRANCH == "main" && -z $PRESCALE_PID ]] || return 0
+  logger "Pre-scaling the web clusters in ${delay}s"
+  # Nothing here may hold the job's output open, or a stalled pre-scale would hold up the
+  # compile the deploy waits for. Its log is printed when the compile ends.
+  ( sleep "$delay" >/dev/null 2>&1; bash "$PRESCALE_SCRIPT" >"$PRESCALE_LOG" 2>&1 || true ) &
+  PRESCALE_PID=$!
+}
+cancel_web_prescale() {
+  [[ -z $PRESCALE_PID ]] || kill "$PRESCALE_PID" 2>/dev/null || true
+  if [[ -s $PRESCALE_LOG ]]; then
+    logger "Pre-scale log so far:"
+    cat "$PRESCALE_LOG"
+  fi
+  rm -f "$PRESCALE_LOG"
+}
+# The cache directory is removed on every exit, so a failed build leaves nothing behind.
+cleanup_on_exit() {
+  cancel_web_prescale
+  rm -rf "$MAIN_NODE_MODULES_CACHE_DIR" "$MAIN_PAGES_TAILWIND_CACHE_DIR"
+}
+trap cleanup_on_exit EXIT
+
+# Keep in step with `make build_production` with PUSH_ASSETS=true.
+push_production_assets() {
+  local image=$1 container_id status=0
+  container_id=$(docker run -d --entrypoint="bash" --volume /app "$image") || return 1
+  docker run --rm \
+    -e AWS_ACCESS_KEY_ID="$GUM_AWS_ACCESS_KEY_ID" \
+    -e AWS_SECRET_ACCESS_KEY="$GUM_AWS_SECRET_ACCESS_KEY" \
+    -e ASSETS_S3_BUCKET=gumroad-production-assets \
+    --volumes-from "$container_id" \
+    garland/aws-cli-docker \
+    sh /app/docker/web/push_assets_to_s3.sh || status=$?
+  docker rm -fv "$container_id" >/dev/null 2>&1 || true
+  return $status
+}
+
+# On a cache hit, builds the production image from the web image and the files a
+# full compile of the same inputs produced, and skips the compile. The container
+# carries the same env and label as `make build_production`, because docker commit
+# bakes them into the image. A full compile also leaves a warm Bootsnap cache from
+# its Rails boot, which saves each production container about 3 s of boot, so the
+# hit path precompiles one (about 4 s); if that fails, the image just boots cold. Returns non-zero for a full compile instead: a miss,
+# a "no-cache" commit, or an image that could not be built. A failed S3 upload of
+# a built image stops the build, as it does after a full compile.
+build_production_image_from_main_asset_cache() {
+  local PREVIEW_ASSET_CACHE_PREFIX=$MAIN_ASSET_CACHE_PREFIX
+  local tag image=$WEB_REPO:production-$WEB_TAG
+  [[ $BUILDKITE_BRANCH == "main" ]] || return 1
+  if [[ ${BUILDKITE_MESSAGE:-} =~ no[-_.[:space:]]cache ]]; then
+    logger "The commit message asks for no cache: running the full compile"
+    return 1
+  fi
+  tag=$(main_asset_cache_tag)
+  if ! preview_asset_cache_restore "$tag"; then
+    logger "Main asset cache miss for tag $tag: running the full compile"
+    return 1
+  fi
+  logger "Main asset cache hit for tag $tag: building $image from the cached files"
+  docker rm -f production-assets-from-cache >/dev/null 2>&1 || :
+  if ! docker run \
+      --name production-assets-from-cache \
+      --entrypoint="" \
+      -e RAILS_ENV="production" \
+      -e RACK_ENV="production" \
+      -e DATABASE_HOST="db_test" \
+      -e DATABASE_NAME="gumroad_test" \
+      -e DATABASE_USERNAME="root" \
+      -e DATABASE_PASSWORD="password" \
+      -e RAILS_MASTER_KEY="$RAILS_PRODUCTION_MASTER_KEY" \
+      -e DEVISE_SECRET_KEY="sample_secret_key" \
+      -e BUILDKITE_BRANCH="$BUILDKITE_BRANCH" \
+      -e REVISION="$WEB_TAG" \
+      -v "$PWD/$PREVIEW_ASSET_CACHE_TARBALL:/tmp/$PREVIEW_ASSET_CACHE_TARBALL:ro" \
+      --label assets_compiled=true \
+      "$WEB_REPO:web-$WEB_TAG" \
+      bash -c "set -e; cd /app; tar -xzf /tmp/$PREVIEW_ASSET_CACHE_TARBALL; for p in $MAIN_ASSET_CACHE_PATHS; do [ ! -e \"\$p\" ] || chown -R app:app \"\$p\"; done; rm -rf spec/; gosu app bundle exec bootsnap precompile --gemfile app/ lib/ config/ || echo 'bootsnap precompile failed; the image will boot with a cold cache'" \
+    || ! docker commit production-assets-from-cache "$image"; then
+    logger "Could not build $image from the cached files: running the full compile"
+    docker rm -f production-assets-from-cache >/dev/null 2>&1 || :
+    rm -f "$PREVIEW_ASSET_CACHE_TARBALL"
+    return 1
+  fi
+  docker rm production-assets-from-cache >/dev/null 2>&1 || :
+  rm -f "$PREVIEW_ASSET_CACHE_TARBALL"
+  start_web_prescale 0
+  if ! push_production_assets "$image"; then
+    logger "Uploading the production assets to S3 failed: stopping the build"
+    exit 1
+  fi
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    printf 'Production assets served from the main asset cache (tag `%s`); the compile was skipped.\n' "$tag" \
+      | buildkite-agent annotate --style info --context main-asset-cache-served 2>/dev/null || true
+  fi
+  record_main_asset_cache_outcome "$tag"
+}
+
+# main_asset_cache_save.sh reads this: an image built from the cache holds the cached
+# files, so that step has nothing to compare or save. Every production attempt writes
+# it, because build meta-data outlives a retry. Only a retry can find an earlier
+# attempt's tag, so only a retry stops when its write fails: a stale tag would skip the
+# save step's comparison of a full compile.
+record_main_asset_cache_outcome() {
+  [[ $BUILDKITE_BRANCH == "main" ]] && command -v buildkite-agent >/dev/null 2>&1 || return 0
+  buildkite-agent meta-data set main-asset-cache-served "$1" >/dev/null 2>&1 && return 0
+  if [[ ${BUILDKITE_RETRY_COUNT:-0} != 0 ]]; then
+    logger "Could not record the main asset cache outcome on a retry: stopping, so the job retries"
+    exit 1
+  fi
+  # The cache-hit path returns this, and a failure there would mean a full compile.
+  return 0
+}
+
 if [[ $BUILDKITE_PARALLEL_JOB = 1 && ( $BUILDKITE_BRANCH == "main" || $BUILDKITE_BRANCH == comp-assets-* ) ]]; then
-  logger "Building production assets"
-  docker rm production-assets || :
-  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}_production \
-    NEW_WEB_TAG=$WEB_TAG \
-    NEW_WEB_REPO=$WEB_REPO \
-    BUILDKITE_BRANCH=${BUILDKITE_BRANCH} \
-    GUM_AWS_ACCESS_KEY_ID=${GUM_AWS_ACCESS_KEY_ID} \
-    GUM_AWS_SECRET_ACCESS_KEY=${GUM_AWS_SECRET_ACCESS_KEY} \
-    RAILS_PRODUCTION_MASTER_KEY="$RAILS_PRODUCTION_MASTER_KEY" \
-    PUSH_ASSETS=true \
-    make build_production
+  if [[ -n ${CUSTOM_DOMAIN:-} ]]; then
+    logger "CUSTOM_DOMAIN is set: a production build must not bake a preview domain into its assets"
+    exit 1
+  fi
+
+  if ! build_production_image_from_main_asset_cache; then
+    record_main_asset_cache_outcome none
+    start_web_prescale "$PRESCALE_DELAY_SECONDS"
+    logger "Building production assets"
+    docker rm production-assets || :
+    rm -rf "$MAIN_NODE_MODULES_CACHE_DIR" "$MAIN_PAGES_TAILWIND_CACHE_DIR"
+    mkdir -p "$MAIN_NODE_MODULES_CACHE_DIR" "$MAIN_PAGES_TAILWIND_CACHE_DIR"
+    # The compile container runs as the app user, which writes the new tarballs here.
+    chmod 777 "$MAIN_NODE_MODULES_CACHE_DIR" "$MAIN_PAGES_TAILWIND_CACHE_DIR"
+    NODE_MODULES_TAG=$(main_node_modules_cache_tag)
+    PAGES_TAILWIND_TAG=$(main_pages_tailwind_cache_tag)
+    if [[ ${BUILDKITE_MESSAGE:-} =~ no[-_.[:space:]]cache ]]; then
+      logger "no-cache commit: the compile runs npm ci and the pages CSS build, and replaces node_modules tag $NODE_MODULES_TAG and pages CSS tag $PAGES_TAILWIND_TAG"
+    else
+      if main_node_modules_cache_restore "$NODE_MODULES_TAG"; then
+        logger "node_modules cache hit for tag $NODE_MODULES_TAG"
+      else
+        logger "node_modules cache miss for tag $NODE_MODULES_TAG: the compile runs npm ci"
+      fi
+      if main_pages_tailwind_cache_restore "$PAGES_TAILWIND_TAG"; then
+        logger "pages CSS cache hit for tag $PAGES_TAILWIND_TAG"
+      else
+        logger "pages CSS cache miss for tag $PAGES_TAILWIND_TAG: the compile builds it"
+      fi
+    fi
+    COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}_production \
+      NODE_MODULES_CACHE_DIR=$PWD/$MAIN_NODE_MODULES_CACHE_DIR \
+      PAGES_TAILWIND_CACHE_DIR=$PWD/$MAIN_PAGES_TAILWIND_CACHE_DIR \
+      NEW_WEB_TAG=$WEB_TAG \
+      NEW_WEB_REPO=$WEB_REPO \
+      BUILDKITE_BRANCH=${BUILDKITE_BRANCH} \
+      GUM_AWS_ACCESS_KEY_ID=${GUM_AWS_ACCESS_KEY_ID} \
+      GUM_AWS_SECRET_ACCESS_KEY=${GUM_AWS_SECRET_ACCESS_KEY} \
+      RAILS_PRODUCTION_MASTER_KEY="$RAILS_PRODUCTION_MASTER_KEY" \
+      PUSH_ASSETS=true \
+      make build_production
+    if [[ $BUILDKITE_BRANCH == "main" ]]; then
+      main_node_modules_cache_save "$NODE_MODULES_TAG" || :
+      main_pages_tailwind_cache_save "$PAGES_TAILWIND_TAG" || :
+    fi
+  fi
 
   push_image production || exit 1
 fi

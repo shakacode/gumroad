@@ -101,6 +101,156 @@ describe WithFileProperties do
     end
   end
 
+  describe "an M4A whose bytes start with an ID3v2 tag" do
+    def tag_size
+      1126
+    end
+
+    def tagged_m4a_bytes(size = tag_size, boxes = [16].pack("N") + "ftypM4A \x00\x00\x02\x00")
+      "ID3\x04\x00\x00" +
+        [(size >> 21) & 0x7F, (size >> 14) & 0x7F, (size >> 7) & 0x7F, size & 0x7F].pack("C4") +
+        ("\x00" * size) + boxes + ("a" * 20)
+    end
+
+    def analyze(file_bytes, product_file: create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a"))
+      allow(product_file).to receive(:confirm_s3_key!)
+
+      uploads = []
+      s3_double = double
+      allow(s3_double).to receive(:content_length).and_return(file_bytes.bytesize)
+      allow(s3_double).to receive(:content_type).and_return("audio/mp4")
+      allow(s3_double).to receive(:content_disposition).and_return(nil)
+      allow(s3_double).to receive(:metadata).and_return({})
+      allow(s3_double).to receive(:get) do |options|
+        File.open(options[:response_target], "wb") { |file| file.write(file_bytes) }
+      end
+      allow(s3_double).to receive(:upload_file) { |path, **_options| uploads << File.binread(path) }
+      allow(product_file).to receive(:s3_object).and_return(s3_double)
+
+      probed = nil
+      allow(FFMPEG::Movie).to receive(:new) do |path|
+        probed = File.binread(path)
+        double(duration: 46, bitrate: 128)
+      end
+
+      product_file.analyze
+      [product_file.reload, uploads, probed]
+    end
+
+    def repaired_m4a_bytes
+      tagged_m4a_bytes.byteslice(tag_size + 10..)
+    end
+
+    it "rewrites the stored object without the tag" do
+      _product_file, uploads, = analyze(tagged_m4a_bytes)
+
+      expect(uploads).to eq([repaired_m4a_bytes])
+    end
+
+    it "probes the repaired bytes, so the duration describes what buyers get" do
+      _product_file, _uploads, probed = analyze(tagged_m4a_bytes)
+
+      expect(probed).to eq(repaired_m4a_bytes)
+    end
+
+    it "records the size of the repaired file" do
+      product_file, = analyze(tagged_m4a_bytes)
+
+      expect(product_file.size).to eq(repaired_m4a_bytes.bytesize)
+      expect(product_file.duration).to eq(46)
+    end
+
+    it "leaves a file that has no leading tag untouched" do
+      clean = "ftypM4A #{"a" * 20}"
+      _product_file, uploads, probed = analyze(clean)
+
+      expect(uploads).to be_empty
+      expect(probed).to eq(clean)
+    end
+
+    it "rebuilds archives zipped from the tagged bytes in place" do
+      product_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      archive = create(:product_files_archive, link: product_file.link, product_files: [product_file])
+      deleted_archive = create(:product_files_archive, link: product_file.link, product_files: [product_file])
+      deleted_archive.mark_deleted!
+      UpdateProductFilesArchiveWorker.jobs.clear
+
+      analyze(tagged_m4a_bytes, product_file:)
+
+      expect(archive.reload).not_to be_deleted
+      expect(UpdateProductFilesArchiveWorker).to have_enqueued_sidekiq_job(archive.id)
+      expect(UpdateProductFilesArchiveWorker).not_to have_enqueued_sidekiq_job(deleted_archive.id)
+    end
+
+    it "stops serving a ready archive's stale ZIP until the rebuild lands" do
+      product_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      archive = create(:product_files_archive, link: product_file.link, product_files: [product_file])
+      archive.mark_in_progress!
+      archive.mark_ready!
+      UpdateProductFilesArchiveWorker.jobs.clear
+
+      analyze(tagged_m4a_bytes, product_file:)
+
+      expect(archive.reload).to be_queueing
+      expect(product_file.link.product_files_archives.latest_ready_entity_archive).to be_nil
+      expect(UpdateProductFilesArchiveWorker).to have_enqueued_sidekiq_job(archive.id)
+    end
+
+    it "resets an archive whose build is already in progress" do
+      product_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      archive = create(:product_files_archive, link: product_file.link, product_files: [product_file])
+      archive.mark_in_progress!
+      UpdateProductFilesArchiveWorker.jobs.clear
+
+      analyze(tagged_m4a_bytes, product_file:)
+
+      expect(archive.reload).to be_queueing
+      expect(UpdateProductFilesArchiveWorker).to have_enqueued_sidekiq_job(archive.id)
+    end
+
+    it "rebuilds an installment's archive the same way" do
+      installment = create(:installment)
+      product_file = create(:product_file, link: nil, installment:, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      archive = create(:product_files_archive, link: nil, installment:, product_files: [product_file])
+      UpdateProductFilesArchiveWorker.jobs.clear
+
+      analyze(tagged_m4a_bytes, product_file:)
+
+      expect(archive.reload).not_to be_deleted
+      expect(UpdateProductFilesArchiveWorker).to have_enqueued_sidekiq_job(archive.id)
+    end
+
+    it "keeps archives when there is no tag to strip" do
+      product_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      archive = create(:product_files_archive, link: product_file.link, product_files: [product_file])
+      UpdateProductFilesArchiveWorker.jobs.clear
+
+      analyze("ftypM4A #{"a" * 20}", product_file:)
+
+      expect(UpdateProductFilesArchiveWorker).not_to have_enqueued_sidekiq_job(archive.id)
+    end
+
+    it "keeps the original object when the rewrite fails" do
+      product_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/tagged.m4a")
+      allow(product_file).to receive(:confirm_s3_key!)
+      s3_double = double
+      allow(s3_double).to receive(:content_length).and_return(tagged_m4a_bytes.bytesize)
+      allow(s3_double).to receive(:get) do |options|
+        File.open(options[:response_target], "wb") { |file| file.write(tagged_m4a_bytes) }
+      end
+      allow(s3_double).to receive(:upload_file).and_raise(Aws::S3::Errors::ServiceError.new(nil, "put failed"))
+      allow(s3_double).to receive(:content_type).and_return("audio/mp4")
+      allow(s3_double).to receive(:content_disposition).and_return(nil)
+      allow(s3_double).to receive(:metadata).and_return({})
+      allow(product_file).to receive(:s3_object).and_return(s3_double)
+      allow(FFMPEG::Movie).to receive(:new).and_return(double(duration: 46, bitrate: 128))
+
+      expect { product_file.analyze }.not_to raise_error
+
+      expect(product_file.reload.duration).to eq(46)
+    end
+  end
+
   describe "videos" do
     before do
       @video_file = create(:product_file, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/specs/sample.mov")

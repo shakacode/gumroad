@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,21 +7,12 @@ import { ProductReviews } from "$app/components/Product/ProductReviews.client";
 
 const mocks = vi.hoisted<{
   getReviews: ReturnType<typeof vi.fn>;
-  load: (() => void) | null;
   loggedInUser: { id: string } | null;
   showAlert: ReturnType<typeof vi.fn>;
 }>(() => ({
   getReviews: vi.fn(),
-  load: null,
   loggedInUser: { id: "seller-id" },
   showAlert: vi.fn(),
-}));
-
-vi.mock("$app/components/Product/scheduleProductReviewsLoad", () => ({
-  scheduleProductReviewsLoad: (load: () => void) => {
-    mocks.load = load;
-    return () => undefined;
-  },
 }));
 
 vi.mock("$app/data/product_reviews", () => ({
@@ -51,14 +42,13 @@ vi.mock("$app/utils/request", () => ({
 afterEach(() => {
   cleanup();
   mocks.getReviews.mockReset();
-  mocks.load = null;
   mocks.loggedInUser = { id: "seller-id" };
   mocks.showAlert.mockReset();
   vi.restoreAllMocks();
 });
 
 describe("ProductReviews", () => {
-  it("keeps server content visible while deferring the written-review enhancement", async () => {
+  it("keeps server content visible while loading written reviews on mount", async () => {
     mocks.getReviews.mockResolvedValue({ reviews: [review()], pagination: { page: 1, pages: 1 } });
     render(
       <ProductReviews
@@ -70,8 +60,6 @@ describe("ProductReviews", () => {
 
     expect(screen.getByRole("heading", { name: "Ratings" })).toBeTruthy();
     expect(screen.queryByText(/Written review/u)).toBeNull();
-
-    act(() => mocks.load?.());
 
     expect(await screen.findByText("Written review — can respond")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Ratings" })).toBeTruthy();
@@ -89,16 +77,12 @@ describe("ProductReviews", () => {
       />,
     );
 
-    act(() => mocks.load?.());
-
     expect(await screen.findByText("Written review — cannot respond")).toBeTruthy();
   });
 
   it("keeps ratings visible when loading written reviews fails", async () => {
     mocks.getReviews.mockRejectedValue(new Error("Review request failed"));
     render(<ProductReviews initialContent={<h3>Ratings</h3>} productId="product-id" seller={null} />);
-
-    act(() => mocks.load?.());
 
     await waitFor(() => expect(mocks.showAlert).toHaveBeenCalledWith("Review request failed", "error"));
     expect(screen.getByRole("heading", { name: "Ratings" })).toBeTruthy();

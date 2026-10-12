@@ -22,7 +22,6 @@ import {
   ProductSalesNotice,
   ProductStreamingNotice,
   ProductTitle,
-  productDescriptionNeedsClientEnhancement,
 } from "$app/components/Product/ProductContent";
 import { ProductCoverPreloads } from "$app/components/Product/ProductCoverPreloads";
 import { ProductFooter } from "$app/components/Product/ProductFooter";
@@ -33,7 +32,6 @@ import { ProductProfileLayout } from "$app/components/Profile/ProductProfileLayo
 import { ProfileFeaturedProduct } from "$app/components/Profile/ProfileFeaturedProduct";
 import { ProfilePostsContent } from "$app/components/Profile/ProfilePostsContent";
 import { ProfileProducts } from "$app/components/Profile/ProfileProducts.client";
-import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
 import { ProfileRichTextEnhancement } from "$app/components/Profile/ProfileRichTextEnhancement.client";
 import { ProfileSectionFrame } from "$app/components/Profile/ProfileSectionFrame";
@@ -60,6 +58,7 @@ export default function ProductPage({
     content: ProductContentProps,
     { product, purchase }: Pick<ProductInteractionPageProps, "product" | "purchase">,
     hideSellerByline = false,
+    scaleLongTitle = true,
   ): ServerContent => {
     const initialCover = product.covers.find(({ id }) => id === product.main_cover_id) ?? product.covers[0];
 
@@ -72,7 +71,6 @@ export default function ProductPage({
         ]),
       ),
       description: <ProductDescriptionContent content={content} />,
-      descriptionNeedsClientEnhancement: productDescriptionNeedsClientEnhancement(content.description_html),
       initialCover: initialCover
         ? {
             id: initialCover.id,
@@ -97,10 +95,9 @@ export default function ProductPage({
           isMembership={product.recurrences !== null}
           isPreorder={product.preorder !== null}
           hasPaidPrice={product.price_cents > 0 || product.options.some((option) => option.price_difference_cents)}
-          locale={global.locale}
         />
       ),
-      title: <ProductTitle content={content} />,
+      title: <ProductTitle content={content} scaleLongTitle={scaleLongTitle} />,
       sellerAndRatings: <ProductSellerAndRatings content={content} hideSellerByline={hideSellerByline} />,
       details: <ProductDetails content={content} />,
       sellerReputation: <ProductSellerReputation content={content} />,
@@ -142,7 +139,7 @@ export default function ProductPage({
           [
             section.id,
             <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-              <ProfilePostsContent posts={section.posts} locale={global.locale} />
+              <ProfilePostsContent posts={section.posts} />
             </ProfileSectionFrame>,
           ],
         ];
@@ -153,11 +150,7 @@ export default function ProductPage({
           [
             section.id,
             <ProfileSectionFrame key={section.id} id={section.id} header={section.header}>
-              {profileRichTextNeedsClientEnhancement(section.text) ? (
-                <ProfileRichTextEnhancement content={section.text} fallback={richTextContent} />
-              ) : (
-                richTextContent
-              )}
+              <ProfileRichTextEnhancement content={section.text} fallback={richTextContent} />
             </ProfileSectionFrame>,
           ],
         ];
@@ -191,7 +184,7 @@ export default function ProductPage({
             {section.props ? (
               <ProfileFeaturedProduct
                 props={section.props}
-                serverContent={content ? toServerContent(content, section.props) : null}
+                serverContent={content ? toServerContent(content, section.props, false, false) : null}
               />
             ) : null}
           </ProfileSectionFrame>,
@@ -259,7 +252,11 @@ export default function ProductPage({
   return (
     <>
       <ProductCoverPreloads covers={productProps.product.covers} mainCoverId={productProps.product.main_cover_id} />
-      <ProductPageShell global={global} inertiaMeta={inertiaMeta}>
+      <ProductPageShell
+        global={global}
+        inertiaMeta={inertiaMeta}
+        hydrationSnapshot={{ locale: global.locale, timeZone: "UTC", referenceTime: Date.now() }}
+      >
         <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
           {productContent}
         </ProductStateProvider>

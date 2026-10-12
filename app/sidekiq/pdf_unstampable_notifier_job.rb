@@ -4,7 +4,10 @@ class PdfUnstampableNotifierJob
   include Sidekiq::Job
   sidekiq_options queue: :default, retry: 5
 
-  def perform(product_id)
+  # +backfill_enqueued+ is set when the save that scheduled this job already enqueued a
+  # backfill for the product (ProductFile#stamp_existing_pdfs_if_needed), so one edit
+  # starts one chain. A newly added file fires no such callback, so it stays false.
+  def perform(product_id, backfill_enqueued = false)
     product = Link.find(product_id)
 
     total_files_checked = 0
@@ -27,9 +30,6 @@ class PdfUnstampableNotifierJob
     return if total_files_checked == total_unstampable_files
 
     # if some files have been newly marked as stampable, we need to stamp them for existing sales
-    product.sales.successful_gift_or_nongift.not_is_gift_sender_purchase.not_recurring_charge.includes(:url_redirect).find_each(order: :desc) do |purchase|
-      next if purchase.url_redirect.blank?
-      StampPdfForPurchaseJob.perform_async(purchase.id)
-    end
+    BackfillPdfStampsJob.perform_async(product.id) unless backfill_enqueued
   end
 end

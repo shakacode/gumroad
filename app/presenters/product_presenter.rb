@@ -11,6 +11,9 @@ class ProductPresenter
 
   SALES_COUNT_CACHE_KEY_REFIX = "product-presenter:sales-count-cache"
   SALES_COUNT_CACHE_METRICS_KEY = "#{SALES_COUNT_CACHE_KEY_REFIX}-metrics"
+  # Only used when the Redis override cannot be read. An unset key still means "no limit", so this
+  # must not become the limit for every picker.
+  DEFAULT_EXISTING_PRODUCT_FILES_LIMIT = 100
   LATEST_SALE_ID_NOT_PROVIDED = Object.new.freeze
   private_constant :LATEST_SALE_ID_NOT_PROVIDED
 
@@ -48,8 +51,8 @@ class ProductPresenter
   end
 
   ASSOCIATIONS_FOR_CARD = ProductPresenter::Card::ASSOCIATIONS
-  def self.card_for_web(product:, request: nil, recommended_by: nil, recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true)
-    ProductPresenter::Card.new(product:).for_web(request:, recommended_by:, recommender_model_name:, target:, show_seller:, affiliate_id:, query:, offer_code:, compute_description:, compute_inventory:)
+  def self.card_for_web(product:, request: nil, recommended_by: nil, recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true, description_max_length: ProductPresenter::Card::DESCRIPTION_MAX_LENGTH)
+    ProductPresenter::Card.new(product:).for_web(request:, recommended_by:, recommender_model_name:, target:, show_seller:, affiliate_id:, query:, offer_code:, compute_description:, compute_inventory:, description_max_length:)
   end
 
   def self.card_for_email(product:)
@@ -127,6 +130,10 @@ class ProductPresenter
       pundit_user&.seller != user
   end
 
+  def collaborator_editing?
+    pundit_user.present? && pundit_user.seller != user
+  end
+
   def covers
     {
       covers: product.display_asset_previews.as_json,
@@ -135,8 +142,12 @@ class ProductPresenter
   end
 
   def existing_files
-    user.alive_product_files_preferred_for_product(product)
-        .limit($redis.get(RedisKey.product_presenter_existing_product_files_limit))
+    scope = user.alive_product_files_preferred_for_product(product)
+    # The picker offers the seller their whole library; a collaborator's access is to this
+    # product only, so their list stops at its files.
+    scope = scope.where(link: product) if collaborator_editing?
+    scope
+        .limit(existing_product_files_limit)
         .order(id: :desc)
         .includes(:alive_subtitle_files, thumbnail_attachment: :blob).map { _1.as_json(existing_product_file: true) }
   end
@@ -251,6 +262,8 @@ class ProductPresenter
               subscription_price_change_effective_date: variant.subscription_price_change_effective_date,
               subscription_price_change_message: variant.subscription_price_change_message,
             )
+            # Absent unless the seller may write it; the editor only sends back what it was served.
+            props[:closed_to_new_purchases] = variant.closed_to_new_purchases? if variant.can_close_to_new_buyers?
           else
             props[:price_difference_cents] = variant.price_difference_cents
           end
@@ -331,6 +344,7 @@ class ProductPresenter
         .as_json,
       currency_type: product.price_currency_type,
       is_tiered_membership: product.is_tiered_membership,
+      can_close_membership_tiers: product.is_tiered_membership && Feature.active?(BaseVariant::CLOSE_TO_NEW_BUYERS_FEATURE, product.user),
       is_listed_on_discover: product.recommendable?,
       is_physical: product.is_physical,
       profile_sections: profile_sections.map do |section|
@@ -357,6 +371,9 @@ class ProductPresenter
       successful_sales_count: product.successful_sales_count,
       ratings: product.rating_stats,
       seller: UserPresenter.new(user:).author_byline_props,
+      # Upload keys must be namespaced by `current_seller` (what the S3 signature endpoint checks),
+      # which for a collaborator is their own account, not the owner in the byline above.
+      current_seller_external_id: (pundit_user&.seller || product.user).external_id,
       existing_files:,
       s3_url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}",
       aws_key: AWS_ACCESS_KEY,
@@ -374,6 +391,7 @@ class ProductPresenter
       receipt_email_from: "#{from_email_address_name(product.user.name.to_s)} <noreply@#{CUSTOMERS_MAIL_DOMAIN}>",
       price_checker_enabled: Feature.active?(:price_checker, product.user),
       custom_html_pages_enabled: Feature.active?(:custom_html_pages, product.user),
+      auto_marketing_enabled: Marketing::Eligibility.enabled_for?(product.user),
       # Hostnames the landing-page preview will follow a "navigate here" request
       # to. Same list the public wrapper enforces (User#custom_html_store_hostnames),
       # so seller HTML previewed in the editor can't open an arbitrary site.
@@ -407,6 +425,14 @@ class ProductPresenter
   end
 
   private
+    # An unset key means "no limit", which the picker relies on; only a stalled read gets the cap,
+    # so a Redis blip cannot uncap the list.
+    def existing_product_files_limit
+      $redis.get(RedisKey.product_presenter_existing_product_files_limit)
+    rescue *REDIS_TRANSPORT_ERRORS
+      DEFAULT_EXISTING_PRODUCT_FILES_LIMIT
+    end
+
     def default_sku
       skus_enabled && skus.alive.not_is_default_sku.empty? ? skus.is_default_sku.first : nil
     end

@@ -1,4 +1,4 @@
-declare module "$vendor/evaporate.cjs" {
+declare module "$vendor/evaporate.js" {
   type UploadParams = {
     name: string;
     file: File;
@@ -21,6 +21,7 @@ declare module "$vendor/evaporate.cjs" {
       fetchCurrentServerTimeUrl: string;
       maxFileSize?: number;
       s3Endpoint?: string;
+      maxRetryAttempts?: number;
     });
 
     add(params: UploadParams): string | number;

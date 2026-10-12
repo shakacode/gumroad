@@ -6,6 +6,10 @@ The RORP path serves full profile-layout Product documents for enabled sellers. 
 
 Keep these operations changes separate from the upstream-facing application PR. Before any deployment or measurement, obtain the full final application integration SHA, its prerequisite relationship, passing Product behavior checks, and published exact-head Shaka review and ready outcome. Require a separately verified deployment-capable integration with compatible benchmark runtime, fixtures, media/storage, renderer, cache and routing support. A prerequisite-only or unfinished application head is insufficient. Preserve the deployment foundation and actual application provenance; do not overlay missing wrappers or historical application files.
 
+Local integration preparation may proceed under an explicit maintainer exception when the application's adoption assessment remains held. That exception does not clear the assessment or authorize a deployment. Record the application SHA, operations SHA and combined deployment SHA separately, prove their ancestry, and retain the original reviews and unresolved concerns. Application implementation and dependency locks come from the reviewed application source; benchmark environment and packaging changes need their own validation and review.
+
+The benchmark environment keeps API calls on the configured custom root, supports guarded Control Plane instance routes, and uses production asset directories with content hashes. The Docker recipe installs locked dependencies once, builds widget assets, lets `assets:precompile` build Vite and all public/private RSC targets, then copies the renderer cache. Rails and the private renderer reference the same password and license dictionary entries. This configuration does not prove that a valid license or effective write access exists.
+
 The hosted workflows retain explicit `source_sha` selection and allow manual dispatch from the owned preparation branch, without merging the deployment base. Their Flow actions still resolve latest images; they are not the final matched comparison's verified promotion path. Use the local digest-bound command below for that comparison. No merge, dispatch or deployment is authorized by this guide; pushing the live deployment base already triggers both workflows.
 
 The commit must already belong to the selected deployment branch's history and descend from `5df1b6827002108389e337bbe308896d49da30a1`, the paired-demo deployment foundation. PR #103's application head alone lacks the required Control Plane runtime and storage configuration. Omit the input to build the workflow commit; pushes to the deployment branch retain that behavior.
@@ -32,7 +36,12 @@ This suspends the eight workloads listed in `app_workloads` and `additional_work
 
 ```sh
 for app in gumroad-inertia gumroad-rorp; do
-  cpflow ps:start --app "$app" --org shakacode-open-source-examples-staging --wait
+  for workload in mysql dynamodb redis elasticsearch memcached; do
+    cpflow ps:start --app "$app" --workload "$workload" --org shakacode-open-source-examples-staging --wait
+  done
+  for workload in renderer rails sidekiq; do
+    cpflow ps:start --app "$app" --workload "$workload" --org shakacode-open-source-examples-staging --wait
+  done
 done
 ```
 

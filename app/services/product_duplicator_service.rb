@@ -26,6 +26,7 @@ class ProductDuplicatorService
     ApplicationRecord.connected_to(role: :writing) do
       ApplicationRecord.connection.transaction do
         @duplicated_product = product.dup
+        duplicated_product.sales_count_for_inventory_cache = 0
         duplicated_product.unique_permalink = nil
         duplicated_product.send(:set_unique_permalink)
         duplicated_product.custom_permalink = nil
@@ -234,19 +235,22 @@ class ProductDuplicatorService
     end
 
     def duplicate_variant_categories_and_variants
-      if product.is_tiered_membership
-        tier_category = duplicated_product.variant_categories.alive.first
-        if tier_category
-          tier_category.mark_deleted!
-        end
+      if product.is_tiered_membership || product.native_type == Link::NATIVE_TYPE_CALL
+        default_category = duplicated_product.variant_categories.alive.first
+        default_category&.mark_deleted!
       end
 
+      call_has_durations = product.native_type == Link::NATIVE_TYPE_CALL && product.alive_variants.exists?
       product.variant_categories.each do |variant_category|
         new_variant_category = variant_category.dup
         new_variant_category.link = duplicated_product
+        if call_has_durations && variant_category.alive? && variant_category.alive_variants.empty?
+          new_variant_category.deleted_at = Time.current
+        end
         new_variant_category.save!
         variant_category.variants.each do |variant|
           new_variant = variant.dup
+          new_variant.sales_count_for_inventory_cache = 0
           new_variant.variant_category = new_variant_category
           new_variant.apply_price_changes_to_existing_memberships = false
           new_variant.subscription_price_change_effective_date = nil
@@ -266,6 +270,7 @@ class ProductDuplicatorService
     def duplicate_skus
       product.skus.each do |sku|
         new_sku = sku.dup
+        new_sku.sales_count_for_inventory_cache = 0
         new_sku.link = duplicated_product
         new_sku.apply_price_changes_to_existing_memberships = false
         new_sku.subscription_price_change_effective_date = nil

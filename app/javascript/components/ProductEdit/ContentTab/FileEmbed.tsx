@@ -81,11 +81,24 @@ const FileEmbedNodeView = ({
   const [loadingVideo, setLoadingVideo] = React.useState(false);
   const [showingVideoPlayer, setShowingVideoPlayer] = React.useState(false);
   const [showingAudioDrawer, setShowingAudioDrawer] = React.useState(false);
+  const retryInputRef = React.useRef<HTMLInputElement>(null);
   const uploader = assertDefined(useEvaporateUploader());
   const s3UploadConfig = useS3UploadConfig();
 
   const file = filesById.get(typia.assert<string>(node.attrs.id));
   const downloadUrl = file && getDownloadUrl(id, file);
+  // The server answers this for a saved file; a file still uploading answers for itself, so the
+  // switch never appears where the backend would ignore it (ProductFile#can_disable_downloads?).
+  const canDisableDownloads = file
+    ? (file.can_disable_downloads ??
+      (file.is_streamable || FileUtils.isBrowserReadableDocument(file.extension, file.file_size)))
+    : false;
+  // A document the reader can't serve — an EPUB over the size limit — is the one case where the
+  // switch has nothing to offer, so it stays visible and disabled with the reason: hiding it for
+  // one document and not the next on the same product reads as a missing control.
+  const downloadsUnavailableForDocument = Boolean(
+    file && !canDisableDownloads && (file.is_pdf || file.extension === "EPUB"),
+  );
 
   const playerRef = React.useRef<jwplayer.JWPlayer | null>(null);
   const subtitleUploadSettled = React.useRef(new Map<string, () => void>());
@@ -147,7 +160,11 @@ const FileEmbedNodeView = ({
       canvas.toBlob(
         (blob) => {
           setLoadingVideo(false);
-          if (blob) uploadThumbnail(new File([blob], "thumbnail.jpg"));
+          if (blob)
+            uploadThumbnail(
+              new File([blob], "thumbnail.jpg"),
+              file.status.type === "unsaved" ? file.status.url : undefined,
+            );
           video.remove();
           canvas.remove();
         },
@@ -169,10 +186,17 @@ const FileEmbedNodeView = ({
     });
   };
   const fileExists = file && file.status.type !== "removed";
+  const uploadFailed = file?.status.type === "unsaved" && file.status.uploadStatus.type === "failed";
+  // Its edits would be discarded, and it must not reopen by itself after "Upload again".
+  React.useEffect(() => {
+    if (uploadFailed) setExpanded(false);
+  }, [uploadFailed]);
+  // "Upload again" keeps the status type but brings a new local file to thumbnail.
+  const localFileUrl = file?.status.type === "unsaved" ? file.status.url : null;
   React.useEffect(() => {
     if (file?.is_streamable && file.status.type === "unsaved" && file.status.uploadStatus.type === "uploading")
       generateThumbnail();
-  }, [file?.status.type]);
+  }, [file?.status.type, localFileUrl]);
 
   const pos = getPos();
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Tiptap types are wrong
@@ -202,7 +226,7 @@ const FileEmbedNodeView = ({
       product.files = product.files.map((existing) => (existing.id === file.id ? { ...existing, ...data } : existing));
     });
 
-  const uploadThumbnail = (thumbnail: File) => {
+  const uploadThumbnail = (thumbnail: File, generatedFrom?: string) => {
     if (thumbnail.size > 5 * 1024 * 1024)
       return showAlert(
         "Could not process your thumbnail, please upload an image with size smaller than 5 MB.",
@@ -213,13 +237,21 @@ const FileEmbedNodeView = ({
     const upload = new DirectUpload(thumbnail, Routes.rails_direct_uploads_path());
     upload.create((error, blob) => {
       if (error) return showAlert(error.message, "error");
-      updateFile({
-        thumbnail: {
-          url: Routes.s3_utility_cdn_url_for_blob_path({ key: blob.key }),
-          signed_id: blob.signed_id,
-          status: { type: "unsaved" },
-        },
-      });
+      const uploaded: FileEntry["thumbnail"] = {
+        url: Routes.s3_utility_cdn_url_for_blob_path({ key: blob.key }),
+        signed_id: blob.signed_id,
+        status: { type: "unsaved" },
+      };
+      if (generatedFrom == null) updateFile({ thumbnail: uploaded });
+      // A frame from a failed attempt must not land on the file that "Upload again" brought in.
+      else
+        updateProduct((product) => {
+          product.files = product.files.map((existing) =>
+            existing.id === file.id && existing.status.type === "unsaved" && existing.status.url === generatedFrom
+              ? { ...existing, thumbnail: uploaded }
+              : existing,
+          );
+        });
       setLoadingVideo(false);
     });
   };
@@ -231,6 +263,7 @@ const FileEmbedNodeView = ({
       </NodeViewWrapper>
     );
 
+  const isFailedUpload = file.status.type === "unsaved" && file.status.uploadStatus.type === "failed";
   const isComplete = !(
     (file.status.type === "unsaved" && file.status.uploadStatus.type === "uploading") ||
     (file.status.type === "dropbox" && file.status.uploadState === "in_progress")
@@ -445,7 +478,7 @@ const FileEmbedNodeView = ({
           className={cx("embed", { [connectedFileRowClassName(isLastInGroup)]: isConnectedRow })}
           role={isInGroup ? "treeitem" : undefined}
         >
-          {file.is_streamable && !node.attrs.collapsed ? (
+          {file.is_streamable && !node.attrs.collapsed && !isFailedUpload ? (
             <RowDetails asChild>
               {loadingVideo ? (
                 <figure className="preview" style={frameStyle}>
@@ -527,7 +560,7 @@ const FileEmbedNodeView = ({
             actions={!isInGroup || fileEmbedGroups.length > 0 || parentNode.childCount > 1 ? [folderAction] : []}
           />
           <RowContent className="content">
-            {file.is_streamable && node.attrs.collapsed ? (
+            {!isFailedUpload && file.is_streamable && node.attrs.collapsed ? (
               <label className="thumbnail" aria-label="Upload a thumbnail">
                 {loadingVideo ? (
                   <div style={{ placeSelf: "center" }}>
@@ -549,12 +582,14 @@ const FileEmbedNodeView = ({
               name={file.display_name}
               externalLinkUrl={file.url}
               isUploading={!isComplete}
-              hideIcon={file.is_streamable}
+              hideIcon={file.is_streamable ? !isFailedUpload : false}
               details={
                 <>
                   {file.extension ? <li>{file.extension}</li> : null}
 
-                  {file.extension === "URL" ? (
+                  {isFailedUpload ? (
+                    <li className="text-danger">Upload failed</li>
+                  ) : file.extension === "URL" ? (
                     <li>{file.url}</li>
                   ) : uploadProgress != null ? (
                     <li>
@@ -564,7 +599,7 @@ const FileEmbedNodeView = ({
                     <li>{FileUtils.getFullFileSizeString(file.file_size)}</li>
                   ) : null}
 
-                  {file.is_streamable && isComplete ? (
+                  {file.is_streamable && isComplete && !isFailedUpload ? (
                     <li>
                       <LinkButton onClick={() => setExpanded(!expanded)}>
                         {file.subtitle_files.length}{" "}
@@ -580,7 +615,7 @@ const FileEmbedNodeView = ({
           </RowContent>
 
           <RowActions>
-            {downloadUrl && !file.stream_only ? (
+            {downloadUrl && !file.stream_only && !isFailedUpload ? (
               <NavigationButton
                 href={downloadUrl}
                 download={`${file.display_name}.${file.extension?.toLocaleLowerCase()}`}
@@ -589,7 +624,7 @@ const FileEmbedNodeView = ({
               </NavigationButton>
             ) : null}
 
-            {file.is_streamable ? (
+            {!isFailedUpload && file.is_streamable ? (
               <Popover>
                 <PopoverAnchor>
                   <PopoverTrigger aria-label="Thumbnail view" asChild>
@@ -644,7 +679,7 @@ const FileEmbedNodeView = ({
               </Popover>
             ) : null}
 
-            {!file.is_streamable || isComplete ? (
+            {!isFailedUpload && (!file.is_streamable || isComplete) ? (
               <Button
                 size="icon"
                 onClick={() => setExpanded(!expanded)}
@@ -660,13 +695,36 @@ const FileEmbedNodeView = ({
               </Button>
             ) : null}
 
-            {FileUtils.isAudioExtension(file.extension) ? (
+            {isFailedUpload ? (
+              <>
+                {/* Keyed per attempt so a re-pick of the same file still fires change; resetting
+                    the value instead can revoke a handle Evaporate is still reading. */}
+                <input
+                  ref={retryInputRef}
+                  key={localFileUrl}
+                  type="file"
+                  hidden
+                  onChange={(event) => {
+                    const picked = event.target.files?.[0];
+                    if (picked) config?.onRetryUpload?.(file.id, event.target);
+                  }}
+                />
+                <Button color="primary" onClick={() => retryInputRef.current?.click()}>
+                  Upload again
+                </Button>
+                <Button color="danger" outline onClick={onCancel} aria-label="Remove">
+                  Remove
+                </Button>
+              </>
+            ) : null}
+
+            {!isFailedUpload && FileUtils.isAudioExtension(file.extension) ? (
               <Button color="primary" onClick={() => setShowingAudioDrawer(!showingAudioDrawer)}>
                 {showingAudioDrawer ? "Close" : "Play"}
               </Button>
             ) : null}
 
-            {file.is_streamable && node.attrs.collapsed ? (
+            {!isFailedUpload && file.is_streamable && node.attrs.collapsed ? (
               <Button
                 color={showingVideoPlayer ? undefined : "primary"}
                 onClick={() => setShowingVideoPlayer(!showingVideoPlayer)}
@@ -688,7 +746,7 @@ const FileEmbedNodeView = ({
             </RowDetails>
           ) : null}
 
-          {expanded ? (
+          {expanded && !isFailedUpload ? (
             <RowDetails className="drawer flex flex-col gap-4">
               <Fieldset>
                 <FieldsetTitle>
@@ -746,45 +804,73 @@ const FileEmbedNodeView = ({
 
               {file.is_pdf || file.extension === "EPUB" ? (
                 <Switch
-                  checked={!file.hide_kindle_and_read_buttons}
+                  checked={!file.hide_kindle_and_read_buttons || file.stream_only}
+                  disabled={file.stream_only}
                   onChange={(e) => updateFile({ hide_kindle_and_read_buttons: !e.target.checked })}
-                  label='Show "Send to Kindle" and "Read" buttons on the download page'
+                  label={
+                    file.stream_only
+                      ? "Send to Kindle and Read buttons stay on while downloads are disabled"
+                      : 'Show "Send to Kindle" and "Read" buttons on the download page'
+                  }
                 />
               ) : null}
 
               {file.is_streamable ? (
-                <>
-                  <Fieldset>
-                    <FieldsetTitle>Subtitles</FieldsetTitle>
-                    <div className="flex flex-col gap-4">
-                      <SubtitleList
-                        subtitleFiles={file.subtitle_files}
-                        onRemoveSubtitle={removeSubtitle}
-                        onCancelSubtitleUpload={removeSubtitle}
-                        onChangeSubtitleLanguage={(url, language) =>
-                          updateFile({
-                            subtitle_files: file.subtitle_files.map((subtitle) =>
-                              subtitle.url === url ? { ...subtitle, language } : subtitle,
-                            ),
-                          })
-                        }
-                      />
-                      <SubtitleUploadBox onUploadFiles={uploadSubtitles} />
-                    </div>
-                  </Fieldset>
-                  <Switch
-                    checked={file.stream_only}
-                    onChange={(e) => updateFile({ stream_only: e.target.checked })}
-                    label={
+                <Fieldset>
+                  <FieldsetTitle>Subtitles</FieldsetTitle>
+                  <div className="flex flex-col gap-4">
+                    <SubtitleList
+                      subtitleFiles={file.subtitle_files}
+                      onRemoveSubtitle={removeSubtitle}
+                      onCancelSubtitleUpload={removeSubtitle}
+                      onChangeSubtitleLanguage={(url, language) =>
+                        updateFile({
+                          subtitle_files: file.subtitle_files.map((subtitle) =>
+                            subtitle.url === url ? { ...subtitle, language } : subtitle,
+                          ),
+                        })
+                      }
+                    />
+                    <SubtitleUploadBox onUploadFiles={uploadSubtitles} />
+                  </div>
+                </Fieldset>
+              ) : null}
+
+              {downloadsUnavailableForDocument ? (
+                // The explanation is the point of showing this switch, so dim the control only:
+                // Switch fades its whole label wrapper, which would hide the reason at 0.3 opacity.
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={file.stream_only}
+                      disabled
+                      onChange={(e) => updateFile({ stream_only: e.target.checked })}
+                      aria-label="Disable file downloads"
+                      aria-describedby={`${uid}downloads-disabled`}
+                    />
+                    <span>Disable file downloads</span>
+                  </div>
+                  <small id={`${uid}downloads-disabled`} className="block text-muted">
+                    This file is too large for the in-browser reader, so downloads can&apos;t be turned off
+                  </small>
+                </div>
+              ) : canDisableDownloads ? (
+                <Switch
+                  checked={file.stream_only}
+                  onChange={(e) => updateFile({ stream_only: e.target.checked })}
+                  label={
+                    file.is_streamable ? (
                       <>
                         Disable file downloads (stream only){" "}
                         <a href="/help/article/43-streaming-videos" target="_blank" rel="noreferrer">
                           Learn more
                         </a>
                       </>
-                    }
-                  />
-                </>
+                    ) : (
+                      "Disable file downloads (buyers read it in the browser instead)"
+                    )
+                  }
+                />
               ) : null}
             </RowDetails>
           ) : null}
@@ -808,6 +894,8 @@ export type FileEmbedConfig = {
   // Cancelling releases Evaporate's hold on the picked File; the content tab uses this
   // to know when the toolbar file input can be reset.
   onUploadCancelled?: (fileId: string) => void;
+  // Takes the input, not the File: an over-budget pick must keep its input alive (see snapshotPickedFiles).
+  onRetryUpload?: (fileId: string, input: HTMLInputElement) => void;
 };
 
 export const FileEmbed = TiptapNode.create<{ getConfig?: () => FileEmbedConfig }>({

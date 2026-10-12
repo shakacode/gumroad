@@ -3,6 +3,10 @@
 require "spec_helper"
 
 describe "Product RORP shared globals", type: :request do
+  before do
+    allow(ReactOnRailsPro.configuration).to receive(:server_renderer).and_return("NodeRenderer")
+    allow(ReactOnRailsPro.configuration).to receive(:renderer_password).and_return("test-only-stub")
+  end
   it "leaves image preloads to React while retaining product metadata" do
     seller = create(:user)
     product = create(:product, user: seller)
@@ -19,6 +23,7 @@ describe "Product RORP shared globals", type: :request do
     get product.long_url(layout: Product::Layout::PROFILE)
 
     expect(response).to be_successful
+    expect(response.headers["Cache-Control"]).to include("no-store")
     expect(rendered_meta).not_to include('rel="preload"')
     expect(rendered_meta).to include('rel="canonical"', 'property="og:image"')
     expect(rendered_props.fetch(:_inertia_meta).any? { |tag| tag[:rel] == "preload" && tag[:as] == "image" }).to be(false)
@@ -95,6 +100,19 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
     seller.seller_profile.update!(background_color: "#123456")
   end
 
+  it "retains owner edit links and saved sections without adding inline section controls" do
+    login_as seller
+
+    visit product.long_url(layout: Product::Layout::PROFILE)
+
+    expect(page).to have_css("#product-rsc-root")
+    expect(page).to have_link("Edit product")
+    expect(page).to have_link("Edit profile")
+    expect(page).to have_text("Server-visible creator story")
+    expect(page).not_to have_disclosure_button("Add section")
+    expect(page).not_to have_disclosure_button("Edit section")
+  end
+
   it "server-renders the full profile product without client JavaScript" do
     page.driver.browser.execute_cdp("Emulation.setScriptExecutionDisabled", value: true)
 
@@ -129,8 +147,32 @@ describe "Profile-layout product React on Rails rendering", :product_rsc_rendere
   end
 
   it "hydrates without duplicating the profile or product shells" do
+    page.driver.browser.execute_cdp("Page.addScriptToEvaluateOnNewDocument", source: <<~JS)
+      window.productScriptLoads = [];
+      document.addEventListener("load", (event) => {
+        const src = event.target.src;
+        if (typeof src !== "string" || !src.includes("/public-rsc/")) return;
+        window.productScriptLoads.push(src);
+        if (src.includes("/public_rsc_bootstrap.")) {
+          window.productServerArticle = document.querySelector("#product-rsc-root article");
+        }
+      }, true);
+    JS
     page.visit product.long_url(layout: Product::Layout::PROFILE)
 
+    loads = page.evaluate_async_script(<<~JS)
+      const done = arguments[0];
+      const deadline = performance.now() + 5000;
+      const check = () => {
+        if (window.productScriptLoads.some((src) => src.includes("/generated/ProductPage.")) || performance.now() > deadline) {
+          done(window.productScriptLoads);
+        } else requestAnimationFrame(check);
+      };
+      check();
+    JS
+    expect(loads.index { _1.include?("/public_rsc_bootstrap.") }).to be < loads.index { _1.include?("/generated/ProductPage.") }
+    expect(page.evaluate_script("window.productServerArticle === document.querySelector('#product-rsc-root article')")).to be(true)
+    expect_public_rsc_assets("ProductPage")
     expect(page.evaluate_script("getComputedStyle(document.body).fontFamily")).to include("ABC Favorit")
     expect(page).to have_selector("header a", text: seller.name, count: 1)
     expect(page).to have_button("Subscribe", count: 1)

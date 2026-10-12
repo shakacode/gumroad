@@ -23,20 +23,20 @@ class BalanceTransaction < ApplicationRecord
       @net_cents = net_cents
     end
 
-    # When canonical_issued_amount is supplied (buyer-presentment charges), "issued amount"
-    # here means the canonical seller/accounting issued amount, not the processor-issued
-    # presentment amount — the processor issued e.g. CAD, but balances stay canonical.
-    def self.create_issued_amount_for_affiliate(flow_of_funds:, issued_affiliate_cents:, canonical_issued_amount: nil)
+    # Affiliate cents are canonical USD on the Gumroad-held account whatever the charge; the flow of
+    # funds' gumroad_amount is in the charge's or application fee's currency on a seller-held charge.
+    # `currency` only lets a reversal follow the label of the ledger it offsets (Purchase#affiliate_reversal_currencies).
+    def self.create_issued_amount_for_affiliate(issued_affiliate_cents:, currency: Currency::USD)
       new(
-        currency: canonical_issued_amount&.currency || flow_of_funds.gumroad_amount.currency,
+        currency:,
         gross_cents: issued_affiliate_cents,
         net_cents: issued_affiliate_cents
       )
     end
 
-    def self.create_holding_amount_for_affiliate(flow_of_funds:, issued_affiliate_cents:, canonical_issued_amount: nil)
+    def self.create_holding_amount_for_affiliate(issued_affiliate_cents:, currency: Currency::USD)
       new(
-        currency: canonical_issued_amount&.currency || flow_of_funds.gumroad_amount.currency,
+        currency:,
         gross_cents: issued_affiliate_cents,
         net_cents: issued_affiliate_cents
       )
@@ -141,6 +141,11 @@ class BalanceTransaction < ApplicationRecord
   belongs_to :refund, optional: true
   belongs_to :credit, optional: true
 
+  scope :refund_fee_write_offs, -> {
+    joins(credit: :fee_retention_refund)
+      .where("balance_transactions.id = CAST(refunds.json_data->>'$.fee_retention_write_off_transaction_id' AS UNSIGNED)")
+  }
+
   # The balance_id should never be changed once it's set, but it gets set after the initial BalanceTransaction record is saved and so must be marked as mutable
   # so that it can be set after the initial save.
   attr_mutable :balance_id
@@ -205,14 +210,23 @@ class BalanceTransaction < ApplicationRecord
   # Selection of a balance may be attempted multiple times in the rare case of the balance state changing between when we select and lock it and
   # it's in a state where the amounts cannot be changed. If the maximum number of attempts is exhausted, the ActiveRecord::RecordInvalid error from the attempt
   # to change the amount will be passed up.
-  def update_balance!
-    balance = find_or_create_balance
-    balance.with_lock do
-      balance.increment(:amount_cents, issued_amount_net_cents)
-      balance.increment(:holding_amount_cents, holding_amount_net_cents)
-      balance.save!
-      self.balance = balance
-      save!
+  def update_balance!(target_balance: nil)
+    balance = nil
+    ApplicationRecord.connected_to(role: :writing) do
+      return if reload.balance_id.present?
+
+      balance = target_balance || find_or_create_balance
+      balance.with_lock do
+        # Lock after the Balance, then recheck: another attempt may have applied this transaction.
+        lock!
+        next if balance_id.present?
+
+        balance.increment(:amount_cents, issued_amount_net_cents)
+        balance.increment(:holding_amount_cents, holding_amount_net_cents)
+        balance.save!
+        self.balance = balance
+        save!
+      end
     end
   rescue ActiveRecord::RecordInvalid => e
     # Saving the balance can fail if the balance's state changed between selection and locking, to a state invalid for changing the amounts.
@@ -251,7 +265,10 @@ class BalanceTransaction < ApplicationRecord
         if purchase
           unpaid_balances.where(date: purchase.succeeded_at.to_date).first
         elsif refund
-          unpaid_balances.where(date: refund.purchase.succeeded_at.to_date).first || unpaid_balances.first
+          # A refund's purchase can have no succeeded_at — the charge went through while the
+          # purchase was never marked successful — so there is no charge date to match.
+          refunded_on = refund.purchase.succeeded_at&.to_date
+          (refunded_on && unpaid_balances.where(date: refunded_on).first) || unpaid_balances.first
         elsif dispute
           unpaid_balances.where(date: dispute.disputable.dispute_balance_date).first || unpaid_balances.first
         elsif credit&.financing_paydown_purchase
@@ -275,7 +292,8 @@ class BalanceTransaction < ApplicationRecord
           elsif credit&.returned_payment
             credit.returned_payment.balances.order(date: :asc).first&.date || credit.created_at.to_date
           elsif credit
-            credit.created_at.to_date
+            # A delayed webhook still lands on the day Stripe took the money.
+            credit.capital_deduction_date || credit.created_at.to_date
           end
 
         # create a new balance at the date this balance transaction occurred

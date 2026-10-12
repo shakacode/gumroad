@@ -29,7 +29,7 @@ class SendYearInReviewEmailJob
 
     analytics_data[:gpt_buy_list] = self.class.get_buy_list_from_total(
       total_amount_cents: analytics_data[:total_amount_cents],
-      currency: seller.currency_type
+      currency: Currency::USD
     )
 
     data_by_state = CreatorAnalytics::CachingProxy.new(seller).data_for_dates(range.begin, range.end, by: :state)
@@ -92,7 +92,7 @@ class SendYearInReviewEmailJob
           [
             views[country_name] || 0, # Views
             sales[country_name], # Sales
-            total_amount_cents.nonzero? ? total_amount_cents / 100 : 0, # Total
+            total_amount_cents.nonzero? ? total_amount_cents / 100.0 : 0, # Total
           ]
         ]
       end
@@ -125,7 +125,7 @@ class SendYearInReviewEmailJob
         [
           data_by_date[:views][permalink].sum, # Views
           data_by_date[:sales][permalink].sum, # Sales
-          top_product_totals[permalink] / 100, # Total
+          top_product_totals[permalink] / 100.0, # Total
         ]
       end
 

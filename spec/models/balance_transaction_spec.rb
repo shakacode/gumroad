@@ -4,133 +4,20 @@ require "spec_helper"
 
 describe BalanceTransaction, :vcr do
   describe BalanceTransaction::Amount do
+    # Affiliate cents are canonical USD whatever the charge, so no flow of funds is consulted.
     describe "create_issued_amount_for_affiliate" do
-      let(:issued_affiliate_cents) { 10_00 }
-      let(:flow_of_funds) { raise "You must define `flow_of_funds`." }
-      let(:amount) do
-        BalanceTransaction::Amount.create_issued_amount_for_affiliate(
-          flow_of_funds:,
-          issued_affiliate_cents:
-        )
-      end
+      it "creates a USD amount for the affiliate's cents" do
+        amount = BalanceTransaction::Amount.create_issued_amount_for_affiliate(issued_affiliate_cents: 10_00)
 
-      describe "issued amount and settled amounts are the same, no merchant account" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            merchant_account_gross_amount: nil,
-            merchant_account_net_amount: nil
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
-      end
-
-      describe "issued amount and settled amounts are the same, a merchant accounts" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 30_00),
-            merchant_account_gross_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            merchant_account_net_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 70_00)
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
-      end
-
-      describe "issued amount and settled amounts are not the same, a merchant account" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 110_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 30_00),
-            merchant_account_gross_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 110_00),
-            merchant_account_net_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 80_00)
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
+        expect(amount).to have_attributes(currency: Currency::USD, gross_cents: 10_00, net_cents: 10_00)
       end
     end
 
     describe "create_holding_amount_for_affiliate" do
-      let(:issued_affiliate_cents) { 10_00 }
-      let(:flow_of_funds) { raise "You must define `flow_of_funds`." }
-      let(:amount) do
-        BalanceTransaction::Amount.create_holding_amount_for_affiliate(
-          flow_of_funds:,
-          issued_affiliate_cents:
-        )
-      end
+      it "creates a USD amount for the affiliate's cents" do
+        amount = BalanceTransaction::Amount.create_holding_amount_for_affiliate(issued_affiliate_cents: -10_00)
 
-      describe "issued amount and settled amounts are the same, no merchant account" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            merchant_account_gross_amount: nil,
-            merchant_account_net_amount: nil
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
-      end
-
-      describe "issued amount and settled amounts are the same, a merchant accounts" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 30_00),
-            merchant_account_gross_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            merchant_account_net_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 70_00)
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
-      end
-
-      describe "issued amount and settled amounts are not the same, a merchant account" do
-        let(:flow_of_funds) do
-          FlowOfFunds.new(
-            issued_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 100_00),
-            settled_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 110_00),
-            gumroad_amount: FlowOfFunds::Amount.new(currency: Currency::USD, cents: 30_00),
-            merchant_account_gross_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 110_00),
-            merchant_account_net_amount: FlowOfFunds::Amount.new(currency: Currency::CAD, cents: 80_00)
-          )
-        end
-
-        it "creates an amount" do
-          expect(amount.currency).to eq(flow_of_funds.gumroad_amount.currency)
-          expect(amount.gross_cents).to eq(issued_affiliate_cents)
-          expect(amount.net_cents).to eq(issued_affiliate_cents)
-        end
+        expect(amount).to have_attributes(currency: Currency::USD, gross_cents: -10_00, net_cents: -10_00)
       end
     end
 
@@ -786,6 +673,37 @@ describe BalanceTransaction, :vcr do
             expect(balance_transaction.balance.user).to eq(user)
             expect(balance_transaction.balance.merchant_account).to eq(merchant_account)
             expect(balance_transaction.balance.date).to eq(refund.purchase.succeeded_at.to_date)
+            expect(balance_transaction.balance.amount_cents).to eq(11_10)
+            expect(balance_transaction.balance.holding_amount_cents).to eq(12_21)
+          end
+        end
+
+        describe "the refund's purchase was never marked successful" do
+          let(:balance) do
+            create(
+              :balance,
+              state: "unpaid",
+              user:,
+              merchant_account:,
+              date: refund.created_at.to_date,
+              currency: Currency::USD,
+              amount_cents: 100_00,
+              holding_currency: Currency::CAD,
+              holding_amount_cents: 110_00
+            )
+          end
+
+          before do
+            purchase.update_column(:succeeded_at, nil)
+            refund.purchase.reload
+            balance
+          end
+
+          it "applies the transaction to the earliest unpaid balance" do
+            expect(balance_transaction.balance).to eq(balance)
+            expect(balance_transaction.balance.user).to eq(user)
+            expect(balance_transaction.balance.merchant_account).to eq(merchant_account)
+            expect(balance_transaction.balance.date).to eq(refund.created_at.to_date)
             expect(balance_transaction.balance.amount_cents).to eq(11_10)
             expect(balance_transaction.balance.holding_amount_cents).to eq(12_21)
           end

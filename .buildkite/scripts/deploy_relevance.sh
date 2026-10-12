@@ -26,12 +26,44 @@ deploy_irrelevant_path() {
 # The v* tag is created only after `bin/deploy` succeeds, so it IS what production runs. Diffing
 # against the parent instead would drop a change that was skipped (long-running-job skip, failed
 # deploy) out of every later diff. Prints nothing when there is no tag.
+#
+# Pinned in build meta-data on first use: the four steps run minutes apart, and a release that
+# lands in between moves the newest tag, so a step re-deriving it compares against a different
+# commit than the steps that already ran. One build, one baseline.
 deploy_relevance_baseline() {
-  local tag
+  local tag pinned status=0
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    # `exists` separates "nothing pinned yet" (100) from "the store is unreachable" (any other
+    # failure). The two cannot be told apart by an empty `get`, and a step that guesses cannot
+    # know the steps before it read the same baseline, so on an unreachable store it deploys.
+    buildkite-agent meta-data exists deploy-relevance-baseline >/dev/null 2>&1 || status=$?
+    if [ "$status" -eq 0 ]; then
+      pinned=$(buildkite-agent meta-data get deploy-relevance-baseline 2>/dev/null) || pinned=""
+      if [ -z "$pinned" ]; then
+        echo "the pinned release baseline is unreadable — deploying" >&2
+        return 1
+      fi
+      printf '%s\n' "$pinned"
+      return 0
+    fi
+    if [ "$status" -ne 100 ]; then
+      echo "cannot tell whether the release baseline is pinned — deploying" >&2
+      return 1
+    fi
+  fi
   git fetch --quiet --tags --force origin >/dev/null 2>&1 || return 1
   tag=$(git tag -l 'v*.*.*.*' | sort -t. -k1,1 -k2,2n -k3,3n -k4,4n | tail -1)
   [ -n "$tag" ] || return 1
-  git rev-parse --verify --quiet "${tag}^{commit}"
+  pinned=$(git rev-parse --verify --quiet "${tag}^{commit}") || return 1
+  [ -n "$pinned" ] || return 1
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    # A baseline the other steps cannot read is worse than none: deploy rather than skip on it.
+    if ! buildkite-agent meta-data set deploy-relevance-baseline "$pinned" >/dev/null 2>&1; then
+      echo "could not pin the release baseline in build meta-data — deploying" >&2
+      return 1
+    fi
+  fi
+  printf '%s\n' "$pinned"
 }
 
 # 0 when this commit changes nothing that ships relative to the last release, 1 when it does or
@@ -50,7 +82,7 @@ production_deploy_is_noop() {
   fi
 
   if ! base=$(deploy_relevance_baseline) || [ -z "$base" ]; then
-    echo "no release tag found to compare against — deploying"
+    echo "no usable baseline to compare against — deploying"
     return 1
   fi
   if ! git merge-base --is-ancestor "$base" "$commit" 2>/dev/null; then

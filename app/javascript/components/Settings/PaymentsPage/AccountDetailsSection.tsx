@@ -4,7 +4,13 @@ import * as React from "react";
 import typia from "typia";
 
 import type { ComplianceInfo, FormFieldName, User } from "$app/types/payments";
-import { COLOMBIA_ID_MAX_INPUT_LENGTH, COLOMBIA_ID_MIN_DIGITS } from "$app/utils/colombiaIdNumbers";
+import {
+  getIndividualTaxIdConfig,
+  PERSONAL_ID_NUMBER_CONFIG,
+  personalTaxIdError,
+  type TaxIdConfig,
+  usesHongKongPassport,
+} from "$app/utils/personalTaxId";
 import { countryRequiresPostalCode } from "$app/utils/postalCodes";
 
 import { Button } from "$app/components/Button";
@@ -28,13 +34,17 @@ type PrefectureConfig = {
   idSuffix: string;
 };
 
-type TaxIdConfig = {
-  label: string;
-  placeholder: string;
-  minLength?: number;
-  maxLength?: number;
-  idSuffix: string;
-};
+// The longest reason Show.tsx sets beside a (Kanji) field; keep the two in step.
+const LONGEST_FIELD_ERROR_MESSAGE = "Must include Japanese characters.";
+
+export const getBusinessTypes = (country: string | null, lists: Record<string, { code: string; name: string }[]>) =>
+  (country ? lists[country] : null) ?? [
+    { code: "llc", name: "LLC" },
+    { code: "partnership", name: "Partnership" },
+    { code: "profit", name: "Non Profit" },
+    { code: "sole_proprietorship", name: "Sole Proprietorship" },
+    { code: "corporation", name: "Corporation" },
+  ];
 
 const AccountDetailsSection = ({
   user,
@@ -43,12 +53,15 @@ const AccountDetailsSection = ({
   isFormDisabled,
   minDobYear,
   countries,
+  usBusinessTypes,
   uaeBusinessTypes,
   indiaBusinessTypes,
   canadaBusinessTypes,
   states,
   errorFieldNames,
+  fieldErrorMessages = new Map(),
   saveCounter,
+  hasIdDocumentAlternative = false,
 }: {
   user: User;
   complianceInfo: ComplianceInfo;
@@ -56,6 +69,7 @@ const AccountDetailsSection = ({
   isFormDisabled: boolean;
   minDobYear: number;
   countries: Record<string, string>;
+  usBusinessTypes: { code: string; name: string }[];
   uaeBusinessTypes: { code: string; name: string }[];
   indiaBusinessTypes: { code: string; name: string }[];
   canadaBusinessTypes: { code: string; name: string }[];
@@ -70,16 +84,23 @@ const AccountDetailsSection = ({
     jp: { value: string; label: string; kana: string }[];
   };
   errorFieldNames: Set<FormFieldName>;
+  fieldErrorMessages?: Map<FormFieldName, string>;
   saveCounter: number;
+  hasIdDocumentAlternative?: boolean;
 }) => {
   const uid = React.useId();
   const [isEditingIndividualTaxId, setIsEditingIndividualTaxId] = React.useState(false);
   const [isEditingBusinessTaxId, setIsEditingBusinessTaxId] = React.useState(false);
+  const [individualTaxIdInput, setIndividualTaxIdInput] = React.useState("");
+  const individualTaxIdValidationError = personalTaxIdError(complianceInfo, user, individualTaxIdInput);
   const [showIndividualTaxId, setShowIndividualTaxId] = React.useState(false);
   const [showBusinessTaxId, setShowBusinessTaxId] = React.useState(false);
 
   React.useEffect(() => {
-    if (user.individual_tax_id_entered) setIsEditingIndividualTaxId(false);
+    if (user.individual_tax_id_entered) {
+      setIsEditingIndividualTaxId(false);
+      setIndividualTaxIdInput("");
+    }
     if (user.business_tax_id_entered) setIsEditingBusinessTaxId(false);
   }, [saveCounter]);
 
@@ -98,15 +119,6 @@ const AccountDetailsSection = ({
   const formatPhoneNumber = (phoneNumber: string, country_code: string | null): string => {
     const countryCode: CountryCode = typia.assert<CountryCode>(country_code);
     return parsePhoneNumberFromString(phoneNumber, countryCode)?.format("E.164") ?? phoneNumber;
-  };
-
-  const getBusinessTypes = (): { code: string; name: string }[] | null => {
-    const businessTypesMap: Record<string, { code: string; name: string }[]> = {
-      AE: uaeBusinessTypes,
-      IN: indiaBusinessTypes,
-      CA: canadaBusinessTypes,
-    };
-    return complianceInfo.business_country ? (businessTypesMap[complianceInfo.business_country] ?? null) : null;
   };
 
   const getBusinessStateConfig = (): StateConfig | PrefectureConfig | null => {
@@ -177,170 +189,24 @@ const AccountDetailsSection = ({
     };
   };
 
-  const getIndividualTaxIdConfig = (): TaxIdConfig | null => {
-    if (complianceInfo.country === "US") {
-      return user.need_full_ssn
-        ? {
-            label: "Social Security Number",
-            placeholder: "•••-••-••••",
-            minLength: 9,
-            maxLength: 11,
-            idSuffix: "social-security-number-full",
-          }
-        : {
-            label: "Last 4 digits of SSN",
-            placeholder: "••••",
-            minLength: 4,
-            maxLength: 4,
-            idSuffix: "social-security-number",
-          };
-    }
-
-    const configs: Record<string, TaxIdConfig> = {
-      CA: {
-        label: "Social Insurance Number",
-        placeholder: "•••••••••",
-        minLength: 9,
-        maxLength: 9,
-        idSuffix: "social-insurance-number",
-      },
-      CO: {
-        // Colombia issues two personal IDs: the Cédula de Ciudadanía to citizens and the Cédula de
-        // Extranjería to foreign residents. Both are sent to Stripe as the generic
-        // individual.id_number, so both are accepted — the label has to say so, otherwise a foreign
-        // resident reads "Cédula de Ciudadanía" and concludes their ID cannot be used.
-        label: "Cédula de Ciudadanía (CC) or Cédula de Extranjería (CE)",
-        placeholder: "1234567890",
-        minLength: COLOMBIA_ID_MIN_DIGITS,
-        maxLength: COLOMBIA_ID_MAX_INPUT_LENGTH,
-        idSuffix: "colombia-id-number",
-      },
-      UY: {
-        label: "Cédula de Identidad (CI)",
-        placeholder: "1.123.123-1",
-        minLength: 11,
-        maxLength: 11,
-        idSuffix: "uruguay-id-number",
-      },
-      HK: {
-        label: "Hong Kong ID Number",
-        placeholder: "123456789",
-        minLength: 8,
-        maxLength: 9,
-        idSuffix: "hong-kong-id-number",
-      },
-      SG: {
-        label: "NRIC number / FIN",
-        placeholder: "S1234567A",
-        minLength: 9,
-        // No maxLength on purpose: the validation tolerates spaces/dashes inside a
-        // pasted NRIC ("S 1234567 - A"), so a browser length cap would silently
-        // truncate those pastes. The inline regex and the server-side check in
-        // UpdateUserComplianceInfo enforce the actual format.
-        idSuffix: "singapore-id-number",
-      },
-      AE: {
-        label: "Emirates ID",
-        placeholder: "123456789123456",
-        minLength: 15,
-        maxLength: 15,
-        idSuffix: "uae-id-number",
-      },
-      MX: {
-        label: "Personal RFC",
-        placeholder: "1234567891234",
-        minLength: 13,
-        maxLength: 13,
-        idSuffix: "mexico-id-number",
-      },
-      KZ: {
-        label: "Individual identification number (IIN)",
-        placeholder: "123456789",
-        minLength: 9,
-        maxLength: 12,
-        idSuffix: "kazakhstan-id-number",
-      },
-      AR: {
-        label: "CUIL",
-        placeholder: "12-12345678-1",
-        minLength: 13,
-        maxLength: 13,
-        idSuffix: "argentina-id-number",
-      },
-      PE: { label: "DNI number", placeholder: "12345678-9", minLength: 10, maxLength: 10, idSuffix: "peru-id-number" },
-      PK: {
-        label: "National Identity Card Number (SNIC or CNIC)",
-        placeholder: "•••••••••",
-        minLength: 13,
-        maxLength: 13,
-        idSuffix: "snic",
-      },
-      CR: {
-        label: "Tax Identification Number",
-        placeholder: "1234567890",
-        minLength: 9,
-        maxLength: 12,
-        idSuffix: "costa-rica-id-number",
-      },
-      CL: {
-        label: "Rol Único Tributario (RUT)",
-        placeholder: "123456789",
-        minLength: 8,
-        maxLength: 9,
-        idSuffix: "chile-id-number",
-      },
-      DO: {
-        label: "Cédula de identidad y electoral (CIE)",
-        placeholder: "123-1234567-1",
-        minLength: 13,
-        maxLength: 13,
-        idSuffix: "dominican-republic-id-number",
-      },
-      BO: {
-        label: "Cédula de Identidad (CI)",
-        placeholder: "12345678",
-        minLength: 8,
-        maxLength: 8,
-        idSuffix: "bolivia-id-number",
-      },
-      PY: {
-        label: "Cédula de Identidad (CI)",
-        placeholder: "1234567",
-        minLength: 7,
-        maxLength: 7,
-        idSuffix: "paraguay-id-number",
-      },
-      BD: {
-        label: "Personal ID number",
-        placeholder: "123456789",
-        minLength: 1,
-        maxLength: 20,
-        idSuffix: "bangladesh-id-number",
-      },
-      MZ: {
-        label: "Mozambique Taxpayer Single ID Number (NUIT)",
-        placeholder: "123456789",
-        minLength: 9,
-        maxLength: 9,
-        idSuffix: "mozambique-id-number",
-      },
-      GT: {
-        label: "Número de Identificación Tributaria (NIT)",
-        placeholder: "1234567-8",
-        minLength: 8,
-        maxLength: 12,
-        idSuffix: "guatemala-id-number",
-      },
-      BR: {
-        label: "Cadastro de Pessoas Físicas (CPF)",
-        placeholder: "123.456.789-00",
-        minLength: 11,
-        maxLength: 14,
-        idSuffix: "brazil-id-number",
-      },
-    };
-
-    return complianceInfo.country ? (configs[complianceInfo.country] ?? null) : null;
+  const fieldErrorMessageId = (fieldName: FormFieldName) =>
+    fieldErrorMessages.has(fieldName) ? `${uid}-${fieldName}-error` : undefined;
+  // The slot always holds an invisible copy of the longest reason, so a reason appearing or clearing
+  // never changes the field's height. Both share one grid cell, so a wrapped reason is still covered.
+  const renderFieldErrorMessage = (fieldName: FormFieldName) => {
+    const message = fieldErrorMessages.get(fieldName);
+    return (
+      <div className="grid">
+        <FieldsetDescription aria-hidden="true" className="invisible col-start-1 row-start-1">
+          {LONGEST_FIELD_ERROR_MESSAGE}
+        </FieldsetDescription>
+        {message ? (
+          <FieldsetDescription id={`${uid}-${fieldName}-error`} className="col-start-1 row-start-1">
+            {message}
+          </FieldsetDescription>
+        ) : null}
+      </div>
+    );
   };
 
   const isPrefectureConfig = (config: StateConfig | PrefectureConfig): config is PrefectureConfig =>
@@ -412,17 +278,32 @@ const AccountDetailsSection = ({
     return maskPrefix + lastFour;
   };
 
-  const businessTypes = getBusinessTypes();
+  const businessTypes = getBusinessTypes(complianceInfo.business_country, {
+    US: usBusinessTypes,
+    AE: uaeBusinessTypes,
+    IN: indiaBusinessTypes,
+    CA: canadaBusinessTypes,
+  });
+  const hasUnsupportedBusinessType =
+    Boolean(complianceInfo.business_type) && !businessTypes.some(({ code }) => code === complianceInfo.business_type);
+  const selectedBusinessType = businessTypes.some(({ code }) => code === complianceInfo.business_type)
+    ? complianceInfo.business_type
+    : "";
   const businessStateConfig = getBusinessStateConfig();
   const individualStateConfig = getIndividualStateConfig();
   const businessTaxIdConfig = getBusinessTaxIdConfig();
-  const individualTaxIdConfig = getIndividualTaxIdConfig();
+  const individualTaxIdConfig = getIndividualTaxIdConfig(complianceInfo, user);
 
   const showAccountTypeSection = complianceInfo.is_business
     ? complianceInfo.business_country !== "AE"
     : complianceInfo.country !== "AE";
 
+  // Stripe's requirement set decides when it wants individual.nationality, so the field cannot
+  // be gated on the four countries it used to be hardcoded to — those keep showing it.
+  const hongKongPassport = usesHongKongPassport(complianceInfo);
   const showNationalityField =
+    hongKongPassport ||
+    user.has_outstanding_nationality_requirement ||
     user.country_code === "AE" ||
     user.country_code === "SG" ||
     user.country_code === "PK" ||
@@ -444,6 +325,41 @@ const AccountDetailsSection = ({
   const ssnRequirementCountry = complianceInfo.is_business ? complianceInfo.business_country : complianceInfo.country;
   const mustReenterFullSsn =
     user.has_outstanding_full_ssn_requirement && user.individual_tax_id_is_last_four && ssnRequirementCountry === "US";
+
+  // A Hong Kong company's foreign representative types the passport number before the country that
+  // issued it, so the issuing country renders after the number instead of above it.
+  const issuingCountryField = showNationalityField ? (
+    <Fieldset state={errorFieldNames.has("nationality") ? "danger" : undefined}>
+      <FieldsetTitle>
+        <Label htmlFor={`${uid}-nationality`}>{hongKongPassport ? "Passport issuing country" : "Nationality"}</Label>
+      </FieldsetTitle>
+      {/* No wrapper div: a plain block around the Select keeps its `inline-grid`
+          root at content width, so the control renders narrower than the fields
+          beside it. As a direct child of the flex column it stretches like they do. */}
+      <Select
+        id={`${uid}-nationality`}
+        disabled={isFormDisabled}
+        aria-invalid={errorFieldNames.has("nationality")}
+        aria-describedby={`${uid}-nationality-note`}
+        value={complianceInfo.nationality || ""}
+        onChange={(evt) => updateComplianceInfo({ nationality: evt.target.value })}
+      >
+        <option value="" disabled>
+          Select country
+        </option>
+        {Object.entries(countries).map(([code, name]) => (
+          <option key={code} value={code} disabled={name.includes("(not supported)")}>
+            {name}
+          </option>
+        ))}
+      </Select>
+      <FieldsetDescription id={`${uid}-nationality-note`}>
+        {hongKongPassport
+          ? "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so those countries are not listed."
+          : "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so their nationalities are not listed."}
+      </FieldsetDescription>
+    </Fieldset>
+  ) : null;
 
   return (
     <section className="grid gap-8">
@@ -524,39 +440,28 @@ const AccountDetailsSection = ({
               <FieldsetTitle>
                 <Label htmlFor={`${uid}-business-type`}>Type</Label>
               </FieldsetTitle>
-              {businessTypes ? (
-                <Select
-                  id={`${uid}-business-type`}
-                  required={complianceInfo.is_business}
-                  disabled={isFormDisabled}
-                  aria-invalid={errorFieldNames.has("business_type")}
-                  value={complianceInfo.business_type || "Type"}
-                  onChange={(evt) => updateComplianceInfo({ business_type: evt.target.value })}
-                >
-                  <option disabled>Type</option>
-                  {businessTypes.map((businessType) => (
-                    <option key={businessType.code} value={businessType.code}>
-                      {businessType.name}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Select
-                  id={`${uid}-business-type`}
-                  disabled={isFormDisabled}
-                  value={complianceInfo.business_type || "Type"}
-                  required
-                  aria-invalid={errorFieldNames.has("business_type")}
-                  onChange={(evt) => updateComplianceInfo({ business_type: evt.target.value })}
-                >
-                  <option disabled>Type</option>
-                  <option value="llc">LLC</option>
-                  <option value="partnership">Partnership</option>
-                  <option value="profit">Non Profit</option>
-                  <option value="sole_proprietorship">Sole Proprietorship</option>
-                  <option value="corporation">Corporation</option>
-                </Select>
-              )}
+              <Select
+                id={`${uid}-business-type`}
+                value={selectedBusinessType || ""}
+                disabled={isFormDisabled}
+                required={complianceInfo.is_business}
+                aria-invalid={errorFieldNames.has("business_type")}
+                onChange={(evt) => updateComplianceInfo({ business_type: evt.target.value })}
+              >
+                <option value="" disabled>
+                  Select a type
+                </option>
+                {businessTypes.map(({ code, name }) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+              {hasUnsupportedBusinessType ? (
+                <FieldsetDescription>
+                  Your saved type is no longer offered. Choose a new one before saving.
+                </FieldsetDescription>
+              ) : null}
             </Fieldset>
           </div>
           {complianceInfo.business_country === "JP" ? (
@@ -571,9 +476,11 @@ const AccountDetailsSection = ({
                   value={complianceInfo.business_name_kanji || ""}
                   disabled={isFormDisabled}
                   aria-invalid={errorFieldNames.has("business_name_kanji")}
+                  aria-describedby={fieldErrorMessageId("business_name_kanji")}
                   required
                   onChange={(evt) => updateComplianceInfo({ business_name_kanji: evt.target.value })}
                 />
+                {renderFieldErrorMessage("business_name_kanji")}
               </Fieldset>
               <Fieldset state={errorFieldNames.has("business_name_kana") ? "danger" : undefined}>
                 <FieldsetTitle>
@@ -638,9 +545,11 @@ const AccountDetailsSection = ({
                     value={complianceInfo.business_street_address_kanji || ""}
                     disabled={isFormDisabled}
                     aria-invalid={errorFieldNames.has("business_street_address_kanji")}
+                    aria-describedby={fieldErrorMessageId("business_street_address_kanji")}
                     required
                     onChange={(evt) => updateComplianceInfo({ business_street_address_kanji: evt.target.value })}
                   />
+                  {renderFieldErrorMessage("business_street_address_kanji")}
                 </Fieldset>
                 <Fieldset state={errorFieldNames.has("business_street_address_kana") ? "danger" : undefined}>
                   <FieldsetTitle>
@@ -670,9 +579,11 @@ const AccountDetailsSection = ({
                     value={complianceInfo.business_city || ""}
                     disabled={isFormDisabled}
                     aria-invalid={errorFieldNames.has("business_city")}
+                    aria-describedby={fieldErrorMessageId("business_city")}
                     required
                     onChange={(evt) => updateComplianceInfo({ business_city: evt.target.value })}
                   />
+                  {renderFieldErrorMessage("business_city")}
                 </Fieldset>
                 <Fieldset state={errorFieldNames.has("business_city_kana") ? "danger" : undefined}>
                   <FieldsetTitle>
@@ -920,9 +831,11 @@ const AccountDetailsSection = ({
                   value={complianceInfo.first_name_kanji || ""}
                   disabled={isFormDisabled}
                   aria-invalid={errorFieldNames.has("first_name_kanji")}
+                  aria-describedby={fieldErrorMessageId("first_name_kanji")}
                   required
                   onChange={(evt) => updateComplianceInfo({ first_name_kanji: evt.target.value })}
                 />
+                {renderFieldErrorMessage("first_name_kanji")}
               </Fieldset>
               <Fieldset state={errorFieldNames.has("last_name_kanji") ? "danger" : undefined}>
                 <FieldsetTitle>
@@ -935,9 +848,11 @@ const AccountDetailsSection = ({
                   value={complianceInfo.last_name_kanji || ""}
                   disabled={isFormDisabled}
                   aria-invalid={errorFieldNames.has("last_name_kanji")}
+                  aria-describedby={fieldErrorMessageId("last_name_kanji")}
                   required
                   onChange={(evt) => updateComplianceInfo({ last_name_kanji: evt.target.value })}
                 />
+                {renderFieldErrorMessage("last_name_kanji")}
               </Fieldset>
             </div>
             <div className="grid gap-5 md:auto-cols-fr md:grid-flow-col">
@@ -1020,9 +935,11 @@ const AccountDetailsSection = ({
                   value={complianceInfo.street_address_kanji || ""}
                   disabled={isFormDisabled}
                   aria-invalid={errorFieldNames.has("street_address_kanji")}
+                  aria-describedby={fieldErrorMessageId("street_address_kanji")}
                   required
                   onChange={(evt) => updateComplianceInfo({ street_address_kanji: evt.target.value })}
                 />
+                {renderFieldErrorMessage("street_address_kanji")}
               </Fieldset>
               <Fieldset state={errorFieldNames.has("street_address_kana") ? "danger" : undefined}>
                 <FieldsetTitle>
@@ -1052,9 +969,11 @@ const AccountDetailsSection = ({
                   value={complianceInfo.city || ""}
                   disabled={isFormDisabled}
                   aria-invalid={errorFieldNames.has("city")}
+                  aria-describedby={fieldErrorMessageId("city")}
                   required
                   onChange={(evt) => updateComplianceInfo({ city: evt.target.value })}
                 />
+                {renderFieldErrorMessage("city")}
               </Fieldset>
               <Fieldset state={errorFieldNames.has("city_kana") ? "danger" : undefined}>
                 <FieldsetTitle>
@@ -1290,35 +1209,47 @@ const AccountDetailsSection = ({
           </Fieldset>
         </div>
       </Fieldset>
-      {showNationalityField ? (
-        <Fieldset state={errorFieldNames.has("nationality") ? "danger" : undefined}>
-          <FieldsetTitle>
-            <Label htmlFor={`${uid}-nationality`}>Nationality</Label>
-          </FieldsetTitle>
-          <div>
-            <Select
-              id={`${uid}-nationality`}
-              disabled={isFormDisabled}
-              aria-invalid={errorFieldNames.has("nationality")}
-              value={complianceInfo.nationality || "Nationality"}
-              onChange={(evt) => updateComplianceInfo({ nationality: evt.target.value })}
-            >
-              <option disabled>Nationality</option>
-              {Object.entries(countries).map(([code, name]) => (
-                <option key={code} value={code} disabled={name.includes("(not supported)")}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </Fieldset>
-      ) : null}
+      {hongKongPassport ? null : issuingCountryField}
       {needsIndividualTaxId && individualTaxIdConfig ? (
-        <Fieldset state={errorFieldNames.has("individual_tax_id") ? "danger" : undefined}>
+        <Fieldset
+          state={errorFieldNames.has("individual_tax_id") || individualTaxIdValidationError ? "danger" : undefined}
+        >
           <div>
             <FieldsetTitle>
               <Label htmlFor={`${uid}-${individualTaxIdConfig.idSuffix}`}>{individualTaxIdConfig.label}</Label>
             </FieldsetTitle>
+            {individualTaxIdConfig === PERSONAL_ID_NUMBER_CONFIG &&
+            complianceInfo.is_business &&
+            complianceInfo.business_country === "US" ? (
+              <FieldsetDescription className="text-muted">
+                To verify this US company's representative, enter a US ITIN or SSN (9 digits) if you have one.
+                {!hasIdDocumentAlternative
+                  ? " If you have neither, use Stripe's verification link to upload a passport when offered."
+                  : null}
+              </FieldsetDescription>
+            ) : null}
+            {hongKongPassport ? (
+              <FieldsetDescription className="text-muted">
+                Enter your passport number instead of a Hong Kong ID number, since you live outside Hong Kong.
+              </FieldsetDescription>
+            ) : null}
+            {complianceInfo.is_business &&
+            complianceInfo.business_country === "HK" &&
+            complianceInfo.country === "HK" ? (
+              <FieldsetDescription className="text-muted">
+                No Hong Kong ID? Set the country above to where you live, and enter your passport number instead.
+              </FieldsetDescription>
+            ) : null}
+            {hasIdDocumentAlternative && !isFormDisabled ? (
+              <FieldsetDescription className="text-muted">
+                <a href={Routes.remediation_settings_payments_path()}>
+                  {complianceInfo.country !==
+                  (complianceInfo.is_business ? complianceInfo.business_country : complianceInfo.country)
+                    ? "Upload a passport via Stripe instead"
+                    : "Upload an identity document via Stripe instead"}
+                </a>
+              </FieldsetDescription>
+            ) : null}
             {user.individual_tax_id_entered && !isEditingIndividualTaxId && !mustReenterFullSsn ? (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -1362,9 +1293,18 @@ const AccountDetailsSection = ({
                   placeholder={individualTaxIdConfig.placeholder}
                   required={!user.individual_tax_id_entered || mustReenterFullSsn}
                   disabled={isFormDisabled}
-                  aria-invalid={errorFieldNames.has("individual_tax_id")}
-                  onChange={(evt) => updateComplianceInfo({ individual_tax_id: evt.target.value })}
+                  aria-invalid={errorFieldNames.has("individual_tax_id") || !!individualTaxIdValidationError}
+                  aria-describedby={individualTaxIdValidationError ? `${uid}-tax-id-error` : undefined}
+                  onChange={(evt) => {
+                    updateComplianceInfo({ individual_tax_id: evt.target.value });
+                    setIndividualTaxIdInput(evt.target.value);
+                  }}
                 />
+                {individualTaxIdValidationError ? (
+                  <FieldsetDescription id={`${uid}-tax-id-error`} role="alert">
+                    {individualTaxIdValidationError}
+                  </FieldsetDescription>
+                ) : null}
                 {mustReenterFullSsn ? (
                   <div className="small">
                     Our payments provider now requires your full 9-digit Social Security Number. Please re-enter it to
@@ -1376,6 +1316,7 @@ const AccountDetailsSection = ({
           </div>
         </Fieldset>
       ) : null}
+      {hongKongPassport ? issuingCountryField : null}
     </section>
   );
 };

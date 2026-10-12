@@ -54,6 +54,7 @@ class Subscription < ApplicationRecord
             7 => :is_installment_plan,
             8 => :renewal_disabled_due_to_indian_card_mandate,
             9 => :indian_card_mandate_requires_reauthorization,
+            10 => :vat_exempt_territory,
             :column => "flags",
             :flag_query_mode => :bit_operator,
             check_for_column: false
@@ -685,6 +686,10 @@ class Subscription < ApplicationRecord
   end
 
   def indian_card_mandate_price_cents(purchase, renewal_price_cents, fixed_rate: nil)
+    if purchase.installment_plan_relisted_in_another_currency?
+      return get_usd_cents(link.price_currency_type, renewal_price_cents, rate: fixed_rate)
+    end
+
     displayed_price_cents = purchase.mandate_maximum_displayed_price_cents
     displayed_price_cents = renewal_price_cents if displayed_price_cents.zero?
     displayed_currency = purchase[:displayed_price_currency_type].presence || link.price_currency_type
@@ -952,15 +957,25 @@ class Subscription < ApplicationRecord
         return if renewal_disabled_due_to_indian_card_mandate?
       end
 
-      was_recently_failed = purchases.failed.where("created_at > ?", ALLOWED_TIME_BEFORE_SENDING_REPEATED_CANCELLATION_EMAIL_TO_CREATOR.ago).exists?
-
       self.failed_at = Time.current
       self.deactivate!
 
       CustomerLowPriorityMailer.subscription_autocancelled(id).deliver_later(queue: "low")
 
-      if seller.enable_payment_email? && !was_recently_failed
-        ContactingCreatorMailer.subscription_autocancelled(id).deliver_later(queue: "critical")
+      if seller.enable_payment_email?
+        creator_notices = SentEmailInfo.where(key: SentEmailInfo.mailer_key_digest("ContactingCreatorMailer", "subscription_autocancelled", id))
+        unless creator_notices.where("created_at > ?", ALLOWED_TIME_BEFORE_SENDING_REPEATED_CANCELLATION_EMAIL_TO_CREATOR.ago).exists?
+          # Retain expired notice identities for delayed deliveries and SMTP retries.
+          if (previous_notice = creator_notices.first)
+            previous_notice.update!(key: SentEmailInfo.mailer_key_digest("ContactingCreatorMailer", "subscription_autocancelled", id, previous_notice.id))
+          end
+          notice = creator_notices.create!
+
+          enqueued = SubscriptionCancellationEmailJob.set(queue: "critical").perform_later(
+            "ContactingCreatorMailer", "subscription_autocancelled", "deliver_now", args: [id], sent_email_info_id: notice.id
+          )
+          raise UpdateFailed, "Could not enqueue creator cancellation email" unless enqueued
+        end
       end
 
       send_cancelled_notification_webhook
@@ -1381,6 +1396,10 @@ class Subscription < ApplicationRecord
     update!(business_vat_id: vat_id) if vat_id.present? && business_vat_id.blank?
   end
 
+  def mark_vat_exempt_territory!
+    update!(vat_exempt_territory: true) unless vat_exempt_territory?
+  end
+
   def last_resubscribed_at
     if defined?(@_last_resubscribed_at)
       @_last_resubscribed_at
@@ -1407,7 +1426,7 @@ class Subscription < ApplicationRecord
 
   def send_restart_notifications!(reason = nil)
     CustomerMailer.subscription_restarted(id, reason).deliver_later(queue: "critical")
-    ContactingCreatorMailer.subscription_restarted(id).deliver_later(queue: "critical")
+    ContactingCreatorMailer.subscription_restarted(id).deliver_later(queue: "critical") if seller.enable_payment_email?
     send_restarted_notification_webhook
   end
 

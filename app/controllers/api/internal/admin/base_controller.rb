@@ -6,7 +6,9 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
 
   ADMIN_AUDIT_REDACTED_PARAM_PATTERN = /password|secret|token|two_factor|otp|webhook_url|license_key|email/i
   ADMIN_AUDIT_ACTION_REDACTED_PARAM_KEYS = {
-    "purchases.reassign" => %w[from to]
+    "purchases.reassign" => %w[from to],
+    # The counter-notice carries the counter-notifier's name and address; the report keeps it.
+    "piracy_reports.counter_notice" => %w[body]
   }.freeze
   # Some params match the redaction pattern above but are the very thing the
   # audit row exists to record. For SendGrid suppression removal the email
@@ -29,6 +31,11 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
     "Use /internal/admin/users/info to look up the user_id by email or username."
   private_constant :USER_LOOKUP_BAD_REQUEST_MESSAGE, :USER_ID_REQUIRED_MESSAGE
 
+  # Each controller accepts tokens of exactly one scope, so a narrow-scope token (the piracy
+  # agent's) can never reach the general admin endpoints, and the reverse. Narrow-scope tokens are
+  # minted from the console, but auth#revoke and auth#rotate can kill or replace one by external id.
+  class_attribute :required_token_scope, default: AdminApiToken::ADMIN_SCOPE
+
   skip_before_action :verify_authenticity_token
   before_action :verify_authorization_header!
   before_action :authorize_admin_token!
@@ -38,6 +45,7 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
       token = bearer_token
       admin_api_token = AdminApiToken.authenticate(token)
       return render_invalid_authorization unless admin_api_token
+      return render_insufficient_scope unless admin_api_token.scope == required_token_scope
 
       set_current_admin_actor!(admin_api_token.actor_user, admin_token: admin_api_token)
       admin_api_token.record_used!
@@ -60,6 +68,10 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
 
     def render_invalid_authorization
       render json: { success: false, message: "authorization is invalid" }, status: :unauthorized
+    end
+
+    def render_insufficient_scope
+      render json: { success: false, message: "token scope does not allow this endpoint" }, status: :forbidden
     end
 
     def serialize_admin_actor(admin_actor)
@@ -233,7 +245,7 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
       end
     end
 
-    def serialize_purchase(purchase, with_clusters: false, stripe_risk_level: nil)
+    def serialize_purchase(purchase, with_clusters: false, stripe_risk_level: nil, with_ping_deliveries: false)
       {
         id: purchase.external_id_numeric.to_s,
         email: purchase.email,
@@ -268,6 +280,7 @@ class Api::Internal::Admin::BaseController < Api::Internal::BaseController
         payload[:refund_amount] = refund_amount if refund_amount.positive?
         payload[:refund_date] = latest_refund(purchase)&.created_at&.as_json if payload[:refund_status].present?
         payload[:clusters] = serialize_purchase_clusters(purchase) if with_clusters
+        payload[:ping_deliveries] = purchase.ping_deliveries.recent.limit(PingDelivery::MAX_RECENT).map(&:as_props) if with_ping_deliveries
       end
     end
 

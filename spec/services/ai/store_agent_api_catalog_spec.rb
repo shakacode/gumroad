@@ -62,6 +62,78 @@ describe Ai::StoreAgentApiCatalog do
     end
   end
 
+  describe "Endpoint#email_audience_error" do
+    let(:seller) { create(:user) }
+    let(:endpoint) { described_class.find("create_email") }
+    let(:product) { create(:product, user: seller) }
+
+    [nil, "", " ", "all", "audience", "customers", "seller", "followers", "follower", "CUSTOMERS"].each do |audience|
+      it "preserves the non-product audience #{audience.inspect}" do
+        expect(endpoint.email_audience_error({ audience: }, seller:)).to be_nil
+      end
+    end
+
+    [false, true, 1, [], {}, "buyers", " product "].each do |audience|
+      it "rejects the invalid audience #{audience.inspect} rather than broadening it" do
+        expect(endpoint.email_audience_error({ audience: }, seller:)).to include("Invalid audience")
+      end
+    end
+
+    [nil, "", " \t"].each do |identifier|
+      it "rejects product audiences with both identifiers #{identifier.inspect}" do
+        expect(endpoint.email_audience_error({ audience: "product", product_id: identifier, link_id: identifier }, seller:))
+          .to include("Product audience requires a product_id or link_id")
+      end
+    end
+
+    %w[product_id link_id].each do |key|
+      %i[external_id unique_permalink].each do |identifier|
+        it "accepts the seller's #{identifier} via #{key}" do
+          body = { "audience" => "PRODUCT", key => product.public_send(identifier) }
+          expect(endpoint.email_audience_error(body, seller:)).to be_nil
+        end
+      end
+
+      [false, true, 1, [], {}, ["missing"], "missing"].each do |identifier|
+        it "rejects an invalid #{key} of #{identifier.inspect}" do
+          expect(endpoint.email_audience_error({ "audience" => "product", key => identifier }, seller:)).to be_present
+        end
+      end
+
+      it "rejects another seller's product via #{key}" do
+        other_product = create(:product)
+        expect(endpoint.email_audience_error({ "audience" => "product", key => other_product.external_id }, seller:)).to eq("Product not found.")
+      end
+    end
+
+    it "falls back to link_id only when product_id is blank" do
+      expect(endpoint.email_audience_error({ audience: "product", product_id: " ", link_id: product.unique_permalink }, seller:)).to be_nil
+      expect(endpoint.email_audience_error({ audience: "product", product_id: "missing", link_id: product.external_id }, seller:)).to eq("Product not found.")
+    end
+
+    it "rejects a deleted product but accepts an unpublished visible product" do
+      product.unpublish!
+      body = { audience: "product", product_id: product.external_id }
+      expect(endpoint.email_audience_error(body, seller:)).to be_nil
+      product.update!(deleted_at: Time.current)
+      expect(endpoint.email_audience_error(body, seller:)).to eq("Product not found.")
+    end
+
+    it "does not validate an unused identifier or another endpoint" do
+      expect(endpoint.email_audience_error({ audience: "customers", product_id: "missing" }, seller:)).to be_nil
+      expect(endpoint.email_audience_error({ audience: "product", product_id: product.external_id, link_id: "missing" }, seller:)).to be_nil
+      expect(described_class.find("create_product").email_audience_error({}, seller:)).to be_nil
+    end
+  end
+
+  describe "discount eligibility" do
+    it "keeps the display summary concise without inventing eligibility parameters" do
+      endpoint = described_class.find("create_offer_code")
+      expect(endpoint.summary).to eq("Create a discount code.")
+      expect(endpoint.params).not_to include("subscriber_only", "audience")
+    end
+  end
+
   describe "resource subscription endpoints" do
     it "allows listing and deletion but not webhook creation" do
       expect(described_class.find("list_resource_subscriptions")).to be_present
@@ -74,7 +146,7 @@ describe Ai::StoreAgentApiCatalog do
     it "limits listing to Store Agent-owned subscriptions for the requested resource" do
       endpoint = described_class.find("list_resource_subscriptions")
 
-      expect(endpoint.unknown_param_keys_error("resource_name" => "sale")).to be_nil
+      expect(endpoint.unknown_param_keys_error({ "resource_name" => "sale" })).to be_nil
       expect(endpoint.forced_params).to eq("current_oauth_application_only" => true)
       expect(ResourceSubscription.valid_resource_name?("sale")).to be(true)
     end
@@ -210,6 +282,26 @@ describe Ai::StoreAgentApiCatalog do
       expect(endpoint.path).to eq("/user/custom_html/edit")
       expect(endpoint.scope).to eq("edit_profile")
       expect(endpoint.params).to eq(%w[find replace])
+      expect(endpoint.server_params).to eq(%w[expected_custom_html_sha256 result_custom_html_sha256])
+    end
+
+    it "keeps the undo checksums server-only: hidden from the manifest and refused from the model" do
+      %w[edit_user_custom_html edit_product_custom_html].each do |id|
+        endpoint = described_class.find(id)
+        body = { "find" => "<p>a</p>", "replace" => "<p>b</p>", "expected_custom_html_sha256" => "a" * 64, "result_custom_html_sha256" => "b" * 64 }
+
+        error = endpoint.unknown_param_keys_error(body)
+        expect(error).to include("Unknown params expected_custom_html_sha256, result_custom_html_sha256 for #{id}")
+        expect(error).to include("this endpoint accepts: find, replace.")
+        expect(endpoint.unknown_param_keys_error(body, server_params_allowed: true)).to be_nil
+        expect(endpoint.unknown_param_keys_error(body.merge("extra" => 1), server_params_allowed: true)).to include("Unknown param extra")
+      end
+
+      manifest = described_class.manifest(:write)
+      expect(manifest).to include("edit_user_custom_html (params: find, replace)")
+      expect(manifest).to include("edit_product_custom_html (path: id) (params: find, replace)")
+      expect(manifest).not_to include("expected_custom_html_sha256")
+      expect(manifest).not_to include("result_custom_html_sha256")
     end
 
     it "warns the model that the full-page update is destructive and points at the targeted edit" do
@@ -252,8 +344,8 @@ describe Ai::StoreAgentApiCatalog do
       endpoint = described_class.find("create_product")
 
       expect(endpoint.params).to include("draft", "published")
-      expect(endpoint.unknown_param_keys_error("name" => "Book", "price" => 500, "draft" => true)).to be_nil
-      expect(endpoint.unknown_param_keys_error("name" => "Book", "price" => 500, "published" => false)).to be_nil
+      expect(endpoint.unknown_param_keys_error({ "name" => "Book", "price" => 500, "draft" => true })).to be_nil
+      expect(endpoint.unknown_param_keys_error({ "name" => "Book", "price" => 500, "published" => false })).to be_nil
     end
 
     # The product goes on sale the moment it is created, so the model has to know that before it proposes the write.
@@ -293,6 +385,7 @@ describe Ai::StoreAgentApiCatalog do
       expect(endpoint.path).to eq("/products/:id/custom_html/edit")
       expect(endpoint.scope).to eq("edit_products")
       expect(endpoint.params).to eq(%w[find replace])
+      expect(endpoint.server_params).to eq(%w[expected_custom_html_sha256 result_custom_html_sha256])
     end
 
     it "exposes the full-page update as a confirmable write accepting only custom_html" do
@@ -341,6 +434,53 @@ describe Ai::StoreAgentApiCatalog do
 
       expect(manifest).to include("update_product_custom_html")
       expect(manifest).to include("requires a successful get_product_custom_html for the same target in this turn")
+    end
+  end
+
+  describe "product profile sections endpoint" do
+    it "exposes the per-product section write so a stale section above a product can be cleared" do
+      endpoint = described_class.find("update_product_sections")
+
+      expect(endpoint).to be_present
+      expect(endpoint.write?).to eq(true)
+      expect(endpoint.method).to eq(:put)
+      expect(endpoint.path).to eq("/products/:id/sections")
+      expect(endpoint.scope).to eq("edit_products")
+      expect(endpoint.path_params).to eq(%w[id])
+      expect(endpoint.params).to eq(%w[sections main_section_index])
+    end
+
+    # The body REPLACES the list, so an unread list silently deletes sections the model never saw.
+    it "requires the full product read before the sections write" do
+      expect(described_class.find("update_product_sections").requires_read).to eq("get_product")
+    end
+
+    it "is the only endpoint that opts into a JSON body" do
+      expect(described_class::ENDPOINTS.filter_map { _1.id if _1.json_body? }).to eq(["update_product_sections"])
+    end
+
+    it "keeps known_section_ids server-only: refused from the model, accepted on a replayed proposal, hidden from the manifest" do
+      endpoint = described_class.find("update_product_sections")
+      body = { "sections" => [], "known_section_ids" => [] }
+
+      expect(endpoint.unknown_param_keys_error(body)).to include("Unknown param known_section_ids")
+      expect(endpoint.unknown_param_keys_error(body, server_params_allowed: true)).to be_nil
+      expect(described_class.manifest(:write)).not_to include("known_section_ids")
+    end
+
+    it "tells the model that an omitted section is deleted and where main_section_index puts the product" do
+      summary = described_class.find("update_product_sections").summary
+
+      expect(summary).to match(/COMPLETE ordered list/)
+      expect(summary).to include("DELETED")
+      expect(summary).to include("ABOVE the product")
+    end
+
+    it "states in the product read that its sections and main_section_index are part of the payload" do
+      summary = described_class.find("get_product").summary
+
+      expect(summary).to include("sections")
+      expect(summary).to include("main_section_index")
     end
   end
 

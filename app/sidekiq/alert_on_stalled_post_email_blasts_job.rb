@@ -15,9 +15,11 @@
 # AUTO_RESUME_WINDOW (unless recipients are still owed), not more than once per STALL_THRESHOLD,
 # and never a non-opener resend while UNACCOUNTED — its dedupe set is written only after
 # delivery, so a duplicate racing a live sender the snapshots missed would double-deliver.
-# A blast that emailed inside STALL_THRESHOLD is treated as running even when Sidekiq::Workers
-# does not list it — otherwise a still-sending large blast burns the resume marker and is
-# never tried again after the real death (gumroad-private#2338).
+# A blast that emailed inside EMAIL_ACTIVITY_THRESHOLD is treated as running even when
+# Sidekiq::Workers does not list it — a still-sending blast at observed throughput stamps
+# last_email every few seconds, so a short quiet window covers a missed Workers scan
+# without burning the resume marker. Four hours of that window left a mid-send kill
+# looking "running" until the next cron past the stall threshold.
 #
 # The exception is a blast whose sender handed every recipient over and then died before
 # stamping `completed_at` (gumroad-private#2250). Resuming that one cannot double-send, so it
@@ -26,9 +28,15 @@ class AlertOnStalledPostEmailBlastsJob
   include Sidekiq::Job
   sidekiq_options retry: 2, queue: :low
 
-  # Large resumed blasts legitimately run for a couple of hours (~4k sends/min against six-figure
-  # audiences), so anything under this is treated as still in flight.
+  # Candidate window: blasts requested more recently than this are still allowed to be in
+  # their first send or a quota deferral, so the scan does not page them.
   STALL_THRESHOLD = 4.hours
+
+  # Silence longer than this, with no visible sender, is a dead blast — not a slow one.
+  # Above SendPostBlastEmailsSliceJob::CHUNK_LOAD_TIMEOUT (20 min): a live slice can be
+  # quiet that long while loading members, but only while its worker is busy, which
+  # already counts as :running.
+  EMAIL_ACTIVITY_THRESHOLD = 30.minutes
 
   # Blasts older than this were already stalled before this alert existed; re-reporting the same
   # historical rows every run buries the new ones the alert exists to catch.
@@ -50,7 +58,8 @@ class AlertOnStalledPostEmailBlastsJob
   # is never promised a retry.
   SCAN_INTERVAL = 6.hours
 
-  # Rows the run acted on (or would have) are the audit trail; message_for never truncates them.
+  # Rows the run acted on (or would have) are the audit trail. `message_for` reports them after
+  # the HELD rows, so they keep their slots only while the held rows leave room.
   AUDITED_ACTIONS = [:resumed, :resumed_to_complete, :would_resume, :would_complete, :skipped_reappeared].freeze
 
   # Both the parent distributor and its slice jobs carry the blast id as args[0], so a
@@ -68,7 +77,7 @@ class AlertOnStalledPostEmailBlastsJob
   # scan in reserve because a resume marker holds a blast for one stall window.
   def self.auto_resume_eligible?(blast)
     return false unless Feature.active?(:auto_resume_stalled_post_blasts)
-    return false if blast.completed_at.present? || blast.requested_at.nil? || blast.to_non_openers?
+    return false if blast.completed_at.present? || blast.expired_at.present? || blast.requested_at.nil? || blast.to_non_openers?
     return false unless blast.requested_at > (LOOKBACK - 2 * SCAN_INTERVAL).ago
 
     blast.requested_at > (AUTO_RESUME_WINDOW - SCAN_INTERVAL).ago || recipients_still_owed?(blast)
@@ -85,6 +94,12 @@ class AlertOnStalledPostEmailBlastsJob
   end
 
   def perform
+    begin
+      expire_abandoned_blasts
+    rescue => e
+      # Housekeeping must not take the alert down with it.
+      ErrorNotifier.notify(e)
+    end
     scan = scan_for_stalled_blasts
     return if scan[:stalled].empty? && !scan[:truncated]
 
@@ -97,13 +112,27 @@ class AlertOnStalledPostEmailBlastsJob
   end
 
   private
+    # The scan below stops at LOOKBACK, so a blast that lost its job and aged past it would stay
+    # unfinished forever. Older blasts were ended once by Onetime::ExpireAbandonedPostEmailBlasts.
+    def expire_abandoned_blasts
+      PostEmailBlast.expire(
+        PostEmailBlast.never_sent
+          .where(requested_at: (2 * LOOKBACK).ago...LOOKBACK.ago)
+          .order(requested_at: :desc)
+          .limit(MAX_CANDIDATES_SCANNED)
+          .ids,
+        reason: PostEmailBlast::EXPIRY_ABANDONED,
+        never_sent: true
+      )
+    end
+
     # Windowed on `requested_at`, which is indexed (through post_id it is not — the standalone
     # window read still walks the index-less columns, but requested_at is set at creation and NOT
     # NULL for every real blast) and, unlike `started_at`, is present even when the send job never
     # ran at all — a blast whose enqueue was lost is precisely the row this alert must not skip.
     def scan_for_stalled_blasts
       candidates = PostEmailBlast
-        .where(completed_at: nil)
+        .where(completed_at: nil, expired_at: nil)
         .where(requested_at: LOOKBACK.ago..STALL_THRESHOLD.ago)
         .order(requested_at: :desc)
         .limit(MAX_CANDIDATES_SCANNED + 1)
@@ -133,6 +162,13 @@ class AlertOnStalledPostEmailBlastsJob
       { stalled:, truncated: }
     end
 
+    # Held rows still need a human, and while the flag is live are the ONLY reason this job
+    # emails (`notify?`) — so `message_for` leads with them and never truncates them away.
+    # Prefix-matched, like `resolve_action` and `line_for`, rather than a list kept in sync.
+    def held_action?(action)
+      action.to_s.start_with?("held_")
+    end
+
     # Live auto-resume already handles DEAD/UNACCOUNTED rows. Email only when a
     # human (now: Gumclaw, via finance@ + ALWAYS_CC) still has to look — HELD
     # rows or a truncated scan. Silent ticks are the path to deleting this mail.
@@ -140,7 +176,7 @@ class AlertOnStalledPostEmailBlastsJob
       return true if scan[:truncated]
       return true unless live
 
-      scan[:stalled].any? { |entry| entry[:action].to_s.start_with?("held_") }
+      scan[:stalled].any? { |entry| held_action?(entry[:action]) }
     end
 
     def resolve_action(entry, live:)
@@ -183,7 +219,7 @@ class AlertOnStalledPostEmailBlastsJob
     # the point is that it is later than the dispositions taken in `scan_for_stalled_blasts`.
     def last_email_recent?(blast)
       emailed_at = blast.last_email_delivered_at
-      emailed_at.present? && emailed_at > STALL_THRESHOLD.ago
+      emailed_at.present? && emailed_at > EMAIL_ACTIVITY_THRESHOLD.ago
     end
 
     # A quota-deferred blast waits in the scheduled set, which none of the scans read.
@@ -267,8 +303,13 @@ class AlertOnStalledPostEmailBlastsJob
 
     def message_for(scan, live:)
       stalled = scan[:stalled]
-      acted, rest = stalled.partition { |entry| entry[:action].in?(AUDITED_ACTIONS) }
-      reported = acted + rest.first([MAX_REPORTED - acted.size, 0].max)
+      # Held rows first: while the flag is live they are the whole reason this mail exists, so
+      # an afternoon of auto-resumed rows must never crowd them out of the report. The acted
+      # rows and then the informational ones fill what is left of MAX_REPORTED, so only the
+      # tail line's count is ever omitted.
+      held, rest = stalled.partition { |entry| held_action?(entry[:action]) }
+      acted, informational = rest.partition { |entry| entry[:action].in?(AUDITED_ACTIONS) }
+      reported = held + (acted + informational).first([MAX_REPORTED - held.size, 0].max)
       lines = reported.map { |entry| line_for(entry) }
       omitted = stalled.size - lines.size
 

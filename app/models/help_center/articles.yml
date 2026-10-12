@@ -342,7 +342,7 @@
 - id: 208
   slug: "208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
   title: "How do I send my purchases to Kindle?"
-  description: "If you've purchased a .mobi or a PDF file, you can send it to your Kindle directly from your Gumroad Library. Note: ePub files do not work on Kindle for now. If"
+  description: "If you've purchased a PDF or an EPUB file, you can send it to your Kindle directly from your Gumroad Library."
   category_id: <%= HelpCenter::Category::ACCESSING_YOUR_PURCHASE.id %>
 - id: 209
   slug: "209-how-do-i-combine-two-accounts"
@@ -508,7 +508,7 @@
 - id: 292
   slug: "292-account-login-security"
   title: "Account login security"
-  description: "In this article reCAPTCHA Two-Factor Authentication (2FA) Not receiving your token Disable 2FA You can login to Gumroad here with an Email address, Twitter, or "
+  description: "In this article reCAPTCHA Two-Factor Authentication (2FA) Not receiving your token Disable 2FA You can login to Gumroad here with an Email address, a Google account, an X (Twitter) account, or a "
   category_id: <%= HelpCenter::Category::OPEN_AN_ACCOUNT.id %>
 - id: 295
   slug: "295-external-integration"
@@ -640,3 +640,8 @@
   title: "Custom product landing pages"
   description: "A custom landing page replaces one product's page with your own design, written as HTML by an AI agent. This covers what it replaces, how to build it, keeping the page buyable, what the page is allowed to do, and how to update or remove it."
   category_id: <%= HelpCenter::Category::ADD_A_PRODUCT.id %>
+- id: 354
+  slug: "354-reporting-piracy"
+  title: "Reporting piracy of your products"
+  description: "If a page on another site offers your product without your permission, we can send the site a takedown notice that you sign. This covers who can report, how to report, what each status means, what you sign, and what to do if someone disputes your notice."
+  category_id: <%= HelpCenter::Category::START_SELLING.id %>

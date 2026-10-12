@@ -183,7 +183,8 @@ describe("Product Edit Scenario", type: :system, js: true) do
     expect(upsell.offer_code.deleted?).to be(true)
 
     product.reload
-    expect(product.description).to eq("<p><br></p>")
+    # A deliberate clear sends a null description, stored as an empty string.
+    expect(product.description).to eq("")
   end
 
   it "allows creating and deleting an upsell with variants in the product description" do
@@ -275,7 +276,8 @@ describe("Product Edit Scenario", type: :system, js: true) do
     expect(upsell.offer_code.deleted?).to be(true)
 
     product.reload
-    expect(product.description).to eq("<p><br></p>")
+    # A deliberate clear sends a null description, stored as an empty string.
+    expect(product.description).to eq("")
   end
 
   it "allows creating and deleting an upsell in the product rich content" do
@@ -1013,7 +1015,7 @@ describe("Product Edit Scenario", type: :system, js: true) do
           visit edit_link_path(product.unique_permalink)
 
           select "£", from: "Currency", visible: false
-          expect(page).to have_select("Currency", selected: "£", visible: false)
+          expect(page).to have_select("Currency", selected: "£ (British Pounds)", visible: false)
 
           click_on "Save changes"
           expect(page).to have_alert(text: "The following offer code has currency mismatch with this product: usd. Please update it or it will not work at checkout.")
@@ -1028,7 +1030,7 @@ describe("Product Edit Scenario", type: :system, js: true) do
       visit edit_link_path(product.unique_permalink)
 
       select "£", from: "Currency", visible: false
-      expect(page).to have_select("Currency", selected: "£", visible: false)
+      expect(page).to have_select("Currency", selected: "£ (British Pounds)", visible: false)
 
       click_on "Save changes"
       wait_for_ajax
@@ -1093,8 +1095,8 @@ describe("Product Edit Scenario", type: :system, js: true) do
 
   it "allows creating and deleting a testimonial in the product rich content" do
     product = create(:product, user: seller, name: "Sample product", price_cents: 1000)
-    purchase1 = create(:purchase, link: product, email: "reviewer1@example.com", full_name: "Reviewer 1")
-    purchase2 = create(:purchase, link: product, email: "reviewer2@example.com", full_name: "Reviewer 2")
+    purchase1 = create(:purchase, link: product, email: "reviewer1@example.com", purchaser: create(:user, name: "Reviewer 1"), full_name: "Reviewer 1")
+    purchase2 = create(:purchase, link: product, email: "reviewer2@example.com", purchaser: create(:user, name: "Reviewer 2"), full_name: "Reviewer 2")
 
     visit edit_link_path(product.unique_permalink)
     select_tab "Content"
@@ -1149,8 +1151,8 @@ describe("Product Edit Scenario", type: :system, js: true) do
 
   it "allows creating and deleting a testimonial in the product description" do
     product = create(:product, user: seller, name: "Sample product", price_cents: 1000)
-    purchase1 = create(:purchase, link: product, email: "reviewer1@example.com", full_name: "Reviewer 1")
-    purchase2 = create(:purchase, link: product, email: "reviewer2@example.com", full_name: "Reviewer 2")
+    purchase1 = create(:purchase, link: product, email: "reviewer1@example.com", purchaser: create(:user, name: "Reviewer 1"), full_name: "Reviewer 1")
+    purchase2 = create(:purchase, link: product, email: "reviewer2@example.com", purchaser: create(:user, name: "Reviewer 2"), full_name: "Reviewer 2")
 
     visit edit_link_path(product.unique_permalink)
 

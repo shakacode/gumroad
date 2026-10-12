@@ -358,12 +358,13 @@ describe ProductFile do
         create(:readable_document),
         create(:non_streamable_video),
         create(:streamable_video),
-        create(:readable_document, stream_only: true),
         create(:non_readable_document),
         create(:listenable_audio)
       ]
       non_archivable = [
         create(:streamable_video, stream_only: true),
+        # Downloads are off, so the file must not reach the buyer inside an archive.
+        create(:readable_document, stream_only: true),
         create(:product_file, filetype: "link", url: "http://gumroad.com")
       ]
 
@@ -373,7 +374,7 @@ describe ProductFile do
   end
 
   describe "#stream_only?" do
-    it "returns false for non-video file" do
+    it "returns false for a readable document that is not marked as stream_only" do
       product_file = create(:readable_document)
 
       expect(product_file.stream_only?).to eq(false)
@@ -391,16 +392,41 @@ describe ProductFile do
       expect(product_file.stream_only?).to eq(false)
     end
 
-    it "returns false for non-video file marked as stream_only" do
-      product_file = create(:readable_document, stream_only: true)
-
-      expect(product_file.stream_only?).to eq(false)
-    end
-
     it "returns true for streamable video file marked as stream_only" do
       product_file = create(:streamable_video, stream_only: true)
 
       expect(product_file.stream_only?).to eq(true)
+    end
+
+    it "returns true for a readable document marked as stream_only" do
+      product_file = create(:readable_document, stream_only: true)
+
+      expect(product_file.stream_only?).to eq(true)
+    end
+
+    it "returns true for an EPUB marked as stream_only" do
+      product_file = create(:epub_product_file, stream_only: true, size: 1.megabyte)
+
+      expect(product_file.stream_only?).to eq(true)
+    end
+
+    it "returns false for files with no other way to open them" do
+      product_files = [
+        create(:non_readable_document, stream_only: true),
+        create(:listenable_audio, stream_only: true),
+        # Too large for the in-browser reader, so the download has to stay.
+        create(:epub_product_file, stream_only: true, size: 33.megabytes)
+      ]
+
+      expect(product_files.map(&:stream_only?)).to eq([false, false, false])
+    end
+  end
+
+  describe "#as_json download-disable eligibility" do
+    it "reports the same eligibility the download gate uses" do
+      expect(create(:epub_product_file, stream_only: true, size: 33.megabytes).as_json).to include(can_disable_downloads: false)
+      expect(create(:readable_document).as_json).to include(can_disable_downloads: true)
+      expect(create(:streamable_video).as_json).to include(can_disable_downloads: true)
     end
   end
 
@@ -666,6 +692,20 @@ describe ProductFile do
       expect(@product_file.s3_display_name).to eq("black/white")
       expect(@product_file.s3_extension).to eq("")
       expect(@product_file.s3_display_extension).to eq("")
+    end
+
+    it "reads the file name when the key is namespaced by the owning seller's external id" do
+      @product_file.update!(url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/attachments/#{@product_file.user.external_id}/43a5363194e74e9ee75b6203eaea6705/original/black/white.mp4")
+
+      expect(@product_file.s3_filename).to eq("black/white.mp4")
+    end
+
+    # A collaborator's uploads are namespaced by their own external id, not the product owner's.
+    it "reads the file name when the key is namespaced by another account's external id" do
+      collaborator = create(:user)
+      @product_file.update!(url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/attachments/#{collaborator.external_id}/43a5363194e74e9ee75b6203eaea6705/original/black/white.mp4")
+
+      expect(@product_file.s3_filename).to eq("black/white.mp4")
     end
   end
 
@@ -1429,7 +1469,7 @@ describe ProductFile do
       context "when PDF stamping is newly enabled" do
         it "enqueues a job to stamp existing PDFs if needed" do
           file.update!(pdf_stamp_enabled: true)
-          expect(StampPdfForPurchaseJob).to have_enqueued_sidekiq_job(purchase.id)
+          expect(BackfillPdfStampsJob).to have_enqueued_sidekiq_job(file.link.id)
         end
       end
 
@@ -1438,7 +1478,7 @@ describe ProductFile do
 
         it "does not enqueue a job to stamp existing PDFs" do
           file.update!(pdf_stamp_enabled: false)
-          expect(StampPdfForPurchaseJob).not_to have_enqueued_sidekiq_job(purchase.id)
+          expect(BackfillPdfStampsJob).not_to have_enqueued_sidekiq_job(file.link.id)
         end
       end
     end

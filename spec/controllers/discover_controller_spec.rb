@@ -101,6 +101,28 @@ describe DiscoverController, type: :controller, inertia: true do
         expect(props).not_to have_key("search_results")
       end
 
+      it "sends featured products with the long description the featured card shows" do
+        create(:product, :recommendable, taxonomy: Taxonomy.find_by(slug: "3d"), description: "<p>#{"Fresh card magic every month. " * 20}</p>")
+        Link.import(refresh: true, force: true)
+        request.headers["X-Inertia-Partial-Data"] = "recommended_products"
+
+        get :index, params: { taxonomy: "3d" }
+
+        descriptions = response.parsed_body.fetch("props").fetch("recommended_products").map { _1["description"] }
+        expect(descriptions.map(&:length)).to eq([ProductPresenter::Card::FEATURED_DESCRIPTION_MAX_LENGTH])
+      end
+
+      it "ends a featured description cut after a sentence period in a single ellipsis" do
+        create(:product, :recommendable, taxonomy: Taxonomy.find_by(slug: "3d"), description: "<p>#{"a" * 296}. More text follows here.</p>")
+        Link.import(refresh: true, force: true)
+        request.headers["X-Inertia-Partial-Data"] = "recommended_products"
+
+        get :index, params: { taxonomy: "3d" }
+
+        descriptions = response.parsed_body.fetch("props").fetch("recommended_products").map { _1["description"] }
+        expect(descriptions).to eq(["#{"a" * 296}..."])
+      end
+
       it "returns recommended wishlists in partial props" do
         request.headers["X-Inertia-Partial-Data"] = "recommended_wishlists"
 
@@ -110,6 +132,41 @@ describe DiscoverController, type: :controller, inertia: true do
         props = response.parsed_body.fetch("props")
         expect(props["recommended_wishlists"]).to be_an(Array)
         expect(props).not_to have_key("search_results")
+      end
+
+      it "serves the deferred fetch without repeating the search or recording it again" do
+        request.headers["X-Inertia-Partial-Data"] = "recommended_products,recommended_wishlists,recently_viewed"
+        allow(ProductPresenter).to receive(:card_for_web).and_call_original
+
+        expect do
+          get :index, params: { query: "stl files" }
+        end.to not_change(DiscoverSearch, :count)
+
+        expect(response).to be_successful
+        props = response.parsed_body.fetch("props")
+        expect(props).to include("recommended_products", "recommended_wishlists", "recently_viewed")
+        expect(props).not_to have_key("search_results")
+        expect(ProductPresenter).not_to have_received(:card_for_web)
+          .with(hash_including(recommended_by: RecommendationType::GUMROAD_SEARCH_RECOMMENDATION))
+      end
+
+      it "leaves the full load's meta tags in place on the deferred fetch" do
+        request.headers["X-Inertia-Partial-Data"] = "recommended_products,recommended_wishlists,recently_viewed"
+
+        get :index, params: { taxonomy: "3d/3d-modeling" }
+
+        expect(response).to be_successful
+        expect(response.parsed_body.fetch("props")).not_to have_key("_inertia_meta")
+      end
+
+      it "renders the full page when the partial reload names another component" do
+        request.headers["X-Inertia-Partial-Component"] = "Discover/Other"
+        request.headers["X-Inertia-Partial-Data"] = "recommended_products"
+
+        get :index
+
+        expect(response).to be_successful
+        expect(response.parsed_body.fetch("props")).to include("search_results", "taxonomies_for_nav")
       end
 
       it "only fetches search_results when filtering without taxonomy change" do
@@ -515,6 +572,41 @@ describe DiscoverController, type: :controller, inertia: true do
         expect(meta_tags["title"][:inner_content]).to eq("some tag | Software Development » Programming » C# | Gumroad")
       end
 
+      it "renders the taxonomy title when taxonomy is sent as an array query param" do
+        get :index, params: { taxonomy: ["software-development/programming/c-sharp"] }
+
+        expect(response).to have_http_status(:ok)
+        expect(meta_tags["title"][:inner_content]).to eq("Software Development » Programming » C# — digital products by independent creators | Gumroad")
+      end
+
+      it "sets the tag description, not the site-wide boilerplate, when tags and taxonomy are both present" do
+        get :index, params: { tags: "3d models", taxonomy: "3d" }
+
+        description = "Browse over 0 3D assets including 3D models, CG textures, HDRI environments & more" \
+                      " for VFX, game development, AR/VR, architecture, and animation."
+        expect(meta_tags["meta-property-og-description"][:content]).to eq(description)
+        expect(meta_tags["meta-name-description"][:content]).to eq(description)
+      end
+
+      it "uses the filtered result count, not a fixed marketplace-wide number, in curated tag copy" do
+        get :index, params: { tags: "photos", taxonomy: "3d" }
+
+        expect(meta_tags["meta-name-description"][:content]).to start_with("Browse over 0 photos")
+      end
+
+      it "falls back to the generic tag template when a taxonomy page carries a tag with no curated description" do
+        get :index, params: { tags: "some-tag", taxonomy: "3d" }
+
+        expect(meta_tags["meta-name-description"][:content]).to include("unique some tag products published by independent creators on Gumroad")
+        expect(meta_tags["meta-property-og-description"][:content]).to eq(meta_tags["meta-name-description"][:content])
+      end
+
+      it "keeps the boilerplate description when a search query is present alongside a tag and taxonomy" do
+        get :index, params: { query: "dragons", tags: "3d models", taxonomy: "3d" }
+
+        expect(meta_tags["meta-name-description"][:content]).to eq(default_description)
+      end
+
       it "sets the proper meta tags when a specific tag has been selected" do
         get :index, params: { tags: "3d models" }
 
@@ -555,6 +647,56 @@ describe DiscoverController, type: :controller, inertia: true do
                         " for VFX, game development, AR/VR, architecture, and animation."
           expect(meta_tags["meta-property-og-description"][:content]).to eq(description)
           expect(meta_tags["meta-name-description"][:content]).to eq(description)
+        end
+      end
+
+      context "tag filtering" do
+        # normalize_search_param_values! rewrites "-" to a space before the query, so a URL cannot
+        # say whether the reader meant a hyphenated tag or its spaced twin — match both.
+        let(:tag_seller) { create(:compliant_user, name: "Tag Seller") }
+        let(:tag_taxonomy) { create(:taxonomy, slug: "tag-filtering-probe") }
+        let!(:hyphenated_tag_product) { create(:product, user: tag_seller, name: "Hyphenated tag product", taxonomy: tag_taxonomy) }
+        let!(:spaced_tag_product) { create(:product, user: tag_seller, name: "Spaced tag product", taxonomy: tag_taxonomy) }
+
+        before do
+          hyphenated_tag_product.tag!("self-improvement")
+          spaced_tag_product.tag!("self improvement")
+          # Discover only surfaces products that have made a sale.
+          [hyphenated_tag_product, spaced_tag_product].each { |product| create(:purchase, link: product, price_cents: 0) }
+          Link.import(refresh: true, force: true)
+        end
+
+        def result_names
+          inertia.props[:search_results][:products].map { |product| product[:name] }
+        end
+
+        it "matches a hyphenated tag sent as a comma-joined string" do
+          get :index, params: { tags: "self-improvement" }
+
+          expect(result_names).to include("Hyphenated tag product", "Spaced tag product")
+        end
+
+        it "matches a hyphenated tag sent as nested hash params" do
+          get :index, params: { tags: { "0" => "self-improvement" } }
+
+          expect(result_names).to include("Hyphenated tag product", "Spaced tag product")
+        end
+
+        it "still matches the spaced spelling" do
+          get :index, params: { tags: "self improvement" }
+
+          expect(result_names).to include("Hyphenated tag product", "Spaced tag product")
+        end
+
+        # The tag page title is built from params[:tags], so widening the query must not widen it.
+        it "renders the same tag page title for either spelling" do
+          get :index, params: { tags: "self-improvement" }
+          hyphenated_title = controller.send(:meta_tags)["title"][:inner_content]
+
+          get :index, params: { tags: "self improvement" }
+          spaced_title = controller.send(:meta_tags)["title"][:inner_content]
+
+          expect(hyphenated_title).to eq(spaced_title)
         end
       end
     end

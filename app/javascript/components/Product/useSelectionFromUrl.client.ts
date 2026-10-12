@@ -4,6 +4,7 @@ import * as React from "react";
 
 import type { Product as ProductData } from "$app/components/Product";
 import { getMaxQuantity, type PriceSelection } from "$app/components/Product/ConfigurationSelector";
+import { initialOptionId } from "$app/components/Product/purchaseReadiness";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 
 export const useSelectionFromUrl = (product: ProductData) => {
@@ -21,10 +22,7 @@ export const useSelectionFromUrl = (product: ProductData) => {
       ({ id, name }) => id === searchParams.get("option") || name === searchParams.get("variant"),
     );
     const parsedQuantity = Number(searchParams.get("quantity"));
-    const optionId =
-      parsedOption && parsedOption.quantity_left !== 0
-        ? parsedOption.id
-        : (product.options.find(({ quantity_left }) => quantity_left !== 0)?.id ?? null);
+    const optionId = initialOptionId(product, searchParams);
     const parsedPrice = Number(searchParams.get("price") ?? undefined);
     const parsedCallStartTime = new Date(searchParams.get("call_start_time") ?? "");
     const parsedPayInInstallments = searchParams.get("pay_in_installments") === "true" && !!product.installment_plan;
@@ -36,7 +34,15 @@ export const useSelectionFromUrl = (product: ProductData) => {
         (product.is_quantity_enabled || product.is_multiseat_license) && parsedQuantity > 0
           ? Math.min(parsedQuantity, getMaxQuantity(product, parsedOption ?? null) ?? Infinity)
           : 1,
-      price: { value: parsedPrice >= 0 ? parsedPrice * 100 : null, error: false },
+      price: {
+        value:
+          parsedPrice >= 0
+            ? parsedPrice * 100
+            : searchParams.has("price")
+              ? null
+              : (product.pwyw?.default_price_cents ?? null),
+        error: false,
+      },
       callStartTime: isNaN(parsedCallStartTime.getTime()) ? null : parsedCallStartTime.toISOString(),
       payInInstallments: parsedPayInInstallments,
     };

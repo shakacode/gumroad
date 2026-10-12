@@ -26,6 +26,7 @@ public/vite-test/
 public/public-rsc/
 ssr-generated/
 .node-renderer-bundles/
+.node-renderer-bundles.preseed.lock
 ci_scripts/
 .githooks/
 docker/tmp/

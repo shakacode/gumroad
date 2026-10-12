@@ -2,18 +2,29 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type SaveProductResponse } from "$app/data/product_edit";
+import {
+  HiddenVariantContentConflictError,
+  type SaveProductResponse,
+  saveProductError,
+  UnconfirmedSaveError,
+} from "$app/data/product_edit";
 import { confirmRemovedVariantPageDeletions } from "$app/data/product_save_contract";
 
-import { ProductEditContext, type Product, type Version } from "$app/components/ProductEdit/state";
+import { CancellationDiscountSelector } from "$app/components/ProductEdit/ProductTab/CancellationDiscountSelector";
+import { type FileEntry, ProductEditContext, type Product, type Version } from "$app/components/ProductEdit/state";
 import { showAlert } from "$app/components/server-components/Alert";
 import { ProductEditPage, type ProductEditPageProps } from "$app/components/server-components/ProductEditPage";
 
 type ProductEditContextValue = NonNullable<React.ContextType<typeof ProductEditContext>>;
 
-const contextCapture: { current: ProductEditContextValue | null } = { current: null };
+const contextCapture: { current: ProductEditContextValue | null; showCancellationDiscount: boolean; renders: number } =
+  {
+    current: null,
+    showCancellationDiscount: false,
+    renders: 0,
+  };
 const saveProductMock = vi.hoisted(() => vi.fn());
 const applyRichContentPageSaveResponseSpy = vi.hoisted(() => vi.fn());
 
@@ -24,6 +35,13 @@ vi.mock("react-router-dom", async (importOriginal) => ({
     <ProductEditContext.Consumer>
       {(value) => {
         contextCapture.current = value;
+        if (contextCapture.showCancellationDiscount) {
+          contextCapture.renders += 1;
+          const MAX_EDITOR_RENDERS = 20;
+          // Bound the broken effect loop so the regression fails without hanging the runner.
+          if (contextCapture.renders > MAX_EDITOR_RENDERS) return <p role="alert">Editor did not settle</p>;
+          return <CancellationDiscountSelector />;
+        }
         return null;
       }}
     </ProductEditContext.Consumer>
@@ -46,6 +64,8 @@ vi.mock("$app/components/server-components/Alert", () => ({ showAlert: vi.fn() }
 
 beforeEach(() => {
   contextCapture.current = null;
+  contextCapture.showCancellationDiscount = false;
+  contextCapture.renders = 0;
   saveProductMock.mockReset();
 });
 
@@ -142,6 +162,7 @@ it("saves changed state after the active save reconciles server ids", async () =
     refund_policies: [],
     currency_type: "usd",
     is_tiered_membership: false,
+    can_close_membership_tiers: false,
     is_listed_on_discover: false,
     is_physical: false,
     profile_sections: [],
@@ -153,6 +174,7 @@ it("saves changed state after the active save reconciles server ids", async () =
     ratings: { count: 0, average: 0, percentages: [0, 0, 0, 0, 0] },
     seller: { id: "seller-id", name: "Seller", avatar_url: "", profile_url: "", is_verified: false },
     existing_files: [],
+    current_seller_external_id: "seller-external-id",
     aws_key: "",
     s3_url: "",
     available_countries: [],
@@ -163,6 +185,7 @@ it("saves changed state after the active save reconciles server ids", async () =
     receipt_email_from: "seller@example.com",
     price_checker_enabled: false,
     custom_html_pages_enabled: false,
+    auto_marketing_enabled: false,
     custom_html_store_hostnames: [],
     custom_html_global_nav_hosts: [],
     custom_html_global_nav_paths: [],
@@ -338,6 +361,7 @@ it("reconciles same-id pages in different variant scopes using each variant's ow
     refund_policies: [],
     currency_type: "usd",
     is_tiered_membership: true,
+    can_close_membership_tiers: false,
     is_listed_on_discover: false,
     is_physical: false,
     profile_sections: [],
@@ -349,6 +373,7 @@ it("reconciles same-id pages in different variant scopes using each variant's ow
     ratings: { count: 0, average: 0, percentages: [0, 0, 0, 0, 0] },
     seller: { id: "seller-id", name: "Seller", avatar_url: "", profile_url: "", is_verified: false },
     existing_files: [],
+    current_seller_external_id: "seller-external-id",
     aws_key: "",
     s3_url: "",
     available_countries: [],
@@ -359,6 +384,7 @@ it("reconciles same-id pages in different variant scopes using each variant's ow
     receipt_email_from: "seller@example.com",
     price_checker_enabled: false,
     custom_html_pages_enabled: false,
+    auto_marketing_enabled: false,
     custom_html_store_hostnames: [],
     custom_html_global_nav_hosts: [],
     custom_html_global_nav_paths: [],
@@ -511,6 +537,7 @@ it("keeps a newly-created variant's move provenance after its own id is remapped
     refund_policies: [],
     currency_type: "usd",
     is_tiered_membership: true,
+    can_close_membership_tiers: false,
     is_listed_on_discover: false,
     is_physical: false,
     profile_sections: [],
@@ -522,6 +549,7 @@ it("keeps a newly-created variant's move provenance after its own id is remapped
     ratings: { count: 0, average: 0, percentages: [0, 0, 0, 0, 0] },
     seller: { id: "seller-id", name: "Seller", avatar_url: "", profile_url: "", is_verified: false },
     existing_files: [],
+    current_seller_external_id: "seller-external-id",
     aws_key: "",
     s3_url: "",
     available_countries: [],
@@ -532,6 +560,7 @@ it("keeps a newly-created variant's move provenance after its own id is remapped
     receipt_email_from: "seller@example.com",
     price_checker_enabled: false,
     custom_html_pages_enabled: false,
+    auto_marketing_enabled: false,
     custom_html_store_hostnames: [],
     custom_html_global_nav_hosts: [],
     custom_html_global_nav_paths: [],
@@ -662,6 +691,7 @@ const buildTieredProps = (product: Product): ProductEditPageProps => ({
   refund_policies: [],
   currency_type: "usd",
   is_tiered_membership: true,
+  can_close_membership_tiers: false,
   is_listed_on_discover: false,
   is_physical: false,
   profile_sections: [],
@@ -673,6 +703,7 @@ const buildTieredProps = (product: Product): ProductEditPageProps => ({
   ratings: { count: 0, average: 0, percentages: [0, 0, 0, 0, 0] },
   seller: { id: "seller-id", name: "Seller", avatar_url: "", profile_url: "", is_verified: false },
   existing_files: [],
+  current_seller_external_id: "seller-external-id",
   aws_key: "",
   s3_url: "",
   available_countries: [],
@@ -683,11 +714,69 @@ const buildTieredProps = (product: Product): ProductEditPageProps => ({
   receipt_email_from: "seller@example.com",
   price_checker_enabled: false,
   custom_html_pages_enabled: false,
+  auto_marketing_enabled: false,
   custom_html_store_hostnames: [],
   custom_html_global_nav_hosts: [],
   custom_html_global_nav_paths: [],
   successful_sales_count: 0,
   ai_generated: false,
+});
+
+describe("cancellation discount editing", () => {
+  it.each([
+    null,
+    { discount: { type: "percent", percents: 10 }, duration_in_billing_cycles: 3 },
+  ] satisfies Product["cancellation_discount"][])("settles without rewriting the loaded discount %j", (discount) => {
+    contextCapture.showCancellationDiscount = true;
+    const product: Product = {
+      ...buildTieredProduct([]),
+      native_type: "membership",
+      variants: [],
+      cancellation_discount: discount,
+    };
+    render(<ProductEditPage {...buildTieredProps(product)} cancellation_discounts_enabled />);
+
+    expect(screen.queryByText("Editor did not settle")).toBeNull();
+    expect(contextCapture.current?.product.cancellation_discount).toEqual(discount);
+
+    act(() => contextCapture.current?.updateProduct({ name: "Updated membership" }));
+    expect(screen.queryByText("Editor did not settle")).toBeNull();
+    expect(contextCapture.current?.product.name).toBe("Updated membership");
+    expect(contextCapture.current?.product.cancellation_discount).toEqual(discount);
+  });
+
+  it("saves creation, percentage changes, duration changes, and removal without repeated updates", async () => {
+    contextCapture.showCancellationDiscount = true;
+    const product: Product = { ...buildTieredProduct([]), native_type: "membership", variants: [] };
+    saveProductMock.mockResolvedValue({});
+    render(<ProductEditPage {...buildTieredProps(product)} cancellation_discounts_enabled />);
+    expect(screen.queryByText("Editor did not settle")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Offer a cancellation discount"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Fixed amount" }), { target: { value: "1.25" } });
+    expect(contextCapture.current?.product.cancellation_discount).toEqual({
+      discount: { type: "fixed", cents: 125 },
+      duration_in_billing_cycles: null,
+    });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Percentage" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Percentage" }), { target: { value: "15" } });
+    fireEvent.change(screen.getByLabelText("Duration in billing cycles"), { target: { value: "2" } });
+    await act(async () => {
+      await contextCapture.current?.save();
+    });
+    expect(saveProductMock.mock.lastCall?.[2]).toMatchObject({
+      cancellation_discount: { discount: { type: "percent", percents: 15 }, duration_in_billing_cycles: 2 },
+    });
+    expect(screen.queryByText("Editor did not settle")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Offer a cancellation discount"));
+    await act(async () => {
+      await contextCapture.current?.save();
+    });
+    expect(saveProductMock.mock.lastCall?.[2]).toMatchObject({ cancellation_discount: null });
+    expect(screen.queryByText("Editor did not settle")).toBeNull();
+  });
 });
 
 // Pins the in-flight cross-scope move path: the scoped sentPagesById lookup
@@ -1134,6 +1223,251 @@ it("does not report a content update when only the send-time stamp differs", asy
   expect(showAlert).toHaveBeenCalledWith("Changes saved!", "success");
 });
 
+// A failed upload's embed is stripped from the save, so it must not read as
+// changed content either — otherwise a seller with sales gets the
+// customer-notification prompt for content that was never published.
+describe("a failed upload's embed", () => {
+  const failedFile: FileEntry = {
+    id: "failed-file",
+    display_name: "huge",
+    description: null,
+    extension: "ZIP",
+    file_size: 1024,
+    is_pdf: false,
+    pdf_stamp_enabled: false,
+    hide_kindle_and_read_buttons: false,
+    is_streamable: false,
+    stream_only: false,
+    is_transcoding_in_progress: false,
+    url: null,
+    subtitle_files: [],
+    status: { type: "unsaved", uploadStatus: { type: "failed" }, url: "blob:huge" },
+    thumbnail: null,
+  };
+  const body = { type: "paragraph", content: [{ type: "text", text: "Body" }] };
+  const embed = { type: "fileEmbed", attrs: { id: failedFile.id, uid: "uid-1" } };
+
+  const renderWithSales = async () => {
+    const product = buildTieredProduct([
+      buildTier("tier-a", "Tier A", [
+        {
+          id: "existing-page",
+          title: "Unchanged",
+          description: { type: "doc", content: [body] },
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ]),
+    ]);
+    saveProductMock.mockResolvedValue({} satisfies SaveProductResponse);
+    vi.mocked(showAlert).mockClear();
+    render(<ProductEditPage {...buildTieredProps(product)} successful_sales_count={5} />);
+    await waitFor(() => expect(contextCapture.current).not.toBeNull());
+  };
+  const setTierA = (files: FileEntry[], content: object[]) =>
+    act(() =>
+      contextCapture.current?.updateProduct((current) => {
+        current.files = files;
+        current.variants
+          .find((variant) => variant.id === "tier-a")
+          ?.rich_content.forEach((page) => {
+            page.description = { type: "doc", content };
+          });
+      }),
+    );
+  const save = async () => {
+    vi.mocked(showAlert).mockClear();
+    await act(async () => {
+      await contextCapture.current?.save();
+    });
+  };
+
+  it("does not report a content update, and says the file was not saved", async () => {
+    await renderWithSales();
+    setTierA([failedFile], [body, embed]);
+
+    await save();
+
+    expect(contextCapture.current?.contentUpdates).toBeNull();
+    expect(showAlert).toHaveBeenCalledWith("Changes saved, except 1 file that did not upload.", "warning");
+  });
+
+  it("keeps the failed-file note when the save also returns a warning", async () => {
+    await renderWithSales();
+    setTierA([failedFile], [body, embed]);
+    saveProductMock.mockResolvedValue({ warning_message: "The following offer code is invalid: SAVE10." });
+
+    await save();
+
+    expect(showAlert).toHaveBeenCalledWith(
+      "Changes saved, except 1 file that did not upload. The following offer code is invalid: SAVE10.",
+      "warning",
+    );
+  });
+
+  it("does not warn about a failed file whose embed the seller deleted", async () => {
+    await renderWithSales();
+    // Backspace on the embed removes the node but leaves the failed entry in files.
+    setTierA([failedFile], [body]);
+
+    await save();
+
+    expect(showAlert).toHaveBeenCalledWith("Changes saved!", "success");
+  });
+
+  it("does not report a content update when the failed row is removed after a save", async () => {
+    await renderWithSales();
+    setTierA([failedFile], [body, embed]);
+    await save();
+
+    setTierA([], [body]);
+    await save();
+
+    expect(contextCapture.current?.contentUpdates).toBeNull();
+    expect(showAlert).toHaveBeenCalledWith("Changes saved!", "success");
+  });
+
+  it("reports a content update when Upload again succeeds after a save", async () => {
+    await renderWithSales();
+    setTierA([failedFile], [body, embed]);
+    await save();
+
+    // "Upload again" keeps the file id, so only the status tells the two saves apart.
+    setTierA(
+      [{ ...failedFile, status: { type: "unsaved", uploadStatus: { type: "uploaded" }, url: "blob:huge" } }],
+      [body, embed],
+    );
+    await save();
+
+    expect(contextCapture.current?.contentUpdates).toEqual({ uniquePermalinkOrVariantIds: ["tier-a"] });
+  });
+});
+
+// Save must be released after an error the editor does not know, and stay off only when a retry
+// could repeat changes the server already kept.
+describe("a save that fails with an unexpected error", () => {
+  const reportErrorSpy = vi.fn();
+  beforeEach(() => {
+    reportErrorSpy.mockReset();
+    vi.stubGlobal("reportError", reportErrorSpy);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  const renderEditor = async () => {
+    const product = buildTieredProduct([
+      buildTier("tier-a", "Tier A", [
+        {
+          id: "existing-page",
+          title: "Unchanged",
+          description: { type: "doc", content: [] },
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ]),
+    ]);
+    vi.mocked(showAlert).mockClear();
+    render(<ProductEditPage {...buildTieredProps(product)} />);
+    await waitFor(() => expect(contextCapture.current).not.toBeNull());
+  };
+  const save = async () => {
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await contextCapture.current?.save();
+    });
+    return saved;
+  };
+
+  it("releases the saving state and tells the seller, so Save can be pressed again", async () => {
+    await renderEditor();
+    saveProductMock.mockRejectedValueOnce(new TypeError("Unexpected response shape"));
+
+    expect(await save()).toBe(false);
+
+    expect(contextCapture.current?.saving).toBe(false);
+    expect(reportErrorSpy).toHaveBeenCalledTimes(1);
+    expect(showAlert).toHaveBeenCalledWith("Something went wrong while saving. Please try again.", "error");
+
+    saveProductMock.mockResolvedValueOnce({} satisfies SaveProductResponse);
+    expect(await save()).toBe(true);
+    expect(saveProductMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps Save disabled and reports no success when a saved response cannot be reconciled", async () => {
+    await renderEditor();
+    saveProductMock.mockResolvedValueOnce({
+      get variant_id_mappings(): Record<string, string> {
+        throw new Error("reconcile failed");
+      },
+    } satisfies SaveProductResponse);
+
+    expect(await save()).toBe(false);
+
+    // The server kept the save but the editor holds stale ids, so another save must wait for a reload.
+    expect(contextCapture.current?.saving).toBe(false);
+    expect(contextCapture.current?.saveBlocked).toBe(true);
+    expect(
+      await screen.findByText("Your changes were saved, but this page could not refresh to match them."),
+    ).toBeTruthy();
+  });
+
+  it("keeps Save disabled and reports the cause when the server's answer cannot be confirmed", async () => {
+    await renderEditor();
+    const cause = new SyntaxError("Unexpected end of JSON input");
+    saveProductMock.mockRejectedValueOnce(new UnconfirmedSaveError(cause));
+
+    expect(await save()).toBe(false);
+
+    expect(contextCapture.current?.saving).toBe(false);
+    expect(contextCapture.current?.saveBlocked).toBe(true);
+    expect(reportErrorSpy).toHaveBeenCalledWith(cause);
+    expect(
+      await screen.findByText(
+        "We could not confirm that your changes saved. Reload the page to check before saving again.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("refuses a later save from any caller while a reload is required", async () => {
+    await renderEditor();
+    saveProductMock.mockRejectedValueOnce(new UnconfirmedSaveError(new SyntaxError("Unexpected end of JSON input")));
+    await save();
+    saveProductMock.mockClear();
+
+    expect(await save()).toBe(false);
+    expect(saveProductMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the reload explanation on the page after the seller dismisses the modal", async () => {
+    await renderEditor();
+    saveProductMock.mockRejectedValueOnce(new UnconfirmedSaveError(new SyntaxError("Unexpected end of JSON input")));
+    await save();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Keep this page open" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText(/Save is turned off until you reload\./u)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reload page" })).toBeTruthy();
+  });
+
+  it("keeps Save disabled while the page reloads after keeping version content", async () => {
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    await renderEditor();
+    saveProductMock.mockRejectedValueOnce(
+      new HiddenVariantContentConflictError("conflict", [
+        { id: "hidden-page", title: "Hidden", variant_name: "Tier A" },
+      ]),
+    );
+    await save();
+    saveProductMock.mockResolvedValueOnce({} satisfies SaveProductResponse);
+
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: /^Keep (?!shared).* content$/u }));
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(contextCapture.current?.saving).toBe(false);
+    expect(contextCapture.current?.saveBlocked).toBe(true);
+  });
+});
+
 // Pins the missing-content reload guard (gp#2023 follow-up): every UI
 // deletion path records the removed id into confirmed_removed_*_ids, so a
 // page that is missing from browser state WITHOUT a confirmed id was lost by
@@ -1577,4 +1911,103 @@ it("blocks the save when a lost page's raw id survives only on a different page 
   expect(saveProductMock).toHaveBeenCalledOnce();
   expect(screen.getByText("Some content couldn't be loaded")).toBeTruthy();
   expect(screen.getByText("Real lesson")).toBeTruthy();
+});
+
+// Pins the per-save description marker. `description_changed` tells the server a
+// blank description in the snapshot is a deliberate clear, so clearing it at the
+// wrong moment either loses a real clear (cleared too early) or lets a stale tab
+// wipe newer copy (never cleared). The safe rule is the one the file already uses
+// for the sent snapshot: only the marker THIS request carried is spent.
+it("keeps a description clear the seller made while the save was in flight", async () => {
+  const product = { ...buildTieredProduct([buildTier("tier-a", "Tier A", [])]), description: "<p>Old copy</p>" };
+  const props = buildTieredProps(product);
+
+  const requests: { resolve: (response: SaveProductResponse) => void }[] = [];
+  saveProductMock.mockImplementation(() => new Promise<SaveProductResponse>((resolve) => requests.push({ resolve })));
+
+  render(<ProductEditPage {...props} />);
+  await waitFor(() => expect(contextCapture.current).not.toBeNull());
+
+  let save: Promise<boolean> | undefined;
+  act(() => {
+    save = contextCapture.current?.save();
+  });
+  await waitFor(() => expect(saveProductMock).toHaveBeenCalledOnce());
+  expect(saveProductMock.mock.calls[0]?.[2]).toMatchObject({ description: "<p>Old copy</p>" });
+
+  // The seller empties the description while the request runs: the clear is not
+  // in this request, so the follow-up save must still claim it.
+  act(() => contextCapture.current?.updateProduct({ description: "", description_changed: true }));
+
+  await act(async () => {
+    requests[0]?.resolve({});
+    await save;
+  });
+
+  expect(contextCapture.current?.product.description_changed).toBe(true);
+});
+
+it("spends a description marker the completed save carried", async () => {
+  const product = buildTieredProduct([buildTier("tier-a", "Tier A", [])]);
+  const props = buildTieredProps(product);
+
+  const requests: { resolve: (response: SaveProductResponse) => void }[] = [];
+  saveProductMock.mockImplementation(() => new Promise<SaveProductResponse>((resolve) => requests.push({ resolve })));
+
+  render(<ProductEditPage {...props} />);
+  await waitFor(() => expect(contextCapture.current).not.toBeNull());
+
+  act(() => contextCapture.current?.updateProduct({ description: "", description_changed: true }));
+
+  let save: Promise<boolean> | undefined;
+  act(() => {
+    save = contextCapture.current?.save();
+  });
+  await waitFor(() => expect(saveProductMock).toHaveBeenCalledOnce());
+  expect(saveProductMock.mock.calls[0]?.[2]).toMatchObject({ description_changed: true });
+
+  await act(async () => {
+    requests[0]?.resolve({});
+    await save;
+  });
+
+  expect(contextCapture.current?.product.description_changed).toBe(false);
+});
+
+it("shows an unmarked installment-plan clear refusal inline, keeps the seller's edits, and clears it once a save succeeds", async () => {
+  const product = buildTieredProduct([buildTier("tier-a", "Tier A", [])]);
+  const props = buildTieredProps(product);
+  const message = "This page is out of date, so none of your changes were saved.";
+
+  saveProductMock.mockRejectedValueOnce(
+    saveProductError({ error_message: message, error_code: "unmarked_installment_plan_clear_conflict" }),
+  );
+  saveProductMock.mockResolvedValueOnce({} satisfies SaveProductResponse);
+  vi.mocked(showAlert).mockClear();
+
+  render(<ProductEditPage {...props} />);
+  await waitFor(() => expect(contextCapture.current).not.toBeNull());
+
+  act(() => contextCapture.current?.updateProduct({ name: "Unsaved name" }));
+
+  let saved: boolean | undefined;
+  await act(async () => {
+    saved = await contextCapture.current?.save();
+  });
+
+  expect(saved).toBe(false);
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toBe(message);
+  expect(document.activeElement).toBe(alert);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(showAlert).not.toHaveBeenCalled();
+  expect(contextCapture.current?.product.name).toBe("Unsaved name");
+
+  await act(async () => {
+    saved = await contextCapture.current?.save();
+  });
+
+  expect(saved).toBe(true);
+  expect(saveProductMock.mock.calls[1]?.[2]).toMatchObject({ name: "Unsaved name" });
+  expect(screen.queryByRole("alert")).toBeNull();
 });

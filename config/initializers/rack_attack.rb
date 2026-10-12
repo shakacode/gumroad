@@ -7,6 +7,10 @@ class Rack::Attack
   redis_client = Redis.new(url: "redis://#{redis_url}")
   Rack::Attack.cache.store = Rack::Attack::StoreProxy::RedisProxy.new(redis_client)
 
+  # Clients need the remaining time of the matched bucket: the exponential-backoff tiers can
+  # hold a request far longer than the base window.
+  Rack::Attack.throttled_response_retry_after_header = true
+
   class Request < ::Rack::Request
     # When the server is behind a load balancer
     def remote_ip
@@ -23,6 +27,14 @@ class Rack::Attack
       ensure
         body.rewind
       end
+    end
+
+    # `throttle_with_exponential_backoff` re-runs a rule's block once per tier.
+    def memoize(key)
+      @memoized ||= {}
+      return @memoized[key] if @memoized.key?(key)
+
+      @memoized[key] = yield
     end
   end
 
@@ -53,12 +65,12 @@ class Rack::Attack
   def self.throttle_with_exponential_backoff(name:, requests:, period:, max_level: 5, &block_proc)
     block = Proc.new do |req|
       block_proc.call(req)
-    rescue Rack::QueryParser::InvalidParameterError, TypeError, Rack::Multipart::EmptyContentError
-      # Malformed request bodies (bad form encoding, or a multipart POST with an
-      # empty/truncated body) make `req.params` raise. These requests come from
-      # scanners and broken clients, not real users — skip this throttle rule for
-      # them instead of crashing the middleware with a 500. The dedicated
-      # "invalid_params" throttle below still rate-limits these senders.
+    rescue Rack::QueryParser::InvalidParameterError, Rack::QueryParser::QueryLimitError, TypeError, Rack::Multipart::EmptyContentError
+      # Malformed requests (bad form encoding, an empty multipart body, or a query
+      # string nested past Rack's depth/param limits) make `req.params` raise.
+      # Scanners and broken clients send these, so skip this rule rather than
+      # 500ing the middleware; the "invalid_params" throttle below still
+      # rate-limits the senders.
       nil
     end
 
@@ -115,7 +127,7 @@ class Rack::Attack
     req.params # test that params are valid
 
     false
-  rescue Rack::QueryParser::InvalidParameterError, Rack::Multipart::EmptyContentError
+  rescue Rack::QueryParser::InvalidParameterError, Rack::QueryParser::QueryLimitError, Rack::Multipart::EmptyContentError
     "#{req.path}:#{req.remote_ip}"
   end
 
@@ -127,8 +139,6 @@ class Rack::Attack
     throttle_by_ip path: "/signup.json",                    requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
     throttle_by_ip path: "/follow", method: :post,          requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
     throttle_by_ip path: "/follow_from_embed_form",         requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
-    throttle_by_ip path: "/forgot_password.json",           requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
-    throttle_by_ip path: "/forgot_password",                requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
     throttle_by_ip path: "/users/auth/facebook",            requests: 3,  period: 20.seconds # Initial: 9rpm,   Max: 45  requests/9 hours
 
     # Don't allow spammer to send confirmation emails to many random emails
@@ -142,26 +152,6 @@ class Rack::Attack
     # and /login.json each have an entry).
     throttle_by_ip path: "/sellers/brand_accounts",      requests: 3, period: 20.seconds, method: :post # Initial: 9rpm, Max: 45 requests/9 hours
     throttle_by_ip path: "/sellers/brand_accounts.json", requests: 3, period: 20.seconds, method: :post # Initial: 9rpm, Max: 45 requests/9 hours
-
-    # Gumroad Walks: each successful realtime token gives the client up to 2h of OpenAI
-    # Realtime usage against our key, so a leaked/replayed JWS is capped here at ~$10/IP/hr.
-    # `max_level: 1` skips the backoff tiers — with a 1-hour base period `rpm * level` rounds
-    # to <1 and would block the very first escalation. Both `/api/v2/walks/...` and
-    # `/v2/walks/...` need entries since `api_routes` is mounted under both prefixes.
-    # Temporarily relaxed while debugging the App Attest reinstall flow (repeated reinstalls
-    # burn the 3/hr attestation cap below and surface as "attestation rejected"); restore once fixed.
-    # throttle_by_ip path: "/api/v2/walks/realtime_tokens", method: :post, requests: 5, period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/v2/walks/realtime_tokens",     method: :post, requests: 5, period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/api/v2/walks/synthesis",       method: :post, requests: 5, period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/v2/walks/synthesis",           method: :post, requests: 5, period: 1.hour, max_level: 1
-
-    # App Attest bootstrap. `attestations` is once-per-install on the happy path, so 3/IP/hr
-    # lets a NAT recover from transient failures without letting a botnet fan out keys.
-    # `challenges` fires once per walks call plus once per attestation, so it needs more headroom.
-    # throttle_by_ip path: "/api/v2/walks/app_attest/attestations", method: :post, requests: 3,  period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/v2/walks/app_attest/attestations",     method: :post, requests: 3,  period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/api/v2/walks/app_attest/challenges",   method: :post, requests: 60, period: 1.hour, max_level: 1
-    # throttle_by_ip path: "/v2/walks/app_attest/challenges",       method: :post, requests: 60, period: 1.hour, max_level: 1
   end
 
   throttle_by_ip path: "/",                               requests: 60, period: 30.seconds # Initial: 120rpm, Max: 600 requests/9 hours
@@ -237,8 +227,15 @@ class Rack::Attack
   throttle_with_exponential_backoff(name: "oauth_device_authorization_decision/ip", requests: 10, period: 60.seconds) do |req|
     req.remote_ip if req.path.match?(%r{\A/oauth/device(?:\.[^/]+)?\z}) && req.post?
   end
+  # The MCP connector aliases route to the same tokens controller as /oauth/token. Keyed on IP
+  # alone (not the `throttle_by_ip` regex form, which keys per path) so all four share one bucket.
   throttle_with_exponential_backoff(name: "oauth_token/ip", requests: 3000, period: 60.seconds) do |req|
-    req.remote_ip if req.path.match?(%r{\A/oauth/token(?:\.[^/]+)?\z})
+    req.remote_ip if req.path.match?(%r{\A(?:/oauth/token|/(?:muse|claude|chatgpt)/v1/oauth2/token)(?:\.[^/]+)?\z})
+  end
+  # Anonymous dynamic client registration inserts an oauth_applications row per call.
+  # Initial: 20rpm, Max: 100 requests/9 hours (per IP, shared across the connector aliases)
+  throttle_with_exponential_backoff(name: "oauth_dynamic_registration/ip", requests: 20, period: 60.seconds) do |req|
+    req.remote_ip if req.path.match?(%r{\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\.[^/]+)?\z}) && req.post?
   end
   throttle("oauth_device_token/ip/device_code", limit: 120, period: 60.seconds) do |req|
     if req.path.match?(%r{\A/oauth/token(?:\.[^/]+)?\z}) && req.post?
@@ -248,7 +245,7 @@ class Rack::Attack
         "#{req.remote_ip}:#{Digest::SHA256.hexdigest(request_params["device_code"].to_s)}"
       end
     end
-  rescue Rack::QueryParser::InvalidParameterError, TypeError, Rack::Multipart::EmptyContentError
+  rescue Rack::QueryParser::InvalidParameterError, Rack::QueryParser::QueryLimitError, TypeError, Rack::Multipart::EmptyContentError
     nil
   end
 
@@ -279,6 +276,16 @@ class Rack::Attack
                             method: :get,
                             period: 60.seconds,
                             throttle_params: Proc.new { |req| req.host }
+
+  # A repeating search must be refused by us, well under the zone-wide edge limit that otherwise blocks
+  # the whole IP. Keyed on IP alone so every format suffix shares one bucket; GET/HEAD only, since a
+  # flood of other verbs is rejected by routing anyway but would still spend the bucket.
+  # Initial: 300rpm, Max: 1500 requests/9 hours
+  throttle_with_exponential_backoff(name: "products_search/ip", requests: 300, period: 60.seconds) do |req|
+    if %w[GET HEAD].include?(req.request_method) && req.path.match?(%r{\A/products/search(?:\.[^/]+)?\z})
+      req.remote_ip
+    end
+  end
 
   # Initial: 10rpm, Max: 60 requests/3 days (per user)
   throttle_by_params path: "/two-factor",
@@ -338,6 +345,11 @@ class Rack::Attack
     req.env["warden"]&.user&.id if req.path.match?(%r{\A/settings/passkeys(?:\.[^/]+)?\z}) && req.post?
   end
 
+  # Each execute is one outbound post as the seller. Initial: 5rpm, Max: 30 requests/3 days (per user)
+  throttle_with_exponential_backoff(name: "/params:/products/:id/marketing_actions/:id/execute:POST", requests: 5, period: 60.seconds, max_level: 6) do |req|
+    req.env["warden"]&.user&.id if req.path.match?(%r{\A/products/[^/]+/marketing_actions/[^/]+/execute(?:\.[^/]+)?\z}) && req.post?
+  end
+
   # Passkey login is unauthenticated, so throttle by IP. Initial: 10rpm, Max: 60 requests/3 days (per IP)
   throttle_with_exponential_backoff(name: "/ip:/login/passkey/options:POST", requests: 10, period: 60.seconds, max_level: 6) do |req|
     req.remote_ip if req.path.match?(%r{\A/login/passkey/options(?:\.[^/]+)?\z}) && req.post?
@@ -348,19 +360,42 @@ class Rack::Attack
     req.remote_ip if req.path.match?(%r{\A/login/passkey(?:\.[^/]+)?\z}) && req.post?
   end
 
-  # Initial: 4rpm, Max: 24 requests/9 hours
-  throttle_by_params path: "/forgot_password.json",
-                     method: :post,
-                     requests: 4,
-                     period: 60.seconds,
-                     throttle_params: Proc.new { |req| req.json_params.is_a?(Hash) && req.json_params.dig("user", "email").presence }
+  # A reset request emails whatever address is submitted, unauthenticated, so an unthrottled
+  # endpoint is a mailbomb that burns our email reputation. Both the web form and the mobile
+  # API reach `user/passwords#create`; regex-matched and keyed on IP alone so a format suffix
+  # (`.json`, `.xml`) shares one budget instead of buying a second.
+  PASSWORD_RESET_PATH = %r{\A/(?:users|mobile)/forgot_password(?:\.[^/]+)?\z}
 
+  # Initial: 9rpm, Max: 45 requests/9 hours
+  throttle_with_exponential_backoff(name: "password_reset/ip", requests: 3, period: 20.seconds) do |req|
+    req.remote_ip if req.path.match?(PASSWORD_RESET_PATH) && req.post?
+  end
+
+  # One budget per account the controller would email, so rotating IPs can't mailbomb an inbox. Keyed
+  # on the account because the column collation matches spellings a Ruby fold can't (accents, ß/ss,
+  # zero-width characters), and `user[email]` is read the way Rails does: body per its content type,
+  # query string wins. Prefixed so a submitted string can't land in an account's or an IP's bucket.
   # Initial: 4rpm, Max: 24 requests/9 hours
-  throttle_by_params path: "/forgot_password",
-                     method: :post,
-                     requests: 4,
-                     period: 60.seconds,
-                     throttle_params: Proc.new { |req| req.json_params.is_a?(Hash) && req.json_params.dig("user", "email").presence }
+  throttle_with_exponential_backoff(name: "password_reset/email", requests: 4, period: 60.seconds, max_level: 6) do |req|
+    next unless req.path.match?(PASSWORD_RESET_PATH) && req.post?
+
+    req.memoize(:password_reset_recipient) do
+      body_params = req.media_type&.include?("json") ? req.json_params : req.POST
+      request_params = body_params.is_a?(Hash) ? body_params.merge(req.GET) : req.GET
+      user_params = request_params["user"]
+      email = user_params["email"] if user_params.is_a?(Hash) && user_params["email"].is_a?(String)
+      user_id = User.alive.by_email(email).first&.id if EmailFormatValidator.valid?(email)
+      address = email.to_s.strip.downcase.presence
+
+      if user_id
+        "user:#{user_id}"
+      elsif address
+        "email:#{address}"
+      else
+        req.remote_ip
+      end
+    end
+  end
 
   # Throttle requests to Sales API with slow pagination; a non-scalar `page`
   # (JSON:API `page[size]=`) is treated as page 0 so it cannot crash with a 500.
@@ -368,7 +403,7 @@ class Rack::Attack
     page = req.params["page"]
     page_number = page.is_a?(Integer) || page.is_a?(String) ? page.to_i : 0
     req.remote_ip if req.path.ends_with?("/v2/sales") && page_number > 10
-  rescue Rack::QueryParser::InvalidParameterError, TypeError, Rack::Multipart::EmptyContentError, NoMethodError
+  rescue Rack::QueryParser::InvalidParameterError, Rack::QueryParser::QueryLimitError, TypeError, Rack::Multipart::EmptyContentError, NoMethodError
     nil
   end
 
@@ -380,7 +415,7 @@ class Rack::Attack
       # return the login if present, nil otherwise
       req.params["user"] && req.params["user"]["login"].presence
     end
-  rescue Rack::QueryParser::InvalidParameterError, TypeError, Rack::Multipart::EmptyContentError
+  rescue Rack::QueryParser::InvalidParameterError, Rack::QueryParser::QueryLimitError, TypeError, Rack::Multipart::EmptyContentError
     nil
   end
 
@@ -480,8 +515,7 @@ class Rack::Attack
   # mirroring the products/custom_html throttles above.
   #
   # `max_level: 1` skips the backoff tiers: with a 10-minute base period the derived rpm is
-  # 2, so level 2 would allow only 4 requests/64s — stricter than the base limit (same trap
-  # as the walks throttles above).
+  # 2, so level 2 would allow only 4 requests/64s — stricter than the base limit.
   v2_media_path = /\A\/(api\/)?v2\/media(\.\w+)?\z/
   throttle_by_ip path: v2_media_path, method: :post, requests: 20, period: 10.minutes, max_level: 1
   throttle_with_exponential_backoff(name: "media_uploads/token", requests: 20, period: 10.minutes, max_level: 1) do |req|

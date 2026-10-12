@@ -67,8 +67,9 @@ class BankAccount < ApplicationRecord
     currency
   end
 
+  # Stripe resolves a BIC case-sensitively; digit-only codes are unaffected by upcase.
   def stripe_external_account_routing_number
-    routing_number
+    routing_number&.strip&.upcase
   end
 
   def to_hash
@@ -82,9 +83,9 @@ class BankAccount < ApplicationRecord
     hash
   end
 
-  def mark_deleted!
+  def mark_deleted!(validate: true)
     self.deleted_at = Time.current
-    save!
+    save!(validate:)
   end
 
   # The routing fields with the labels the payout form puts next to them, so a rejection can quote
@@ -140,6 +141,17 @@ class BankAccount < ApplicationRecord
     %i[bank_code clearing_code].any? { |attribute| respond_to?(attribute) && public_send(attribute).present? }
   end
 
+  # Stripe reports a ba_ id we still hold as gone either way: deleted, or replaced (usually by a
+  # Financial Connections session). Both mean only the seller can re-add the account.
+  STALE_EXTERNAL_ACCOUNT_MESSAGES = [
+    /has been deleted and can no longer be used/,
+    /No such external account/,
+  ].freeze
+
+  def self.stale_external_account_message?(message)
+    STALE_EXTERNAL_ACCOUNT_MESSAGES.any? { |pattern| pattern.match?(message.to_s) }
+  end
+
   def supports_instant_payouts?
     return false unless stripe_connect_account_id.present? && stripe_external_account_id.present?
 
@@ -151,7 +163,7 @@ class BankAccount < ApplicationRecord
 
       external_account.available_payout_methods.include?("instant")
     rescue Stripe::StripeError => e
-      ErrorNotifier.notify(e) unless e.message.to_s.include?("has been deleted and can no longer be used")
+      ErrorNotifier.notify(e) unless BankAccount.stale_external_account_message?(e.message)
       false
     end
   end

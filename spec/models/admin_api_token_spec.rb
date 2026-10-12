@@ -20,6 +20,22 @@ describe AdminApiToken do
     end
   end
 
+  describe "scope" do
+    it "defaults to admin and can be minted as piracy" do
+      actor = create(:admin_user)
+
+      _, admin_token = described_class.mint_with_plaintext!(actor_user_id: actor.id)
+      _, piracy_token = described_class.mint_with_plaintext!(actor_user_id: actor.id, scope: described_class::PIRACY_SCOPE)
+
+      expect(admin_token.scope).to eq("admin")
+      expect(piracy_token.scope).to eq("piracy")
+    end
+
+    it "rejects an unknown scope" do
+      expect(build(:admin_api_token, scope: "root")).not_to be_valid
+    end
+  end
+
   describe ".mint_with_plaintext!" do
     it "returns the plaintext token and token row" do
       actor = create(:admin_user)
@@ -32,6 +48,44 @@ describe AdminApiToken do
         token_hash: described_class.hash_token(plaintext_token),
         expires_at: be_present
       )
+    end
+  end
+
+  describe "#revoke!" do
+    it "stamps the token revoked" do
+      _, admin_api_token = described_class.mint_with_plaintext!(actor_user_id: create(:admin_user).id)
+
+      admin_api_token.revoke!
+
+      expect(admin_api_token.reload.revoked_at).to be_present
+    end
+  end
+
+  describe "#rotate!" do
+    it "revokes the token and returns a replacement for the same actor and scope" do
+      actor = create(:admin_user)
+      _, admin_api_token = described_class.mint_with_plaintext!(actor_user_id: actor.id, scope: described_class::PIRACY_SCOPE)
+
+      plaintext_token, replacement = admin_api_token.rotate!
+
+      expect(admin_api_token.reload.revoked_at).to be_present
+      expect(replacement).to have_attributes(actor_user: actor, scope: described_class::PIRACY_SCOPE)
+      expect(described_class.authenticate(plaintext_token)).to eq(replacement)
+    end
+
+    it "refuses a token that expires, so a human token's 90-day age limit cannot be reset" do
+      _, admin_api_token = described_class.mint_with_plaintext!(actor_user_id: create(:admin_user).id, expires_at: 3.days.from_now)
+
+      expect { admin_api_token.rotate! }.not_to change { described_class.count }
+      expect(admin_api_token.reload.revoked_at).to be_nil
+    end
+
+    it "returns nil for an already revoked token, so a second rotation cannot mint one" do
+      _, admin_api_token = described_class.mint_with_plaintext!(actor_user_id: create(:admin_user).id)
+      admin_api_token.revoke!
+
+      expect(admin_api_token.rotate!).to be_nil
+      expect(described_class.where(revoked_at: nil).count).to eq(0)
     end
   end
 

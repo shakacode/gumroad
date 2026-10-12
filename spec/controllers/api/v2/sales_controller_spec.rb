@@ -386,6 +386,28 @@ describe Api::V2::SalesController do
         $redis.del(RedisKey.api_v2_sales_page_key_query_timeout)
       end
 
+      it "falls back to the default timeout when the Redis read stalls" do
+        allow($redis).to receive(:get).and_call_original
+        allow($redis).to receive(:get).with(RedisKey.api_v2_sales_page_key_query_timeout)
+          .and_raise(Redis::TimeoutError.new("Waited 1.0 seconds"))
+        expect(WithMaxExecutionTime).to receive(:timeout_queries).with(seconds: 15).and_call_original
+
+        get :index, params: @params
+
+        expect(response.code).to eq "200"
+      end
+
+      it "falls back to the default timeout on the deprecated page path when the Redis read stalls" do
+        allow($redis).to receive(:get).and_call_original
+        allow($redis).to receive(:get).with(RedisKey.api_v2_sales_deprecated_pagination_query_timeout)
+          .and_raise(RedisClient::Error.new("Waited 1.0 seconds"))
+        expect(WithMaxExecutionTime).to receive(:timeout_queries).with(seconds: 15).and_call_original
+
+        get :index, params: @params.merge(page: 1)
+
+        expect(response.code).to eq "200"
+      end
+
       it "returns a 400 error if date format is incorrect" do
         @params.merge!(after: "394293")
         get :index, params: @params
@@ -1376,7 +1398,7 @@ describe Api::V2::SalesController do
         post :resend_receipt, params: @params
         expect(response).to be_successful
         expect(response.parsed_body["success"]).to be true
-        expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(@sale.id).on("critical")
+        expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(@sale.id, true).on("critical")
       end
 
       it "returns a not found error when sale does not exist" do

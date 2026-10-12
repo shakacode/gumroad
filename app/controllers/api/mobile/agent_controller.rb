@@ -112,7 +112,7 @@ class Api::Mobile::AgentController < Api::Mobile::BaseController
           messages
         end
 
-      result = ::Ai::StoreAgentService.new(seller:, pundit_user:).respond(messages: history)
+      result = ::Ai::StoreAgentService.new(seller:, pundit_user:, conversation:).respond(messages: history)
 
       # Store the whole turn atomically: without the transaction, a failure writing the assistant
       # reply would leave a stray user message that gets silently replayed to the model on the
@@ -209,6 +209,8 @@ class Api::Mobile::AgentController < Api::Mobile::BaseController
         # response can follow an external side effect, so post-dispatch outcomes stay claimed.
         if result[:retry_safe]
           action_status, retryable = release_retry_safe_agent_action_claim!(proposal_message)
+          # The pinned card can never succeed again; the seller needs a fresh proposal, not a retry.
+          retryable = false if result[:failure_reason] == "stale_known_sections"
         else
           action_status = record_agent_action_outcome_unknown!(proposal_message)
         end
@@ -236,7 +238,7 @@ class Api::Mobile::AgentController < Api::Mobile::BaseController
   private
     # Convert server-only execution metadata to the narrow client retry/status contract.
     def public_action_result(result, action_status:, retryable:)
-      public_result = result.except(:failure_reason, :failure_status, :retry_safe)
+      public_result = result.except(:failure_reason, :failure_status, :retry_safe, :html_undo)
       public_result[:action_status] = action_status if action_status
       public_result[:retryable] = true if retryable
       public_result

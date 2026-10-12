@@ -59,6 +59,7 @@ const product = (): Product => ({
   customFields: [],
   bundleProductCustomFields: [],
   supportsPaypal: null,
+  paypalCardFundingDisabled: false,
   testPurchase: false,
   requirePayment: true,
   hasFreeTrial: false,
@@ -123,6 +124,7 @@ const state = (overrides: Partial<State> = {}): State => ({
   checkoutPaymentStale: false,
   resumeSubmitAfterCheckoutPayment: false,
   validationFailedCount: 0,
+  awaitingBuyerConfirmation: false,
   ...overrides,
 });
 

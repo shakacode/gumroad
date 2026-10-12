@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Stripe, StripeElements } from "@stripe/stripe-js";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,16 +10,20 @@ import {
   type CheckoutPaymentConfig,
   type State,
 } from "$app/components/Checkout/payment";
+import type { PaymentElementController } from "$app/components/Checkout/PaymentElementInput";
 import { PaymentForm } from "$app/components/Checkout/PaymentForm";
 import { LoggedInUserProvider } from "$app/components/LoggedInUser";
+import { showAlert } from "$app/components/server-components/Alert";
 
 vi.stubGlobal("Routes", new Proxy({}, { get: () => () => "#" }));
 vi.stubGlobal("SSR", false);
 
 const paymentElementInputRender = vi.hoisted<{
+  controller: PaymentElementController | null;
   setupFutureUsage: "off_session" | undefined;
   walletsEnabled: boolean | undefined;
 }>(() => ({
+  controller: null,
   setupFutureUsage: undefined,
   walletsEnabled: undefined,
 }));
@@ -27,6 +32,8 @@ type PayPalButtonsConfig = {
   onApprove: (data: { billingToken: string }) => Promise<void>;
   onClick?: (data: Record<string, never>, actions: { resolve: () => void; reject: () => void }) => unknown;
 };
+
+const cardElementInputRender = vi.hoisted<{ enableLink: boolean | undefined }>(() => ({ enableLink: undefined }));
 
 const paypalMock = vi.hoisted<{
   buttonsConfig: null | PayPalButtonsConfig;
@@ -61,24 +68,33 @@ vi.mock("$app/data/payment_method_result", () => ({
 vi.mock("$app/data/braintree_client_token_data", () => ({ useBraintreeToken: () => ({ type: "not-available" }) }));
 vi.mock("$app/utils/stripe_loader", () => ({ getCheckoutStripeInstance: vi.fn(), getStripeInstance: vi.fn() }));
 vi.mock("$app/components/Checkout/CreditCardInput", () => ({
-  CreditCardInput: () => null,
+  CreditCardInput: ({ enableLink }: { enableLink?: boolean }) => {
+    cardElementInputRender.enableLink = enableLink;
+    return null;
+  },
   StripeElementsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("$app/components/Checkout/PaymentElementInput", () => ({
   PaymentElementInput: ({
     setupFutureUsage,
     walletsEnabled,
+    onReady,
   }: {
     setupFutureUsage?: "off_session" | undefined;
     walletsEnabled: boolean;
+    onReady: (controller: PaymentElementController | null) => void;
   }) => {
+    React.useEffect(() => {
+      if (paymentElementInputRender.controller) onReady(paymentElementInputRender.controller);
+    }, [onReady]);
     paymentElementInputRender.setupFutureUsage = setupFutureUsage;
     paymentElementInputRender.walletsEnabled = walletsEnabled;
     return null;
   },
 }));
+const executeRecaptcha = vi.hoisted(() => vi.fn());
 vi.mock("$app/components/useRecaptcha", () => ({
-  useRecaptcha: () => ({ execute: vi.fn(), container: null }),
+  useRecaptcha: () => ({ execute: executeRecaptcha, container: null }),
   RecaptchaDisclosure: () => null,
   RECAPTCHA_UNAVAILABLE_MESSAGE: "unavailable",
   RecaptchaUnavailableError: class extends Error {},
@@ -88,6 +104,7 @@ vi.mock("$app/components/server-components/Alert", () => ({ showAlert: vi.fn(), 
 
 const cardElementConfig: CheckoutPaymentConfig = {
   integration: "card_element",
+  stripe_link_enabled: true,
   fallback_reason: "not_checkout",
   disable_wallets: false,
   request_apple_pay_merchant_tokens: false,
@@ -109,6 +126,7 @@ const state = (overrides: Partial<State> = {}): State => ({
       customFields: [{ id: "field-1", type: "text", name: "Nickname", required: true, collect_per_product: false }],
       bundleProductCustomFields: [],
       supportsPaypal: null,
+      paypalCardFundingDisabled: false,
       testPurchase: false,
       requirePayment: false,
       hasFreeTrial: false,
@@ -160,6 +178,7 @@ const state = (overrides: Partial<State> = {}): State => ({
   checkoutPaymentStale: false,
   resumeSubmitAfterCheckoutPayment: false,
   validationFailedCount: 0,
+  awaitingBuyerConfirmation: false,
   status: { type: "input", errors: new Set() },
   recaptchaKey: null,
   recaptchaScoreBased: false,
@@ -216,9 +235,12 @@ describe("PaymentForm validation-failure feedback", () => {
 
   beforeEach(() => {
     scrollIntoView.mockClear();
+    vi.mocked(showAlert).mockClear();
+    paymentElementInputRender.controller = null;
     paymentElementInputRender.setupFutureUsage = undefined;
     paymentElementInputRender.walletsEnabled = undefined;
     paypalMock.buttonsConfig = null;
+    cardElementInputRender.enableLink = undefined;
     paypalMock.createBillingAgreement.mockReset();
     paypalMock.getPaymentMethodResult.mockReset();
     paypalMock.getReusablePaymentMethodResult.mockReset();
@@ -246,6 +268,30 @@ describe("PaymentForm validation-failure feedback", () => {
     Element.prototype.scrollIntoView = scrollIntoView;
   });
   afterEach(cleanup);
+
+  it("shows an error and resets checkout when the post-wallet security check rejects unexpectedly", async () => {
+    executeRecaptcha.mockRejectedValueOnce(new Error("provider failure"));
+    const dispatch = vi.fn();
+    const initial = state({
+      recaptchaKey: "test-key",
+      paymentMethod: "stripePaymentRequest",
+      status: { type: "captcha", paymentMethod: { type: "not-applicable" } },
+    });
+    render(
+      <LoggedInUserProvider value={null}>
+        <StateContext.Provider value={[initial, dispatch]}>
+          <PaymentForm />
+        </StateContext.Provider>
+      </LoggedInUserProvider>,
+    );
+
+    await waitFor(() => expect(dispatch).toHaveBeenCalledWith({ type: "cancel" }));
+    expect(showAlert).toHaveBeenCalledWith(
+      "We couldn't complete the security check. Please try again to finish your purchase.",
+      "error",
+    );
+    expect(dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "set-recaptcha-response" }));
+  });
 
   it("offers a working retry after price refresh fails without enabling payment", () => {
     const s = state();
@@ -339,6 +385,130 @@ describe("PaymentForm validation-failure feedback", () => {
   it("does not scroll while nothing is flagged", () => {
     renderPaymentForm(state());
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  // Canary Islands / Ceuta / Melilla buyers are outside the EU VAT area; the postal code is the
+  // buyer's own signal that the server honours over the connection's geolocation.
+  const paidState = (overrides: Partial<State>) => {
+    const base = state(overrides);
+    return { ...base, products: base.products.map((product) => ({ ...product, price: 1000, requirePayment: true })) };
+  };
+
+  describe("client-confirm token errors", () => {
+    const message =
+      "We are experiencing issues connecting to our payments provider. Please check your internet connection.";
+    const renderClientConfirm = () => {
+      const submit = vi.fn().mockResolvedValue({});
+      const createConfirmationToken = vi.fn().mockResolvedValue({ error: { type: "api_connection_error", message } });
+      const stripe: Stripe = Object.create(null);
+      stripe.createConfirmationToken = createConfirmationToken;
+      const elements: StripeElements = Object.create(null);
+      elements.submit = submit;
+      paymentElementInputRender.controller = { stripe, elements, mountCurrency: "usd" };
+      const initial = paidState({
+        fullName: "Buyer",
+        zipCode: "10001",
+        customFieldValues: { "field-1": "Nick" },
+        checkoutPayment: {
+          integration: "payment_element_client_confirm",
+          fallback_reason: null,
+          recurring_upi_registration: false,
+          disable_wallets: false,
+          request_apple_pay_merchant_tokens: false,
+          payment_element_wallets: true,
+          flat_payment_methods: true,
+          elements_options: {
+            stripe_elements_mode: "payment",
+            currency: "usd",
+            buyer_currency_presentment: false,
+            presentment_amount_cents: null,
+            listed_currency_display: null,
+            payment_method_types: ["card"],
+            payment_method_list_token: null,
+            stripe_link_enabled: false,
+            stripe_connect_account_id: null,
+          },
+        },
+      });
+      if (initial.surcharges.type !== "loaded") throw new Error("Expected loaded surcharges");
+      initial.surcharges.result.subtotal = 1000;
+      const harness: CheckoutHarness = { dispatch: vi.fn(), actions: [] };
+      render(<StatefulPaymentForm initial={initial} harness={harness} />);
+      const pay = () => {
+        fireEvent.click(screen.getByRole("button", { name: "Pay" }));
+        // Checkout normally advances the offer pipeline before PaymentForm validates.
+        harness.dispatch({ type: "validate" });
+      };
+      return { submit, createConfirmationToken, harness, pay };
+    };
+
+    it("displays the SDK message after token creation fails and permits a fresh retry", async () => {
+      const { submit, createConfirmationToken, harness, pay } = renderClientConfirm();
+      pay();
+      await waitFor(() => expect(harness.actions).toContainEqual({ type: "cancel" }));
+      expect(createConfirmationToken).toHaveBeenCalledTimes(1);
+      expect(showAlert).toHaveBeenCalledExactlyOnceWith(message, "error");
+      expect(screen.getByRole("button", { name: "Pay" })).toHaveProperty("disabled", false);
+
+      createConfirmationToken.mockResolvedValueOnce({
+        confirmationToken: { id: "ctoken_retry", payment_method_preview: { card: { country: "US" } } },
+      });
+      pay();
+      await waitFor(() =>
+        expect(harness.actions).toContainEqual({
+          type: "set-payment-method",
+          paymentMethod: expect.objectContaining({ confirmationTokenId: "ctoken_retry" }),
+        }),
+      );
+      expect(submit).toHaveBeenCalledTimes(2);
+      expect(createConfirmationToken).toHaveBeenCalledTimes(2);
+      expect(showAlert).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves field validation messages to Stripe's inline UI", async () => {
+      const { submit, createConfirmationToken, harness, pay } = renderClientConfirm();
+      submit.mockResolvedValueOnce({
+        error: { type: "validation_error", code: "incomplete_number", message: "Your card number is incomplete." },
+      });
+      pay();
+      await waitFor(() => expect(harness.actions).toContainEqual({ type: "cancel" }));
+      expect(submit).toHaveBeenCalledTimes(1);
+      expect(createConfirmationToken).not.toHaveBeenCalled();
+      expect(showAlert).not.toHaveBeenCalled();
+    });
+
+    it("keeps the wallet submit's incomplete-validation cancellation quiet", async () => {
+      const { submit, createConfirmationToken, harness, pay } = renderClientConfirm();
+      // Stripe's wallet-dismissal branch localizes an incomplete input-validation error.
+      submit.mockResolvedValueOnce({
+        error: { type: "validation_error", code: "incomplete", message: "Your payment information is incomplete." },
+      });
+      pay();
+      await waitFor(() => expect(harness.actions).toContainEqual({ type: "cancel" }));
+      expect(submit).toHaveBeenCalledTimes(1);
+      expect(createConfirmationToken).not.toHaveBeenCalled();
+      expect(showAlert).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Pay" })).toHaveProperty("disabled", false);
+    });
+
+    it("does not invent a message for a token error without one", async () => {
+      const { createConfirmationToken, harness, pay } = renderClientConfirm();
+      createConfirmationToken.mockResolvedValueOnce({ error: { type: "api_error" } });
+      pay();
+      await waitFor(() => expect(harness.actions).toContainEqual({ type: "cancel" }));
+      expect(createConfirmationToken).toHaveBeenCalledTimes(1);
+      expect(showAlert).not.toHaveBeenCalled();
+    });
+  });
+
+  it("asks Spanish buyers for a postal code, like US buyers", () => {
+    renderPaymentForm(paidState({ country: "ES" }));
+    expect(screen.getByLabelText("Postal")).toBeTruthy();
+  });
+
+  it("does not ask other EU buyers for a postal code", () => {
+    renderPaymentForm(paidState({ country: "DE" }));
+    expect(screen.queryByLabelText("Postal")).toBeNull();
   });
 
   it("declares off-session future use for the recurring UPI client-confirm lane", () => {
@@ -475,6 +645,7 @@ describe("PaymentForm validation-failure feedback", () => {
         price: 1_000,
         requirePayment: true,
         supportsPaypal: "native" as const,
+        paypalCardFundingDisabled: false,
       })),
     });
     paypalMock.createBillingAgreement.mockImplementation(async (token: string) => ({
@@ -550,6 +721,7 @@ describe("PaymentForm validation-failure feedback", () => {
         price: 1_000,
         requirePayment: true,
         supportsPaypal: "native" as const,
+        paypalCardFundingDisabled: false,
       })),
     });
     paypalMock.createBillingAgreement.mockImplementation(async (token: string) => ({
@@ -749,5 +921,141 @@ describe("PaymentForm validation-failure feedback", () => {
     expect(screen.getByLabelText("Nickname").getAttribute("aria-describedby")).toBe(
       screen.getByText("This field is required.").id,
     );
+  });
+});
+
+describe("PaymentForm payment method visibility", () => {
+  it("passes the seller's Link setting down to the card fields — Link renders the save-info block", () => {
+    const checkoutState = state();
+    const [product] = checkoutState.products;
+    if (product === undefined) throw new Error("Expected a checkout product");
+
+    renderPaymentForm({
+      ...checkoutState,
+      products: [{ ...product, requirePayment: true }],
+      checkoutPayment: { ...cardElementConfig, stripe_link_enabled: false },
+    });
+
+    expect(cardElementInputRender.enableLink).toBe(false);
+  });
+
+  it("leaves Link on the card fields for a lane with no card_element config", () => {
+    type ClientConfirmPayment = Extract<CheckoutPaymentConfig, { integration: "payment_element_client_confirm" }>;
+    const checkoutPayment: ClientConfirmPayment = {
+      integration: "payment_element_client_confirm",
+      fallback_reason: null,
+      recurring_upi_registration: false,
+      disable_wallets: false,
+      request_apple_pay_merchant_tokens: false,
+      payment_element_wallets: false,
+      flat_payment_methods: false,
+      elements_options: {
+        stripe_elements_mode: "payment",
+        currency: "usd",
+        buyer_currency_presentment: false,
+        presentment_amount_cents: null,
+        listed_currency_display: null,
+        payment_method_types: ["card"],
+        inr_local_methods: [],
+        payment_method_list_token: null,
+        stripe_link_enabled: false,
+        stripe_connect_account_id: null,
+      },
+    };
+    const checkoutState = state();
+    const [product] = checkoutState.products;
+    if (product === undefined) throw new Error("Expected a checkout product");
+
+    renderPaymentForm({
+      ...checkoutState,
+      products: [{ ...product, requirePayment: true }],
+      checkoutPayment,
+      usingSavedCard: true,
+    });
+
+    expect(cardElementInputRender.enableLink).toBe(false);
+  });
+
+  it("hides PayPal's card funding button when every seller in the cart switched it off", async () => {
+    const checkoutState = state({
+      paypalClientId: "paypal-client-id",
+      products: state().products.map((product) => ({
+        ...product,
+        requirePayment: true,
+        supportsPaypal: "native" as const,
+        paypalCardFundingDisabled: true,
+      })),
+    });
+    renderPaymentForm(checkoutState);
+
+    await waitFor(() => expect(paypalMock.loadScript).toHaveBeenCalled());
+    expect(paypalMock.loadScript).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "paypal-client-id", vault: true, disableFunding: "card" }),
+    );
+  });
+
+  it("re-decides PayPal's card funding button when an accepted offer changes the cart", async () => {
+    paypalMock.loadScript.mockReset();
+    paypalMock.render.mockReset();
+    paypalMock.loadScript.mockResolvedValue({
+      Buttons: (config: PayPalButtonsConfig) => {
+        paypalMock.buttonsConfig = config;
+        return { render: paypalMock.render };
+      },
+    });
+
+    const [product] = state().products;
+    if (product === undefined) throw new Error("Expected a checkout product");
+    const harness: CheckoutHarness = { dispatch: () => {}, actions: [] };
+    const mixedCart = state({
+      paypalClientId: "paypal-client-id",
+      paymentMethod: "paypal",
+      products: [
+        { ...product, requirePayment: true, supportsPaypal: "native" as const, paypalCardFundingDisabled: false },
+        {
+          ...product,
+          permalink: "product-b",
+          requirePayment: true,
+          supportsPaypal: "native" as const,
+          paypalCardFundingDisabled: true,
+        },
+      ],
+    });
+    render(<StatefulPaymentForm initial={mixedCart} harness={harness} />);
+
+    await waitFor(() => expect(paypalMock.render).toHaveBeenCalled());
+    expect(paypalMock.loadScript.mock.calls.at(-1)?.[0]).not.toHaveProperty("disableFunding");
+    const rendersBeforeCartChange = paypalMock.render.mock.calls.length;
+
+    act(() =>
+      harness.dispatch({
+        type: "update-products",
+        products: mixedCart.products.map((item) => ({ ...item, paypalCardFundingDisabled: true })),
+      }),
+    );
+
+    // The aggregate flipped, so the funding set is re-applied...
+    await waitFor(() => expect(paypalMock.loadScript.mock.calls.at(-1)?.[0]).toMatchObject({ disableFunding: "card" }));
+    // ...and the buttons rebuilt, because the funding set is fixed when the script loads.
+    await waitFor(() => expect(paypalMock.render.mock.calls.length).toBeGreaterThan(rendersBeforeCartChange));
+  });
+
+  it("keeps PayPal's card funding button when another seller in the cart still offers it", async () => {
+    const cartState = state();
+    const checkoutState = state({
+      paypalClientId: "paypal-client-id",
+      products: cartState.products
+        .flatMap((item) => [item, { ...item, permalink: "product-b" }])
+        .map((item, index) => ({
+          ...item,
+          requirePayment: true,
+          supportsPaypal: "native" as const,
+          paypalCardFundingDisabled: index === 0,
+        })),
+    });
+    renderPaymentForm(checkoutState);
+
+    await waitFor(() => expect(paypalMock.loadScript).toHaveBeenCalled());
+    expect(paypalMock.loadScript.mock.calls.at(-1)?.[0]).not.toHaveProperty("disableFunding");
   });
 });

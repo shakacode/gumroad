@@ -4,12 +4,12 @@ export function formatPrice(
   currencySymbol: string,
   price: number,
   precision: number,
-  { noCentsIfWhole }: { noCentsIfWhole: boolean },
+  { noCentsIfWhole, locale }: { noCentsIfWhole: boolean; locale?: string | undefined },
 ): string {
   precision = noCentsIfWhole && price % 1 === 0 ? 0 : precision;
   return (
     currencySymbol +
-    price.toLocaleString(undefined, {
+    price.toLocaleString(locale, {
       minimumFractionDigits: precision,
       maximumFractionDigits: precision,
     })

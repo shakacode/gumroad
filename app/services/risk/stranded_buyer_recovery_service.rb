@@ -68,7 +68,9 @@ class Risk::StrandedBuyerRecoveryService
 
   def call
     return result(:noop, :buyer_not_found) if user.nil? && candidate_purchases.empty?
-    return result(:noop, :no_active_blocks) if active_blocks.empty?
+    # A buyer held only on an account IP still runs every gate below, so the verdict says which
+    # one stands before a human even gets to the IP.
+    return result(:noop, :no_active_blocks) if active_blocks.empty? && account_ip_holds.empty?
 
     # Any row that names an author — a human admin OR the shared automation actor, which writes
     # confirmed-fraud blocks (chargeback count, EFW) — is a decision about this buyer, not a rule
@@ -104,7 +106,7 @@ class Risk::StrandedBuyerRecoveryService
         verify!(clearable)
         record_admin_comment(attribution, clearable)
       end
-      notify_buyer(withheld)
+      notify_buyer(withheld + withheld_account_ip_holds)
     end
 
     result(:cleared, attribution[:rule], attribution:, cleared: clearable, skipped: withheld)
@@ -131,14 +133,22 @@ class Risk::StrandedBuyerRecoveryService
     # Same-email rows owned by a DIFFERENT account are excluded outright (matching
     # Blockable#same_email_guest_purchases): only the buyer's own rows and true guest
     # checkouts may anchor innocence or corroborate identifiers.
+    #
+    # A UNION ALL of two indexed halves: MySQL can't index the OR, so ORDER BY id DESC LIMIT walks the
+    # primary key across all of purchases for a buyer with fewer rows than the limit. One statement
+    # keeps one snapshot, so a guest row attached to the account mid-read can't fall between halves.
     def candidate_purchases
       @_candidate_purchases ||= begin
-        scope = if user.present?
-          Purchase.where("purchaser_id = ? OR (email = ? AND purchaser_id IS NULL)", user.id, user.email)
+        limit = Purchase::Blockable::MAX_SIBLING_PURCHASES_FOR_UNBLOCK
+        if user.present?
+          halves = [Purchase.where(purchaser_id: user.id)]
+          # A nil email must not become `email IS NULL`, which would pull in every email-less guest row.
+          halves << Purchase.where(email: user.email, purchaser_id: nil) unless user.email.nil?
+          union = halves.map { "(#{_1.order(id: :desc).limit(limit).to_sql})" }.join(" UNION ALL ")
+          Purchase.from("(#{union}) AS purchases").order(id: :desc).limit(limit).to_a
         else
-          Purchase.where(email: @email, purchaser_id: nil)
+          Purchase.where(email: @email, purchaser_id: nil).order(id: :desc).limit(limit).to_a
         end
-        scope.order(id: :desc).limit(Purchase::Blockable::MAX_SIBLING_PURCHASES_FOR_UNBLOCK).to_a
       end
     end
 
@@ -219,17 +229,51 @@ class Risk::StrandedBuyerRecoveryService
       end
     end
 
+    # Blocked checkouts in the footprint. Read from candidate_purchases, not buyer_purchases: a
+    # checkout stopped by an IP block never reaches the processor, so it has no fingerprint to
+    # corroborate it. Their addresses only resolve accounts — they never join identifier_emails.
+    def blocked_failures
+      @_blocked_failures ||= candidate_purchases.select { _1.failed? && BLOCK_ERROR_CODES.include?(_1.error_code) }.tap do |rows|
+        ActiveRecord::Associations::Preloader.new(records: rows, associations: :subscription).call
+      end
+    end
+
+    # Every account IP (Purchase::Risk#check_for_past_fraudulent_ips) any blocked checkout could
+    # meet. Classification only: #partition_blocks never clears a row on one of these values.
+    def account_ip_values
+      @_account_ip_values ||= account_ips_for(blocked_failures)
+    end
+
+    # A non-exempt blocked checkout may still hit an account-IP hold on retry, even if an
+    # earlier fraud check stopped its original attempt. Free purchases and renewals cannot.
+    def reported_account_ip_values
+      @_reported_account_ip_values ||= begin
+        ip_checked = blocked_failures.reject(&:checkout_ip_exempt?)
+        ip_checked.any? ? account_ips_for(ip_checked) : Set.new
+      end
+    end
+
+    def account_ips_for(rows)
+      emails = (identifier_emails + Purchase.checkout_ip_lookup_emails(rows).values.flatten).uniq
+      Purchase.checkout_account_ips_by_email(emails).values.flatten.map(&:downcase).to_set
+    end
+
+    # Matched by value whatever the stored type. Deliberately not deduplicated against active_blocks:
+    # a proven guid can equal an IP string, and the row is still an IP hold (see #partition_blocks).
+    def account_ip_holds
+      @_account_ip_holds ||= reported_account_ip_values.any? ? PlatformBlock.active.where(object_value: reported_account_ip_values.to_a).to_a : []
+    end
+
+    def withheld_account_ip_holds
+      account_ip_holds.map { [_1, :shared_identifier_needs_human_review] }
+    end
+
     # blocked_by nil is the only clearable authorship: the velocity rules write nil, while
     # GUMROAD_ADMIN_ID authors confirmed-fraud blocks (chargeback count, EFW) and humans author
     # decisions — both escalate.
     def authored?(block)
       block.blocked_by.present?
     end
-
-    # Innocence is card-proven or it is nothing (see Purchase::Blockable#buyer_has_clean_payment_history?).
-    # Tried per distinct fingerprint, newest first, because the stranded buyer's newest card is often
-    # the reissued one with no history yet — the OLD card is what proves them.
-    ANCHOR_FINGERPRINT_LIMIT = 10
 
     # buyer_has_clean_payment_history? is a GLOBAL fingerprint check — it doesn't care whose email
     # the other settled purchases carry. That's fine when called on a purchase an admin already
@@ -250,12 +294,26 @@ class Risk::StrandedBuyerRecoveryService
            .count >= Purchase::Blockable::MIN_SUCCESSFUL_PURCHASES_FOR_CLEAN_HISTORY
     end
 
+    # Innocence is card-proven or it is nothing (see Purchase::Blockable#buyer_has_clean_payment_history?).
+    # Every distinct fingerprint is tried, newest first: a blocked buyer cycles cards, so the OLD card
+    # that proves them can sit far down the list.
     def clean_history_anchors
-      @_clean_history_anchors ||= candidate_purchases.select { _1.stripe_fingerprint.present? }
-                                                     .sort_by { -_1.id }
-                                                     .uniq(&:stripe_fingerprint)
-                                                     .first(ANCHOR_FINGERPRINT_LIMIT)
-                                                     .select { own_clean_payment_history?(_1) }
+      @_clean_history_anchors ||= begin
+        newest_per_fingerprint = candidate_purchases.select { _1.stripe_fingerprint.present? }
+                                                    .sort_by { -_1.id }
+                                                    .uniq(&:stripe_fingerprint)
+        plausible = plausible_anchor_fingerprints(newest_per_fingerprint.map(&:stripe_fingerprint))
+        newest_per_fingerprint.select { plausible.include?(_1.stripe_fingerprint) && own_clean_payment_history?(_1) }
+      end
+    end
+
+    def plausible_anchor_fingerprints(fingerprints)
+      Purchase.successful.non_free.not_fully_refunded.not_chargedback_or_chargedback_reversed
+              .where(created_at: ..Purchase::Blockable::MIN_PURCHASE_AGE_FOR_CLEAN_HISTORY.ago)
+              .where(stripe_fingerprint: fingerprints)
+              .group(:stripe_fingerprint)
+              .having("COUNT(*) >= ?", Purchase::Blockable::MIN_SUCCESSFUL_PURCHASES_FOR_CLEAN_HISTORY)
+              .pluck(:stripe_fingerprint).to_set
     end
 
     def clean_history_anchor
@@ -334,7 +392,8 @@ class Risk::StrandedBuyerRecoveryService
       clearable = []
       withheld = []
       active_blocks.each do |block|
-        if identifier_ips.include?(block.object_value) || SHARED_RADIUS_TYPES.include?(block.object_type)
+        if identifier_ips.include?(block.object_value) || account_ip_values.include?(block.object_value.downcase) ||
+           SHARED_RADIUS_TYPES.include?(block.object_type)
           withheld << [block, :shared_identifier_needs_human_review]
         elsif CLEARABLE_TYPES.include?(block.object_type) || identifier_guids.include?(block.object_value)
           clearable << block
@@ -433,7 +492,12 @@ class Risk::StrandedBuyerRecoveryService
       CustomerLowPriorityMailer.blocked_purchase_resolved(failed.id).deliver_later(queue: "low")
     end
 
+    # Every verdict carries the account-IP holds, early exits included: a skip or escalation that
+    # hid them would read as "only this gate stands between the buyer and checkout". A row the gates
+    # already listed keeps its own reason (an authored row stays :authored).
     def result(verdict, reason, attribution: nil, cleared: [], skipped: [])
-      Result.new(verdict:, reason:, attribution:, cleared:, skipped:, dry_run:)
+      listed = skipped.map { |block, _why| block.id }.to_set
+      holds = withheld_account_ip_holds.reject { |block, _why| listed.include?(block.id) }
+      Result.new(verdict:, reason:, attribution:, cleared:, skipped: skipped + holds, dry_run:)
     end
 end

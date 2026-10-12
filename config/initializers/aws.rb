@@ -8,17 +8,18 @@ AWS_DEFAULT_REGION = GlobalConfig.get("AWS_DEFAULT_REGION", "us-east-1")
 
 USING_MINIO = AWS_S3_ENDPOINT.present? && !AWS_S3_ENDPOINT.include?("amazonaws.com")
 
-aws_config = { region: AWS_DEFAULT_REGION }
+aws_config = {
+  region: AWS_DEFAULT_REGION,
+  credentials: Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
+}
 # Control Plane uses separate credentials for DynamoDB Local and R2 storage.
 control_plane_benchmark = Rails.env.benchmark? && ENV["CONTROL_PLANE_BENCHMARK"] == "true"
-if AWS_ACCESS_KEY.present? && AWS_SECRET_KEY.present? && !control_plane_benchmark
-  aws_config[:credentials] = Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-end
+aws_config.delete(:credentials) if control_plane_benchmark
 
 # Support for MinIO in development and test environments
 if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
   aws_config[:endpoint] = AWS_S3_ENDPOINT if AWS_S3_ENDPOINT.present?
-  aws_config[:ssl_verify_peer] = false if USING_MINIO
+  aws_config[:ssl_verify_peer] = false if USING_MINIO && !Rails.env.benchmark?
   Aws.config[:s3] = { force_path_style: true }
 end
 

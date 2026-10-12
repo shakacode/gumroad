@@ -1,4 +1,5 @@
-import { Archive, Copy, DotsHorizontalRounded, Trash } from "@boxicons/react";
+import { AlertShield, Archive, Copy, DotsHorizontalRounded, Trash } from "@boxicons/react";
+import { router } from "@inertiajs/react";
 import * as React from "react";
 
 import { archiveProduct, deleteProduct, duplicateProduct, unarchiveProduct } from "$app/data/product_dashboard";
@@ -123,6 +124,17 @@ const ActionsPopover = ({
               >
                 <Archive className="size-5" />
                 {isArchiving ? "Archiving..." : "Archive"}
+              </MenuItem>
+            ) : null}
+            {product.can_report_piracy ? (
+              <MenuItem
+                onClick={() => {
+                  setOpen(false);
+                  router.visit(Routes.new_piracy_report_path({ product_id: product.permalink }));
+                }}
+              >
+                <AlertShield className="size-5" />
+                Report piracy
               </MenuItem>
             ) : null}
             <MenuItem

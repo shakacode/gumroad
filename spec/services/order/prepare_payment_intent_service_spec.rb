@@ -255,6 +255,29 @@ describe Order::PreparePaymentIntentService, :vcr do
       end
     end
 
+    context "when Stripe refuses the destination transfer as an insufficient capability" do
+      before { create(:merchant_account, user: seller) }
+
+      it "names the seller's account as the cause and does not ask the buyer to retry" do
+        order, params = build_order
+        stripe_error = Stripe::InvalidRequestError.new(
+          "Invalid request.", nil, code: "insufficient_capabilities_for_transfer"
+        )
+        allow(Stripe::ConfirmationToken).to receive(:retrieve).and_raise(stripe_error)
+
+        responses = described_class.new(order:, params:, confirmation_token: "ctoken_test").perform
+
+        expect(responses["unique-id-0"][:success]).to eq(false)
+        purchase = order.purchases.first.reload
+        expect(purchase).to be_failed
+        expect(purchase.error_code).to eq(PurchaseErrorCode::PROCESSOR_MERCHANT_CANNOT_RECEIVE_TRANSFERS)
+        expect(purchase.stripe_error_code).to eq("insufficient_capabilities_for_transfer")
+        # The client-confirm route must carry the named copy itself: the caller's generic fill
+        # only writes when `errors` is empty, so relying on it leaves the buyer told to retry.
+        expect(responses["unique-id-0"][:error_message]).to include("isn't able to accept payments")
+      end
+    end
+
     context "when Stripe is unreachable during the ConfirmationToken retrieve" do
       before { create(:merchant_account, user: seller) }
 
@@ -1840,7 +1863,8 @@ describe Order::PreparePaymentIntentService, :vcr do
         # shape, so a card ConfirmationToken minted on it is an EUR token — it can never confirm
         # a USD intent. Every method on the forced-currency element must charge through the
         # forced-currency intent, not just iDEAL/Bancontact.
-        def perform_with_card_preview(order, params, confirmation_token: "ctoken_card_eur")
+        def perform_with_card_preview(order, params, confirmation_token: "ctoken_card_eur", ip_country: "Netherlands")
+          order.purchases.each { _1.update!(ip_country:) }
           preview = Stripe::StripeObject.construct_from(type: "card", card: { country: "NL" })
           allow(Stripe::ConfirmationToken).to receive(:retrieve)
             .and_return(Stripe::StripeObject.construct_from(payment_method_preview: preview))
@@ -1897,6 +1921,16 @@ describe Order::PreparePaymentIntentService, :vcr do
                                                                stripe_fx_quote_id: nil)
           expect(order.purchases.first.reload.purchase_presentment)
             .to have_attributes(presentment_currency: Currency::EUR, presentment_total_cents: 15_00)
+        end
+
+        it "prepares a USD intent for a card buyer outside the eurozone, who is never offered the EUR-forced methods" do
+          order, params = build_order
+          create_args, responses = perform_with_card_preview(order, params, ip_country: "United States")
+
+          expect(create_args[:currency]).to eq(Checkout::StripePaymentPresenter::CLIENT_CONFIRM_CURRENCY)
+          expect(create_args[:payment_method_types]).not_to include("ideal", "bancontact")
+          expect(responses["unique-id-0"][:success]).to eq(true)
+          expect(order.charges.last.charge_presentment).to be_nil
         end
 
         it "fails closed instead of creating a USD intent when the card-path presentment build fails" do
@@ -2306,6 +2340,122 @@ describe Order::PreparePaymentIntentService, :vcr do
 
         expect(responses["unique-id-0"][:success]).to eq(false)
         expect(order.purchases.first.reload.error_code).to eq(PurchaseErrorCode::BUYER_CURRENCY_QUOTE_INVALID)
+      end
+    end
+
+    # Stripe may accept an FX quote but reject it when creating the intent on the
+    # platform account; record the mismatch there, not on the destination account.
+    context "when Stripe rejects the quote at intent create because the platform settles the currency itself" do
+      let(:seller) { create(:user, check_merchant_account_is_linked: true, disable_buyer_local_currency: false) }
+      let!(:destination_account) { create(:merchant_account, user: seller, country: "JP", currency: "jpy") }
+      let!(:platform_account) do
+        MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id)&.tap do |account|
+          account.update!(charge_processor_merchant_id: "acct_gumroad_platform", currency: Currency::USD)
+        end || create(:merchant_account, user: nil, charge_processor_merchant_id: "acct_gumroad_platform", currency: Currency::USD)
+      end
+      let(:settlement_mismatch) do
+        stripe_error = Stripe::InvalidRequestError.new(
+          %(The FX Quote's to_currency: "usd" must match the payment intent's settlement currency: "eur".), nil
+        )
+        ChargeProcessorInvalidRequestError.new(original_error: stripe_error)
+      end
+
+      before do
+        Feature.activate_user(:buyer_local_currency, seller)
+        Feature.activate_user(Checkout::BuyerCurrencyEligibility::FEATURE_NAME, seller)
+        Feature.activate_user(Checkout::BuyerCurrencyEligibility::DESTINATION_CHARGE_FEATURE_NAME, seller)
+        allow(Stripe).to receive(:api_key).and_return("sk_tes...tive")
+        allow(StripeFxQuote).to receive(:create).and_return(
+          StripeFxQuote::Quote.new(id: "fxq_destination_eur", expires_at: 30.minutes.from_now, fx_rate: BigDecimal("1.1"))
+        )
+      end
+
+      after do
+        Feature.deactivate_user(:buyer_local_currency, seller)
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::FEATURE_NAME, seller)
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::DESTINATION_CHARGE_FEATURE_NAME, seller)
+      end
+
+      def prepare_destination_eur_order
+        quote = Checkout::BuyerCurrencyQuote.create(
+          line_items: [
+            Checkout::BuyerCurrencyQuote::LineItem.new(
+              uid: line_item[:uid], line_index: 0, permalink: product.unique_permalink, product:,
+              price_cents: product.price_cents, tip_cents: 0, seller_tax_cents: 0, gumroad_tax_cents: 0, shipping_cents: 0
+            )
+          ],
+          canonical_total_cents: product.price_cents,
+          ip: "203.0.113.1",
+          currency: Currency::EUR
+        )
+        expect(quote).to be_present
+        params = {
+          line_items: [line_item],
+          buyer_currency_quote: quote.token,
+          payment_details_source: PurchasePaymentFlow::PAYMENT_ELEMENT,
+          payment_element_mount_currency: Currency::EUR,
+          payment_method_list_token: Checkout::PaymentMethodListToken.issue(
+            payment_method_types: %w[card link], sellers: [seller], quoted_payment_method_types: %w[card link]
+          ),
+        }.merge(common_params)
+        order, = Order::CreateService.new(params:).perform
+        preview = Stripe::StripeObject.construct_from(type: "card", card: { country: "NL" })
+        allow(Stripe::ConfirmationToken).to receive(:retrieve)
+          .and_return(Stripe::StripeObject.construct_from(payment_method_preview: preview))
+        [order, params]
+      end
+
+      it "records the mismatch on the platform account and asks the buyer to review the updated total" do
+        order, params = prepare_destination_eur_order
+        allow(StripeDeferredPaymentIntent).to receive(:create).and_raise(settlement_mismatch)
+
+        responses = described_class.new(order:, params:, confirmation_token: "ctoken_destination_eur").perform
+
+        expect(responses["unique-id-0"][:success]).to eq(false)
+        expect(responses["unique-id-0"][:error_code]).to eq(PurchaseErrorCode::BUYER_CURRENCY_QUOTE_INVALID)
+        expect(responses["unique-id-0"][:error_message]).to eq(Charge::CreateService::BUYER_CURRENCY_QUOTE_INVALID_MESSAGE)
+        purchase = order.purchases.first.reload
+        expect(purchase).to be_failed
+        expect(purchase.error_code).to eq(PurchaseErrorCode::BUYER_CURRENCY_QUOTE_INVALID)
+        expect(platform_account.reload.settlement_currency_mismatch_active?(Currency::EUR)).to eq(true)
+        expect(platform_account.settlement_currency_mismatch_active?(Currency::GBP)).to eq(false)
+        expect(destination_account.reload.settlement_currency_mismatch_active?(Currency::EUR)).to eq(false)
+        expect(order.charges.last&.charge_presentment).to be_nil
+      end
+
+      it "keeps other invalid-request rejections as processor_invalid_request" do
+        order, params = prepare_destination_eur_order
+        other = ChargeProcessorInvalidRequestError.new(original_error: Stripe::InvalidRequestError.new("Something else.", nil))
+        allow(StripeDeferredPaymentIntent).to receive(:create).and_raise(other)
+
+        described_class.new(order:, params:, confirmation_token: "ctoken_destination_other").perform
+
+        expect(order.purchases.first.reload.error_code).to eq(PurchaseErrorCode::PROCESSOR_INVALID_REQUEST)
+        expect(platform_account.reload.settlement_currency_mismatch_active?(Currency::EUR)).to eq(false)
+      end
+
+      it "stops quoting that currency on the next checkout once the mismatch is learned" do
+        order, params = prepare_destination_eur_order
+        allow(StripeDeferredPaymentIntent).to receive(:create).and_raise(settlement_mismatch)
+        described_class.new(order:, params:, confirmation_token: "ctoken_destination_eur").perform
+
+        expect(
+          Checkout::BuyerCurrencyEligibility.usd_settling_merchant_account?(destination_account, presentment_currency: Currency::EUR, seller:)
+        ).to eq(false)
+        expect(StripeFxQuote).not_to receive(:create)
+        expect(
+          Checkout::BuyerCurrencyQuote.create(
+            line_items: [
+              Checkout::BuyerCurrencyQuote::LineItem.new(
+                uid: line_item[:uid], line_index: 0, permalink: product.unique_permalink, product:,
+                price_cents: product.price_cents, tip_cents: 0, seller_tax_cents: 0, gumroad_tax_cents: 0, shipping_cents: 0
+              )
+            ],
+            canonical_total_cents: product.price_cents,
+            ip: "203.0.113.1",
+            currency: Currency::EUR
+          )
+        ).to be_nil
       end
     end
 

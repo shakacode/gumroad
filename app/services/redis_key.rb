@@ -27,10 +27,8 @@ class RedisKey
     def auto_topup_negative_destination_balance_last_amount(merchant_account_id) = "auto_topup_negative_destination_balance:#{merchant_account_id}:last_amount_cents"
     def ai_request_throttle(user_id) = "ai_request_throttle:#{user_id}"
     def agent_request_throttle(user_id) = "agent_request_throttle:#{user_id}"
-    def gumhead_gateway_throttle(user_id) = "gumhead_gateway_throttle:#{user_id}"
-    def gumhead_gateway_in_flight(user_id) = "gumhead_gateway_in_flight:#{user_id}"
-    def gumhead_model_map = "gumhead_model_map"
-    def gumhead_client_versions = "gumhead_client_versions"
+    def team_invitation_send_throttle(seller_id) = "team_invitation_send_throttle:#{seller_id}"
+    def team_invitation_burst_reported(seller_id) = "team_invitation_burst_reported:#{seller_id}"
     def agent_turn_status(user_id, client_turn_id) = "agent_turn_status:#{user_id}:#{client_turn_id}"
     def agent_custom_html_preview(user_id, token) = "agent_custom_html_preview:#{user_id}:#{token}"
     def agent_custom_html_preview_index(user_id) = "agent_custom_html_preview_index:#{user_id}"
@@ -42,6 +40,7 @@ class RedisKey
     def blast_recipients_slice_size = "blast:recipients_slice_size"
     def grouped_receipt_send_claim(email, digest) = "grouped_receipt_send_claim:#{Digest::SHA256.hexdigest(email.to_s.downcase)}:#{digest}"
     def blast_sent_emails(blast_id) = "blast:#{blast_id}:sent_emails"
+    def blast_skipped_emails(blast_id) = "blast:#{blast_id}:skipped_emails"
     def blast_audience_snapshot(blast_id) = "blast:#{blast_id}:audience_snapshot"
     def blast_non_opener_emails(blast_id) = "blast:#{blast_id}:non_opener_emails"
     def blast_pending_recipients(blast_id) = "blast:#{blast_id}:pending_recipients"
@@ -84,7 +83,6 @@ class RedisKey
     def seller_age_threshold_days = "seller_age_threshold_days"
     def sales_report_jobs = "sales_report_jobs"
     def acme_challenge(token) = "acme_challenge:#{token}"
-    def walks_app_attest_challenge(challenge) = "walks_app_attest_challenge:#{challenge}"
     def paypal_topup_needed = "paypal:topup_needed"
     # Set (with a TTL) by each weekly payout batch job while it runs, so the
     # deploy pipeline can ask "is a payout batch in flight right now?" instead
@@ -136,6 +134,15 @@ class RedisKey
     # the seller was told. See ContactingCreatorMailer#review_submitted.
     def product_review_seller_notified(review_id) = "product_review_seller_notified:#{review_id}"
     def workflow_seller_fanout_lock(seller_id) = "workflow_seller_fanout_lock:#{seller_id}"
+    # One sitemap generation at a time: SitemapGenerator::Sitemap keeps its output path on
+    # the class, so two runs in one process write into each other's path. See SitemapService.
+    def sitemap_generation_lock = "sitemap_generation_lock"
+    # One Merchant Center feed run at a time; see MerchantCenterFeedRun.
+    def merchant_center_feed_lock = "merchant_center_feed_lock"
+    # Units the current feed run has finished, so a retry resumes after them.
+    def merchant_center_feed_progress = "merchant_center_feed_progress"
+    # Highest id-range shard to publish. Unset means the legacy file only.
+    def merchant_center_feed_max_shard = "merchant_center_feed_max_shard"
     def workflow_seller_fanout_lock_ttl_seconds = "workflow_seller_fanout_lock_ttl_seconds"
     def workflow_seller_fanout_retry_seconds = "workflow_seller_fanout_retry_seconds"
     def workflow_immediate_fanout_threshold = "workflow_immediate_fanout_threshold"
@@ -145,6 +152,7 @@ class RedisKey
     def seller_large_blast_deferral_window_start_seconds = "seller_large_blast_deferral_window_start_seconds"
     def seller_large_blast_deferral_window_length_seconds = "seller_large_blast_deferral_window_length_seconds"
     def seller_large_blast_quota(seller_id, day) = "seller_large_blast_quota:#{seller_id}:#{day}"
+    def seller_large_workflow_quota(seller_id, day) = "seller_large_workflow_quota:#{seller_id}:#{day}"
     # LIST of JSON {i: installment_id, p: purchase_id, t: epoch} pending an email_infos delivered UPDATE.
     def email_info_delivered_buffer = "email_info:delivered_buffer"
     def email_info_delivered_inflight = "email_info:delivered_inflight"

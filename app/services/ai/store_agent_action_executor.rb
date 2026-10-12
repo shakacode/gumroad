@@ -65,15 +65,25 @@ class Ai::StoreAgentActionExecutor
     # so such a call would drop the value the seller confirmed (e.g. a price sent as "price_cents")
     # and fail downstream with a confusing internal error. The propose path (StoreAgentService)
     # already rejects these, so a well-formed proposal never hits this.
+    # Server-only keys are accepted here because a persisted proposal can only carry them via the
+    # verified undo path; the propose path refuses them from the model.
     body = normalize_body(params[:params])
-    unknown_keys_error = endpoint.unknown_param_keys_error(body)
+    unknown_keys_error = endpoint.unknown_param_keys_error(body, server_params_allowed: true)
     if unknown_keys_error
       return failure(unknown_keys_error, reason: "unknown_parameters", retry_safe: true)
     end
 
-    response = api_client.write(endpoint.method, path, body)
+    if (error = endpoint.email_audience_error(body, seller:))
+      return failure(error, reason: "invalid_parameters", retry_safe: true)
+    end
 
-    interpret(endpoint, response)
+    response = api_client.write(endpoint.method, path, body, json_body: endpoint.json_body?)
+
+    result = interpret(endpoint, response)
+    if result[:success] && (receipt = Ai::StoreAgentHtmlUndo.receipt(endpoint: endpoint.id, path_params: params[:path_params].to_h, body: body.stringify_keys, response:))
+      result[:html_undo] = receipt
+    end
+    result
   end
 
   private
@@ -88,7 +98,7 @@ class Ai::StoreAgentActionExecutor
       api_success = response["success"]
 
       if api_success == true || (api_success.nil? && status.between?(200, 299))
-        object = Ai::StoreAgentObjectFormatter.from_response(endpoint, response).first
+        object = Ai::StoreAgentObjectFormatter.from_response(endpoint, response, seller:).first
         success(response["message"].presence || "Done: #{endpoint.summary}", object:)
       elsif status == 401 || status == 403
         # Every response interpreted here arrived after `api_client.write` dispatched the nested
@@ -96,6 +106,9 @@ class Ai::StoreAgentActionExecutor
         # before the response was rendered, so it must not make the one-shot claim retry-safe. Only
         # the executor's permission check above, which runs before dispatch, can make that guarantee.
         failure("You don't have permission to do that.", reason: "permission_denied", status:)
+      elsif response["reason"] == "stale_known_sections"
+        # The sections write refuses under the product lock before it changes anything.
+        failure("A section was added after this change was prepared. Ask the agent to prepare this change again.", reason: "stale_known_sections", retry_safe: true)
       else
         failure(
           response["message"].presence || response["error"].presence || "That change couldn't be saved.",

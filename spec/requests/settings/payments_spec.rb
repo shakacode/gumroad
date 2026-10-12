@@ -367,7 +367,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
 
       choose("Business")
       fill_in("Legal business name", with: "Acme")
-      select("LLC", from: "Type")
+      select("LLC (single member)", from: "Type")
       find_field("Address", match: :first).set("123 North street")
       find_field("City", match: :first).set("Barnesville")
       find_field("State", match: :first).select("State")
@@ -431,7 +431,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
 
         old_ach_account = @user.active_ach_account
 
-        fill_in("Address", with: "address_full_match")
+        fill_in("Address", with: "address_full_match", fill_options: { clear: :backspace })
         click_on("Update settings")
 
         expect(page).to have_alert(text: "Thanks! You're all set.")
@@ -540,7 +540,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         @user.mark_compliant!(author_id: @user.id)
         visit settings_payments_path
 
-        fill_in "Pay to the order of", with: "Gumhead Moneybags"
+        fill_in "Pay to the order of", with: "Gumhead Moneybags", fill_options: { clear: :backspace }
         click_on("Update settings")
         expect(page).to have_alert(text: "Thanks! You're all set.")
 
@@ -676,7 +676,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
 
         choose "Business"
         fill_in "Legal business name", with: "Acme"
-        select "LLC", from: "Type"
+        select "LLC (single member)", from: "Type"
         find_field("Address", match: :first).set("PO Box 123 North street")
         find_field("City", match: :first).set("Barnesville")
         find_field("State", match: :first).select("California")
@@ -699,6 +699,13 @@ describe("Payments Settings Scenario", type: :system, js: true) do
           click_on "Update settings"
           expect(page).to have_status(text: "We require a valid physical US address. We cannot accept a P.O. Box as a valid address.")
         end.to_not change { @user.alive_user_compliance_info.reload.street_address }
+        find(:css, "input[id$='creator-street-address']").set("123 North street, Post Office Box 95")
+        expect(UpdateUserComplianceInfo).not_to receive(:new)
+        expect do
+          click_on "Update settings"
+          expect(page).to have_status(text: "We require a valid physical US address. We cannot accept a P.O. Box as a valid address.")
+        end.to_not change { @user.alive_user_compliance_info.reload.street_address }
+        expect(find(:css, "input[id$='creator-street-address']")["aria-invalid"]).to eq "true"
       end
     end
 
@@ -721,7 +728,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         choose "Business"
 
         fill_in("Legal business name", with: "US LLC with Brazilian rep")
-        select("LLC", from: "Type")
+        select("LLC (single member)", from: "Type")
         find_field("Address", match: :first).set("address_full_match")
         find_field("City", match: :first).set("NY")
         find_field("State", match: :first).select("New York")
@@ -765,7 +772,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.business_country).to eq("United States")
         expect(compliance_info.business_zip_code).to eq("10110")
         expect(compliance_info.business_phone).to eq("+15052426789")
-        expect(compliance_info.business_type).to eq("llc")
+        expect(compliance_info.business_type).to eq("single_member_llc")
         expect(compliance_info.business_tax_id.decrypt("1234")).to eq("000000000")
         expect(compliance_info.first_name).to eq("Brazilian")
         expect(compliance_info.last_name).to eq("Creator")
@@ -790,6 +797,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
           create(
             :user_compliance_info_business,
             user: @user,
+            business_type: UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC,
             business_phone: "+15052426789",
             phone: "+15022541982",
             birthday: Date.new(1980, 1, 1),
@@ -809,6 +817,28 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         compliance_info = @user.reload.alive_user_compliance_info
         expect(compliance_info.business_street_address).to eq("456 Updated Business Lane")
         expect(compliance_info.business_tax_id.decrypt("1234")).to eq("000000000")
+      end
+      it "requires a legacy LLC to choose its member count before saving" do
+        previous_info = @user.alive_user_compliance_info
+        legacy_info = previous_info.dup
+        legacy_info.business_type = UserComplianceInfo::BusinessTypes::LLC
+        ActiveRecord::Base.transaction do
+          previous_info.mark_deleted!
+          legacy_info.save!
+        end
+
+        visit settings_payments_path
+        expect(page).to have_select("Type", selected: "Select a type")
+        expect(page).to have_text("Your saved type is no longer offered. Choose a new one before saving.")
+        click_on("Update settings")
+        expect(page).to have_text("Please complete the required fields below: Type.")
+        expect(@user.reload.alive_user_compliance_info.business_type).to eq("llc")
+
+        select "LLC (multi-member)", from: "Type"
+        click_on("Update settings")
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.reload.alive_user_compliance_info.business_type).to eq("multi_member_llc")
+        expect(@user.alive_user_compliance_info.business_tax_id.decrypt("1234")).to eq("000000000")
       end
     end
 
@@ -950,11 +980,11 @@ describe("Payments Settings Scenario", type: :system, js: true) do
     it "allows US creator to switch to ACH" do
       @user.update(payment_address: "barny@paypal.com")
       visit settings_payments_path
-      click_on "Switch to direct deposit"
+      click_on "Set up direct deposit"
       expect(page).to_not have_field("PayPal Email")
     end
 
-    it "does not offer direct deposit to an India creator, who cannot complete bank setup" do
+    it "explains why direct deposit is unavailable for an India creator who cannot complete bank setup" do
       @user.update!(payment_address: "barny@paypal.com")
       old_user_compliance_info = @user.alive_user_compliance_info
       new_user_compliance_info = old_user_compliance_info.dup
@@ -967,14 +997,16 @@ describe("Payments Settings Scenario", type: :system, js: true) do
       visit settings_payments_path
 
       expect(page).to have_field("PayPal Email")
-      expect(page).to_not have_button("Switch to direct deposit")
+      expect(page).to_not have_button("Switch to direct deposit", disabled: :all)
+      expect(page).to_not have_button("Set up direct deposit", disabled: :all)
+      expect(page).to have_content("Switching to direct deposit is unavailable because new bank payout accounts cannot be set up in India.")
     end
 
     it "keeps the creator on PayPal payouts if the bank account info is not entered" do
       @user.update!(payment_address: "paypal-gr-integspecs@gumroad.com")
 
       visit settings_payments_path
-      click_on "Switch to direct deposit"
+      click_on "Set up direct deposit"
       expect(page).to_not have_field("PayPal Email")
       expect(page).to have_field("Pay to the order of")
       expect(@user.reload.payment_address).to eq("paypal-gr-integspecs@gumroad.com")
@@ -983,7 +1015,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
       expect(page).to have_field("PayPal Email")
       expect(page).to_not have_field("Pay to the order of")
 
-      click_on "Switch to direct deposit"
+      click_on "Set up direct deposit"
       expect(page).to_not have_field("PayPal Email")
       fill_in("First name", with: "barnabas")
       fill_in("Last name", with: "barnabastein")
@@ -1199,7 +1231,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
           within_modal do
             expect(page).to have_content "Confirm payout method change"
             expect(page).to have_content "Due to limitations with our payments provider, changing payout method from bank account to PayPal means that you will have to forfeit your existing balance of #{@user.formatted_balance_to_forfeit(:payout_method_change)}"
-            expect(page).to have_content "Please confirm that you're okay forfeiting your balance by typing \"I understand\" below and clicking Confirm."
+            expect(page).to have_content "Please confirm that you understand by typing \"I understand\" below and clicking Confirm."
             click_on "Cancel"
           end
 
@@ -1209,7 +1241,9 @@ describe("Payments Settings Scenario", type: :system, js: true) do
           within_modal do
             expect(page).to have_content "Confirm payout method change"
             expect(page).to have_content "Due to limitations with our payments provider, changing payout method from bank account to PayPal means that you will have to forfeit your existing balance of #{@user.formatted_balance_to_forfeit(:payout_method_change)}"
-            expect(page).to have_content "Please confirm that you're okay forfeiting your balance by typing \"I understand\" below and clicking Confirm."
+            expect(page).to have_content "Your bank account #{@user.active_bank_account.account_number_visual} will also be removed from your payout settings."
+            expect(page).to have_content "Please confirm that you understand by typing \"I understand\" below and clicking Confirm."
+            expect(page).to have_button("Confirm", disabled: true)
             fill_in "I understand", with: "I understand"
             click_on "Confirm"
           end
@@ -1913,6 +1947,31 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
       end
+
+      it "allows to enter the 8-character SWIFT / BIC code a Korean bank publishes" do
+        visit settings_payments_path
+
+        fill_in("First name", with: "barnabas")
+        fill_in("Last name", with: "barnabastein")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "barnabasville")
+        fill_in("Phone number", with: "23123456")
+        fill_in("Postal code", with: "10169")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+
+        fill_in("Pay to the order of", with: "barnabas ngagy")
+        fill_in("Bank code", with: "NACFKRSE")
+        fill_in("Account #", with: "000123456789")
+        fill_in("Confirm account #", with: "000123456789")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.reload.active_bank_account.routing_number).to eq("NACFKRSE")
+      end
     end
 
     describe "AE business" do
@@ -2244,6 +2303,8 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "barnabas ngagy")
+        expect(page).to have_field("Bank Identifier Code (BIC)", placeholder: "BOPIPHMM")
+        expect(page).to have_content("Your bank's 8 or 11 character SWIFT/BIC code, using letters and numbers.")
         fill_in("Bank Identifier Code (BIC)", with: "BCDEPHM1123")
         fill_in("Account #", with: "01567890123456789")
         fill_in("Confirm account #", with: "01567890123456789")
@@ -4336,7 +4397,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
 
         visit settings_payments_path
 
-        fill_in("First name", with: "newfirst")
+        fill_in("First name", with: "newfirst", fill_options: { clear: :backspace })
         click_on("Update settings")
 
         expect(page).to have_alert(text: "Thanks! You're all set.")
@@ -4360,7 +4421,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
 
         visit settings_payments_path
 
-        fill_in("First name", with: "newfirst")
+        fill_in("First name", with: "newfirst", fill_options: { clear: :backspace })
         click_on("Update settings")
 
         expect(page).to have_alert(text: "Thanks! You're all set.")
@@ -4694,7 +4755,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1901", from: "Year")
 
         fill_in("Pay to the order of", with: "Chuck Bartowski")
-        fill_in("Bank code", with: "040")
+        select("Cooperativa San Joaquín", from: "Bank")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
         fill_in("Cédula de Identidad (CI)", with: "00123456")
@@ -4705,7 +4766,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         click_on("Update settings")
 
         expect(page).to have_alert(text: "Thanks! You're all set.")
-        expect(page).to have_content("Bank code")
+        expect(page).to have_field("Bank", with: "Cooperativa San Joaquín", disabled: true)
         compliance_info = @user.alive_user_compliance_info
         expect(compliance_info.first_name).to eq("Bolivian")
         expect(compliance_info.last_name).to eq("Creator")
@@ -5221,6 +5282,33 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
         expect(@user.reload.active_bank_account.routing_number).to eq("AAAAPAPAXXX")
+      end
+
+      it "allows to enter the 8-character SWIFT / BIC code a Panamanian bank publishes" do
+        visit settings_payments_path
+
+        fill_in("First name", with: "Panamanian")
+        fill_in("Last name", with: "Creator")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "Panama City")
+        fill_in("Phone number", with: "61234567")
+        fill_in("Postal code", with: "00000")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1901", from: "Year")
+
+        fill_in("Pay to the order of", with: "Panamanian creator")
+        fill_in("Account #", with: "000123456789")
+        fill_in("Confirm account #", with: "000123456789")
+        fill_in("SWIFT / BIC Code", with: "BAGEPAPA")
+
+        expect(page).to have_content("Your bank's SWIFT/BIC code, 8 or 11 characters")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BAGEPAPA")
       end
     end
 
@@ -5861,6 +5949,31 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("QA87CITI123456789012345678901")
         expect(@user.reload.active_bank_account.routing_number).to eq("AAAAQAQAXXX")
+      end
+
+      it "accepts the 8-character SWIFT / BIC code a Qatari bank publishes" do
+        visit settings_payments_path
+
+        fill_in("First name", with: "Qatar")
+        fill_in("Last name", with: "Creator")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "Doha")
+        fill_in("Phone number", with: "33123456")
+        fill_in("Postal code", with: "12345")
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+        fill_in("Pay to the order of", with: "Qatar Creator")
+        fill_in("SWIFT / BIC Code", with: "QNBAQAQA")
+        fill_in("IBAN", with: "QA87CITI123456789012345678901")
+        fill_in("Confirm IBAN", with: "QA87CITI123456789012345678901")
+
+        expect(page).to have_content("Your bank's SWIFT/BIC code, 8 or 11 characters")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.reload.active_bank_account.routing_number).to eq("QNBAQAQA")
       end
     end
 
@@ -6741,6 +6854,56 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(user.reload.payouts_paused_by_user?).to be false
       end
 
+      context "when a chargeback-rate hold applies" do
+        before do
+          user.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM)
+          user.comments.create!(
+            content: "Payouts automatically paused due to chargeback rate.",
+            comment_type: Comment::COMMENT_TYPE_ON_PROBATION,
+            author_name: User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:high_chargeback_rate]
+          )
+        end
+
+        it "lets a seller who also paused their payouts turn their own pause off" do
+          user.update!(payouts_paused_by_user: true)
+          visit settings_payments_path
+
+          expect(page).to have_status(text: "Turn off Pause payouts below and save")
+          within_section "Payout schedule", section_element: :section do
+            uncheck "Pause payouts", checked: true
+          end
+          click_on "Update settings"
+
+          expect(page).to have_alert(text: "Thanks! You're all set.")
+          expect(user.reload.payouts_paused_by_user?).to be false
+          expect(user.chargeback_rate_payout_reserve_active?).to be true
+
+          refresh
+
+          expect(page).to have_status(text: "We're holding 25% of your balance in reserve")
+          within_section "Payout schedule", section_element: :section do
+            expect(page).to have_field("Pause payouts", disabled: true, checked: true)
+          end
+        end
+
+        it "keeps the toggle locked when the seller has not paused their own payouts" do
+          visit settings_payments_path
+
+          within_section "Payout schedule", section_element: :section do
+            expect(page).to have_field("Pause payouts", disabled: true, checked: true)
+          end
+        end
+      end
+
+      it "keeps the toggle locked for a security hold even when the seller also paused their payouts" do
+        user.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM, payouts_paused_by_user: true)
+        visit settings_payments_path
+
+        within_section "Payout schedule", section_element: :section do
+          expect(page).to have_field("Pause payouts", disabled: true, checked: true)
+        end
+      end
+
       it "disables the toggle when payouts are paused internally by admin" do
         user.update!(payouts_paused_internally: true)
         visit settings_payments_path
@@ -6798,7 +6961,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         visit settings_payments_path
 
         field = find_field("Minimum payout threshold", with: "100")
-        field.fill_in(with: "50")
+        field.fill_in(with: "50", fill_options: { clear: :backspace })
 
         expect(field["aria-invalid"]).to eq("true")
         expect(page).to have_text("The minimum payout threshold for United States is $100.")
@@ -6820,13 +6983,15 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         before do
           user.active_bank_account.mark_deleted!
           create(:korea_bank_account, user:)
+          # Saving settings creates the Stripe account; test-mode Stripe rejects the recipient agreement for KR.
+          allow(StripeMerchantAccountManager).to receive(:create_account)
         end
 
         it "shows the minimum payout threshold for the country" do
           visit settings_payments_path
 
           field = find_field("Minimum payout threshold", with: "100")
-          field.fill_in(with: "50")
+          field.fill_in(with: "50", fill_options: { clear: :backspace })
 
           expect(field["aria-invalid"]).to eq("true")
           expect(page).to have_text("The minimum payout threshold for South Korea is $100.")

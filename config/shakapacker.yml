@@ -20,8 +20,12 @@ development:
 test:
   <<: *default
 
-benchmark:
+staging:
   <<: *default
 
 production:
   <<: *default
+
+benchmark:
+  <<: *default
+  use_content_hash: true

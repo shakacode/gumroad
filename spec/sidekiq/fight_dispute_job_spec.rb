@@ -3,6 +3,8 @@
 require "spec_helper"
 
 describe FightDisputeJob do
+  include_context "without the weekend window extension"
+
   describe "#perform" do
     let(:dispute_evidence) { create(:dispute_evidence) }
     let(:dispute) { dispute_evidence.dispute }
@@ -115,6 +117,31 @@ describe FightDisputeJob do
           end
         end
 
+        context "when the window was extended over a weekend" do
+          let(:stamp) { Time.utc(2026, 10, 10, 16, 18) }
+
+          before do
+            stub_const("DisputeEvidence::WEEKEND_EXTENSION_STARTS_AT", Time.utc(2026, 10, 5))
+            dispute_evidence.update!(seller_contacted_at: stamp)
+          end
+
+          it "does nothing after 72 hours, while the extended window is still open" do
+            travel_to(stamp + 73.hours) do
+              expect_any_instance_of(Purchase).not_to receive(:fight_chargeback)
+              described_class.new.perform(dispute.id)
+              expect(dispute_evidence.reload.resolved?).to eq(false)
+            end
+          end
+
+          it "submits once the extended window has closed" do
+            travel_to(stamp + 120.hours + 1.minute) do
+              expect_any_instance_of(Purchase).to receive(:fight_chargeback)
+              described_class.new.perform(dispute.id)
+              expect(dispute_evidence.reload.resolution).to eq(DisputeEvidence::RESOLUTION_SUBMITTED)
+            end
+          end
+        end
+
         context "when the seller has not saved a response" do
           context "when there are still hours left to submit evidence" do
             before do
@@ -132,6 +159,86 @@ describe FightDisputeJob do
             it_behaves_like "submitted dispute evidence"
           end
         end
+      end
+    end
+
+    context "when the processor left out the seller's customer communication file" do
+      before do
+        dispute_evidence.update_as_not_seller_contacted!
+        allow_any_instance_of(Purchase).to receive(:fight_chargeback).and_return([:customer_communication])
+      end
+
+      it "resolves as submitted, records why, and tells the seller" do
+        expect do
+          described_class.new.perform(dispute.id)
+        end.to have_enqueued_mail(ContactingCreatorMailer, :chargeback_evidence_file_omitted).with(dispute.id)
+
+        dispute_evidence.reload
+        expect(dispute_evidence.resolution).to eq(DisputeEvidence::RESOLUTION_SUBMITTED)
+        expect(dispute_evidence.error_message).to eq(described_class::CUSTOMER_COMMUNICATION_OMITTED_MESSAGE)
+      end
+    end
+
+    context "when nothing was left out" do
+      before do
+        dispute_evidence.update_as_not_seller_contacted!
+        allow_any_instance_of(Purchase).to receive(:fight_chargeback).and_return([])
+      end
+
+      it "does not email the seller" do
+        expect do
+          described_class.new.perform(dispute.id)
+        end.to_not have_enqueued_mail(ContactingCreatorMailer, :chargeback_evidence_file_omitted)
+        expect(dispute_evidence.reload.error_message).to be_nil
+      end
+    end
+
+    # A retry whose previous attempt reached Stripe but lost the response.
+    context "when Stripe says the evidence was already submitted" do
+      let(:error_message) { "(Status 400) You've reached the maximum number of evidence submissions for this dispute." }
+
+      before do
+        dispute_evidence.update_as_not_seller_contacted!
+        allow_any_instance_of(Purchase).to receive(:fight_chargeback)
+          .and_raise(ChargeProcessorInvalidRequestError.new(error_message))
+      end
+
+      it "resolves as submitted instead of retrying" do
+        expect do
+          described_class.new.perform(dispute.id)
+        end.to_not have_enqueued_mail(ContactingCreatorMailer, :chargeback_evidence_file_omitted)
+
+        dispute_evidence.reload
+        expect(dispute_evidence.resolution).to eq(DisputeEvidence::RESOLUTION_SUBMITTED)
+        expect(dispute_evidence.error_message).to eq(error_message)
+      end
+
+      context "and the seller's file was left out of that submission" do
+        before do
+          error = ChargeProcessorInvalidRequestError.new(error_message)
+          error.omitted_evidence_fields = [:customer_communication]
+          allow_any_instance_of(Purchase).to receive(:fight_chargeback).and_raise(error)
+        end
+
+        it "still tells the seller" do
+          expect do
+            described_class.new.perform(dispute.id)
+          end.to have_enqueued_mail(ContactingCreatorMailer, :chargeback_evidence_file_omitted).with(dispute.id)
+          expect(dispute_evidence.reload.resolution).to eq(DisputeEvidence::RESOLUTION_SUBMITTED)
+        end
+      end
+    end
+
+    context "when the processor raises any other invalid request" do
+      before do
+        dispute_evidence.update_as_not_seller_contacted!
+        allow_any_instance_of(Purchase).to receive(:fight_chargeback)
+          .and_raise(ChargeProcessorInvalidRequestError.new("(Status 400) Invalid file."))
+      end
+
+      it "raises so Sidekiq retries" do
+        expect { described_class.new.perform(dispute.id) }.to raise_error(ChargeProcessorInvalidRequestError)
+        expect(dispute_evidence.reload.resolved?).to eq(false)
       end
     end
   end

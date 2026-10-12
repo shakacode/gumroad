@@ -110,6 +110,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
           is_processing: true,
           arrival_date: 3.days.from_now.strftime("%B #{3.days.from_now.day.ordinalize}, %Y"),
           status: "processing",
+          is_current_period: false,
           payment_external_id: "12345",
           sales_cents: 1000,
           refunds_cents: 0,
@@ -155,6 +156,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
             is_processing: true,
             arrival_date: 3.days.from_now.strftime("%B #{3.days.from_now.day.ordinalize}, %Y"),
             status: "processing",
+            is_current_period: false,
             payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
             sales_cents: 10000,
             refunds_cents: 0,
@@ -206,6 +208,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
           is_processing: true,
           arrival_date: nil,
           status: "processing",
+          is_current_period: false,
           payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
           sales_cents: 10000,
           refunds_cents: 0,
@@ -241,6 +244,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
 
         top_period_data = {
           status: "not_payable",
+          is_current_period: true,
           should_be_shown_currencies_always: true,
           minimum_payout_amount_cents: 10_000,
         }
@@ -254,6 +258,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
           payout_displayed_amount: "$90.70 USD",
           arrival_date: nil,
           status: "completed",
+          is_current_period: false,
           is_processing: false,
           payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
           sales_cents: 10000,
@@ -359,6 +364,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
               payout_displayed_amount: "$90.70 USD",
               arrival_date: nil,
               status: "payable",
+              is_current_period: true,
               payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
               sales_cents: 10000,
               refunds_cents: 0,
@@ -435,6 +441,26 @@ describe "Balance Pages Scenario", js: true, type: :system do
           end
         end
 
+        context "when payouts are paused and the destination is a PayPal account" do
+          before do
+            seller.update!(
+              payouts_paused_internally: true,
+              payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM,
+              payment_address: "seller-paypal@example.com"
+            )
+          end
+
+          it "reads the current period's destination in the future tense" do
+            travel_to(Date.parse("2013-08-14")) do
+              visit balance_path
+
+              expect(page).to have_section("Next payout: paused")
+              expect(page).to have_css("h4", text: "Will be sent to PayPal account: seller-paypal@example.com")
+              expect(page).to have_no_css("h4", text: /\ASent to PayPal account:/)
+            end
+          end
+        end
+
         context "when the chargeback-rate reserve is active" do
           before do
             seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM)
@@ -445,7 +471,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
             )
           end
 
-          it "shows the reserve banner and a Held in reserve line with the withheld dollar amount" do
+          it "shows the reserve banner and a Held back line with the withheld dollar amount" do
             data = {
               should_be_shown_currencies_always: true,
               displayable_payout_period_range: "Activity up to May 6th, 2022",
@@ -455,6 +481,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
               payout_displayed_amount: "$300.00 USD",
               arrival_date: nil,
               status: "paused",
+              is_current_period: true,
               sales_cents: 400_00,
               refunds_cents: 0,
               chargebacks_cents: 0,
@@ -482,8 +509,8 @@ describe "Balance Pages Scenario", js: true, type: :system do
             visit balance_path
 
             expect(page).to have_status(text: "We're holding 25% of your balance in reserve while your chargeback rate is above 1.5%. The rest pays out on the normal weekly schedule.")
-            expect(page).to have_content("Held in reserve (25%)")
-            expect(get_label_value.call("Held in reserve (25%)")).to eq("- $100.00 USD")
+            expect(page).to have_content("Held back by chargeback reserve")
+            expect(get_label_value.call("Held back by chargeback reserve")).to eq("- $100.00 USD")
             expect(page).to have_content("Sales")
             expect(page).to have_content("Fees")
           end
@@ -753,6 +780,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
           is_processing: false,
           arrival_date: nil,
           status: "payable",
+          is_current_period: true,
           payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
           sales_cents: 11000,
           refunds_cents: 0,
@@ -799,6 +827,7 @@ describe "Balance Pages Scenario", js: true, type: :system do
           is_processing: true,
           arrival_date: 3.days.from_now.strftime("%B #{3.days.from_now.day.ordinalize}, %Y"),
           status: "processing",
+          is_current_period: false,
           payment_external_id: "l5C1XQfr2TG3WXcGY7YrUg==",
           sales_cents: 11000,
           refunds_cents: 0,

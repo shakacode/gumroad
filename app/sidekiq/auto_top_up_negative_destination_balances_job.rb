@@ -7,12 +7,19 @@
 # invisible to the alert's scan, so a topped-up candidate keeps reappearing daily — expected.
 class AutoTopUpNegativeDestinationBalancesJob
   include Sidekiq::Job
+  include CurrencyHelper
   sidekiq_options retry: 1, queue: :low
 
   # Bounds one run's blast radius — real money moves per candidate. The scan itself already
   # ranks worst-first (AlertOnNegativeDestinationBalancesJob#report_order), so a bounded run
   # reaches the biggest gaps first rather than an arbitrary subset.
   MAX_TOPUPS_PER_RUN = 10
+
+  # Transfers are sent in USD: the platform balance holds no fundable non-USD balance, so a
+  # destination-currency transfer is rejected by Stripe. Confirm destination credit before
+  # recording funding. An FX shortfall needs human reconciliation.
+  TRANSFER_MESSAGE = "Reconciling negative destination ledger (gumroad-private#1903, exact FX auto top-up)"
+  private_constant :TRANSFER_MESSAGE
 
   # A leg-two reconciliation pass can take days; this only needs to outlive the daily scan
   # cadence so a candidate isn't re-transferred before a human gets to it.
@@ -43,7 +50,7 @@ class AutoTopUpNegativeDestinationBalancesJob
     outcomes = candidates.map { |entry| topup(entry, live:) }
 
     InternalNotificationWorker.perform_async(
-      "payouts", "Negative destination balance top-ups", message_for(outcomes, live:, total: scan[:payable].size)
+      "payouts", subject_for(outcomes, live:), message_for(outcomes, live:, total: scan[:payable].size)
     )
   end
 
@@ -100,7 +107,10 @@ class AutoTopUpNegativeDestinationBalancesJob
       return { entry:, verdict: :noop, reason: "nothing to transfer" } if amount_cents.zero?
 
       unless live
-        return { entry:, verdict: :dry_run, reason: nil, amount_cents:, currency: entry[:merchant_account].currency }
+        usd_amount_cents = usd_topup_cents_for(amount_cents, entry[:merchant_account].currency)
+        return no_rate_escalation(entry, amount_cents) unless usd_amount_cents&.positive?
+
+        return { entry:, verdict: :dry_run, reason: nil, amount_cents:, currency: entry[:merchant_account].currency, usd_amount_cents: }
       end
 
       dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(entry[:merchant_account].id)
@@ -205,7 +215,7 @@ class AutoTopUpNegativeDestinationBalancesJob
       # than on abs magnitudes — that's what makes it correct for a mixed-sign funded set too.
       if funded_signed && current_total_cents >= funded_signed
         $redis.expire(dedupe_key, DEDUPE_TTL)
-        return { entry:, verdict: :escalate, reason: "already topped up #{funded_signed.abs} cents for this account — awaiting the leg-two reconciliation pass before retrying" }
+        return { entry:, verdict: :awaiting_reconciliation, reason: "already topped up #{funded_signed.abs} cents for this account — awaiting the leg-two reconciliation pass before retrying" }
       end
 
       to_transfer_cents = funded_signed ? (current_total_cents - funded_signed).abs : current_total_cents.abs
@@ -218,10 +228,44 @@ class AutoTopUpNegativeDestinationBalancesJob
       row_fingerprint = Digest::SHA1.hexdigest(current_balance_ids.join("-"))[0, 12]
       transfer_key = "#{dedupe_key}:#{row_fingerprint}:#{funded_signed&.abs || 0}:#{current_total_cents.abs}"
 
-      # Claim before calling Stripe, not after: a claim-after-transfer ordering leaves a crash
-      # between "Stripe accepted the transfer" and "we recorded that" free to retry and
-      # double-transfer. Release only on an error we know is safe to retry (see rescue below).
-      return { entry:, verdict: :escalate, reason: "a top-up for this account and amount is already in flight" } unless $redis.set(transfer_key, 1, ex: DEDUPE_TTL, nx: true)
+      claim = $redis.get(transfer_key)
+      if claim && claim != "retryable"
+        return { entry:, verdict: :escalate, reason: "a top-up for this account and amount is already in flight" }
+      end
+
+      request_key = "#{transfer_key}:request"
+      saved_request = $redis.get(request_key)
+      if saved_request
+        request = begin
+          JSON.parse(saved_request, symbolize_names: true)
+        rescue JSON::ParserError
+          nil
+        end
+        unless valid_transfer_request?(request, transfer_key, to_transfer_cents, entry)
+          return { entry:, verdict: :escalate, reason: "invalid saved top-up request — a human must reconcile #{request_key}" }
+        end
+      elsif claim
+        return { entry:, verdict: :escalate, reason: "missing saved top-up request — a human must reconcile #{request_key}" }
+      else
+        usd_amount_cents = usd_topup_cents_for(to_transfer_cents, entry[:merchant_account].currency)
+        return no_rate_escalation(entry, to_transfer_cents) unless usd_amount_cents&.positive?
+
+        request = {
+          message_why: TRANSFER_MESSAGE,
+          stripe_account_id: entry[:merchant_account].charge_processor_merchant_id,
+          currency: Currency::USD,
+          amount_cents: usd_amount_cents,
+          idempotency_key: transfer_key,
+          metadata: { user_id: entry[:user].id, merchant_account_id: entry[:merchant_account].id, reason: "negative_destination_balance_topup",
+                      destination_hole_cents: to_transfer_cents, destination_currency: entry[:merchant_account].currency }
+        }
+        # Retain parameters beyond both TTLs: even a rejected request can be cached by Stripe.
+        raise "Could not save top-up request" unless $redis.set(request_key, request.to_json, nx: true)
+      end
+      # A retry marker retains the link to immutable parameters if their record is lost.
+      raise "Could not claim top-up request" unless $redis.set(transfer_key, 1, ex: DEDUPE_TTL, **(claim ? { xx: true } : { nx: true }))
+
+      transfer_claimed = true
 
       # Marks the account unresolved BEFORE calling Stripe, not just from the rescue below: the
       # account lock's TTL only bounds a well-behaved call, so a request that outlives it (Stripe
@@ -229,20 +273,10 @@ class AutoTopUpNegativeDestinationBalancesJob
       # A second run that acquires the expired lock now sees this marker and escalates instead of
       # reading a stale funded_signed and minting its own transfer_key for the same gap. Cleared
       # below once the outcome (success or a safe-to-retry error) is known.
-      $redis.set(unresolved_key, to_transfer_cents)
+      raise "Could not mark top-up unresolved" unless $redis.set(unresolved_key, to_transfer_cents)
 
-      StripeTransferInternallyToCreator.transfer_funds_to_account(
-        message_why: "Reconciling negative destination ledger (gumroad-private#1903, auto top-up leg)",
-        stripe_account_id: entry[:merchant_account].charge_processor_merchant_id,
-        currency: entry[:merchant_account].currency,
-        amount_cents: to_transfer_cents,
-        # Stripe's own idempotency window (24h) is the real backstop against an ambiguous local
-        # outcome (timeout/network drop after Stripe already accepted the transfer): transfer_key
-        # is stable for this specific delta, so a retry hitting Stripe again with the same key
-        # returns the original transfer instead of creating a second one.
-        idempotency_key: transfer_key,
-        metadata: { user_id: entry[:user].id, merchant_account_id: entry[:merchant_account].id, reason: "negative_destination_balance_topup" }
-      )
+      transfer = StripeTransferInternallyToCreator.transfer_funds_to_account(**request)
+      transfer_accepted = true
       # PERSIST (drop the 7-day TTL) the instant Stripe accepts: the vulnerable window is between
       # here and the dedupe_key write below — if the worker dies in it, the transfer_key must not
       # be free to expire and get reused once Stripe's own 24h idempotency window has also lapsed,
@@ -260,20 +294,31 @@ class AutoTopUpNegativeDestinationBalancesJob
       unless persist_with_retries(transfer_key)
         return { entry:, verdict: :escalate, reason: "Stripe accepted #{to_transfer_cents} cents for this account but the durable dedupe claim could not be confirmed in Redis — a human must verify the transfer with Stripe before clearing #{transfer_key} or #{unresolved_key}" }
       end
+      usd_amount_cents = confirm_destination_funding(transfer, request)
       # Store the WINDOW's row ids, not the whole current_balance_ids set: a post-cutoff row
       # excluded from an in-cycle window's total must not become "funded" credit either, or a
       # later run intersecting funded_ids against a different window could count it and resend
       # part of the original shortfall (the bug this window/credit split exists to close).
       $redis.set(dedupe_key, "#{current_total_cents.abs}:#{current_window_ids.join("-")}", ex: DEDUPE_TTL)
       $redis.del(unresolved_key)
-      { entry:, verdict: :topped_up, reason: nil, amount_cents: to_transfer_cents, currency: entry[:merchant_account].currency }
+      { entry:, verdict: :topped_up, reason: nil, amount_cents: to_transfer_cents, currency: request.fetch(:metadata).fetch(:destination_currency), usd_amount_cents: }
     rescue Stripe::InvalidRequestError, Stripe::RateLimitError => e
-      # Neither error moves money (a bad param is rejected before charge; a 429 never reaches
-      # Stripe's processing), so it's safe to release both claims for a legitimate retry.
-      $redis.del(transfer_key) if transfer_key
-      $redis.del(unresolved_key) if unresolved_key
+      return unverified_funding(entry, transfer_key, e) if transfer_accepted
+
+      # These rejected requests can be retried unchanged. An executed 400 may replay its
+      # cached error; retaining its key and parameters must not turn that into a new transfer.
+      begin
+        raise "Could not retain retryable top-up request" unless $redis.set(transfer_key, "retryable")
+        $redis.del(unresolved_key) if unresolved_key
+      rescue => bookkeeping_error
+        # A rescue-body exception bypasses the sibling rescue and would abort the other accounts.
+        persist_with_retries(transfer_key)
+        return { entry:, verdict: :escalate, reason: "#{e.class}: #{e.message}; rejection bookkeeping failed (#{bookkeeping_error.class}: #{bookkeeping_error.message}); verify saved state at #{transfer_key} and #{unresolved_key}" }
+      end
       { entry:, verdict: :error, reason: "#{e.class}: #{e.message}" }
     rescue => e
+      return unverified_funding(entry, transfer_key, e) if transfer_accepted
+
       # Everything else (timeouts, connection drops, Stripe 5xx) is ambiguous about whether
       # Stripe actually processed the transfer, so the claim stays held — same convention as
       # StripePayoutProcessor's PAYOUT_OUTCOME_UNKNOWN — and the candidate escalates to a human
@@ -289,12 +334,68 @@ class AutoTopUpNegativeDestinationBalancesJob
       # idempotency window) lapsed, clearing unresolved_key alone would let a later run resend
       # the same ambiguous transfer. unresolved_key stays set either way, but say so distinctly
       # when persistence itself couldn't be confirmed.
-      if transfer_key && !persist_with_retries(transfer_key)
+      if transfer_claimed && !persist_with_retries(transfer_key)
         return { entry:, verdict: :escalate, reason: "Stripe's outcome for #{to_transfer_cents} cents to this account is ambiguous (#{e.class}: #{e.message}) and the durable hold on #{transfer_key} could not be confirmed in Redis — a human must verify with Stripe and clear #{unresolved_key} before this account tops up again" }
+      end
+      # Stripe sent nothing for this request, but the key's first request (other parameters) may
+      # have run, so the hold stays. It is a human check, not a transfer error.
+      if e.is_a?(Stripe::IdempotencyError)
+        return { entry:, verdict: :escalate, reason: "Stripe refused #{transfer_key} because it was first used with different parameters — a human must check whether that first request moved money before clearing #{transfer_key}, #{unresolved_key} and #{request_key}: a retry reuses the saved request under the same key, so it repeats this refusal until Stripe's 24h idempotency window has lapsed" }
       end
       { entry:, verdict: :error, reason: "#{e.class}: #{e.message}" }
     ensure
       $redis.eval(LOCK_RELEASE_SCRIPT, keys: [lock_key], argv: [lock_token]) if lock_token
+    end
+
+    def confirm_destination_funding(transfer, request)
+      target_cents = request.fetch(:metadata).fetch(:destination_hole_cents)
+      delivered_cents = destination_credit_cents(transfer, request)
+      return request.fetch(:amount_cents) if delivered_cents >= target_cents
+
+      remaining_cents = target_cents - delivered_cents
+      # Another USD transfer has its own conversion rate and can over-credit the remainder.
+      raise "Stripe left #{remaining_cents} destination cents unfunded; reconcile the remaining shortfall manually"
+    end
+
+    def destination_credit_cents(transfer, request)
+      raise "Transfer has no destination payment" if transfer.destination_payment.blank?
+
+      transaction = nil
+      3.times do |attempt|
+        payment = Stripe::Charge.retrieve(
+          { id: transfer.destination_payment, expand: %w[balance_transaction] },
+          { stripe_account: request.fetch(:stripe_account_id) }
+        )
+        transaction = payment.balance_transaction
+        break if transaction.is_a?(Stripe::BalanceTransaction) || attempt == 2
+        sleep(2)
+      end
+      currency = request.fetch(:metadata).fetch(:destination_currency)
+      unless transaction.is_a?(Stripe::BalanceTransaction) && transaction.currency == currency && transaction.net.is_a?(Integer) && transaction.net.positive?
+        raise "Destination credit is unavailable or has an unexpected currency or amount"
+      end
+
+      # Balance#holding_amount_cents stores Stripe settlement units, including whole won.
+      transaction.net
+    end
+
+    def unverified_funding(entry, transfer_key, error)
+      { entry:, verdict: :escalate,
+        reason: "Stripe accepted a transfer but destination funding is incomplete or unverified (#{error.class}: #{error.message}) — a human must reconcile #{transfer_key} before clearing the account hold" }
+    end
+
+    def valid_transfer_request?(request, transfer_key, local_cents, entry)
+      return false unless request.is_a?(Hash) && request.keys.sort == %i[amount_cents currency idempotency_key message_why metadata stripe_account_id].sort
+      return false unless request[:amount_cents].is_a?(Integer) && request[:amount_cents].positive?
+      return false unless request[:currency] == Currency::USD && request[:idempotency_key] == transfer_key
+      return false unless request[:stripe_account_id].is_a?(String) && request[:stripe_account_id].present?
+      return false unless request[:message_why] == TRANSFER_MESSAGE
+
+      metadata = request[:metadata]
+      metadata.is_a?(Hash) && metadata.keys.sort == %i[destination_currency destination_hole_cents merchant_account_id reason user_id].sort &&
+        metadata[:user_id] == entry[:user].id && metadata[:merchant_account_id] == entry[:merchant_account].id &&
+        metadata[:destination_hole_cents] == local_cents && metadata[:destination_currency].is_a?(String) && metadata[:destination_currency].present? &&
+        metadata[:reason] == "negative_destination_balance_topup"
     end
 
     # Bare `$redis.persist` raising once used to fall straight into the generic rescue, which
@@ -313,19 +414,82 @@ class AutoTopUpNegativeDestinationBalancesJob
 
     def message_for(outcomes, live:, total:)
       counts = outcomes.group_by { _1[:verdict] }.transform_values(&:size)
-      escalations = outcomes.select { _1[:verdict] == :escalate }
+      escalations = outcomes.select { _1[:verdict] == :escalate || _1[:verdict] == :awaiting_reconciliation }
       errors = outcomes.select { _1[:verdict] == :error }
+      funded = outcomes.select { _1[:verdict] == :topped_up || _1[:verdict] == :dry_run }
+      withheld = counts[:escalate].to_i + counts[:awaiting_reconciliation].to_i
 
       [
+        ("ALL FAILED: a live run processed #{outcomes.size} payable candidates and topped up none — #{withheld} withheld, #{counts[:error].to_i} errored. Check the error lines below (gumroad-private#2622)." if all_failed?(outcomes, live:)),
+        ("NEEDS HUMAN: a live run processed #{outcomes.size} payable candidates and topped up none — all #{withheld} are withheld for a human, 0 errored. Each line below says why it is held." if needs_human?(outcomes, live:)),
         "#{live ? "Topped up" : "DRY RUN (auto_topup_negative_destination_balances off) — would top up"} " \
           "#{counts[:topped_up].to_i + counts[:dry_run].to_i} of #{outcomes.size} candidates processed " \
-          "(#{total} payable total): #{counts[:escalate].to_i} withheld for a human, #{counts[:error].to_i} errored. " \
+          "(#{total} payable total): #{withheld} withheld for a human, #{counts[:error].to_i} errored. " \
+          "Transfers are sent in USD (the local hole is converted at the current rate and rounded up; retries reuse the original request). " \
+          "Live transfers require confirmed destination credit; remaining shortfalls require human reconciliation. " \
           "Reminder: this only closes the Stripe-side gap — the internal Balance row(s) still need a human " \
           "reconciliation pass before this candidate stops re-appearing in the daily report.",
+        ("" if funded.any?),
+        *funded.map { |o| "• #{o[:verdict] == :dry_run ? "WOULD FUND" : "FUNDED"} #{o[:entry][:user].email} — #{o[:amount_cents]} #{o[:currency]} cents hole → #{o[:usd_amount_cents].inspect} USD cents sent" },
         ("" if escalations.any?),
         *escalations.map { |o| "• ESCALATE #{o[:entry][:user].email} — #{o[:reason]}" },
         ("" if errors.any?),
         *errors.map { |o| "• ERROR #{o[:entry][:user].email} — #{o[:reason]}" },
       ].compact.join("\n")
+    end
+
+    # A live run that funded none of its payable candidates goes in the subject, where a reader
+    # cannot miss it. Errors and designed human gates get different prefixes: only errors mean
+    # the automation itself is broken.
+    def subject_for(outcomes, live:)
+      prefix =
+        if all_failed?(outcomes, live:)
+          "ALL FAILED: "
+        elsif needs_human?(outcomes, live:)
+          "NEEDS HUMAN: "
+        else
+          ""
+        end
+      "#{prefix}Negative destination balance top-ups"
+    end
+
+    # Reconciled and already-funded candidates are not failed funding attempts.
+    def all_failed?(outcomes, live:)
+      return false unless live
+      return false if outcomes.any? { _1[:verdict] == :topped_up }
+
+      outcomes.any? { _1[:verdict] == :error }
+    end
+
+    # Every candidate held for a person gets the prefix, whether an escalation or the leg-two
+    # reconciliation gate holds it: a live run that funded none of them is not routine, but it is
+    # also not a failure. The withheld count in the headline counts both verdicts, so this has to.
+    def needs_human?(outcomes, live:)
+      return false unless live
+      return false if outcomes.any? { _1[:verdict] == :topped_up || _1[:verdict] == :error }
+
+      outcomes.any? { _1[:verdict] == :escalate || _1[:verdict] == :awaiting_reconciliation }
+    end
+
+    def no_rate_escalation(entry, local_cents)
+      currency = entry[:merchant_account].currency
+      { entry:, verdict: :escalate, reason: "no usable USD exchange rate for #{currency} — cannot size the USD top-up for #{local_cents} #{currency} cents" }
+    end
+
+    # Destination ledger amounts use Stripe units, which differ from seller price units for KRW.
+    def usd_topup_cents_for(local_cents, currency)
+      currency = currency.to_s.downcase
+      return local_cents if currency == Currency::USD
+
+      rate = BigDecimal(get_rate(currency).to_s)
+      return nil unless rate.positive?
+
+      # Stripe retains two-decimal API amounts for ISK and UGX despite their ISO unit changes.
+      subunits = %w[isk ugx].include?(currency) ? 100 : StripeChargeProcessor.charge_subunit_to_unit(currency)
+      usd_cents = BigDecimal(local_cents.to_s) * 100 / rate / subunits
+      usd_cents.ceil.to_i
+    rescue ArgumentError, TypeError
+      # BigDecimal("") / BigDecimal(nil) — an absent or malformed cached rate, not an outage.
+      nil
     end
 end

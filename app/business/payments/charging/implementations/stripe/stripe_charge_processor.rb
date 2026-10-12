@@ -6,6 +6,9 @@ class StripeChargeProcessor
 
   DISPLAY_NAME = "Stripe"
 
+  class NoRefundFeeTransferError < StandardError; end
+  class UnmatchedApplicationFeeRefundError < StandardError; end
+
   # https://stripe.com/docs/api/charges/object#charge_object-status
   VALID_TRANSACTION_STATUSES = %w(succeeded pending).freeze
 
@@ -21,6 +24,7 @@ class StripeChargeProcessor
 
   # https://stripe.com/docs/api/refunds/create#create_refund-reason
   REFUND_REASON_FRAUDULENT = "fraudulent"
+  EXTERNAL_REFUND_REVERSAL_METADATA_KEY = "external_refund_id"
 
   MANDATE_PREFIX = "Mandate-"
   INDIA_CARD_MANDATE_RELIABILITY_FEATURE = :india_card_mandate_reliability
@@ -574,7 +578,26 @@ class StripeChargeProcessor
     end
   end
 
-  def get_refund(refund_id, merchant_account: nil)
+  # The newest destination refund on the seller's charge belongs to this refund only when no other
+  # refund landed after it, so a refund that reversed the transfer is paired through its reversal.
+  private def destination_payment_refund_for(refund, destination_transfer, stripe_destination_payment, destination_payment_refund_id = nil)
+    if destination_payment_refund_id.nil?
+      return stripe_destination_payment.refunds.first if refund[:transfer_reversal].blank?
+
+      reversal_id = self.class.transfer_reversal_id(refund)
+      reversal = destination_transfer[:reversals]&.find { _1.id == reversal_id } ||
+        Stripe::Transfer.retrieve_reversal(destination_transfer.id, reversal_id)
+      destination_payment_refund_id = reversal[:destination_payment_refund]
+    end
+    destination_payment_refund_id = destination_payment_refund_id.id if destination_payment_refund_id.respond_to?(:id)
+    return stripe_destination_payment.refunds.first if destination_payment_refund_id.blank?
+
+    stripe_destination_payment.refunds.find { _1.id == destination_payment_refund_id } ||
+      Stripe::Refund.retrieve({ id: destination_payment_refund_id, expand: %w[balance_transaction] },
+                              { stripe_account: destination_transfer.destination })
+  end
+
+  def get_refund(refund_id, merchant_account: nil, destination_payment_refund_id: nil, for_external_refund: false)
     with_stripe_error_handler do
       if merchant_migrated? merchant_account
         begin
@@ -593,12 +616,21 @@ class StripeChargeProcessor
 
       destination = charge.destination
       if destination
+        check_external_refund_fee!(charge) if for_external_refund
         application_fee_refund = charge.application_fee.refunds.first if charge.application_fee
         destination_transfer = Stripe::Transfer.retrieve(id: charge.transfer)
         stripe_destination_payment = Stripe::Charge.retrieve({ id: destination_transfer.destination_payment,
                                                                expand: %w[refunds.data.balance_transaction application_fee.refunds] },
                                                              { stripe_account: destination_transfer.destination })
-        destination_payment_refund = stripe_destination_payment.refunds.first
+        check_external_refund_fee!(stripe_destination_payment) if for_external_refund
+        destination_payment_application_fee_refund = stripe_destination_payment.application_fee.refunds.first if stripe_destination_payment.application_fee
+        # Stripe does not link a fee refund to its refund. Pairing the destination refund while both
+        # fee legs are used mixes the older seller amount with the newer fee credit.
+        destination_payment_refund = if application_fee_refund.try(:balance_transaction) && destination_payment_application_fee_refund
+          stripe_destination_payment.refunds.first
+        else
+          destination_payment_refund_for(refund, destination_transfer, stripe_destination_payment, destination_payment_refund_id)
+        end
         if destination_payment_refund
           balance_transaction_id = destination_payment_refund.balance_transaction
           if balance_transaction_id.is_a?(String)
@@ -607,7 +639,6 @@ class StripeChargeProcessor
             destination_payment_refund_balance_transaction = balance_transaction_id
           end
         end
-        destination_payment_application_fee_refund = stripe_destination_payment.application_fee.refunds.first if stripe_destination_payment.application_fee
 
         # Reverse the same way the charge was recorded. The account's currency is only needed for
         # that case, so pay for the lookup exactly then.
@@ -628,7 +659,7 @@ class StripeChargeProcessor
     end
   end
 
-  def refund!(charge_id, amount_cents: nil, merchant_account: nil, reverse_transfer: true, is_for_fraud: nil, **_args)
+  def refund!(charge_id, amount_cents: nil, merchant_account: nil, reverse_transfer: true, is_for_fraud: nil, cap_to_unrefunded_amount: false, **_args)
     if merchant_migrated? merchant_account
       begin
         stripe_charge = Stripe::Charge.retrieve({ id: charge_id }, { stripe_account: merchant_account.charge_processor_merchant_id })
@@ -643,8 +674,21 @@ class StripeChargeProcessor
     params = {
       charge: charge_id
     }
+    # amount_cents is canonical USD, so only a USD charge's remaining amount is comparable.
+    if amount_cents.present? && cap_to_unrefunded_amount && stripe_charge.currency.to_s.casecmp?(Currency::USD)
+      # A sibling on the same combined charge may already have taken more than its local share
+      # (split rounding, or a refund booked elsewhere); refund what is left rather than fail.
+      unrefunded_cents = stripe_charge.amount.to_i - stripe_charge.amount_refunded.to_i
+      raise ChargeProcessorAlreadyRefundedError.new("Stripe charge #{charge_id} has nothing left to refund") if unrefunded_cents <= 0
+      if amount_cents > unrefunded_cents
+        ErrorNotifier.notify("Combined-charge refund capped to the charge's unrefunded amount",
+                             context: { charge_id:, requested_cents: amount_cents, unrefunded_cents: })
+        amount_cents = unrefunded_cents
+      end
+    end
     params[:amount] = amount_cents if amount_cents.present?
-    params[:reason] = REFUND_REASON_FRAUDULENT if is_for_fraud.present?
+    # Stripe adds fraudulent refunds to Radar's blocklists, including shared test cards.
+    params[:reason] = REFUND_REASON_FRAUDULENT if is_for_fraud.present? && stripe_charge.livemode
 
     # For Stripe-Connect:
     # Charges (which have a destination):
@@ -684,6 +728,97 @@ class StripeChargeProcessor
     raise ChargeProcessorUnavailableError.new("Stripe error while refunding a charge: #{e.message}", original_error: e)
   end
 
+  # A refund made outside the app may not have passed reverse_transfer. The returned charge_refund is
+  # paired with the reversal's destination refund, so the seller debit equals the reversal.
+  def reverse_transfer_for_external_refund(charge_refund, merchant_account:)
+    charge_refund, outcome = find_or_create_external_refund_reversal(charge_refund, merchant_account:)
+    # get_refund pairs the destination refund by id but reads the newest application-fee refund,
+    # so with more than one the seller debit could come from an unrelated fee refund.
+    if %i[reversed_by_stripe reversed_by_gumroad].include?(outcome) && self.class.application_fee_refund_count(charge_refund.charge) > 1
+      outcome = :reversal_unpaired
+    end
+    [charge_refund, outcome]
+  end
+
+  def self.application_fee_refund_count(charge)
+    fee = charge[:application_fee]
+    fee.is_a?(Stripe::StripeObject) ? Array(fee[:refunds]&.data).size : 0
+  end
+
+  def find_or_create_external_refund_reversal(charge_refund, merchant_account:)
+    charge = charge_refund.charge
+    return [charge_refund, :no_transfer] if charge[:destination].blank? || charge[:transfer].blank?
+
+    # Stripe reversed the transfer with this refund. Re-read its destination refund: the newest refund on
+    # the seller's charge may belong to a different refund.
+    if charge_refund.refund[:transfer_reversal].present?
+      reversal = Stripe::Transfer.retrieve_reversal(charge[:transfer], self.class.transfer_reversal_id(charge_refund.refund))
+      return [charge_refund, :reversal_unpaired] if reversal[:destination_payment_refund].blank?
+
+      return [get_refund(charge_refund.id, merchant_account:, destination_payment_refund_id: reversal[:destination_payment_refund], for_external_refund: true), :reversed_by_stripe]
+    end
+
+    refund_id = charge_refund.id
+    transfer = Stripe::Transfer.retrieve(charge[:transfer])
+    reversal = nil
+    outcome = :reversed_by_gumroad
+    self.class.each_refund_fee_reversal(Stripe::Transfer.list_reversals(transfer.id, { limit: 100 })) do |existing|
+      if existing[:source_refund] == refund_id
+        reversal = existing
+        outcome = :reversed_by_stripe
+        break
+      end
+      reversal ||= existing if self.class.external_refund_reversal_for?(existing, refund_id)
+    end
+
+    unless reversal
+      remaining = transfer.amount - transfer.amount_reversed
+      # Stripe's own reverse_transfer is proportional to the refunded share of the charge.
+      amount = (charge_refund.refund[:amount] * transfer.amount / charge.amount.to_r).round
+      amount = remaining if amount - remaining == 1
+      return [charge_refund, :not_reversible] unless amount.positive? && amount <= remaining
+      # get_refund(for_external_refund: true) already refuses a charge with an application fee; this
+      # guard only keeps money from moving if that check changes.
+      return [charge_refund, :fee_refund_unpaired] if self.class.application_fee_refund_count(charge) > 0
+
+      begin
+        reversal = Stripe::Transfer.create_reversal(
+          transfer.id,
+          { amount:, refund_application_fee: true, metadata: { EXTERNAL_REFUND_REVERSAL_METADATA_KEY => refund_id } },
+          { idempotency_key: "external_refund_reversal_#{refund_id}" }
+        )
+      rescue Stripe::InvalidRequestError => e
+        Rails.logger.error("External refund #{refund_id}: reversal of transfer #{transfer.id} refused: #{e.message}")
+        return [charge_refund, :not_reversible]
+      end
+    end
+
+    # The seller debit has to come from this refund's own reversal; a reversal that does not name its
+    # destination refund would resolve to the newest one on the charge, so book nothing and alert.
+    return [charge_refund, :reversal_unpaired] if reversal[:destination_payment_refund].blank?
+
+    [get_refund(refund_id, merchant_account:, destination_payment_refund_id: reversal[:destination_payment_refund], for_external_refund: true), outcome]
+  end
+
+  private def check_external_refund_fee!(charge)
+    # Stripe exposes no refund-to-fee-refund identity, even for a singleton fee-refund list.
+    return if charge[:application_fee].blank? && charge[:application_fee_amount].to_i.zero?
+
+    raise UnmatchedApplicationFeeRefundError, "Application fee refund requires manual reconciliation"
+  end
+
+  def self.external_refund_reversal_for?(reversal, refund_id)
+    metadata = reversal[:metadata]
+    return false if metadata.blank?
+
+    (metadata[EXTERNAL_REFUND_REVERSAL_METADATA_KEY.to_sym] || metadata[EXTERNAL_REFUND_REVERSAL_METADATA_KEY]).to_s == refund_id
+  end
+
+  def self.transfer_reversal_id(refund)
+    transfer_reversal = refund[:transfer_reversal]
+    transfer_reversal.respond_to?(:id) ? transfer_reversal.id : transfer_reversal.to_s
+  end
+
   def self.debit_stripe_account_for_refund_fee(credit:, collect: true)
     return unless credit.present?
     return if credit.amount_cents == 0
@@ -691,6 +826,7 @@ class StripeChargeProcessor
     return unless credit.merchant_account.holder_of_funds == HolderOfFunds::STRIPE
     refund = credit.fee_retention_refund
     return if refund.blank?
+    return if refund.fee_retention_written_off_at.present?
     return recorded_refund_fee_collection(credit:) if refund.debited_stripe_transfer.present?
     return adopt_existing_refund_fee_collection(credit:) unless collect
     # US Gumroad-managed accounts cannot reverse payout transfers; collect with the same
@@ -733,20 +869,40 @@ class StripeChargeProcessor
                            .where(stripe_connect_account_id: stripe_account_id)
                            .order(:created_at)
                            .pluck(:stripe_internal_transfer_id)
-      transfer = transfer_ids.compact_blank.lazy
-                             .filter_map { |tr_id| Stripe::Transfer.retrieve(tr_id) rescue nil }
-                             .find { |tr| tr.amount - tr.amount_reversed > amount_to_reverse_for.call(tr) }
+      lookup_error = nil
+      transfers = transfer_ids.compact_blank.lazy.filter_map do |tr_id|
+        Stripe::Transfer.retrieve(tr_id)
+      rescue StandardError => error
+        lookup_error = error
+        nil
+      end
+      transfer = transfers.find { |tr| tr.amount - tr.amount_reversed > amount_to_reverse_for.call(tr) }
       unless transfer
-        transfers = Stripe::Transfer.list(destination: stripe_account_id, created: { 'lt': 120.days.ago.to_i }, limit: 100)
-        transfer = transfers.find do |tr|
-          tr.present? && tr.amount - tr.amount_reversed > amount_to_reverse_for.call(tr)
+        # Recent sale transfers must remain available for buyer refunds.
+        params = { destination: stripe_account_id, created: { lt: 120.days.ago.to_i }, limit: 100 }
+        loop do
+          # Stripe list pages are ListObjects: the rows are on #data, and Enumerable has no #last.
+          page = Stripe::Transfer.list(**params)
+          transfer = page.find { |tr| tr.amount - tr.amount_reversed > amount_to_reverse_for.call(tr) }
+          break if transfer || page.count < params[:limit]
+
+          params[:starting_after] = page.data.last.id
         end
       end
     end
-    return unless transfer
+    unless transfer
+      collected = adopt_existing_refund_fee_collection(credit:)
+      return collected if collected
+      raise lookup_error if lookup_error
+      # A pin can belong to an in-flight collection. Leave it for reconciliation.
+      return if already_pinned_id.present?
+
+      raise NoRefundFeeTransferError, "No reversible transfer for refund fee retention"
+    end
 
     refund.with_lock do
       refund.reload
+      return if refund.fee_retention_written_off_at.present?
       return recorded_refund_fee_collection(credit:) if refund.debited_stripe_transfer.present?
       current_pin = refund.fee_retention_source_transfer
       if current_pin.present? && current_pin != observed_pin
@@ -1061,11 +1217,14 @@ class StripeChargeProcessor
     end
   end
 
+  # Returns the evidence fields left out of the submission (see customer_communication_stripe_file).
   def fight_chargeback(stripe_charge_id, dispute_evidence, merchant_account: nil)
-    return if merchant_migrated? merchant_account
+    return [] if merchant_migrated? merchant_account
 
+    omitted_fields = []
     with_stripe_error_handler do
       charge = Stripe::Charge.retrieve(stripe_charge_id)
+      customer_communication = customer_communication_stripe_file(dispute_evidence, omitted_fields)
 
       evidence = {
         billing_address: dispute_evidence.billing_address,
@@ -1090,21 +1249,26 @@ class StripeChargeProcessor
         refund_policy_disclosure: dispute_evidence.refund_policy_disclosure,
         cancellation_rebuttal: dispute_evidence.cancellation_rebuttal,
         refund_refusal_explanation: dispute_evidence.refund_refusal_explanation,
-        customer_communication: create_dispute_evidence_stripe_file(dispute_evidence.customer_communication_file),
+        customer_communication:,
       }
 
-      # A dispute accepts evidence once (gumroad-private#1612) and FightDisputeJob has five Sidekiq
-      # retries, so a network failure on a call that actually landed would otherwise spend the
-      # submission a second time. The key must be IMMUTABLE for that to work: anything derived from
-      # the payload or from `updated_at` changes between attempts — the payload because
-      # create_dispute_evidence_stripe_file re-uploads and returns a fresh Stripe file id on every
-      # call, `updated_at` because the seller writes their statement into the same row. One evidence
-      # row is one permitted submission (the job returns early once the row is resolved), so the
-      # row's own identity is the whole key.
+      # Every attempt re-uploads the files and gets fresh Stripe file ids (Stripe does not dedupe
+      # file uploads by idempotency key), so the key must cover them: a fixed key with new ids is
+      # rejected as reused with different parameters. Stripe itself refuses a second submission,
+      # which FightDisputeJob treats as already submitted.
+      file_ids = evidence.values_at(:receipt, :cancellation_policy, :refund_policy, :customer_communication).compact
       idempotency_key = "dispute_evidence_#{dispute_evidence.external_id}"
+      idempotency_key += "_#{Digest::SHA256.hexdigest(file_ids.join(","))[0, 32]}" if file_ids.any?
 
       Stripe::Dispute.update(charge.dispute, { evidence: }, { idempotency_key: })
+      omitted_fields
     end
+  rescue ChargeProcessorInvalidRequestError => e
+    # A retry whose earlier submission landed gets "maximum number of evidence submissions";
+    # the oversized file fails the same way on every attempt, so this attempt's omissions are
+    # what was sent, and FightDisputeJob still has to tell the seller.
+    e.omitted_evidence_fields = omitted_fields
+    raise
   end
 
   def holder_of_funds(merchant_account)
@@ -1142,20 +1306,71 @@ class StripeChargeProcessor
 
     stripe_loan_paydown_id = data["id"]
     amount_cents = -data["details"]["total_amount"].to_i
-    return if merchant_account.user.credits.where("json_data->'$.stripe_loan_paydown_id' = ?", stripe_loan_paydown_id).exists?
+    existing_credit = ApplicationRecord.connected_to(role: :writing) do
+      merchant_account.user.credits.find_by("json_data->'$.stripe_loan_paydown_id' = ?", stripe_loan_paydown_id)
+    end
+    if existing_credit
+      # Manual repayments are recorded once and left alone.
+      return unless existing_credit.automatic_capital_deduction?
+
+      return existing_credit.apply_financing_paydown!(merchant_account:, amount_cents: capital_withholding_amount_cents(data), currency:,
+                                                      reason: data["details"]["reason"])
+    end
 
     if data["details"]["reason"] == "collection" && data["user_facing_description"] == "Forced debit from Stripe Payments"
       Credit.create_for_manual_paydown_on_stripe_loan!(amount_cents:, merchant_account:, stripe_loan_paydown_id:)
-    elsif data["details"]["reason"] == "automatic_withholding"
-      linked_payment_id = data["details"]["transaction"]["charge"].presence || data["details"]["linked_payment"]
-      if linked_payment_id.present?
+    elsif data["details"]["reason"] == Credit::AUTOMATIC_CAPITAL_WITHHOLDING
+      deduction = { amount_cents: capital_withholding_amount_cents(data), merchant_account:, stripe_loan_paydown_id:,
+                    deducted_at: capital_deduction_time(stripe_event, data) }
+      linked_payment_id = (data["details"]["transaction"] || {})["charge"].presence || data["details"]["linked_payment"].presence
+      if linked_payment_id
         linked_payment = Stripe::Charge.retrieve(linked_payment_id, { stripe_account: merchant_account.charge_processor_merchant_id })
-        linked_transfer = Stripe::Transfer.retrieve(linked_payment.source_transfer)
-        purchase = merchant_account.user.sales.find_by(stripe_transaction_id: linked_transfer.source_transaction)
+        linked_transfer_id = linked_payment.source_transfer.presence
+        # A blank source must never reach the lookup: it matches unrelated sales with no charge id.
+        source_transaction = Stripe::Transfer.retrieve(linked_transfer_id).source_transaction.presence if linked_transfer_id
       end
-      Credit.create_for_financing_paydown!(purchase:, amount_cents:, merchant_account:, stripe_loan_paydown_id:)
+
+      if source_transaction
+        purchase = capital_withholding_sale(merchant_account.user, source_transaction)
+        Credit.create_for_financing_paydown!(purchase:, **deduction, linked_payment_id:, linked_transfer_id:)
+      else
+        Credit.create_for_account_capital_withholding!(**deduction, linked_payment_id:, linked_transfer_id:)
+      end
     end
   end
+
+  # Only a positive integer total is a withholding; anything else would book no debit or add funds.
+  def self.capital_withholding_amount_cents(data)
+    total_amount = data["details"]["total_amount"]
+    raise ArgumentError, "Capital withholding total_amount must be a positive integer" unless total_amount.is_a?(Integer) && total_amount.positive?
+
+    -total_amount
+  end
+  private_class_method :capital_withholding_amount_cents
+
+  # The financing transaction's own timestamp, else the event's; never when this delivery is processed.
+  def self.capital_deduction_time(stripe_event, data)
+    timestamp = data["created_at"].nil? ? stripe_event["created"] : data["created_at"]
+    timestamp = Integer(timestamp, 10) if timestamp.is_a?(String) && timestamp.match?(/\A\d+\z/)
+    raise ArgumentError, "Capital withholding has no valid deduction time" unless timestamp.is_a?(Integer) && timestamp.positive?
+
+    timestamp
+  end
+  private_class_method :capital_deduction_time
+
+  # The sale link only chooses the balance date, so siblings of one charge are interchangeable
+  # when they all succeeded that day. Anything else is left for review rather than guessed.
+  def self.capital_withholding_sale(seller, source_transaction)
+    sales = seller.sales.where(stripe_transaction_id: source_transaction).order(:id).to_a
+    raise "Capital withholding names charge #{source_transaction}, which has no sale for seller #{seller.id}" if sales.empty?
+    return sales.first if sales.one?
+
+    succeeded_on = sales.map { _1.succeeded_at&.to_date }
+    return sales.first if succeeded_on.all? && succeeded_on.uniq.one?
+
+    raise "Capital withholding charge #{source_transaction} has sales that did not all succeed on one date"
+  end
+  private_class_method :capital_withholding_sale
 
   def self.handle_stripe_charge_event(stripe_event)
     event = nil
@@ -1455,6 +1670,22 @@ class StripeChargeProcessor
   end
 
   def self.handle_stripe_event_charge_dispute_for_charge_with_destination_funds_reinstated(stripe_dispute, stripe_charge, event)
+    # A fee refund can emit funds_reinstated without returning the disputed principal.
+    chargeback_reversal_balance_transaction = Array(stripe_dispute.balance_transactions).find do |balance_transaction|
+      balance_transaction.description.to_s[/^Chargeback reversal/].present?
+    end
+    if chargeback_reversal_balance_transaction.nil?
+      fee_refund = dispute_reinstatement_fee_refund(stripe_dispute)
+      if fee_refund
+        # A refunded fee doesn't explain a nonzero gross credit; surface it for reconciliation.
+        notify_unrecognized_dispute_reinstatement(stripe_dispute, stripe_charge, event) unless fee_refund.amount.zero?
+        event.type = ChargeEvent::TYPE_INFORMATIONAL
+        return
+      end
+
+      raise notify_unrecognized_dispute_reinstatement(stripe_dispute, stripe_charge, event)
+    end
+
     event.type = ChargeEvent::TYPE_DISPUTE_WON
     # NOTE: The application fee billed is the same application fee that was refunded to us when the chargeback occurred.
     # If for some reason the chargeback reversal returned to us a different amount than was originally chargedback (e.g. due to currency changes)
@@ -1468,11 +1699,9 @@ class StripeChargeProcessor
     chargeable = Charge::Chargeable.find_by_processor_transaction_id!(stripe_charge.id)
     amount_cents = chargeable.charged_amount_cents - chargeable.charged_gumroad_amount_cents
 
-    # Resolve Gumroad's share BEFORE moving any money. `presentment_gumroad_amount_for`
-    # deliberately raises rather than book a mixed-currency figure, and the transfer below
-    # has no idempotency key while this runs in HandleStripeEventWorker (`retry: 10`). If
-    # the raise came after the transfer, every retry would re-send the creator the full
-    # seller share — up to 11 duplicate transfers before the job reached the dead set.
+    # Resolve Gumroad's share BEFORE moving any money: `presentment_gumroad_amount_for`
+    # deliberately raises rather than book a mixed-currency figure, and a raise after the
+    # transfer left the creator paid with no disbursement recorded against the dispute.
     gumroad_amount = if stripe_charge.application_fee.present?
       FlowOfFunds::Amount.new(
         currency: stripe_charge.application_fee.currency,
@@ -1488,15 +1717,15 @@ class StripeChargeProcessor
       currency: Currency::USD,
       # Transfer Amount- Fees to Creator account. In future, we won't need to do this as we would have not sent fees at all before
       amount_cents:,
-      related_charge_id: stripe_charge.id
+      related_charge_id: stripe_charge.id,
+      # HandleStripeEventWorker retries (`retry: 10`); without a key a retry after a lost response
+      # re-sends the whole creator share.
+      idempotency_key: "dispute_funds_reinstated_transfer_#{stripe_dispute.id}"
     )
     issued_amount = FlowOfFunds::Amount.new(
       currency: stripe_dispute.currency,
       cents: stripe_dispute.amount
     )
-    chargeback_reversal_balance_transaction = stripe_dispute.balance_transactions.find do |balance_transaction|
-      balance_transaction.description[/^Chargeback reversal/].present?
-    end
     settled_amount = FlowOfFunds::Amount.new(
       currency: chargeback_reversal_balance_transaction.currency,
       cents: chargeback_reversal_balance_transaction.amount
@@ -1525,6 +1754,43 @@ class StripeChargeProcessor
       merchant_account_gross_amount:,
       merchant_account_net_amount:
     )
+  end
+
+  def self.dispute_reinstatement_fee_refund(stripe_dispute)
+    return unless stripe_dispute.status == "lost"
+
+    balance_transactions = Array(stripe_dispute.balance_transactions)
+    return unless balance_transactions.size == 2
+
+    withdrawal = balance_transactions.find do |transaction|
+      transaction.amount.is_a?(Integer) && transaction.amount.negative? &&
+        transaction.description.to_s.match?(/\AChargeback(?: withdrawal.*)?\z/)
+    end
+    return unless withdrawal && withdrawal.currency.present?
+
+    # Compare settlement amounts: Dispute#amount can be in a different currency.
+    balance_transactions.find do |transaction|
+      transaction.description.blank? && transaction.currency == withdrawal.currency &&
+        transaction[:fee].is_a?(Integer) && transaction[:fee].negative? &&
+        transaction.amount.is_a?(Integer) && transaction.amount >= 0 && transaction.amount < -withdrawal.amount
+    end
+  end
+
+  # Sidekiq failures aren't reported to Sentry here; notify explicitly before propagating the error.
+  def self.notify_unrecognized_dispute_reinstatement(stripe_dispute, stripe_charge, event)
+    balance_transactions = Array(stripe_dispute.balance_transactions).map do |balance_transaction|
+      {
+        id: balance_transaction.id,
+        amount: balance_transaction.amount,
+        currency: balance_transaction.currency,
+        description: balance_transaction.description,
+        fee: balance_transaction[:fee]
+      }
+    end
+    message = "Dispute #{stripe_dispute.id} (#{stripe_dispute.status}) on charge #{stripe_charge.id} fired funds_reinstated " \
+              "without a recognized Chargeback reversal balance transaction; the creator's share was not transferred."
+    ErrorNotifier.notify(message, stripe_event_id: event.charge_event_id, dispute_status: stripe_dispute.status, balance_transactions:)
+    message
   end
 
   # Gumroad's share of a disputed charge, expressed in the charge's own currency.
@@ -1627,6 +1893,20 @@ class StripeChargeProcessor
       ensure
         file.close!
       end
+    end
+
+    STRIPE_FILE_PAGE_LIMIT_ERROR = /fewer than \d+ pages/
+
+    # A seller file over Stripe's page limit fails its upload with a 400 that no retry can fix, and
+    # one failed field must not throw away the receipt and access log we generated ourselves.
+    def customer_communication_stripe_file(dispute_evidence, omitted_fields)
+      create_dispute_evidence_stripe_file(dispute_evidence.customer_communication_file)
+    rescue Stripe::InvalidRequestError => e
+      raise unless e.param == "file" && e.message.match?(STRIPE_FILE_PAGE_LIMIT_ERROR)
+
+      ErrorNotifier.notify("Dispute evidence submitted without customer_communication (dispute_evidence_id=#{dispute_evidence.id}): #{e.message}")
+      omitted_fields << :customer_communication
+      nil
     end
 
     # UPI exposes no reusable Mandate id; Stripe selects it from the Customer + PaymentMethod.

@@ -177,6 +177,7 @@ describe ProductPresenter do
             created_at: purchase.created_at,
             membership: nil,
             review: nil,
+            review_account_name: purchase.rater_account_name,
             should_show_receipt: true,
             was_paid: true,
             is_gift_receiver_purchase: false,
@@ -441,7 +442,7 @@ describe ProductPresenter do
     let!(:custom_domain) { create(:custom_domain, :with_product, product:) }
     let(:product_files) do
       product_file = product.product_files.first
-      [{ attached_product_name: "Product",  extension: "PDF", file_name: "Display Name", display_name: "Display Name", description: "Description", file_size: 50, id: product_file.external_id, is_pdf: true, pdf_stamp_enabled: false, hide_kindle_and_read_buttons: false, is_streamable: false, stream_only: false, width: nil, height: nil, is_transcoding_in_progress: false, isbn: nil, pagelength: 3, duration: nil, subtitle_files: [], url: product_file.url, thumbnail: nil, status: { type: "saved" } }]
+      [{ attached_product_name: "Product",  extension: "PDF", file_name: "Display Name", display_name: "Display Name", description: "Description", file_size: 50, id: product_file.external_id, is_pdf: true, pdf_stamp_enabled: false, hide_kindle_and_read_buttons: false, is_streamable: false, can_disable_downloads: true, stream_only: false, width: nil, height: nil, is_transcoding_in_progress: false, isbn: nil, pagelength: 3, duration: nil, subtitle_files: [], url: product_file.url, thumbnail: nil, status: { type: "saved" } }]
     end
     let(:available_countries) { ShippingDestination::Destinations.shipping_countries.map { { code: _1[0], name: _1[1] } } }
 
@@ -633,6 +634,7 @@ describe ProductPresenter do
             }
           ],
           is_tiered_membership: false,
+          can_close_membership_tiers: false,
           is_listed_on_discover: false,
           is_physical: false,
           earliest_membership_price_change_date: BaseVariant::MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE.days.from_now.in_time_zone(product.user.timezone).iso8601,
@@ -666,6 +668,7 @@ describe ProductPresenter do
             percentages: [0, 0, 0, 0, 0],
           },
           seller: UserPresenter.new(user: product.user).author_byline_props,
+          current_seller_external_id: product.user.external_id,
           existing_files: product_files,
           s3_url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}",
           aws_key: AWS_ACCESS_KEY,
@@ -680,6 +683,7 @@ describe ProductPresenter do
           receipt_email_from: "#{product.user.name.presence || "Gumroad"} <noreply@#{CUSTOMERS_MAIL_DOMAIN}>",
           price_checker_enabled: false,
           custom_html_pages_enabled: false,
+          auto_marketing_enabled: false,
           custom_html_store_hostnames: product.user.custom_html_store_hostnames,
           custom_html_global_nav_hosts: VALID_REQUEST_HOSTS,
           custom_html_global_nav_paths: RendersCustomHtmlPages::GLOBAL_NAV_PATHS,
@@ -728,6 +732,34 @@ describe ProductPresenter do
 
       it "exposes price_checker_enabled: true in edit_props" do
         expect(presenter.edit_props[:price_checker_enabled]).to eq(true)
+      end
+    end
+
+    it "does not offer closing tiers on a product that is not a membership" do
+      Feature.activate_user(:close_membership_tier_to_new_buyers, product.user)
+
+      expect(presenter.edit_props[:can_close_membership_tiers]).to be(false)
+    end
+
+    context "when the auto_marketing feature flag is enabled for the seller" do
+      let(:holdout) { false }
+
+      before do
+        create(:marketing_holdout_assignment, user: product.user, marketing_holdout: holdout)
+        Feature.activate_user(:auto_marketing, product.user)
+      end
+
+      it "exposes auto_marketing_enabled: true in edit_props" do
+        expect(presenter.edit_props[:auto_marketing_enabled]).to eq(true)
+      end
+
+      context "when the seller is in the holdout" do
+        let(:holdout) { true }
+
+        it "never exposes the launch card even at 100 percent with an actor override" do
+          Feature.activate_percentage(:auto_marketing, 100)
+          expect(presenter.edit_props[:auto_marketing_enabled]).to eq(false)
+        end
       end
     end
 
@@ -798,6 +830,24 @@ describe ProductPresenter do
         product_data = presenter.edit_props[:product]
 
         expect(product_data[:default_offer_code]).to include(discount: a_hash_including(type: "fixed", cents: 100))
+      end
+    end
+
+    context "when a collaborator opens the editor" do
+      let(:collaborator) { create(:collaborator, seller: product.user, products: [product]) }
+      let(:presenter) do
+        described_class.new(
+          product:,
+          request:,
+          pundit_user: SellerContext.new(user: collaborator.affiliate_user, seller: collaborator.affiliate_user),
+        )
+      end
+
+      it "keys uploads with the collaborator's own external id, while the byline stays the owner's" do
+        props = presenter.edit_props
+
+        expect(props[:current_seller_external_id]).to eq(collaborator.affiliate_user.external_id)
+        expect(props[:seller][:id]).to eq(product.user.external_id)
       end
     end
 
@@ -998,6 +1048,7 @@ describe ProductPresenter do
             thumbnail: nil,
             refund_policies: [],
             is_tiered_membership: true,
+            can_close_membership_tiers: false,
             is_listed_on_discover: false,
             is_physical: false,
             earliest_membership_price_change_date: BaseVariant::MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE.days.from_now.in_time_zone(membership.user.timezone).iso8601,
@@ -1021,6 +1072,7 @@ describe ProductPresenter do
               percentages: [0, 0, 0, 0, 100],
             },
             seller: UserPresenter.new(user: membership.user).author_byline_props,
+            current_seller_external_id: membership.user.external_id,
             existing_files: [],
             s3_url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}",
             aws_key: AWS_ACCESS_KEY,
@@ -1035,6 +1087,7 @@ describe ProductPresenter do
             receipt_email_from: "#{membership.user.name.presence || "Gumroad"} <noreply@#{CUSTOMERS_MAIL_DOMAIN}>",
             price_checker_enabled: false,
             custom_html_pages_enabled: false,
+            auto_marketing_enabled: false,
             custom_html_store_hostnames: membership.user.custom_html_store_hostnames,
             custom_html_global_nav_hosts: VALID_REQUEST_HOSTS,
             custom_html_global_nav_paths: RendersCustomHtmlPages::GLOBAL_NAV_PATHS,
@@ -1042,6 +1095,15 @@ describe ProductPresenter do
             dropbox_api_key: DROPBOX_PICKER_API_KEY,
           }
         )
+      end
+
+      it "serves a tier's close setting only when the seller may change it" do
+        tier.update!(closed_to_new_purchases: true)
+        expect(presenter.edit_props[:product][:variants].sole).not_to have_key(:closed_to_new_purchases)
+
+        Feature.activate_user(:close_membership_tier_to_new_buyers, membership.user)
+        expect(presenter.edit_props[:can_close_membership_tiers]).to be(true)
+        expect(presenter.edit_props[:product][:variants].sole[:closed_to_new_purchases]).to be(true)
       end
     end
 
@@ -1246,6 +1308,7 @@ describe ProductPresenter do
             thumbnail: nil,
             refund_policies: [],
             is_tiered_membership: false,
+            can_close_membership_tiers: false,
             is_listed_on_discover: false,
             is_physical: false,
             earliest_membership_price_change_date: BaseVariant::MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE.days.from_now.in_time_zone(new_product.user.timezone).iso8601,
@@ -1269,6 +1332,7 @@ describe ProductPresenter do
               percentages: [0, 0, 0, 0, 0],
             },
             seller: UserPresenter.new(user: new_product.user).author_byline_props,
+            current_seller_external_id: new_product.user.external_id,
             existing_files: [],
             s3_url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}",
             aws_key: AWS_ACCESS_KEY,
@@ -1283,6 +1347,7 @@ describe ProductPresenter do
             receipt_email_from: "#{new_product.user.name.presence || "Gumroad"} <noreply@#{CUSTOMERS_MAIL_DOMAIN}>",
             price_checker_enabled: false,
             custom_html_pages_enabled: false,
+            auto_marketing_enabled: false,
             custom_html_store_hostnames: new_product.user.custom_html_store_hostnames,
             custom_html_global_nav_hosts: VALID_REQUEST_HOSTS,
             custom_html_global_nav_paths: RendersCustomHtmlPages::GLOBAL_NAV_PATHS,
@@ -1342,14 +1407,14 @@ describe ProductPresenter do
 
     it "passes compute_description parameter to the card presenter" do
       expect(ProductPresenter::Card).to receive(:new).with(product:).and_call_original
-      expect_any_instance_of(ProductPresenter::Card).to receive(:for_web).with(request:, recommended_by: "discover", recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: false, compute_inventory: true)
+      expect_any_instance_of(ProductPresenter::Card).to receive(:for_web).with(request:, recommended_by: "discover", recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: false, compute_inventory: true, description_max_length: 100)
 
       described_class.card_for_web(product:, request:, recommended_by: "discover", compute_description: false)
     end
 
     it "defaults compute_description to true when not provided" do
       expect(ProductPresenter::Card).to receive(:new).with(product:).and_call_original
-      expect_any_instance_of(ProductPresenter::Card).to receive(:for_web).with(request:, recommended_by: "discover", recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true)
+      expect_any_instance_of(ProductPresenter::Card).to receive(:for_web).with(request:, recommended_by: "discover", recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true, description_max_length: 100)
 
       described_class.card_for_web(product:, request:, recommended_by: "discover")
     end
@@ -1443,11 +1508,49 @@ describe ProductPresenter do
     let(:presenter) { described_class.new(product: product) }
     let(:product_files) do
       product_file = product.product_files.first
-      [{ attached_product_name: product.name,  extension: "PDF", file_name: "Display Name", display_name: "Display Name", description: "Description", file_size: 50, id: product_file.external_id, is_pdf: true, pdf_stamp_enabled: false, hide_kindle_and_read_buttons: false, is_streamable: false, stream_only: false, width: nil, height: nil, is_transcoding_in_progress: false, isbn: nil, pagelength: 3, duration: nil, subtitle_files: [], url: product_file.url, thumbnail: nil, status: { type: "saved" } }]
+      [{ attached_product_name: product.name,  extension: "PDF", file_name: "Display Name", display_name: "Display Name", description: "Description", file_size: 50, id: product_file.external_id, is_pdf: true, pdf_stamp_enabled: false, hide_kindle_and_read_buttons: false, is_streamable: false, can_disable_downloads: true, stream_only: false, width: nil, height: nil, is_transcoding_in_progress: false, isbn: nil, pagelength: 3, duration: nil, subtitle_files: [], url: product_file.url, thumbnail: nil, status: { type: "saved" } }]
     end
 
     it "returns existing files" do
       expect(presenter.existing_files).to eq(product_files)
+    end
+
+    it "caps the picker at the default limit when the Redis read stalls, and leaves an unset key unlimited" do
+      create(:product_file, link: product, position: 1, url: "#{S3_BASE_URL}attachments/two/one.pdf")
+      stub_const("ProductPresenter::DEFAULT_EXISTING_PRODUCT_FILES_LIMIT", 1)
+
+      expect(presenter.existing_files.size).to eq(2)
+
+      allow($redis).to receive(:get).and_call_original
+      allow($redis).to receive(:get).with(RedisKey.product_presenter_existing_product_files_limit)
+        .and_raise(Redis::TimeoutError.new("Waited 1.0 seconds"))
+
+      expect(presenter.existing_files.size).to eq(1)
+    end
+
+    context "when the seller has files on another product" do
+      let(:other_product) { create(:product, user: seller) }
+      let!(:other_file) { create(:product_file, link: other_product, url: "#{AWS_S3_ENDPOINT}/#{S3_BUCKET}/attachments/other.pdf") }
+
+      it "offers the seller their whole library" do
+        seller_presenter = described_class.new(product:, pundit_user: SellerContext.new(user: seller, seller:))
+
+        expect(seller_presenter.existing_files.map { _1[:id] }).to match_array([product.product_files.first.external_id, other_file.external_id])
+      end
+
+      it "offers a collaborator only this product's files" do
+        collaborator = create(:collaborator, seller:, products: [product])
+        collaborator_presenter = described_class.new(product:, pundit_user: SellerContext.new(user: collaborator.affiliate_user, seller: collaborator.affiliate_user))
+
+        expect(collaborator_presenter.existing_files.map { _1[:id] }).to eq([product.product_files.first.external_id])
+      end
+
+      it "does not offer a collaborator the seller's other files from edit_props" do
+        collaborator = create(:collaborator, seller:, products: [product])
+        collaborator_presenter = described_class.new(product:, request: ActionDispatch::TestRequest.create, pundit_user: SellerContext.new(user: collaborator.affiliate_user, seller: collaborator.affiliate_user))
+
+        expect(collaborator_presenter.edit_props[:existing_files].map { _1[:id] }).to eq([product.product_files.first.external_id])
+      end
     end
 
     it "eager-loads variant_category and alive_rich_contents in edit_props variants (no N+1)" do

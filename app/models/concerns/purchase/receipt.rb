@@ -40,7 +40,7 @@ module Purchase::Receipt
     after_commit do
       next if destroyed?
       unless uses_charge_receipt?
-        SendPurchaseReceiptJob.set(queue: link.has_stampable_pdfs? ? "default" : "critical").perform_async(id)
+        SendPurchaseReceiptJob.perform_async(id)
         SendAutoInvoiceEmailJob.perform_async(id, nil) if AutoInvoiceEligibility.eligible?(self)
       end
       enqueue_send_last_post_job
@@ -56,9 +56,8 @@ module Purchase::Receipt
     if is_preorder_authorization
       CustomerMailer.preorder_receipt(preorder.id).deliver_later(queue: "critical", wait: 3.seconds)
     else
-      queue = link.has_stampable_pdfs? ? "default" : "critical"
-      SendPurchaseReceiptJob.set(queue:).perform_async(id)
-      SendPurchaseReceiptJob.set(queue:).perform_async(gift.giftee_purchase.id) if is_gift_sender_purchase && gift.present?
+      SendPurchaseReceiptJob.perform_async(id, true)
+      SendPurchaseReceiptJob.perform_async(gift.giftee_purchase.id, true) if is_gift_sender_purchase && gift.present?
     end
   end
 
@@ -94,6 +93,24 @@ module Purchase::Receipt
     return self unless candidate.email == email
 
     candidate
+  end
+
+  # Every charge of this membership the current holder may invoice, newest first. Email is compared
+  # in Ruby, not SQL: the column collates utf8mb4_unicode_ci, so `where(email:)` also matches the
+  # case- and accent-variants the invoice endpoint's byte comparison rejects.
+  def invoiceable_charges
+    return [] unless subscription.present?
+
+    # Mirrors Subscription#successful_purchases (private): a test subscription's charges live in
+    # `test_successful` rather than `successful`.
+    charges = subscription.is_test_subscription? ? subscription.purchases.test_successful : subscription.purchases.successful
+
+    charges
+      .not_fully_refunded
+      .not_chargedback_or_chargedback_reversed
+      .order(succeeded_at: :desc, id: :desc)
+      .reject(&:is_gift_sender_purchase?)
+      .select { |charge| charge.email == email && charge.has_invoice? }
   end
 
   def has_invoice?

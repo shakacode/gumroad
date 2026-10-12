@@ -26,7 +26,7 @@ describe ProductPresenter::Card do
               avatar_url: ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png"),
               is_verified: false,
             },
-            description: product.plaintext_description.truncate(100),
+            description: product.plaintext_description.truncate(described_class::DESCRIPTION_MAX_LENGTH),
             ratings: { count: 0, average: 0 },
             currency_code: Currency::USD,
             price_cents: 100,
@@ -70,13 +70,44 @@ describe ProductPresenter::Card do
       it "includes description when compute_description is true by default" do
         result = described_class.new(product:).for_web
 
-        expect(result[:description]).to eq(product.plaintext_description.truncate(100))
+        expect(result[:description]).to eq(product.plaintext_description.truncate(described_class::DESCRIPTION_MAX_LENGTH))
       end
 
       it "includes description when compute_description is explicitly true" do
         result = described_class.new(product:).for_web(compute_description: true)
 
-        expect(result[:description]).to eq(product.plaintext_description.truncate(100))
+        expect(result[:description]).to eq(product.plaintext_description.truncate(described_class::DESCRIPTION_MAX_LENGTH))
+      end
+
+      context "with a long description" do
+        before { product.update!(description: "<p>#{"Fresh card magic every month. " * 20}</p>") }
+
+        it "truncates to 100 characters by default" do
+          expect(described_class.new(product:).for_web[:description].length).to eq(100)
+        end
+
+        it "keeps the requested number of characters for the featured card" do
+          result = described_class.new(product:).for_web(description_max_length: described_class::FEATURED_DESCRIPTION_MAX_LENGTH)
+
+          expect(result[:description].length).to eq(300)
+          expect(result[:description]).to end_with("...")
+        end
+      end
+
+      context "when the cut lands after a sentence period" do
+        before { product.update!(description: "<p>#{"a" * 96}. More text follows here.</p>") }
+
+        it "ends in a single ellipsis" do
+          expect(described_class.new(product:).for_web[:description]).to eq("#{"a" * 96}...")
+        end
+
+        it "ends in a single ellipsis at the featured card limit" do
+          product.update!(description: "<p>#{"a" * 296}. More text follows here.</p>")
+
+          result = described_class.new(product:).for_web(description_max_length: described_class::FEATURED_DESCRIPTION_MAX_LENGTH)
+
+          expect(result[:description]).to eq("#{"a" * 296}...")
+        end
       end
 
       it "excludes description when compute_description is false" do
@@ -312,6 +343,63 @@ describe ProductPresenter::Card do
         data = described_class.new(product: product_with_offer_code).for_web
         expect(data[:price_cents]).to eq 9_00 # 1000 - 10% discount = 900
         expect(data[:original_price_cents]).to eq 10_00
+      end
+
+      context "when the code is limited to options" do
+        let(:category) { create(:variant_category, link: product_with_offer_code) }
+        let!(:basic) { create(:variant, variant_category: category, name: "Basic") }
+        let!(:pro) { create(:variant, variant_category: category, name: "Pro", price_difference_cents: 5_00) }
+
+        it "does not quote the discount when the lowest-priced option is not eligible" do
+          offer_code.update!(variants: [pro])
+          data = described_class.new(product: product_with_offer_code.reload).for_web
+
+          expect(data[:price_cents]).to eq 10_00
+          expect(data).not_to have_key(:original_price_cents)
+        end
+
+        it "quotes the discount when the lowest-priced option is eligible" do
+          offer_code.update!(variants: [basic])
+          data = described_class.new(product: product_with_offer_code.reload).for_web
+
+          expect(data[:price_cents]).to eq 9_00
+          expect(data[:original_price_cents]).to eq 10_00
+        end
+
+        it "renders a listing whose product's default code is limited to a SKU" do
+          physical = create(:physical_product, user: creator, price_cents: 10_00)
+          sku = physical.skus.first || create(:sku, link: physical)
+          code = create(:offer_code, user: creator, products: [physical], amount_percentage: 50, amount_cents: nil, variants: [sku])
+          physical.update!(default_offer_code: code)
+          loaded = Link.includes(ProductPresenter::Card::ASSOCIATIONS).find(physical.id)
+
+          expect(described_class.new(product: loaded).for_web[:price_cents]).to eq 5_00
+        end
+
+        it "quotes the discount for a tiered membership only when its lowest tier is eligible" do
+          membership = create(:membership_product_with_preset_tiered_pricing, user: creator)
+          lowest_tier, other_tier = membership.tiers.sort_by { |tier| tier.prices.alive.is_buy.minimum(:price_cents) }
+          code = create(:offer_code, user: creator, products: [membership], amount_percentage: 50, amount_cents: nil, variants: [other_tier])
+          membership.update!(default_offer_code: code)
+          base = membership.display_price_cents(for_default_duration: true)
+
+          expect(described_class.new(product: membership.reload).for_web[:price_cents]).to eq base
+
+          code.update!(variants: [lowest_tier])
+          expect(described_class.new(product: membership.reload).for_web[:price_cents]).to eq base - (base * 0.5).round
+        end
+
+        it "quotes the discount when the code covers any of several tiers tied at the lowest price" do
+          membership = create(:membership_product_with_preset_tiered_pricing, user: creator)
+          lowest_tier, other_tier = membership.tiers.sort_by { |tier| tier.prices.alive.is_buy.minimum(:price_cents) }
+          lowest_cents = lowest_tier.prices.alive.is_buy.minimum(:price_cents)
+          other_tier.prices.alive.is_buy.update_all(price_cents: lowest_cents)
+          code = create(:offer_code, user: creator, products: [membership], amount_percentage: 50, amount_cents: nil, variants: [other_tier])
+          membership.update!(default_offer_code: code)
+          base = membership.reload.display_price_cents(for_default_duration: true)
+
+          expect(described_class.new(product: membership.reload).for_web[:price_cents]).to eq base - (base * 0.5).round
+        end
       end
 
       it "does not show original price for zero discount" do

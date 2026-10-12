@@ -45,6 +45,9 @@ type LineItemPaymentErrorFull = {
   card_country: string | null;
   ip_country: string | null;
   updated_product: ProductToAdd | null;
+  // Present only when a guest was refused by the free-download block that the seller's own
+  // sign-in lifts.
+  owner_sign_in_remedy?: boolean;
 };
 export type ErrorLineItemResult = LineItemPaymentErrorFull | LineItemPaymentErrorShort;
 
@@ -83,6 +86,7 @@ export type PurchaseLineItemPayload = {
   isPppDiscounted: boolean;
   acceptsPppDiscount?: boolean;
   forceNewSubscription: boolean;
+  restartIntent?: string | null;
   // Set once the buyer has explicitly confirmed a same-product repeat charge that
   // Purchase#not_double_charged flagged — see confirmedDuplicatePurchaseUidsRef in Checkout/Show.tsx.
   confirmedDuplicatePurchase: boolean;
@@ -110,10 +114,12 @@ export type StartCartPurchaseRequestPayload = {
     | {
         gifteeEmail: string;
         giftNote: string;
+        hideGifter?: boolean;
       }
     | {
         gifteeId: string;
         giftNote: string;
+        hideGifter?: boolean;
       }
     | null;
   eventAttributes: {
@@ -307,6 +313,7 @@ export const createPurchasesRequestData = (
       is_purchasing_power_parity_discounted: lineItem.isPppDiscounted,
       accepts_purchasing_power_parity_discount: lineItem.acceptsPppDiscount,
       force_new_subscription: lineItem.forceNewSubscription || false,
+      restart_intent: lineItem.restartIntent ?? undefined,
       confirmed_duplicate_purchase: lineItem.confirmedDuplicatePurchase,
       custom_fields: lineItem.customFields,
     })),
@@ -324,6 +331,11 @@ export const createPurchasesRequestData = (
     purchase.country = payload.shippingInfo.country;
   } else if (payload.taxCountryElection === "US") {
     purchase.zip_code = payload.zipCode || "";
+  } else if (payload.taxCountryElection === "ES" && payload.zipCode) {
+    // A Spanish postal code is what exempts a Canary Islands / Ceuta / Melilla buyer from VAT, and
+    // the surcharge quote was already priced with it. Only set it when the buyer supplied one: an
+    // empty string would beat the geoip fallback in Purchase#zip_code_from_geoip (`zip_code ||= …`).
+    purchase.zip_code = payload.zipCode;
   } else if (payload.taxCountryElection === "CA") {
     purchase.state = payload.state || "";
   }
@@ -334,6 +346,7 @@ export const createPurchasesRequestData = (
       data.giftee_email = payload.giftInfo.gifteeEmail;
     }
     data.gift_note = payload.giftInfo.giftNote;
+    data.hide_gifter = payload.giftInfo.hideGifter === true;
   }
 
   const paymentDetailsSource = getPaymentDetailsSource(payload.paymentMethod, payload.usedStripePaymentElement);

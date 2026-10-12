@@ -17,6 +17,30 @@ describe Ai::StoreAgentActionExecutor do
   end
 
   describe "#execute" do
+    context "create_email (write replayed through the API)" do
+      let(:product) { create(:product, user: seller) }
+      let(:params) { api_write(endpoint: "create_email", params: { "audience" => "product", "product_id" => product.external_id, "subject" => "Update", "body" => "Hello", "draft" => true, "publish" => false }) }
+
+      it "creates only a draft for the intended product after confirmation" do
+        result = nil
+        expect { result = executor.execute(type: "api_write", params:) }.not_to change(PostEmailBlast, :count)
+        expect(result[:success]).to be(true)
+        installment = seller.installments.alive.sole
+        expect(installment).not_to be_published
+        expect(installment.link).to eq(product)
+        expect(installment.bought_products).to eq([product.unique_permalink])
+        expect(SendPostBlastEmailsJob.jobs.size).to eq(0)
+      end
+
+      it "rechecks a product deleted after staging without dispatching" do
+        proposal = params
+        product.update!(deleted_at: Time.current)
+        expect_any_instance_of(Ai::StoreAgentApiClient).not_to receive(:write)
+        result = executor.execute(type: "api_write", params: proposal)
+        expect(result).to include(success: false, message: "Product not found.", retry_safe: true)
+      end
+    end
+
     context "create_offer_code (write replayed through the API)" do
       let!(:product) { create(:product, user: seller, price_cents: 1000) }
 
@@ -37,6 +61,73 @@ describe Ai::StoreAgentActionExecutor do
         # The created object is returned so the chat can render it inline as a card.
         expect(result[:object]).to include(type: "discount", title: "LAUNCH")
       end
+    end
+
+    %w[user product].each do |surface|
+      context "reversible #{surface} HTML edits" do
+        let(:pageable) { surface == "user" ? seller : create(:product, user: seller) }
+        let(:endpoint) { "edit_#{surface}_custom_html" }
+        let(:path_params) { surface == "user" ? {} : { "id" => pageable.external_id } }
+        let(:original) { "<p>Keep this instruction.</p><a data-gumroad-action=\"buy\">Buy</a>" }
+        let(:formatted) { "<p><strong>Keep this instruction.</strong></p>" }
+
+        before do
+          Feature.activate_user(:custom_html_pages, seller)
+          pageable.update!(custom_html: original)
+        end
+
+        def apply_formatting
+          executor.execute(type: "api_write", params: api_write(endpoint:, path_params:, params: { "find" => "<p>Keep this instruction.</p>", "replace" => formatted }))
+        end
+
+        it "returns a server receipt that restores the entire original page through the real API" do
+          original_page = pageable.reload.custom_html
+          result = apply_formatting
+          expect(result[:success]).to be(true)
+          expect(result[:html_undo]).to be_present
+          expect(pageable.reload.custom_html).to include(formatted)
+
+          undo = executor.execute(type: "api_write", params: result.fetch(:html_undo))
+
+          expect(undo[:success]).to be(true)
+          expect(pageable.reload.custom_html).to eq(original_page)
+        end
+
+        it "refuses a stale undo at confirmation even when its snippet still matches" do
+          receipt = apply_formatting.fetch(:html_undo)
+          pageable.update!(custom_html: pageable.reload.custom_html + "<footer>New content</footer>")
+          changed_page = pageable.reload.custom_html
+
+          result = executor.execute(type: "api_write", params: receipt)
+
+          expect(result[:success]).to be(false)
+          expect(result[:message]).to include("changed")
+          expect(pageable.reload.custom_html).to eq(changed_page)
+        end
+      end
+    end
+
+    it "cannot replay a receipt against another seller's product" do
+      other_seller = create(:user)
+      Feature.activate_user(:custom_html_pages, other_seller)
+      other_product = create(:product, user: other_seller)
+      other_product.update!(custom_html: "<p><strong>Theirs</strong></p><a data-gumroad-action=\"buy\">Buy</a>")
+      their_page = other_product.reload.custom_html
+      receipt = {
+        "endpoint" => "edit_product_custom_html",
+        "path_params" => { "id" => other_product.external_id },
+        "params" => {
+          "find" => "<p><strong>Theirs</strong></p>", "replace" => "<p>Theirs</p>",
+          "expected_custom_html_sha256" => Digest::SHA256.hexdigest(their_page),
+          "result_custom_html_sha256" => Digest::SHA256.hexdigest(their_page.sub("<strong>Theirs</strong>", "Theirs")),
+        },
+      }
+
+      result = executor.execute(type: "api_write", params: receipt)
+
+      expect(result[:success]).to be(false)
+      expect(result).not_to have_key(:html_undo)
+      expect(other_product.reload.custom_html).to eq(their_page)
     end
 
     context "update_product (price change replayed through the API)" do
@@ -89,6 +180,112 @@ describe Ai::StoreAgentActionExecutor do
 
         expect(result[:success]).to be(true)
         expect(product.reload.alive?).to be(false)
+      end
+    end
+
+    # The empty list is the whole point of this endpoint, and it is also the payload the default
+    # form encoding of the body destroys, so it is asserted through the real dispatch path.
+    context "update_product_sections (write replayed through the API)" do
+      let(:product) { create(:product, user: seller) }
+      let!(:first) { create(:seller_profile_products_section, seller:, product:) }
+      let!(:second) { create(:seller_profile_products_section, seller:, product:) }
+
+      it "removes every section when the confirmed change sends an empty list" do
+        product.update!(sections: [first.id, second.id], main_section_index: 1)
+
+        result = executor.execute(
+          type: "api_write",
+          params: api_write(
+            endpoint: "update_product_sections",
+            path_params: { "id" => product.external_id },
+            params: { "sections" => [], "main_section_index" => 0 },
+          ),
+        )
+
+        expect(result[:success]).to be(true)
+        expect(result[:object]).to be_present
+        expect(product.reload.sections).to eq([])
+        expect(product.seller_profile_sections).to be_empty
+        expect(product.main_section_index).to eq(0)
+        expect(SellerProfileSection.where(id: [first.id, second.id])).to be_empty
+      end
+
+      it "reorders the sections it is told to keep and deletes the rest" do
+        product.update!(sections: [first.id, second.id], main_section_index: 1)
+
+        result = executor.execute(
+          type: "api_write",
+          params: api_write(
+            endpoint: "update_product_sections",
+            path_params: { "id" => product.external_id },
+            params: { "sections" => [second.external_id] },
+          ),
+        )
+
+        expect(result[:success]).to be(true)
+        expect(product.reload.sections).to eq([second.id])
+        expect(SellerProfileSection.exists?(first.id)).to be(false)
+        # No main_section_index in the confirmed change, so the product keeps the position it had.
+        expect(product.main_section_index).to eq(1)
+      end
+
+      it "refuses a confirmed change that would delete a section added after the card was shown" do
+        product.update!(sections: [first.id, second.id])
+        shown_ids = [first.external_id, second.external_id]
+        added_later = create(:seller_profile_products_section, seller:, product:)
+
+        result = executor.execute(
+          type: "api_write",
+          params: api_write(
+            endpoint: "update_product_sections",
+            path_params: { "id" => product.external_id },
+            params: { "sections" => [first.external_id], "known_section_ids" => shown_ids },
+          ),
+        )
+
+        expect(result).to include(
+          success: false,
+          message: "A section was added after this change was prepared. Ask the agent to prepare this change again.",
+          failure_reason: "stale_known_sections",
+          retry_safe: true,
+        )
+        expect(SellerProfileSection.where(id: [first.id, second.id, added_later.id]).count).to eq(3)
+      end
+
+      it "applies a confirmed change when no section was added since the card was shown" do
+        product.update!(sections: [first.id, second.id])
+
+        result = executor.execute(
+          type: "api_write",
+          params: api_write(
+            endpoint: "update_product_sections",
+            path_params: { "id" => product.external_id },
+            params: { "sections" => [first.external_id], "known_section_ids" => [first.external_id, second.external_id] },
+          ),
+        )
+
+        expect(result[:success]).to be(true)
+        expect(product.reload.sections).to eq([first.id])
+        expect(SellerProfileSection.exists?(second.id)).to be(false)
+      end
+
+      it "leaves sections untouched when a section belongs to another product" do
+        product.update!(sections: [first.id, second.id], main_section_index: 1)
+        foreign = create(:seller_profile_products_section, seller:, product: create(:product, user: seller))
+
+        result = executor.execute(
+          type: "api_write",
+          params: api_write(
+            endpoint: "update_product_sections",
+            path_params: { "id" => product.external_id },
+            params: { "sections" => [first.external_id, foreign.external_id] },
+          ),
+        )
+
+        expect(result[:success]).to be(false)
+        expect(result[:message]).to eq("One or more sections do not belong to this product.")
+        expect(product.reload.sections).to contain_exactly(first.id, second.id)
+        expect(SellerProfileSection.exists?(foreign.id)).to be(true)
       end
     end
 
@@ -166,6 +363,14 @@ describe Ai::StoreAgentActionExecutor do
           expect(result[:failure_reason]).to eq("unknown_parameters")
           expect(result[:retry_safe]).to be(true)
         end.not_to change { seller.links.count }
+      end
+
+      it "rejects a product email without an identifier before dispatch" do
+        expect_any_instance_of(Ai::StoreAgentApiClient).not_to receive(:write)
+        result = executor.execute(type: "api_write", params: api_write(endpoint: "create_email", params: { "audience" => "product", "product_id" => "" }))
+
+        expect(result).to include(success: false, failure_reason: "invalid_parameters", retry_safe: true)
+        expect(result[:message]).to eq("Product audience requires a product_id or link_id.")
       end
 
       it "rejects a stale webhook creation confirmation before dispatching" do

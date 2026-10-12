@@ -121,11 +121,16 @@ const renderNode = (node: RichTextNode, path: string): React.ReactNode => {
         <code>{children}</code>
       </pre>
     );
-  if (node.type === "heading" && isRecord(node.attrs)) {
-    const level = node.attrs.level;
-    if (typeof level === "number" && level >= 1 && level <= 6) {
-      return React.createElement(`h${level}`, { key: path }, children);
-    }
+  if (node.type === "heading") {
+    const requestedLevel = isRecord(node.attrs) ? node.attrs.level : undefined;
+    const level =
+      typeof requestedLevel === "number" &&
+      Number.isInteger(requestedLevel) &&
+      requestedLevel >= 1 &&
+      requestedLevel <= 6
+        ? requestedLevel
+        : 1;
+    return React.createElement(`h${level}`, { key: path }, children);
   }
 
   return null;

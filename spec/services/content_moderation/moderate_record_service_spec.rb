@@ -182,6 +182,16 @@ RSpec.describe ContentModeration::ModerateRecordService, :vcr do
 
         expect(result.passed).to eq(false)
         expect(result.reasons).to eq(["spam: outbound link farm"])
+        expect(result.empty_storefront).to eq(true)
+      end
+
+      it "does not mark a non-spam block as an empty-storefront block" do
+        allow(ContentModeration::Strategies::PromptStrategy).to receive(:new).and_return(
+          instance_double(ContentModeration::Strategies::PromptStrategy,
+                          perform: strategy_result.new(status: "flagged", reasoning: ["adult_content: explicit imagery described"]))
+        )
+
+        expect(described_class.check(page, :page).empty_storefront).to eq(false)
       end
 
       it "leaves no admin note for a dry-run preview candidate, which was never published" do
@@ -952,8 +962,49 @@ RSpec.describe ContentModeration::ModerateRecordService, :vcr do
         expect(described_class.check(bundle.reload, :product).passed).to eq(true)
       end
 
-      it "still blocks a coffee listing, which has no deliverable by design" do
+      it "still blocks a coffee listing from a seller with nothing else published" do
         coffee = create(:coffee_product, name: "Buy me a coffee", description: "Support my work")
+
+        expect(described_class.check(coffee.reload, :product).passed).to eq(false)
+      end
+
+      it "publishes a coffee listing when the seller has other live products" do
+        ContentModerationAdminCommentJob.clear
+        aged_seller = create(:user, created_at: 60.days.ago)
+        coffee = create(:coffee_product, user: aged_seller, name: "Buy me a coffee", description: "Support my work")
+        create(:product, user: aged_seller)
+
+        result = described_class.check(coffee.reload, :product)
+
+        expect(result.passed).to eq(true)
+        contents = ContentModerationAdminCommentJob.jobs.map { |j| j["args"].second }
+        expect(contents).to contain_exactly(
+          a_string_including("flagged but did not block").and(
+            a_string_including("not blocked: seller has a live storefront")
+          )
+        )
+      end
+
+      it "publishes a coffee listing when the seller has a sale but no other live product" do
+        aged_seller = create(:user, created_at: 60.days.ago)
+        coffee = create(:coffee_product, user: aged_seller, name: "Buy me a coffee", description: "Support my work")
+        create(:purchase, link: create(:product, user: aged_seller, deleted_at: Time.current))
+
+        expect(described_class.check(coffee.reload, :product).passed).to eq(true)
+      end
+
+      it "still blocks a coffee listing when the seller's only other product is an unpublished draft" do
+        aged_seller = create(:user, created_at: 60.days.ago)
+        coffee = create(:coffee_product, user: aged_seller, name: "Buy me a coffee", description: "Support my work")
+        create(:product, user: aged_seller, draft: true)
+
+        expect(described_class.check(coffee.reload, :product).passed).to eq(false)
+      end
+
+      it "still blocks a coffee listing when the seller's only other product was deleted" do
+        aged_seller = create(:user, created_at: 60.days.ago)
+        coffee = create(:coffee_product, user: aged_seller, name: "Buy me a coffee", description: "Support my work")
+        create(:product, user: aged_seller, deleted_at: Time.current)
 
         expect(described_class.check(coffee.reload, :product).passed).to eq(false)
       end
@@ -977,10 +1028,40 @@ RSpec.describe ContentModeration::ModerateRecordService, :vcr do
         expect(result.reasons).to eq(["spam: reads like a sales pitch and lacks coherent prose"])
       end
 
-      it "still blocks a post, which has no deliverable of its own" do
+      it "still blocks a post from a seller with no products and no sales, which has no deliverable of its own" do
         post = create(:installment, seller: seller, name: "Post", message: "<p>Body</p>")
+        expect(seller.links.alive).to be_empty
 
         expect(described_class.check(post, :post).passed).to eq(false)
+      end
+
+      # A draft is not a storefront: the carve-out is for sellers who already have an
+      # audience, and `alive` alone counts a product that was never published.
+      it "still blocks a post when the seller's only product is an unpublished draft" do
+        create(:product, user: seller, draft: true)
+        post = create(:installment, seller: seller, name: "Post", message: "<p>Body</p>")
+
+        expect(seller.links.alive.not_draft).to be_empty
+        expect(described_class.check(post, :post).passed).to eq(false)
+      end
+
+      # The seller is writing to their own audience, so the flag stays as a review note
+      # (gumroad-private#2755).
+      it "publishes a post with a review note when the seller has a live storefront" do
+        ContentModerationAdminCommentJob.clear
+        create(:product, user: seller)
+        post = create(:installment, seller: seller, name: "Update", message: "<p>New version. Get it here.</p>")
+
+        result = described_class.check(post, :post)
+
+        expect(result.passed).to eq(true)
+        expect(result.reasons).to eq([])
+        contents = ContentModerationAdminCommentJob.jobs.map { |j| j["args"].second }
+        expect(contents).to contain_exactly(
+          a_string_including("flagged but did not block").and(
+            a_string_including("not blocked: seller has a live storefront")
+          )
+        )
       end
 
       it "still blocks on a non-spam reason flagged alongside the spam one" do
@@ -1075,6 +1156,39 @@ RSpec.describe ContentModeration::ModerateRecordService, :vcr do
       message = described_class.seller_message(["spam: repetitive CTAs"], "email", title: "Email #7")
 
       expect(message).to eq("The email \"Email #7\" can’t be saved because it looks like it contains content that reads as promotional spam. Please update the content to follow our content guidelines.")
+    end
+
+    it "tells a seller with no storefront to publish a product rather than reword a spam-flagged page" do
+      message = described_class.seller_message(["spam: link farm"], "page", empty_storefront: true)
+
+      expect(message).to eq(
+        "This page can’t be saved yet. It reads as promotional, and your account doesn’t have a published product " \
+        "or a sale yet, so we can’t publish promotional pages for it. Publish a product first, then save this page again."
+      )
+    end
+
+    it "still names a concrete flag raised alongside an empty-storefront spam block" do
+      message = described_class.seller_message(["spam: link farm", "adult_content: explicit"], "post", title: "Launch", empty_storefront: true)
+
+      expect(message).to start_with("The post \"Launch\" can’t be saved yet.")
+      expect(message).to include("This post can’t be saved because it looks like it contains adult content.")
+    end
+
+    it "keeps the replace-the-image fix when an unreviewable image is flagged alongside an empty-storefront spam block" do
+      message = described_class.seller_message(
+        ["spam: link farm", ContentModeration::Strategies::ClassifierStrategy::UNFETCHABLE_IMAGE_REASON],
+        "page",
+        empty_storefront: true
+      )
+
+      expect(message).to include("Publish a product first")
+      expect(message).to include("Replace that image with a new upload")
+    end
+
+    it "keeps the reword copy for a spam flag when the storefront was not the reason" do
+      message = described_class.seller_message(["spam: link farm"], "product")
+
+      expect(message).to include("Please update the content")
     end
 
     it "keeps the generic subject when no title is given" do

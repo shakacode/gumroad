@@ -48,6 +48,7 @@ ruby spec/bin/check_migration_versions_test.rb
 ruby spec/bin/branch_specs_test.rb
 ruby spec/bin/shaka_commands_test.rb
 ruby spec/bin/cpflow_deployment_workflows_test.rb
+ruby spec/bin/control_plane_benchmark_contract_test.rb
 bundle exec ruby test/scripts/verified_benchmark_deployment_test.rb
 bundle exec ruby test/scripts/configure_control_plane_product_page_test.rb
 bash script/test-reuse-full-suite

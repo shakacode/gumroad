@@ -164,6 +164,7 @@ describe ProductPresenter::ProductProps do
                 tier_description: nil
               },
               review: ProductReviewPresenter.new(purchase.product_review).review_form_props,
+              review_account_name: purchase.rater_account_name,
               should_show_receipt: true,
               was_paid: false,
               is_gift_receiver_purchase: false,
@@ -404,6 +405,7 @@ describe ProductPresenter::ProductProps do
               created_at: purchase.created_at,
               membership: nil,
               review: ProductReviewPresenter.new(purchase.product_review).review_form_props,
+              review_account_name: purchase.rater_account_name,
               should_show_receipt: true,
               was_paid: true,
               is_gift_receiver_purchase: false,
@@ -495,7 +497,7 @@ describe ProductPresenter::ProductProps do
       it "includes the summary excluding the viewed product when the flag is on" do
         Feature.activate_user(:seller_reputation_summary, seller)
         summary = { average: 4.8, count: 12, products_count: 2 }
-        expect_any_instance_of(User).to receive(:seller_reputation_summary).with(exclude_product: product).and_return(summary)
+        expect_any_instance_of(User).to receive(:seller_reputation_summary).with(exclude_product: product, snapshot_only: true).and_return(summary)
 
         expect(described_class.new(product:).props(seller_custom_domain_url: nil, request:, pundit_user: nil)[:product][:seller_reputation]).to eq(summary)
       end
@@ -757,6 +759,64 @@ describe ProductPresenter::ProductProps do
       end
     end
 
+    describe "pwyw default_price_cents" do
+      let(:product) { create(:product, user: seller, price_cents: 0, customizable_price: true) }
+
+      def pwyw_props(product)
+        described_class.new(product:).props(seller_custom_domain_url: nil, request:, pundit_user: nil)[:product][:pwyw]
+      end
+
+      it "is nil when the product is not pay what you want" do
+        product.update!(price_cents: 500, customizable_price: false)
+
+        expect(pwyw_props(product)).to be_nil
+      end
+
+      it "is 0 for a free product with no suggested price" do
+        expect(pwyw_props(product)).to eq(suggested_price_cents: nil, default_price_cents: 0)
+      end
+
+      it "is 0 when every option is also free" do
+        category = create(:variant_category, link: product)
+        create(:variant, variant_category: category, price_difference_cents: 0)
+        create(:variant, variant_category: category, price_difference_cents: nil)
+
+        expect(pwyw_props(product)[:default_price_cents]).to eq(0)
+      end
+
+      it "is nil when the product has a price" do
+        product.update!(price_cents: 500)
+
+        expect(pwyw_props(product)[:default_price_cents]).to be_nil
+      end
+
+      it "is nil when the seller suggests a price, so it shows as the placeholder" do
+        product.update!(suggested_price_cents: 500)
+
+        expect(pwyw_props(product)[:default_price_cents]).to be_nil
+      end
+
+      it "is nil when an option costs money" do
+        category = create(:variant_category, link: product)
+        create(:variant, variant_category: category, price_difference_cents: 0)
+        create(:variant, variant_category: category, price_difference_cents: 300)
+
+        expect(pwyw_props(product)[:default_price_cents]).to be_nil
+      end
+
+      it "is nil when renting costs money" do
+        product.update!(purchase_type: :buy_and_rent, rental_price_cents: 100)
+
+        expect(pwyw_props(product)[:default_price_cents]).to be_nil
+      end
+
+      it "is nil for a tiered membership" do
+        membership = create(:membership_product, user: seller, customizable_price: true)
+
+        expect(pwyw_props(membership)[:default_price_cents]).to be_nil
+      end
+    end
+
     context "multi-seat license on a non-membership product" do
       let(:product) { create(:product, native_type: Link::NATIVE_TYPE_COURSE, is_licensed: true, is_multiseat_license: true) }
 
@@ -825,6 +885,33 @@ describe ProductPresenter::ProductProps do
 
         expect(props[:purchase].to_json).not_to include(purchase.license_key)
       end
+    end
+  end
+
+  describe "purchase props" do
+    let(:seller) { create(:named_seller) }
+    let(:product) { create(:product, user: seller) }
+    let(:buyer) { create(:user, name: nil, username: "yacobyte") }
+    let(:request) do
+      OpenStruct.new(remote_ip: "12.12.128.128", host: "example.com", host_with_port: "example.com", params: {}, cookie_jar: {})
+    end
+
+    # The review form needs this name before a first review exists, so it rides on the purchase
+    # rather than on review props. `purchase_props` copies an explicit list of keys, which is easy
+    # to miss when adding one.
+    it "carries the name the review form offers as the public identity" do
+      purchase = create(:purchase, link: product, purchaser: buyer, email: buyer.email, full_name: "Checkout Name")
+
+      props = presenter.props(
+        seller_custom_domain_url: nil,
+        request:,
+        pundit_user: SellerContext.new(user: buyer, seller: buyer),
+        purchase_id: purchase.external_id,
+        purchase_email_digest: purchase.email_digest
+      )
+
+      expect(props[:purchase][:id]).to eq(purchase.external_id)
+      expect(props[:purchase][:review_account_name]).to eq("yacobyte")
     end
   end
 end

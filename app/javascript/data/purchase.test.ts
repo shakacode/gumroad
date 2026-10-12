@@ -224,6 +224,31 @@ describe("createPurchasesRequestData wallet_type threading", () => {
     expect(data).not.toHaveProperty("wallet_type");
   });
 
+  it("sends hide_gifter when the buyer chose to stay anonymous to the recipient", () => {
+    const data = createPurchasesRequestData(
+      {
+        ...payloadWith({ type: "not-applicable" }),
+        giftInfo: { gifteeEmail: "giftee@example.com", giftNote: "Happy birthday!", hideGifter: true },
+      },
+      {},
+    );
+
+    expect(data.giftee_email).toBe("giftee@example.com");
+    expect(data.hide_gifter).toBe(true);
+  });
+
+  it("sends hide_gifter false when the buyer did not opt in", () => {
+    const data = createPurchasesRequestData(
+      {
+        ...payloadWith({ type: "not-applicable" }),
+        giftInfo: { gifteeEmail: "giftee@example.com", giftNote: "" },
+      },
+      {},
+    );
+
+    expect(data.hide_gifter).toBe(false);
+  });
+
   // Buyer-currency presentment: an eligible wallet purchase must carry the quote token, or the
   // charge silently falls back to canonical USD and the buyer is charged a total that isn't the
   // one their wallet sheet showed. Pinned per lane because the two lanes build their params
@@ -274,5 +299,57 @@ describe("createPurchasesRequestData wallet_type threading", () => {
       expect(data.wallet_type).toBe("google_pay");
       expect(data.payment_details_source).toBe("payment_element");
     });
+  });
+});
+
+describe("createPurchasesRequestData zip_code mapping", () => {
+  const payloadWith = (overrides: Partial<StartCartPurchaseRequestPayload>): StartCartPurchaseRequestPayload => ({
+    paymentMethod: {
+      type: "new",
+      cardParamsResult: { type: "cc", keepOnFile: false, zipCode: null, cardParams },
+    },
+    email: "buyer@example.com",
+    fullName: "Buyer",
+    zipCode: null,
+    state: null,
+    shippingInfo: null,
+    taxCountryElection: null,
+    vatId: null,
+    giftInfo: null,
+    eventAttributes: { plugins: null, friend: null, url_parameters: null, locale: "en-US" },
+    lineItems: [],
+    recaptchaResponse: null,
+    usedStripePaymentElement: true,
+    buyerCurrencyQuote: null,
+    directListedAmountToken: null,
+    ...overrides,
+  });
+
+  // A digital checkout has no shippingInfo, so the top-level zipCode is the only carrier for the
+  // buyer's postal code. Spain needs it: a 35xxx/38xxx/51xxx/52xxx code is what exempts the buyer
+  // from VAT, and the surcharge quote already priced the order with it.
+  const purchaseFor = (overrides: Partial<StartCartPurchaseRequestPayload>) => {
+    const purchase: Record<string, unknown> = {};
+    createPurchasesRequestData(payloadWith(overrides), purchase);
+    return purchase;
+  };
+
+  it("carries a Spanish buyer's postal code into the purchase for a non-shipping purchase", () => {
+    expect(purchaseFor({ taxCountryElection: "ES", zipCode: "35001" }).zip_code).toBe("35001");
+  });
+
+  it("still carries a US buyer's postal code into the purchase", () => {
+    expect(purchaseFor({ taxCountryElection: "US", zipCode: "10001" }).zip_code).toBe("10001");
+  });
+
+  it("does not invent a postal code for a country with no postal-code rule", () => {
+    expect(purchaseFor({ taxCountryElection: "DE", zipCode: "10115" }).zip_code).toBeUndefined();
+  });
+
+  // An empty string would win over the geoip fallback (`zip_code ||= geoip.postal_code`), so a
+  // Spain purchase with no code typed must leave the field unset rather than blank.
+  it("leaves a Spain purchase with no postal code unset", () => {
+    expect(purchaseFor({ taxCountryElection: "ES", zipCode: null }).zip_code).toBeUndefined();
+    expect(purchaseFor({ taxCountryElection: "ES", zipCode: "" }).zip_code).toBeUndefined();
   });
 });

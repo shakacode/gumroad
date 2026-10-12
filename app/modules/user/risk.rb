@@ -109,6 +109,12 @@ module User::Risk
     SocialConnectFunnel.record_hold_released!(self, surface: "mark_compliant")
   end
 
+  # The job calls Stripe, so it waits for the outermost commit: this runs inside the transition's
+  # transaction, and a caller such as LowBalanceFraudCheck can hold a wider one around it.
+  def enqueue_platform_stripe_pause_lift
+    AfterCommitEverywhere.after_commit { LiftPlatformStripePauseJob.perform_async(id) }
+  end
+
   def disable_refunds!
     self.refunds_disabled = true
     save!
@@ -331,6 +337,22 @@ module User::Risk
     !!clear_suspension
   end
 
+  # `enable_refunds!` runs after the move to compliant and saves the whole `flags` integer from
+  # this copy, so a bit committed since it was loaded (an admin payout pause) would be written
+  # back to its old value. Rebase onto the locked row, keeping only the bits this copy changed.
+  def rebase_flags_onto_locked_row(_transition)
+    return true if new_record?
+
+    persisted_flags = self.class.where(id:).lock.pick(:flags).to_i
+    caller_flags = self[:flags].to_i
+    caller_changed_bits = caller_flags ^ attribute_in_database(:flags).to_i
+
+    self[:flags] = persisted_flags
+    clear_attribute_changes([:flags])
+    self[:flags] = (persisted_flags & ~caller_changed_bits) | (caller_flags & caller_changed_bits)
+    true
+  end
+
   def add_user_comment(transition)
     params = transition.args.first
     raise ArgumentError, "first transition argument must include an author_id or author_name" if !params || (!params[:author_id] && !params[:author_name])
@@ -458,6 +480,16 @@ module User::Risk
     last_system_payout_pause_comment&.created_at
   end
 
+  # When the current repeated-failed-payouts hold began, or nil when payouts are not held by that
+  # check. Same identification rule as above, for the other pausing author.
+  def repeated_failed_payouts_hold_started_at
+    return nil unless payouts_paused_internally?
+    return nil unless payouts_paused_by_source == PAYOUT_PAUSE_SOURCE_SYSTEM
+
+    comment = last_system_payout_pause_comment
+    comment.created_at if comment&.author_name == SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:repeated_failed_payouts]
+  end
+
   def last_system_payout_pause_comment
     comments.with_type_on_probation
             .where(author_name: SYSTEM_PAYOUT_PAUSING_COMMENT_AUTHORS)
@@ -471,8 +503,15 @@ module User::Risk
   # on top of the hold also stays a full skip — payouts_paused_by_source still reports
   # "system" when both are set, so this flag is what the UI and the payment path share.
   def chargeback_rate_payout_reserve_active?
-    return false if Feature.active?(:disable_chargeback_rate_payout_reserve)
     return false if payouts_paused_by_user?
+
+    chargeback_rate_payout_reserve_available?
+  end
+
+  # Same as above but ignoring the seller's own pause: whether turning that pause off would
+  # bring the reserve back.
+  def chargeback_rate_payout_reserve_available?
+    return false if Feature.active?(:disable_chargeback_rate_payout_reserve)
     # Deletion/GDPR set the pause flag without touching payouts_paused_by, so an account
     # deleted mid-hold still matches the predicate below. Deleted accounts get no carve-out.
     return false if deleted?

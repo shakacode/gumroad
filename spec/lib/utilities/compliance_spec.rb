@@ -62,6 +62,33 @@ describe Compliance do
       it "returns nil for an empty country name" do
         expect(Compliance::Countries.find_by_name("")).to be_nil
       end
+
+      describe "cache" do
+        before { Compliance::Countries.instance_variable_get(:@find_by_name_cache).clear }
+
+        it "looks a found name up in the gem only once" do
+          expect(ISO3166::Country).to receive(:find_country_by_any_name).with("Mexico").once.and_call_original
+
+          2.times { expect(Compliance::Countries.find_by_name("Mexico")).to eq(Compliance::Countries::MEX) }
+        end
+
+        it "does not keep a name that matches no country" do
+          expect(ISO3166::Country).to receive(:find_country_by_any_name).with("Atlantis").twice.and_call_original
+
+          2.times { expect(Compliance::Countries.find_by_name("Atlantis")).to be_nil }
+        end
+
+        it "starts over at the limit, so arbitrary names cannot grow it" do
+          stub_const("Compliance::Countries::FIND_BY_NAME_CACHE_LIMIT", 2)
+          expect(ISO3166::Country).to receive(:find_country_by_any_name).with("Mexico").twice.and_call_original
+          allow(ISO3166::Country).to receive(:find_country_by_any_name).with("Canada").and_call_original
+          allow(ISO3166::Country).to receive(:find_country_by_any_name).with("Peru").and_call_original
+
+          ["Mexico", "Canada", "Peru", "Mexico"].each { |name| Compliance::Countries.find_by_name(name) }
+
+          expect(Compliance::Countries.instance_variable_get(:@find_by_name_cache).size).to be <= 2
+        end
+      end
     end
 
     describe ".historical_names" do
@@ -1126,5 +1153,21 @@ describe Compliance do
       "US_WI",
       "US_WY",
     ]
+  end
+
+  describe ".es_postal_code_vat_exempt?" do
+    it "is true for Las Palmas, Santa Cruz de Tenerife, Ceuta and Melilla codes" do
+      %w[35000 35001 38001 38999 51001 52001 52080].each { expect(described_class.es_postal_code_vat_exempt?(_1)).to be(true) }
+    end
+
+    it "is false for mainland, malformed and blank codes" do
+      ["08001", "28001", "34999", "39000", "3500", "350000", "35", "3500A", " 35001x", nil, "", "   "].each do |code|
+        expect(described_class.es_postal_code_vat_exempt?(code)).to be(false)
+      end
+    end
+
+    it "tolerates surrounding whitespace" do
+      expect(described_class.es_postal_code_vat_exempt?(" 38400 ")).to be(true)
+    end
   end
 end

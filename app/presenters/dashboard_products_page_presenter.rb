@@ -40,6 +40,7 @@ class DashboardProductsPagePresenter
       query:,
       has_products: -> { presenter.send(:base_props)[:has_products] },
       can_create_product: -> { presenter.send(:base_props)[:can_create_product] },
+      piracy_reports_tab_visible: -> { Pundit.policy!(presenter.send(:pundit_user), PiracyReport).tab? },
       products_data: InertiaRails.defer(group: "data") do
         {
           products: presenter.products_table_props[:products],
@@ -179,6 +180,7 @@ class DashboardProductsPagePresenter
         "can_duplicate" => Pundit.policy!(pundit_user, [:product_duplicates, product]).create?,
         "can_archive" => Pundit.policy!(pundit_user, [:products, :archived, product]).create?,
         "can_unarchive" => Pundit.policy!(pundit_user, [:products, :archived, product]).destroy?,
+        "can_report_piracy" => Pundit.policy!(pundit_user, PiracyReport).new?,
       }
     end
 

@@ -16,7 +16,7 @@ export const ProfileFeaturedProduct = ({
   if (!serverContent) return null;
 
   return (
-    <FeaturedProductStateProvider product={props.product} initialDiscountCode={props.discount_code}>
+    <FeaturedProductStateProvider product={props.product} initialDiscountCode={null}>
       <ProductArticle
         product={props.product}
         purchase={props.purchase}

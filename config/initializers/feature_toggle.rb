@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-Flipper.configure do |config|
-  config.adapter { Flipper::Adapters::Redis.new($redis) }
-end
+require_relative "../../lib/flipper/adapters/redis_fail_open"
 
-# Gumhead beta membership is a User flag bit, not per-actor enablement:
-# flipper 1.3 caps actors at 100 per feature and the beta must grow past that.
-Flipper.register(:gumhead_beta) { |actor| actor.respond_to?(:gumhead_enabled?) && actor.gumhead_enabled? }
+# Flipper builds a DSL per thread; fallback values and reporting are shared per process.
+redis_flag_state = Flipper::Adapters::RedisFailOpen::State.new
+Flipper.configure do |config|
+  config.adapter { Flipper::Adapters::RedisFailOpen.new(Flipper::Adapters::Redis.new($redis), state: redis_flag_state) }
+end
 
 Rails.application.config.flipper.preload = false
 
@@ -32,3 +32,5 @@ class FlipperCSP
     @app.call(env)
   end
 end
+
+require_relative "../../lib/flipper/closed_tier_discover_refresh"

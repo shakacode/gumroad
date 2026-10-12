@@ -94,6 +94,25 @@ describe "Products Page Scenario", type: :system, js: true do
     end
   end
 
+  describe "piracy reports tab" do
+    it "shows the Piracy reports tab only to sellers who filed a report, even without the feature" do
+      product = create(:product, user: seller)
+
+      visit products_path
+      expect(page).to have_selector(:tab_button, "Affiliated")
+      expect(page).not_to have_selector(:tab_button, "Piracy reports")
+
+      create(:piracy_report, seller:, product:, url: "https://example.net/design-course")
+      visit products_path
+      find(:tab_button, "Piracy reports").click
+
+      expect(page).to have_current_path(piracy_reports_path)
+      within find(:table_row, { "Reported page" => "example.net/design-course" }) do
+        expect(page).to have_text(product.name)
+      end
+    end
+  end
+
   describe "deletion" do
     it "deletes a membership" do
       membership = create(:subscription_product, user: seller)
@@ -152,6 +171,28 @@ describe "Products Page Scenario", type: :system, js: true do
       within find_product_row(product) do
         select_disclosure "Open product action menu" do
           expect(page).to have_menuitem("Delete", disabled: true)
+        end
+      end
+    end
+  end
+
+  describe "piracy reports" do
+    it "offers Report piracy only to sellers with the feature" do
+      product = create(:product, user: seller)
+
+      visit products_path
+      within find_product_row(product) do
+        select_disclosure "Open product action menu" do
+          expect(page).to have_menuitem("Duplicate")
+          expect(page).not_to have_menuitem("Report piracy")
+        end
+      end
+
+      Feature.activate_user(:piracy_reports, seller)
+      visit products_path
+      within find_product_row(product) do
+        select_disclosure "Open product action menu" do
+          expect(page).to have_menuitem("Report piracy")
         end
       end
     end

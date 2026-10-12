@@ -39,7 +39,9 @@ class ContentModeration::ModerateRecordService
   end
   private_constant :StorageCheckBudget
 
-  CheckResult = Struct.new(:passed, :reasons, keyword_init: true)
+  # `empty_storefront`: a spam flag blocked a page or post only because the seller has no
+  # published product or sale behind it, so the fix is to list something, not to reword.
+  CheckResult = Struct.new(:passed, :reasons, :empty_storefront, keyword_init: true)
 
   CATEGORY_LABELS = {
     "harassment" => "harassment",
@@ -97,7 +99,7 @@ class ContentModeration::ModerateRecordService
 
   # `title` names the specific record in the error (e.g. which email of a
   # 17-email workflow was flagged) so sellers don't have to guess what to fix.
-  def self.seller_message(reasons, noun, title: nil)
+  def self.seller_message(reasons, noun, title: nil, empty_storefront: false)
     rs = Array(reasons)
     transient = ContentModeration::Strategies::ClassifierStrategy::UNAVAILABLE_REASON
     unsupported = ContentModeration::Strategies::ClassifierStrategy::UNSUPPORTED_IMAGE_REASON
@@ -128,6 +130,15 @@ class ContentModeration::ModerateRecordService
       # reason we withheld, so both are reported at once.
       others = rs.reject { |r| off_platform_fulfillment_reason?(r) }
       others.any? ? "#{message} It also looks like this #{noun} contains #{humanize_reasons(others)}." : message
+    elsif empty_storefront && rs.any? { |r| r.to_s.start_with?("spam:") }
+      # Rewording can't clear this block (the check re-reads the whole page on every save),
+      # so name the missing storefront; any other flag still needs a content change.
+      subject = title.present? ? "The #{noun} \"#{title}\"" : "This #{noun}"
+      message = "#{subject} can’t be saved yet. It reads as promotional, and your account doesn’t have a published product " \
+                "or a sale yet, so we can’t publish promotional #{noun}s for it. Publish a product first, then save this #{noun} again."
+      # Other reasons get their own message so an image block keeps its "replace the image" fix.
+      others = rs.reject { |r| r.to_s.start_with?("spam:") }
+      others.any? ? "#{message} #{seller_message(others, noun)}" : message
     else
       subject = title.present? ? "The #{noun} \"#{title}\"" : "This #{noun}"
       "#{subject} can’t be saved because it looks like it contains #{humanize_reasons(reasons)}. Please update the content to follow our content guidelines."
@@ -207,7 +218,10 @@ class ContentModeration::ModerateRecordService
 
     if reasons.any?
       leave_admin_comment(reasons)
-      CheckResult.new(passed: false, reasons: reasons)
+      # A page/post spam flag still standing here survived `spam_flag_should_not_block?`,
+      # which for those types means the seller has no storefront.
+      empty_storefront = entity_type.in?(%i[page post]) && reasons.any? { |r| spam_reason?(r) }
+      CheckResult.new(passed: false, reasons: reasons, empty_storefront: empty_storefront)
     else
       CheckResult.new(passed: true, reasons: [])
     end
@@ -248,24 +262,40 @@ class ContentModeration::ModerateRecordService
 
     # Spam preset keys on info-product STYLE, not actual spam. A listing that
     # delivers something publishes with a review note; empty ones still block
-    # (gumroad-private#1358). Pages use the seller's storefront as stand-in;
-    # posts have no deliverable, so a spam flag always blocks.
+    # (gumroad-private#1358). Pages and posts use the seller's storefront as
+    # stand-in: a seller with live products or real sales is writing to an
+    # audience they already have (gumroad-private#2755), and a post from an
+    # account that has never published a product or sold anything still blocks.
     def spam_flag_should_not_block?
-      return seller_has_storefront? if entity_type == :page
+      return seller_has_storefront? if entity_type.in?(%i[page post])
 
-      entity_type == :product && product_has_substantive_deliverable?
+      return false unless entity_type == :product
+      return tip_jar_from_established_seller? if record.native_type == Link::NATIVE_TYPE_COFFEE
+
+      product_has_substantive_deliverable?
+    end
+
+    # A tip jar has no deliverable by design, so the seller's other live products stand in.
+    def tip_jar_from_established_seller?
+      return false if user.blank?
+
+      user.links.alive.not_draft.where.not(id: record.id).exists? || user.sales.successful.exists?
     end
 
     # Why an admin is reading a downgraded spam flag rather than a block.
     def spam_downgrade_note_reason
-      entity_type == :page ? "not blocked: seller has a live storefront" : "not blocked: listing has content attached"
+      return "not blocked: seller has a live storefront" if entity_type.in?(%i[page post]) || record.native_type == Link::NATIVE_TYPE_COFFEE
+
+      "not blocked: listing has content attached"
     end
 
     # Kept to two indexed existence checks: this runs inside a save.
     def seller_has_storefront?
       return false if user.blank?
 
-      user.links.alive.exists? || user.sales.successful.exists?
+      # `alive` does not exclude drafts, so a product the seller never published must be
+      # filtered out: an empty storefront is the link-farm shape this carve-out excludes.
+      user.links.alive.not_draft.exists? || user.sales.successful.exists?
     end
 
     # Stricter than product_has_deliverable? (that one only gates a model

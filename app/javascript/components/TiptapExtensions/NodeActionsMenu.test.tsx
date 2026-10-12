@@ -62,6 +62,11 @@ it("deletes the menu's file after moving another file into a folder, and undo re
   if (!button) throw new Error("missing actions button");
   await act(async () => {
     fireEvent.mouseDown(button);
+  });
+  const selection = editor.state.selection;
+  if (!(selection instanceof NodeSelection)) throw new Error("missing node selection");
+  expect(selection.node.attrs.id).toBe("target");
+  await act(async () => {
     fireEvent.mouseUp(button);
     fireEvent.click(button);
   });

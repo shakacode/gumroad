@@ -195,8 +195,13 @@ class UsersController < ApplicationController
       # enough to move it into another account. Deny before changing the
       # purchaser or signing anyone in.
       return render json: { success: false } if purchase.is_reassignment_locked?
+      # The confirm page exposes this id, and a seller's own purchase email is public.
+      # Moving the purchase makes is_test_purchase? false, so the delivery guard stops applying.
+      return render json: { success: false } if purchase.is_test_purchase?
 
       if logged_in_user.present?
+        return render json: { success: false, error_message: "This is your customer's purchase, so it can't be moved into your account." } if purchase.claim_by_seller?(logged_in_user)
+
         purchase.purchaser = logged_in_user
         # Same legacy charge-incomplete successful rows as change_purchaser: skip
         # charge-field validators so a library claim does not silently no-op.
@@ -279,6 +284,7 @@ class UsersController < ApplicationController
       iframe_src = ERB::Util.h(profile_landing_src(user, "embed"))
       title = ERB::Util.h(user.name_or_username.to_s)
       canonical = ERB::Util.h(user.profile_url(custom_domain_url: seller_custom_domain_url).to_s)
+      description = ERB::Util.h(profile_meta_description(user))
       store_hostnames_json = ERB::Util.json_escape(profile_store_hostnames(user).to_json)
       nonce = SecureHeaders.content_security_policy_script_nonce(request)
       # Share-card chain (PageMeta::User): subscribe-preview, then uploaded
@@ -343,6 +349,8 @@ class UsersController < ApplicationController
             <meta property="og:title" content="#{title}">
             <meta property="og:type" content="profile">
             <meta property="og:url" content="#{canonical}">
+            <meta name="description" content="#{description}">
+            <meta property="og:description" content="#{description}">
             #{share_image_tags}
             #{fb_verification_tag}
             #{profile_custom_html_analytics_head(user)}
@@ -428,7 +436,6 @@ class UsersController < ApplicationController
 
     def check_if_needs_redirect
       return if request.format.json?
-      return if GumroadDomainConstraint.control_plane_branch_host?(request.host)
 
       if !@is_user_custom_domain && @user.subdomain_with_protocol.present?
         redirect_to root_url(host: @user.subdomain_with_protocol, params: request.query_parameters),

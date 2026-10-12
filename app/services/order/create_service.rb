@@ -102,6 +102,9 @@ class Order::CreateService
           end
         end
 
+        pricing_offer_code = if line_item_params[:discount_code].present?
+          product.find_offer_code(code: normalize_discount_code(line_item_params[:discount_code]))
+        end
         purchase_params = build_purchase_params(
           product,
           common_params
@@ -122,7 +125,10 @@ class Order::CreateService
             .merge({ cart_items: })
             .merge(
               offer_code_cart_quantity: line_items
-                .select { _1[:permalink] == product.unique_permalink }
+                .select do |item|
+                  item[:permalink] == product.unique_permalink &&
+                    (pricing_offer_code.nil? || pricing_offer_code.applicable_to_variants?(product, item[:variants]))
+                end
                 .sum { _1[:quantity].to_i }
             )
         ).merge(
@@ -167,7 +173,7 @@ class Order::CreateService
         end
 
         if error
-          purchase_responses[line_item_uid] = error_response(error, purchase:)
+          purchase_responses[line_item_uid] = error_response(error, purchase:, guest: buyer.blank?)
           failed_purchases << purchase if purchase&.persisted?
           recovered_allocations = discount_allocations.values.uniq.select do |candidate|
             candidate.dig(:products_data, line_item_uid, :discount, :once_per_cart)
@@ -175,7 +181,7 @@ class Order::CreateService
           recovered_allocations.each { restore_once_per_cart_coverage(offer_codes, _1, line_items) }
           if submitted_discount_code.present? && !allocated_discount&.[](:once_per_cart)
             offer_codes[submitted_discount_code] ||= {}
-            offer_codes[submitted_discount_code][line_item_uid] = { permalink: product.unique_permalink, quantity: line_item_params[:quantity], discount_code: submitted_discount_code }
+            offer_codes[submitted_discount_code][line_item_uid] = { permalink: product.unique_permalink, quantity: line_item_params[:quantity], discount_code: submitted_discount_code, variant_external_id: line_item_params[:variants]&.first }
           end
         end
 
@@ -285,7 +291,8 @@ class Order::CreateService
           link = links_by_permalink[item[:permalink]]
           product = item.slice(:permalink, :quantity).merge(
             price_cents: submitted_uids.include?(item.fetch(:uid)) ? allocation_capacity_cents(item, link) : 0,
-            tip_cents: 0
+            tip_cents: 0,
+            variant_external_id: item[:variants]&.first
           )
           [item.fetch(:uid), product]
         end
@@ -394,6 +401,7 @@ class Order::CreateService
           permalink: retry_line[:permalink],
           quantity: retry_line[:quantity],
           discount_code: submitted_discount_code,
+          variant_external_id: retry_line[:variants]&.first,
         }
       end
     end
@@ -502,7 +510,8 @@ class Order::CreateService
       end
 
       force_new_subscription = purchase_params.delete(:force_new_subscription)
-      gift_params = purchase_params.extract!(:giftee_email, :giftee_id, :gift_note)
+      restart_intent = purchase_params.delete(:restart_intent)
+      gift_params = purchase_params.extract!(:giftee_email, :giftee_id, :gift_note, :hide_gifter)
       # confirmation_token is extracted alongside the other payment-surface hints so it reaches
       # Purchase::CreateService as a service-level param (used to record the client-confirm lane in
       # payment-flow analytics) instead of being treated as a Purchase attribute.
@@ -515,6 +524,7 @@ class Order::CreateService
         purchase: purchase_params,
         gift: gift_params,
         force_new_subscription:,
+        restart_intent:,
       }.merge(additional_params.to_hash.deep_symbolize_keys)
     end
 

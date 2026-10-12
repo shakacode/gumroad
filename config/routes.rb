@@ -17,12 +17,6 @@ else
 end
 
 Rails.application.routes.draw do
-  # Retained benchmark caches and rollback images can still reference proxy URLs during the R2 transition.
-  scope ActiveStorage.routes_prefix do
-    get "/blobs/proxy/:signed_id/*filename" => "active_storage/blobs/proxy#show"
-    get "/representations/proxy/:signed_blob_id/:variation_key/*filename" => "active_storage/representations/proxy#show"
-  end
-
   get "/healthcheck" => "healthcheck#index"
   get "/healthcheck/sidekiq" => "healthcheck#sidekiq"
   get "/healthcheck/payouts" => "healthcheck#payouts"
@@ -32,8 +26,6 @@ Rails.application.routes.draw do
   get "/healthcheck/purchases" => "healthcheck#purchases"
   get "/healthcheck/apple_pay_domain" => "healthcheck#apple_pay_domain"
   get "/healthcheck/abandoned_cart_emails" => "healthcheck#abandoned_cart_emails"
-
-  rsc_payload_route path: "rsc_payload", controller: "rsc_payload"
 
   # IndexNow key verification file (https://www.indexnow.org/documentation).
   # Deliberately unconstrained by host: the spec requires the key file to be
@@ -146,6 +138,19 @@ Rails.application.routes.draw do
           post "custom_html/edit", action: :edit_custom_html
         end
       end
+      # A product's per-product profile sections: which sections render on the product page and in what
+      # order. Unnamed on purpose — api_routes is drawn twice, and an explicitly named route raises
+      # "already in use" on the second draw (see the member block above).
+      put "products/:id/sections", to: "links#update_sections"
+      get "products/:product_id/marketing/recommendations", to: "marketing_actions#recommendations"
+      post "products/:product_id/marketing_actions", to: "marketing_actions#create"
+      resources :marketing_actions, only: [:show] do
+        member do
+          post :approve
+          post :execute
+          post :cancel
+        end
+      end
       resources :upsells, only: [:index, :show, :create, :update, :destroy]
       resources :utm_links, only: [:index, :show, :create, :update, :destroy] do
         member do
@@ -193,37 +198,6 @@ Rails.application.routes.draw do
       get "/tax_forms", to: "tax_forms#index"
       get "/tax_forms/:year/:tax_form_type/download", to: "tax_forms#download"
       get "/earnings", to: "earnings#show"
-
-      # Gumroad Walks iOS app. Two endpoints keep our OpenAI + Anthropic
-      # keys server-side: realtime_tokens issues a short-lived ek_... for
-      # the client to connect to OpenAI's WS directly, and synthesis is a
-      # one-shot proxy to Claude for post-walk product drafting.
-      #
-      # The app_attest sub-namespace is the device-identity bootstrap: the
-      # iOS client hits challenges to get a fresh server nonce, then
-      # attestations once per install to register its Secure-Enclave-attested
-      # key. After that, every realtime_tokens / synthesis call carries an
-      # assertion signed by that key (see WalksEntitlement).
-      namespace :walks do
-        resources :realtime_tokens, only: [:create]
-        post "synthesis", to: "synthesis#create"
-        namespace :app_attest do
-          resources :challenges, only: [:create]
-          resources :attestations, only: [:create]
-        end
-      end
-
-      # Gumhead points its Anthropic base URL at /v2/gumhead, so its
-      # runtime's /v1/messages calls land on these routes; the model key
-      # stays server-side and every call is metered per seller (see
-      # Api::V2::Gumhead::MessagesController).
-      namespace :gumhead do
-        scope "v1" do
-          post "messages", to: "messages#create"
-          post "messages/count_tokens", to: "messages#count_tokens"
-        end
-        get "client_version", to: "messages#client_version"
-      end
     end
   end
 
@@ -336,7 +310,7 @@ Rails.application.routes.draw do
   get "/u/:permalink", to: "utm_link_tracking#show"
 
   # Configure redirections in development environment
-  if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
+  if Rails.env.development? || Rails.env.test?
     # redirect SHORT_DOMAIN to DOMAIN
     constraints(host_with_port: SHORT_DOMAIN) do
       match "/(*path)" => redirect { |_params, request| "#{UrlService.domain_with_protocol}/l#{request.fullpath}" }, via: [:get, :post]
@@ -419,7 +393,9 @@ Rails.application.routes.draw do
         resources :installments, only: :show
         resources :consumption_analytics, only: [:create], format: :json
         resources :media_locations, only: [:create], format: :json
-        resources :sessions, only: [:create], format: :json
+        resources :sessions, only: [:create], format: :json do
+          post :resend_confirmation_email, on: :collection
+        end
         resources :feature_flags, only: [:show], format: :json
       end
 
@@ -430,6 +406,7 @@ Rails.application.routes.draw do
           namespace :auth do
             post :exchange
             post :revoke
+            post :rotate
           end
           get :whoami, to: "whoami#show"
 
@@ -461,6 +438,15 @@ Rails.application.routes.draw do
             collection do
               get :check_status
               post :remove_suppression
+            end
+          end
+
+          resources :piracy_reports, only: [:index, :show, :create] do
+            member do
+              post :start_screening
+              post :screen
+              post :counter_notice
+              post :resolve
             end
           end
 
@@ -498,6 +484,7 @@ Rails.application.routes.draw do
               post :watch
               post :update_watch
               post :unwatch
+              post :restore_bank_payout_rail
             end
           end
 
@@ -537,6 +524,22 @@ Rails.application.routes.draw do
   constraints GumroadDomainConstraint do
     get "/about", to: "home#about"
     get "/gumclaw", to: "gumclaw#index"
+    %w[muse claude].each do |client|
+      get "/#{client}", to: "mcp_connectors#show", defaults: { client: }, as: client
+    end
+    %w[muse claude chatgpt].each do |client|
+      get "/#{client}/v1/status" => "api/v2/muse#status"
+      get "/#{client}/v1/oauth2/authorize/:code(.:format)" => "oauth/authorizations#show"
+      get "/#{client}/v1/oauth2/authorize(.:format)" => "oauth/authorizations#new"
+      post "/#{client}/v1/oauth2/token(.:format)" => "oauth/tokens#create"
+      post "/#{client}/v1/oauth2/register" => "api/v2/muse#register"
+      match "/#{client}/v1/mcp" => "api/v2/muse#mcp", via: [:get, :post]
+    end
+    get "/.well-known/mcp.json" => "api/v2/muse#mcp_discovery"
+    get "/.well-known/openai-apps-challenge" => "api/v2/muse#openai_apps_challenge"
+    get "/.well-known/oauth-authorization-server" => "api/v2/muse#oauth_metadata"
+    get "/.well-known/oauth-protected-resource" => "api/v2/muse#protected_resource_metadata"
+    get "/.well-known/oauth-protected-resource/*resource_path" => "api/v2/muse#protected_resource_metadata"
     get "/careers", to: redirect("/gumclaw")
     get "/careers/:slug", to: redirect("/gumclaw")
     get "/jobs", to: redirect("/gumclaw")
@@ -742,8 +745,6 @@ Rails.application.routes.draw do
       resource :billing, only: %i[show update], controller: "billing"
       resources :authorized_applications, only: :index
       resource :payments, only: %i[show update] do
-        resource :verify_document, only: :create, controller: "payments/verify_document"
-        resource :verify_identity, only: %i[show create], controller: "payments/verify_identity"
         get :remediation
         get :verify_stripe_remediation
         post :set_country
@@ -844,16 +845,6 @@ Rails.application.routes.draw do
       end
     end
 
-    # service charges
-    resources :service_charges, only: :create do
-      member do
-        post :confirm
-        get :generate_service_charge_invoice
-        post :resend_receipt
-        post :send_invoice
-      end
-    end
-
     # Two-Factor Authentication
     resource :two_factor_authentication, path: "two-factor", controller: "two_factor_authentication", only: [:show, :create] do
       get :verify
@@ -905,8 +896,6 @@ Rails.application.routes.draw do
     resources :licenses, only: [:update]
 
     post "/preorders/:id/charge_preorder", to: "purchases#charge_preorder", as: "charge_preorder"
-
-    resources :attachments, only: [:create]
 
     # users
     get "/users/current_user_data", to: "users#current_user_data", as: :current_user_data
@@ -964,6 +953,9 @@ Rails.application.routes.draw do
         get :increment_views
         post :track_user_action
         put :sections, action: :update_sections
+        # One explicit action for the whole file set; the editor's save cannot do it,
+        # because it submits only the files embedded in the version being edited.
+        post :disable_downloads_for_all_files
       end
     end
 
@@ -1005,6 +997,14 @@ Rails.application.routes.draw do
         resources :other_refund_policies, only: :index
         resources :remaining_call_availabilities, only: :index
         resources :available_offer_codes, only: :index
+        resources :marketing_actions, only: %i[index show] do
+          member do
+            post :approve
+            post :execute
+            post :cancel
+          end
+        end
+        resource :marketing_abandoned_cart, only: %i[show update], controller: "marketing_abandoned_carts"
       end
     end
 
@@ -1060,10 +1060,10 @@ Rails.application.routes.draw do
     get "/dashboard/monthly_recurring_revenue" => "dashboard#monthly_recurring_revenue", as: :dashboard_monthly_recurring_revenue
     get "/dashboard/download_tax_form" => "dashboard#download_tax_form", as: :dashboard_download_tax_form
     post "/dashboard/dismiss_getting_started_checklist" => "dashboard#dismiss_getting_started_checklist", as: :dashboard_dismiss_getting_started_checklist
-    post "/dashboard/dismiss_gumhead_promo" => "dashboard#dismiss_gumhead_promo", as: :dashboard_dismiss_gumhead_promo
 
     get "/products", to: "links#index", as: :products
 
+    match "/l/:id", to: "links#show", via: :head, defaults: { format: "html" }
     get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }, as: :short_link
     # Iframe content endpoint for products with custom_html. The two-segment
@@ -1176,6 +1176,14 @@ Rails.application.routes.draw do
       resources :utm_links, only: [:index, :new, :create, :edit, :update, :destroy]
     end
 
+    # piracy reports
+    get "/dashboard/piracy_reports", to: "piracy_reports#index"
+    get "/dashboard/piracy_reports/new", to: "piracy_reports#new", as: :new_piracy_report
+    post "/dashboard/piracy_reports", to: "piracy_reports#create", as: :piracy_reports
+    get "/dashboard/piracy_reports/:id", to: "piracy_reports#show", as: :piracy_report
+    post "/dashboard/piracy_reports/:id/sign", to: "piracy_reports#sign", as: :sign_piracy_report
+    post "/dashboard/piracy_reports/:id/cancel", to: "piracy_reports#cancel", as: :cancel_piracy_report
+
     # shipments
     post "/shipments/:purchase_id/mark_as_shipped", to: "shipments#mark_as_shipped", as: :mark_as_shipped
 
@@ -1262,7 +1270,8 @@ Rails.application.routes.draw do
             resource :recipient_count, only: [:show], controller: "installments/recipient_counts", as: :installment_recipient_count
           end
         end
-        resources :products, only: [:show] do
+        # No product CRUD: this only namespaces the product-scoped endpoints below.
+        resources :products, only: [] do
           resources :product_posts, only: [:index]
           resources :existing_product_files, only: [:index]
           resource :receipt_preview, only: [:show]
@@ -1353,7 +1362,6 @@ Rails.application.routes.draw do
     get "/:username/landing/products", to: "users#landing_products", as: :user_landing_products, format: false
     get "/:username/follow", to: "followers#new", as: "follow_user_page"
     get "/:username/p/:slug", to: "posts#show", as: :view_post
-    get "/:username/posts_paginated", to: "users/posts#paginated", as: "user_posts_paginated"
     get "/:username/posts", to: redirect("/%{username}")
     get "/:username/subscribe_preview", to: "users#subscribe_preview", as: :user_subscribe_preview
     get "/:username/updates", to: redirect("/%{username}/posts")
@@ -1405,6 +1413,7 @@ Rails.application.routes.draw do
     end
 
     get "/", to: "links#show", defaults: { format: "html" }
+    match "/l/:id", to: "links#show", via: :head, defaults: { format: "html" }
     get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
@@ -1417,13 +1426,11 @@ Rails.application.routes.draw do
     get "/.well-known/acme-challenge/:token", to: "acme_challenges#show", as: :acme_challenge
     product_info_and_purchase_routes(named_routes: false)
     devise_scope :user do
-      post "signup", to: "signup#create"
       post "save_to_library", to: "signup#save_to_library"
       post "add_purchase_to_library", to: "users#add_purchase_to_library"
     end
     post "/posts/:id/increment_post_views", to: "posts#increment_post_views"
     get "/p/:slug", to: "posts#show", as: :custom_domain_view_post
-    get "/:username/posts_paginated", to: "users/posts#paginated"
     get "/posts", to: redirect("/")
     get "/posts/:post_id/comments", to: "comments#index", as: :custom_domain_post_comments
     post "/posts/:post_id/comments", to: "comments#create", as: :custom_domain_create_post_comment
@@ -1432,6 +1439,7 @@ Rails.application.routes.draw do
     get "/affiliates", to: "affiliate_requests#new", as: :custom_domain_new_affiliate_request
     post "/affiliate_requests", to: "affiliate_requests#create", as: :custom_domain_create_affiliate_request
     get "/updates", to: redirect("/posts")
+    match "/l/:id", to: "links#show", via: :head, defaults: { format: "html" }
     get "/l/:id", to: "product_rsc_links#show", defaults: { format: "html" }, constraints: ProductRscDocumentRequestConstraint
     get "/l/:id", to: "links#show", defaults: { format: "html" }
     get "/l/:id/landing/embed", to: "links#landing_iframe_content"
@@ -1532,6 +1540,10 @@ Rails.application.routes.draw do
 
     get "/landing/embed", to: "users#landing_iframe_content"
     get "/landing/version", to: "users#landing_version"
+    # A seller subdomain shares the root domain's cart cookie, so the storefront reads the count with
+    # its own request from this route. Custom domains keep using the root-domain route, where the
+    # count is unreadable and is simply not shown.
+    get "/cart_items_count", to: "links#cart_items_count", as: :storefront_cart_items_count
     # The gumroad:products bridge fetches this relative to the wrapper page,
     # which is served on the seller's subdomain or custom domain — hosts this
     # block routes. The Rack::Attack throttle matches the path by regexp, so

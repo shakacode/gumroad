@@ -61,84 +61,21 @@
   --shadow: 0.25rem 0.25rem 0 currentColor;
   --shadow-lg: 0.5rem 0.5rem 0 currentColor;
 
+  /*
+   * Seller custom styles override --radius and --button-hover-offset per store. Declaring --radius
+   * here makes `rounded` compile to var(--radius) instead of a fixed value. --radius-sm resolves on
+   * :root, so a subtree that overrides --radius must override --radius-sm too.
+   */
+  --radius: 0.25rem;
+  --radius-sm: var(--radius);
+  --button-hover-offset: 0.25rem;
+
   --spacing-product-page: 75.25rem;
   --grid-cols-sidebar: 1fr 3fr;
 
   --logo: url("/images/logo.svg");
   --loading-spinner: url("/images/loading-rainbow.svg");
   --product-cover-placeholder: url("/images/placeholders/product-cover.png");
-
-  --animate-gumhead-blink: gumhead-blink 4s step-end infinite;
-  /* One 0.55s entrance, split across four stacked sprite frames: lift (0–50%),
-     landing squash (50–72%), rebound (72–90%), then the settled idle base. */
-  --animate-gumhead-lift: gumhead-lift 0.55s step-end both;
-  --animate-gumhead-land: gumhead-land 0.55s step-end both;
-  --animate-gumhead-rebound: gumhead-rebound 0.55s step-end both;
-  --animate-gumhead-settle: gumhead-settle 0.55s step-end both;
-
-  @keyframes gumhead-blink {
-    0%,
-    91% {
-      opacity: 0;
-    }
-    92%,
-    96% {
-      opacity: 1;
-    }
-    97%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  @keyframes gumhead-lift {
-    0% {
-      opacity: 1;
-    }
-    50%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  @keyframes gumhead-land {
-    0%,
-    49% {
-      opacity: 0;
-    }
-    50% {
-      opacity: 1;
-    }
-    72%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  @keyframes gumhead-rebound {
-    0%,
-    71% {
-      opacity: 0;
-    }
-    72% {
-      opacity: 1;
-    }
-    90%,
-    100% {
-      opacity: 0;
-    }
-  }
-
-  @keyframes gumhead-settle {
-    0%,
-    89% {
-      opacity: 0;
-    }
-    90%,
-    100% {
-      opacity: 1;
-    }
-  }
 }
 
 @layer base {

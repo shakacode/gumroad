@@ -48,6 +48,32 @@ describe Api::Internal::AgentMessagesController do
   describe "POST create" do
     let(:valid_params) { { messages: [{ role: "user", content: "How are my sales?" }] } }
 
+    it "hands the service only the seller, actor, and server-selected conversation" do
+      conversation = create(:ai_conversation, seller:)
+      expect(Ai::StoreAgentService).to receive(:new) do |args|
+        expect(args.keys).to contain_exactly(:seller, :pundit_user, :conversation)
+        expect(args[:seller]).to eq(seller)
+        expect(args[:conversation]).to eq(conversation)
+        instance_double(Ai::StoreAgentService, respond: store_agent_turn(reply: "ok", proposed_action: nil))
+      end
+
+      post :create, params: valid_params.merge(conversation_id: conversation.external_id, html_undo: { "find" => "x" }, metadata: { action_started_at: "x" }), format: :json
+
+      expect(response).to be_successful
+      expect(conversation.ai_messages.role_assistant.sole.metadata.to_h.keys).not_to include("html_undo", "action_started_at")
+    end
+
+    it "hands the service a nil conversation for a fresh chat" do
+      expect(Ai::StoreAgentService).to receive(:new) do |args|
+        expect(args[:conversation]).to be_nil
+        instance_double(Ai::StoreAgentService, respond: store_agent_turn(reply: "ok", proposed_action: nil))
+      end
+
+      post :create, params: valid_params, format: :json
+
+      expect(response).to be_successful
+    end
+
     it_behaves_like "authentication required for action", :post, :create do
       let(:request_params) { valid_params }
     end
@@ -79,6 +105,20 @@ describe Api::Internal::AgentMessagesController do
           "objects" => [],
           "conversation_id" => conversation.external_id,
         )
+      end
+
+      it "stores the server telemetry id beside the proposal without exposing it in the response" do
+        telemetry_turn_id = "d56f4b58-8676-4213-9238-d3b77846d5ab"
+        result = store_agent_turn(reply: "You have 3 products.", proposed_action: nil).merge(telemetry_turn_id:)
+        service_double = instance_double(Ai::StoreAgentService, respond: result)
+        allow(Ai::StoreAgentService).to receive(:new).and_return(service_double)
+
+        post :create, params: valid_params.merge(telemetry_turn_id: "untrusted-client-value"), format: :json
+
+        expect(response).to be_successful
+        message = seller.ai_conversations.sole.ai_messages.last
+        expect(message.metadata.fetch("telemetry_turn_id")).to eq(telemetry_turn_id)
+        expect(response.parsed_body).not_to have_key("telemetry_turn_id")
       end
 
       it "creates a conversation titled from the first user message and persists both turns" do
@@ -574,6 +614,35 @@ describe Api::Internal::AgentMessagesController do
         expect(proposal_message.reload.metadata["action_status"]).to eq("applied")
       end
 
+      it "stamps the execution start from the database clock at claim time, keeps it on apply, and clears it on release" do
+        executor_double = instance_double(Ai::StoreAgentActionExecutor)
+        allow(Ai::StoreAgentActionExecutor).to receive(:new).and_return(executor_double)
+        seen_during_dispatch = []
+        allow(executor_double).to receive(:execute) do
+          seen_during_dispatch << proposal_message.reload.metadata.slice("action_status", "action_started_at")
+          seen_during_dispatch.one? ? { success: false, message: "Nope.", retry_safe: true } : { success: true, message: "Created discount code LAUNCH." }
+        end
+
+        # `database_now` is memoized per example, so read the second clock value directly.
+        before_claim = database_now
+        post :execute, params: valid_params, format: :json
+        after_claim = AiMessage.connection.select_value("SELECT CURRENT_TIMESTAMP(6)")
+
+        expect(seen_during_dispatch.first["action_status"]).to eq("executing")
+        started_at = seen_during_dispatch.first["action_started_at"]
+        expect(started_at).to match(Ai::StoreAgentHtmlUndo::ACTION_STARTED_AT_FORMAT)
+        expect(Time.find_zone("UTC").parse(started_at)).to be_between(before_claim.utc, after_claim.utc)
+        expect(proposal_message.reload.metadata).not_to have_key("action_started_at")
+
+        post :execute, params: valid_params, format: :json
+
+        expect(response).to be_successful
+        metadata = proposal_message.reload.metadata
+        expect(metadata["action_status"]).to eq("applied")
+        expect(metadata["action_started_at"]).to eq(seen_during_dispatch.last["action_started_at"])
+        expect(metadata["action_started_at"]).not_to eq(started_at)
+      end
+
       it "keeps the claim when the nested API reports failure after dispatch" do
         proposal_message
         stale_time = 1.hour.ago
@@ -655,6 +724,19 @@ describe Api::Internal::AgentMessagesController do
         expect(response).to be_successful
         expect(response.parsed_body).to eq("success" => true, "message" => "Created discount code LAUNCH.")
         expect(proposal_message.reload.metadata["action_status"]).to eq("unknown")
+      end
+
+      it "releases the claim but does not offer a retry when the sections card is stale" do
+        executor_double = instance_double(Ai::StoreAgentActionExecutor)
+        allow(Ai::StoreAgentActionExecutor).to receive(:new).and_return(executor_double)
+        allow(executor_double).to receive(:execute)
+          .and_return(success: false, message: "A section was added.", failure_reason: "stale_known_sections", retry_safe: true)
+
+        post :execute, params: valid_params, format: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to eq("success" => false, "message" => "A section was added.")
+        expect(proposal_message.reload.metadata["action_status"]).to be_nil
       end
 
       it "rejects a tampered payload before dispatch" do

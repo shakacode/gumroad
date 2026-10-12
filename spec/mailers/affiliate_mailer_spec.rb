@@ -3,6 +3,16 @@
 require "spec_helper"
 
 describe AffiliateMailer do
+  # Pins each figure to its labelled row, so a swapped or unsigned amount fails the test.
+  def email_rows(mail)
+    mail.body.encoded.scan(%r{<td>\s*<h4>(.*?)</h4>\s*</td>\s*<td>(.*?)</td>}m)
+        .each_with_object({}) { |(label, value), rows| rows[CGI.unescapeHTML(label.strip)] = CGI.unescapeHTML(value.strip) }
+  end
+
+  def format_usd(cents)
+    MoneyFormatter.format(cents, :usd, no_cents_if_whole: true, symbol: true)
+  end
+
   describe "#notify_affiliate_of_sale" do
     let(:seller) { create(:named_user) }
     let(:product_name) { "Affiliated Product" }
@@ -95,6 +105,45 @@ describe AffiliateMailer do
         expect(mail.body.encoded).to include "1"
       end
 
+      it "shows the fee deduction so the emailed figures reconcile with the balance" do
+        credited_cents = purchase.affiliate_credit_cents
+        fee_share_cents = purchase.affiliate_credit.fee_cents
+        expect(fee_share_cents).to be_positive
+
+        rows = email_rows(AffiliateMailer.notify_affiliate_of_sale(purchase.id))
+        expect(rows["Your cut"]).to eq(format_usd(credited_cents + fee_share_cents))
+        expect(rows["Your share of fees"]).to eq("-#{format_usd(fee_share_cents)}")
+        expect(rows["Added to your balance"]).to eq(format_usd(credited_cents))
+
+        # With no fee share the breakdown is omitted and "Your cut" is the credited amount.
+        purchase.affiliate_credit.update_column(:fee_cents, 0)
+        rows = email_rows(AffiliateMailer.notify_affiliate_of_sale(purchase.id))
+        expect(rows).to_not have_key "Your share of fees"
+        expect(rows).to_not have_key "Added to your balance"
+        expect(rows["Your cut"]).to eq(format_usd(credited_cents))
+      end
+
+      it "reads the purchase and its affiliate credit from the primary" do
+        # The job runs on a replica-reading worker and the credit is created with the sale, so the
+        # mailer has to read the credit with the purchase, from the primary.
+        expect(ApplicationRecord).to receive(:connected_to).with(role: :writing).and_call_original
+
+        reads = []
+        callback = lambda { |_name, _start, _finish, _id, payload|
+          pinned = ApplicationRecord.connected_to_stack.any? { |entry| entry[:role] == :writing && entry[:klasses].include?(ApplicationRecord) }
+          reads << [payload[:name], pinned] if ["Purchase Load", "AffiliateCredit Load"].include?(payload[:name])
+        }
+
+        body = nil
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          body = AffiliateMailer.notify_affiliate_of_sale(purchase.id).body.encoded
+        end
+
+        expect(body).to include "Your cut"
+        expect(reads.map(&:first)).to include("Purchase Load", "AffiliateCredit Load")
+        expect(reads.map(&:last).uniq).to eq([true])
+      end
+
       it "includes variant information if the purchase is for a variant" do
         purchase.variant_attributes = [
           create(:variant, variant_category: create(:variant_category, link: product), name: "Blue"),
@@ -104,6 +153,34 @@ describe AffiliateMailer do
         mail = AffiliateMailer.notify_affiliate_of_sale(purchase.id)
         expect(mail.body.encoded).to include "Variants"
         expect(mail.body.encoded).to include "(Blue, Small)"
+      end
+    end
+
+    context "when the purchase's subscription is not attached yet" do
+      it "sends the sale email without the subscription terms" do
+        product = create(:membership_product, user: seller)
+        affiliate = create(:direct_affiliate, seller:)
+        purchase = create(:membership_purchase, affiliate:, link: product, seller:)
+        purchase.update_columns(subscription_id: nil)
+
+        mail = AffiliateMailer.notify_affiliate_of_sale(purchase.id)
+
+        expect(mail.to).to eq([affiliate.affiliate_user.form_email])
+        expect(mail.body.encoded).to include("Thanks for being part of the team and helping make another sale happen!")
+        expect(mail.body.encoded).to_not include("continue to receive a commission")
+        expect(mail.body.encoded).to_not include("free trial has expired on")
+      end
+
+      it "keeps the free-trial terms when the end date is not readable yet" do
+        product = create(:membership_product, :with_free_trial_enabled, user: seller)
+        affiliate = create(:direct_affiliate, seller:)
+        purchase = create(:free_trial_membership_purchase, affiliate:, link: product, seller:)
+        purchase.update_columns(subscription_id: nil)
+
+        mail = AffiliateMailer.notify_affiliate_of_sale(purchase.id)
+
+        expect(mail.body.encoded).to include("If the subscriber continues with their subscription after their free trial has expired, we'll add your commission to your balance")
+        expect(mail.body.encoded).to_not include("expired on,")
       end
     end
   end
@@ -130,6 +207,22 @@ describe AffiliateMailer do
       expect(mail_plaintext).to include("The Gumroad Handbook - Your commission: 30%")
       expect(mail_plaintext).to include("You can now share the products linked below with your audience. For every sale you make, you will get a percentage of the total sale as your commission.")
       expect(mail_plaintext).to include("You can direct them to this link: #{affiliate.referral_url}, or share the individual links listed above.")
+    end
+
+    context "when the person asked us to remove them from this seller" do
+      it "does not send an email to the person added again" do
+        seller = create(:named_user)
+        product = create(:product, user: seller)
+        affiliate_user = create(:affiliate_user)
+        removed = create(:direct_affiliate, seller:, affiliate_user:)
+        removed.mark_removed_at_request!
+        removed.mark_deleted!
+        affiliate = create(:direct_affiliate, seller:, affiliate_user:)
+        create(:product_affiliate, product:, affiliate:)
+
+        mail = AffiliateMailer.notify_direct_affiliate_of_updated_products(affiliate.id)
+        expect(mail.message).to be_a(ActionMailer::Base::NullMail)
+      end
     end
   end
 
@@ -275,6 +368,19 @@ describe AffiliateMailer do
       end
     end
 
+    context "when the person asked us to remove them from this seller" do
+      it "does not send an email to the person added again" do
+        affiliate_user = create(:affiliate_user)
+        removed = create(:direct_affiliate, seller:, affiliate_user:)
+        removed.mark_removed_at_request!
+        removed.mark_deleted!
+        direct_affiliate = create(:direct_affiliate, seller:, affiliate_user:, products: [product])
+
+        mail = AffiliateMailer.direct_affiliate_invitation(direct_affiliate.id)
+        expect(mail.message).to be_a(ActionMailer::Base::NullMail)
+      end
+    end
+
     context "when prevent_sending_invitation_email_to_seller param is true" do
       it "doesn't send the email to seller" do
         direct_affiliate = create(:direct_affiliate, seller:, products: [product])
@@ -297,6 +403,22 @@ describe AffiliateMailer do
       expect(mail.to).to eq([direct_affiliate.affiliate_user.form_email])
       expect(mail.subject).to include("#{seller.name} has added you as an affiliate to #{product.name}")
       expect(mail.body.encoded).to include("You are now able to share #{product.name} with your audience. For every sale you make, you will get 10% of the total sale as your commission.")
+    end
+
+    context "when the person asked us to remove them from this seller" do
+      it "does not send an email to the person added again" do
+        seller = create(:named_user)
+        product = create(:product, user: seller)
+        affiliate_user = create(:affiliate_user)
+        removed = create(:direct_affiliate, seller:, affiliate_user:)
+        removed.mark_removed_at_request!
+        removed.mark_deleted!
+        direct_affiliate = create(:direct_affiliate, seller:, affiliate_user:)
+        create(:product_affiliate, product:, affiliate: direct_affiliate)
+
+        mail = AffiliateMailer.notify_direct_affiliate_of_new_product(direct_affiliate.id, product.id)
+        expect(mail.message).to be_a(ActionMailer::Base::NullMail)
+      end
     end
   end
 

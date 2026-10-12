@@ -4,7 +4,7 @@ class Api::V2::Workflows::EmailsController < Api::V2::BaseController
   include InstallmentRuleHelper
 
   DELAY_UNITS = [InstallmentRule::HOUR, InstallmentRule::DAY, InstallmentRule::WEEK, InstallmentRule::MONTH].freeze
-  MAX_DELAY_SECONDS = (2**31) - 1
+  MAX_DELAY_SECONDS = InstallmentRule::MAX_DELAY_SECONDS
   WRITE_PARAMS = %i[subject body delay_amount delay_unit].freeze
   WORKFLOW_STATE_PARAMS = %i[publish unpublish draft state published_at save_action_name send_to_past_customers].freeze
 
@@ -105,7 +105,7 @@ class Api::V2::Workflows::EmailsController < Api::V2::BaseController
       amount = parsed_delay_amount
       return render_bad_request("delay_amount must be a non-negative integer.") if amount.nil? || amount.negative?
       return render_bad_request("delay_unit must be one of: #{DELAY_UNITS.join(', ')}.") if DELAY_UNITS.exclude?(params[:delay_unit])
-      return render_bad_request("delay is too large.") if convert_to_seconds(amount, params[:delay_unit]).to_i > MAX_DELAY_SECONDS
+      return render_bad_request(InstallmentRule::OVERFLOW_DELAY_MESSAGE) if convert_to_seconds(amount, params[:delay_unit]).to_i > MAX_DELAY_SECONDS
 
       true
     end

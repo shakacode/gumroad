@@ -7,6 +7,34 @@ describe GdprDataErasureService do
   let(:admin) { create(:user, email: "admin@example.com", name: "Admin") }
 
   describe "#perform!" do
+    with_versioning do
+      [false, true].each do |already_deleted|
+        it "audits staff cleanup before erasure with already_deleted=#{already_deleted}" do
+          gumroad = create(:user, email: ApplicationMailer::ADMIN_EMAIL, is_team_member: true)
+          staff = create(:user, is_team_member: true, announcement_notification_enabled: false)
+          membership = create(:team_membership, seller: gumroad, user: staff)
+          gumroad.update_column(:deleted_at, 1.day.ago) if already_deleted
+          staff.update_column(:timezone, "invalid")
+          old_flags = staff.flags
+          allow_any_instance_of(User).to receive(:clear_products_cache).and_wrap_original do |original, *args|
+            raise "member cache unavailable" if original.receiver.id == staff.id
+            original.call(*args)
+          end
+
+          result = described_class.new(gumroad, performed_by: admin).perform!
+
+          expect(result[:success]).to eq(true)
+          expect(gumroad.reload).not_to be_is_team_member
+          expect(gumroad.email).to eq("deleted-#{gumroad.id}@deleted.gumroad.com")
+          expect(staff.reload).not_to be_is_team_member
+          expect(staff.announcement_notification_enabled).to eq(false)
+          expect(staff.versions.last.changeset["flags"]).to eq([old_flags, staff.flags])
+          expect(gumroad.versions.where(event: "update").filter_map { _1.changeset["flags"] }.last).to eq([gumroad.flags | User.flag_mapping["flags"][:is_team_member], gumroad.flags])
+          expect(membership.reload).not_to be_deleted
+        end
+      end
+    end
+
     it "anonymizes user PII" do
       result = described_class.new(user, performed_by: admin).perform!
 
@@ -24,6 +52,49 @@ describe GdprDataErasureService do
       expect(user.last_sign_in_ip).to be_nil
       expect(user.account_created_ip).to be_nil
       expect(user.deleted_at).to be_present
+    end
+
+    it "closes a piracy report that never went out, and keeps the row" do
+      report = create(:piracy_report, :awaiting_signature, seller: user)
+
+      result = described_class.new(user, performed_by: admin).perform!
+
+      expect(result[:success]).to eq(true)
+      # `reload` raises if the row is gone: erasure closes the report, it does not delete it.
+      expect(report.reload.state).to eq("cancelled")
+    end
+
+    [false, true].each do |already_deleted|
+      it "revokes the OAuth access tokens of every application with already_deleted=#{already_deleted}" do
+        access_token = create("doorkeeper/access_token", application: create(:oauth_application), resource_owner_id: user.id, scopes: "view_sales")
+        user.update_column(:deleted_at, 1.day.ago) if already_deleted
+
+        described_class.new(user, performed_by: admin).perform!
+
+        expect(access_token.reload).to be_revoked
+      end
+    end
+
+    context "when the erased account is on the Gumroad team" do
+      it "clears the staff flag of the account and of the members it grants the flag to" do
+        gumroad_account = create(:admin_user, email: ApplicationMailer::ADMIN_EMAIL)
+        staff_user = create(:admin_user)
+        create(:team_membership, user: staff_user, seller: gumroad_account)
+
+        described_class.new(gumroad_account, performed_by: admin).perform!
+
+        expect(gumroad_account.reload).not_to be_is_team_member
+        expect(staff_user.reload).not_to be_is_team_member
+      end
+
+      it "clears the flag of an account closed before this cleanup existed" do
+        staff_user = create(:admin_user)
+        staff_user.update!(deleted_at: Time.current)
+
+        described_class.new(staff_user, performed_by: admin).perform!
+
+        expect(staff_user.reload).not_to be_is_team_member
+      end
     end
 
     it "nulls PII columns on all compliance info rows, including previously replaced ones" do
@@ -774,6 +845,20 @@ describe GdprDataErasureService do
       user.reload
       expect(user.deleted?).to eq(true)
       expect(product.reload.deleted?).to eq(true)
+    end
+
+    it "erases an account holding a record that no longer validates" do
+      # Erasure shares the closure's cleanup (User#soft_delete_owned_records!), which skips
+      # validations: a legacy row that fails one must not abort a legally mandated erasure.
+      installment = create(:installment, seller: user)
+      installment.update_columns(message: "<p><br></p>", published_at: nil)
+      expect(installment.reload).to be_invalid
+
+      result = described_class.new(user, performed_by: admin).perform!
+
+      expect(result[:success]).to eq(true)
+      expect(user.reload.deleted?).to eq(true)
+      expect(installment.reload.deleted?).to eq(true)
     end
 
     it "deletes the user's public media files and purges their blobs from public storage" do

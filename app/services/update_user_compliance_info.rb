@@ -38,6 +38,7 @@ class UpdateUserComplianceInfo
   # "id_number mismatch" the seller cannot see or fix. Validate the shape up front so the
   # seller gets an actionable error at save time instead. Case-insensitive: Stripe accepts
   # lowercase, so we don't reject it.
+  HONG_KONG_PASSPORT_COUNTRY_ERROR = "Choose the country that issued your passport."
   SINGAPORE_NRIC_FIN_PATTERN = /\A[STFGM]\d{7}[A-Z]\z/i
   ENCRYPTED_FIELD_LABELS = {
     individual_tax_id: "Individual tax id",
@@ -82,82 +83,113 @@ class UpdateUserComplianceInfo
   ENCRYPTED_COMPLIANCE_INFO_FIELDS = %i[individual_tax_id business_tax_id].freeze
 
   def process
-    if compliance_params.present?
-      po_box_error = po_box_error_message
-      return { success: false, error_message: po_box_error } if po_box_error.present?
+    stripe_error = nil
+    provider_mutated = false
+    result = user.with_lock do
+      @current_compliance_info = nil
+      process_locked { provider_mutated = true }
+    rescue Stripe::StripeError => error
+      # Roll back failed reads so an identical retry resends the revision. Once a write
+      # starts, Stripe may have accepted it even if its response fails.
+      raise error unless provider_mutated
 
-      japan_city_error = japan_city_error_message
-      return { success: false, error_message: japan_city_error } if japan_city_error.present?
-
-      ENCRYPTED_FIELD_LABELS.each do |field, label|
-        value = compliance_params[field]
-        next if value.blank?
-        if value.to_s.length > MAX_ENCRYPTED_FIELD_LENGTH
-          return { success: false, error_message: "#{label} is too long" }
-        end
-      end
-
-      birthday_error = invalid_birthday_error
-      return { success: false, error_message: birthday_error } if birthday_error
-
-      old_compliance_info = current_compliance_info
-      compliance_info_changed = compliance_info_changed?(old_compliance_info)
-      old_compliance_info.reload if old_compliance_info.persisted? && encrypted_compliance_info_params_present?
-      unless compliance_info_changed
-        UserComplianceInfoRequest.handle_new_user_compliance_info(old_compliance_info)
-        return { success: true }
-      end
-
-      peru_dni_error = peru_individual_dni_error(old_compliance_info)
-      return { success: false, error_message: peru_dni_error } if peru_dni_error
-
-      singapore_nric_error = singapore_individual_nric_error(old_compliance_info)
-      return { success: false, error_message: singapore_nric_error } if singapore_nric_error
-
-      colombia_id_error = colombia_individual_id_error(old_compliance_info)
-      return { success: false, error_message: colombia_id_error } if colombia_id_error
-
-      saved, new_compliance_info = if encrypted_compliance_info_params_present?
-        dup_and_save_compliance_info(old_compliance_info)
-      else
-        old_compliance_info.dup_and_save do |new_compliance_info|
-          assign_compliance_params(new_compliance_info)
-        end
-      end
-
-      return { success: false, error_message: new_compliance_info.errors.full_messages.to_sentence } unless saved
-
-      if new_compliance_info.is_business && new_compliance_info.legal_entity_country_code == "US" &&
-          submitted_tax_id_for(:business_tax_id).present? && new_compliance_info.business_tax_id.length != 9
-        return { success: false, error_message: "US business tax IDs (EIN) must have 9 digits." }
-      end
-
-      begin
-        StripeMerchantAccountManager.handle_new_user_compliance_info(new_compliance_info)
-      rescue Stripe::InvalidRequestError => e
-        if e.code == "postal_code_invalid"
-          country = new_compliance_info.legal_entity_country
-          weeks = RetryStripeRejectedPayoutSetupsJob::RETRY_WINDOW_WEEKS
-          return { success: false, error_message: "We couldn't verify the postal code you entered for #{country}. Please double-check it — but if you're sure it's correct (for example, a newly built address), you don't need to do anything. New postal codes can take a few days to a few weeks to reach our payment partner's records, so we'll automatically re-check yours once a week for up to #{weeks} weeks, and only reach out if we still can't verify it." }
-        end
-
-        # Every other Stripe rejection used to end here with the message handed to the seller
-        # and nothing kept on our side, while the half-built merchant account was rolled back.
-        # That left sellers who cannot complete payout setup undiagnosable from support tooling:
-        # the only trace was a merchant-account row created and soft-deleted in the same second,
-        # with no error code and no indication of which field Stripe objected to. Record the
-        # code and param first so the next person looking at the account can see the actual
-        # cause instead of reproducing the failure to find it.
-        StripeMerchantAccountManager.record_account_rejection_note(new_compliance_info.user, e)
-        return { success: false, error_message: e.message.split("Please contact us").first.strip }
-      end
+      stripe_error = error
     end
+    raise stripe_error if stripe_error
 
-    { success: true }
+    result
   end
 
   private
-    def assign_compliance_params(new_compliance_info)
+    def process_locked(&on_provider_mutation)
+      if compliance_params.present?
+        po_box_error = po_box_error_message
+        return { success: false, error_message: po_box_error } if po_box_error.present?
+
+        japan_city_error = japan_city_error_message
+        return { success: false, error_message: japan_city_error } if japan_city_error.present?
+
+        ENCRYPTED_FIELD_LABELS.each do |field, label|
+          value = compliance_params[field]
+          next if value.blank?
+          if value.to_s.length > MAX_ENCRYPTED_FIELD_LENGTH
+            return { success: false, error_message: "#{label} is too long" }
+          end
+        end
+
+        birthday_error = invalid_birthday_error
+        return { success: false, error_message: birthday_error } if birthday_error
+
+        old_compliance_info = current_compliance_info
+        compliance_info_changed = compliance_info_changed?(old_compliance_info)
+        old_compliance_info.reload if old_compliance_info.persisted? && encrypted_compliance_info_params_present?
+        unless compliance_info_changed
+          UserComplianceInfoRequest.handle_new_user_compliance_info(old_compliance_info)
+          unless old_compliance_info.nationality_resubmission_required?
+            StripeMerchantAccountManager.attest_owners_provided_if_blocking(user)
+            return { success: true }
+          end
+        end
+
+        peru_dni_error = peru_individual_dni_error(old_compliance_info)
+        return { success: false, error_message: peru_dni_error } if peru_dni_error
+
+        singapore_nric_error = singapore_individual_nric_error(old_compliance_info)
+        return { success: false, error_message: singapore_nric_error } if singapore_nric_error
+
+        colombia_id_error = colombia_individual_id_error(old_compliance_info)
+        return { success: false, error_message: colombia_id_error } if colombia_id_error
+
+        guatemala_nit_error = guatemala_individual_nit_error(old_compliance_info)
+        return { success: false, error_message: guatemala_nit_error } if guatemala_nit_error
+
+        passport_country_error = hong_kong_passport_issuing_country_error(old_compliance_info)
+        return { success: false, error_message: passport_country_error } if passport_country_error
+
+        saved = false
+        new_compliance_info = nil
+        # A rejected revision must roll back its deletion of the old revision,
+        # even inside the user lock's transaction.
+        ActiveRecord::Base.transaction(requires_new: true) do
+          saved, new_compliance_info = if !compliance_info_changed
+            [true, old_compliance_info]
+          elsif encrypted_compliance_info_params_present?
+            dup_and_save_compliance_info(old_compliance_info)
+          else
+            old_compliance_info.dup_and_save do |new_compliance_info|
+              assign_compliance_params(new_compliance_info, old_compliance_info)
+            end
+          end
+          raise ActiveRecord::Rollback unless saved
+        end
+
+        return { success: false, error_message: new_compliance_info.errors.full_messages.to_sentence } unless saved
+
+        if new_compliance_info.is_business && new_compliance_info.legal_entity_country_code == "US" &&
+            submitted_tax_id_for(:business_tax_id).present? && new_compliance_info.business_tax_id.length != 9
+          return { success: false, error_message: "US business tax IDs (EIN) must have 9 digits." }
+        end
+
+        begin
+          StripeMerchantAccountManager.handle_new_user_compliance_info(new_compliance_info, on_provider_mutation:)
+        rescue Stripe::InvalidRequestError => e
+          if e.code == "postal_code_invalid"
+            country = new_compliance_info.legal_entity_country
+            weeks = RetryStripeRejectedPayoutSetupsJob::RETRY_WINDOW_WEEKS
+            return { success: false, error_message: "We couldn't verify the postal code you entered for #{country}. Please double-check it — but if you're sure it's correct (for example, a newly built address), you don't need to do anything. New postal codes can take a few days to a few weeks to reach our payment partner's records, so we'll automatically re-check yours once a week for up to #{weeks} weeks, and only reach out if we still can't verify it." }
+          end
+
+          # Preserve rejection details so support can diagnose payout setup failures.
+          StripeMerchantAccountManager.record_account_rejection_note(new_compliance_info.user, e)
+          return { success: false, error_message: e.message.split("Please contact us").first.strip }
+        end
+      end
+
+      { success: true }
+    end
+
+  private
+    def assign_compliance_params(new_compliance_info, old_compliance_info)
       new_compliance_info.first_name =              compliance_params[:first_name]              if compliance_params[:first_name].present?
       new_compliance_info.last_name =               compliance_params[:last_name]               if compliance_params[:last_name].present?
       new_compliance_info.first_name_kanji =        compliance_params[:first_name_kanji]        if compliance_params[:first_name_kanji].present?
@@ -189,8 +221,9 @@ class UpdateUserComplianceInfo
       new_compliance_info.business_zip_code =       compliance_params[:business_zip_code]       if compliance_params[:business_zip_code].present?
       new_compliance_info.business_type =           compliance_params[:business_type]           if compliance_params[:business_type].present?
       new_compliance_info.is_business =             compliance_params[:is_business]             unless compliance_params[:is_business].nil?
-      new_compliance_info.individual_tax_id =       normalize_individual_tax_id(submitted_tax_id_for(:ssn_last_four), country_code: new_compliance_info.legal_entity_country_code)     if submitted_tax_id_for(:ssn_last_four).present?
-      new_compliance_info.individual_tax_id =       normalize_individual_tax_id(submitted_tax_id_for(:individual_tax_id), country_code: new_compliance_info.legal_entity_country_code) if submitted_tax_id_for(:individual_tax_id).present?
+      individual_id_country_code = individual_id_normalization_country_code(old_compliance_info)
+      new_compliance_info.individual_tax_id =       normalize_individual_tax_id(submitted_tax_id_for(:ssn_last_four), country_code: individual_id_country_code)     if submitted_tax_id_for(:ssn_last_four).present?
+      new_compliance_info.individual_tax_id =       normalize_individual_tax_id(submitted_tax_id_for(:individual_tax_id), country_code: individual_id_country_code) if submitted_tax_id_for(:individual_tax_id).present?
       if submitted_tax_id_for(:business_tax_id).present?
         new_compliance_info.business_tax_id = normalize_business_tax_id(
           submitted_tax_id_for(:business_tax_id),
@@ -211,7 +244,7 @@ class UpdateUserComplianceInfo
       saved = nil
 
       ActiveRecord::Base.transaction do
-        assign_compliance_params(new_compliance_info)
+        assign_compliance_params(new_compliance_info, old_compliance_info)
         saved = old_compliance_info.mark_deleted(validate: false)
         raise ActiveRecord::Rollback unless saved
         saved = new_compliance_info.save
@@ -292,7 +325,7 @@ class UpdateUserComplianceInfo
       raw_individual_tax_id = submitted_tax_id_for(:individual_tax_id).presence || submitted_tax_id_for(:ssn_last_four).presence
       submitted_individual_tax_id = normalize_individual_tax_id(
         raw_individual_tax_id,
-        country_code: old_compliance_info.legal_entity_country_code,
+        country_code: individual_id_normalization_country_code(old_compliance_info),
       )
       # A value the seller typed that normalizes away entirely ("n/a", "-") counts as a change so
       # the country guards below get to reject it. Treating it as "nothing changed" would return
@@ -339,13 +372,14 @@ class UpdateUserComplianceInfo
       # separators, and the length guard counts digits. Storing the separators would send Stripe a
       # longer string than the guard measured, so strip them and keep the two in agreement.
       return Compliance::ColombiaIdNumber.normalize(stripped) if country_code == Compliance::Countries::COL.alpha2
+      return Compliance::GuatemalaNit.normalize(stripped) if country_code == Compliance::Countries::GTM.alpha2
       stripped
     end
 
     def peru_individual_dni_error(old_compliance_info)
       submitted = submitted_tax_id_for(:individual_tax_id)
       return if submitted.blank?
-      return unless effective_legal_entity_country_code(old_compliance_info) == Compliance::Countries::PER.alpha2
+      return unless individual_id_country_matches?(old_compliance_info, Compliance::Countries::PER.alpha2)
       return if submitted.gsub(/\D/, "").length == PERU_DNI_DIGIT_COUNT
       "Your Peru DNI must include the verification digit (for example, 12345678-9)."
     end
@@ -353,7 +387,7 @@ class UpdateUserComplianceInfo
     def singapore_individual_nric_error(old_compliance_info)
       submitted = submitted_tax_id_for(:individual_tax_id)
       return if submitted.blank?
-      return unless effective_legal_entity_country_code(old_compliance_info) == Compliance::Countries::SGP.alpha2
+      return unless individual_id_country_matches?(old_compliance_info, Compliance::Countries::SGP.alpha2)
       # Sellers sometimes paste the NRIC with spaces or dashes; those are harmless, so ignore
       # them when checking the shape (the submitted value is still stored as entered).
       # [[:space:]] instead of \s so Unicode spaces (like the non-breaking space that
@@ -366,9 +400,58 @@ class UpdateUserComplianceInfo
     def colombia_individual_id_error(old_compliance_info)
       submitted = submitted_tax_id_for(:individual_tax_id)
       return if submitted.blank?
-      return unless effective_legal_entity_country_code(old_compliance_info) == Compliance::Countries::COL.alpha2
+      return unless individual_id_country_matches?(old_compliance_info, Compliance::Countries::COL.alpha2)
       return if Compliance::ColombiaIdNumber.valid?(submitted)
       Compliance::ColombiaIdNumber::ERROR_MESSAGE
+    end
+
+    def guatemala_individual_nit_error(old_compliance_info)
+      submitted = submitted_tax_id_for(:individual_tax_id).presence || submitted_tax_id_for(:ssn_last_four).presence
+      return if submitted.blank?
+      return unless individual_id_country_matches?(old_compliance_info, Compliance::Countries::GTM.alpha2)
+      return if Compliance::GuatemalaNit.valid?(submitted)
+      Compliance::GuatemalaNit::ERROR_MESSAGE
+    end
+
+    # A Hong Kong company's representative who lives abroad enters a passport number in place of a
+    # HKID. Stripe wants the issuing country with it; the form stores that as the nationality.
+    def hong_kong_passport_issuing_country_error(old_compliance_info)
+      return if submitted_tax_id_for(:individual_tax_id).blank?
+      return unless hong_kong_company_with_foreign_representative?(old_compliance_info)
+      return if (compliance_params[:nationality].presence || old_compliance_info.nationality).present?
+
+      HONG_KONG_PASSPORT_COUNTRY_ERROR
+    end
+
+    def hong_kong_company_with_foreign_representative?(old_compliance_info)
+      return false unless effective_is_business?
+
+      representative_country = representative_country_code(old_compliance_info)
+      effective_legal_entity_country_code(old_compliance_info) == Compliance::Countries::HKG.alpha2 &&
+        representative_country.present? && representative_country != Compliance::Countries::HKG.alpha2
+    end
+
+    # A personal tax ID belongs to the representative, so its shape is only knowable from the
+    # representative's own country: an SG business whose representative lives elsewhere has no
+    # NRIC/FIN to enter, and Stripe takes their passport instead.
+    def individual_id_country_matches?(old_compliance_info, country_code)
+      effective_legal_entity_country_code(old_compliance_info) == country_code &&
+        representative_country_code(old_compliance_info) == country_code
+    end
+
+    # normalize_individual_tax_id rewrites a number to its digits-only form so the stored value keeps
+    # the shape the country guard measured. That only holds for IDs the guard governs, which requires
+    # the representative to live in the country too: a foreign representative's document keeps its
+    # separators (a Peru DNI carries its verification digit after a dash).
+    def individual_id_normalization_country_code(old_compliance_info)
+      country_code = effective_legal_entity_country_code(old_compliance_info)
+      country_code if individual_id_country_matches?(old_compliance_info, country_code)
+    end
+
+    # The submitted country wins over the stored one, mirroring the forms that echo every stored
+    # field back on save; individuals submit country changes as updated_country_code instead.
+    def representative_country_code(old_compliance_info)
+      country_code_for(compliance_params[:country].presence || old_compliance_info.country_code)
     end
 
     def effective_legal_entity_country_code(old_compliance_info)

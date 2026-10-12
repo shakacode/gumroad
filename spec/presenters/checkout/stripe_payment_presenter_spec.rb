@@ -71,8 +71,8 @@ describe Checkout::StripePaymentPresenter do
     checkout_product_for(product, **overrides)
   end
 
-  def card_element_fallback(reason, request_apple_pay_merchant_tokens: false, india_card_mandate_reliability: false)
-    { integration: described_class::STRIPE_CARD_ELEMENT_INTEGRATION, fallback_reason: reason, disable_wallets: false, request_apple_pay_merchant_tokens:, india_card_mandate_reliability:, payment_element_wallets: false, flat_payment_methods: false, elements_options: nil }
+  def card_element_fallback(reason, request_apple_pay_merchant_tokens: false, india_card_mandate_reliability: false, stripe_link_enabled: true)
+    { integration: described_class::STRIPE_CARD_ELEMENT_INTEGRATION, fallback_reason: reason, disable_wallets: false, request_apple_pay_merchant_tokens:, india_card_mandate_reliability:, payment_element_wallets: false, flat_payment_methods: false, stripe_link_enabled:, elements_options: nil }
   end
 
   # The Element's Link toggle and the intent's method list derive from the same resolver output, so
@@ -437,6 +437,7 @@ describe Checkout::StripePaymentPresenter do
       india_card_mandate_reliability: false,
       payment_element_wallets: false,
       flat_payment_methods: false,
+      stripe_link_enabled: true,
       elements_options: nil,
     )
   ensure
@@ -650,6 +651,38 @@ describe Checkout::StripePaymentPresenter do
     cart = create(:cart, :guest)
     products = [
       create(:product, user: create(:user), price_cents: 100),
+      create(:product, user: create(:user), price_cents: 200),
+    ]
+    products.each do |product|
+      Feature.activate_user(described_class::STRIPE_PAYMENT_ELEMENT_CHECKOUT_FEATURE_NAME, product.user)
+      create(:cart_product, cart:, product:)
+    end
+
+    expect(stripe_payment_props(cart:)).to eq(payment_element_props)
+  end
+
+  it "drops Link from the element's method list for a seller who switched it off in checkout settings" do
+    seller = create(:user, link_disabled: true)
+    product = create(:product, user: seller, price_cents: 1234)
+    Feature.activate_user(described_class::STRIPE_PAYMENT_ELEMENT_CHECKOUT_FEATURE_NAME, seller)
+
+    expect(stripe_payment_props(add_products: [checkout_product_for(product)]))
+      .to eq(payment_element_props(stripe_link_enabled: false))
+  end
+
+  it "switches Link off on the CardElement lane too, where Link renders the save-info block" do
+    seller = create(:user, link_disabled: true)
+    product = create(:product, user: seller, price_cents: 1234)
+
+    expect(stripe_payment_props(add_products: [checkout_product_for(product)]))
+      .to eq(card_element_fallback("stripe_payment_element_flag_disabled", stripe_link_enabled: false))
+  end
+
+  it "keeps Link for a cart where only one seller switched it off — the opt-out is seller-complete" do
+    cart = create(:cart, :guest)
+    opt_out_seller = create(:user, link_disabled: true)
+    products = [
+      create(:product, user: opt_out_seller, price_cents: 100),
       create(:product, user: create(:user), price_cents: 200),
     ]
     products.each do |product|
@@ -1466,6 +1499,10 @@ describe Checkout::StripePaymentPresenter do
       Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::FEATURE_NAME, seller)
     end
 
+    # iDEAL/Bancontact are offered to eurozone buyers only, so examples without an explicit IP
+    # model a Dutch buyer.
+    before { stub_geoip_country(nil, "Netherlands") }
+
     it "mounts the Payment Element in EUR with the listed amount and the EUR method tabs for an EUR-priced product in test mode with the flags on" do
       seller, product = buyer_currency_seller_with_product(price_cents: 1500)
       activate_buyer_currency_flags(seller)
@@ -1694,6 +1731,59 @@ describe Checkout::StripePaymentPresenter do
           disable_wallets: true,
         )
       )
+    ensure
+      if seller
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+        deactivate_buyer_currency_flags(seller)
+      end
+    end
+
+    it "mounts and displays a EUR listing in EUR for a Bulgarian card buyer in the direct-listed ramp" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::EUR, price_cents: 1500)
+      activate_buyer_currency_flags(seller)
+      Feature.activate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("203.0.113.50", "Bulgaria")
+      platform_merchant_account
+
+      expect(stripe_payment_props(add_products: [checkout_product_for(product)], ip: "203.0.113.50")).to eq(
+        payment_element_client_confirm_props(
+          currency: Currency::EUR,
+          presentment_amount_cents: 1500,
+          direct_listed_card: true,
+          disable_wallets: true,
+        )
+      )
+    ensure
+      if seller
+        Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+        deactivate_buyer_currency_flags(seller)
+      end
+    end
+
+    it "keeps that EUR listing on the USD element for a Bulgarian buyer while the direct-listed ramp is off" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::EUR, price_cents: 1500)
+      activate_buyer_currency_flags(seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("203.0.113.50", "Bulgaria")
+
+      expect(stripe_payment_props(add_products: [checkout_product_for(product)], ip: "203.0.113.50"))
+        .to eq(payment_element_client_confirm_props)
+    ensure
+      deactivate_buyer_currency_flags(seller) if seller
+    end
+
+    it "keeps that EUR listing on the USD element for a Bulgarian buyer when the seller has hidden local-currency display" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: Currency::EUR, price_cents: 1500)
+      seller.update!(disable_buyer_local_currency: true)
+      activate_buyer_currency_flags(seller)
+      Feature.activate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_live_currency")
+      stub_geoip_country("203.0.113.50", "Bulgaria")
+      platform_merchant_account
+
+      expect(stripe_payment_props(add_products: [checkout_product_for(product)], ip: "203.0.113.50"))
+        .to eq(payment_element_client_confirm_props)
     ensure
       if seller
         Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
@@ -2154,6 +2244,39 @@ describe Checkout::StripePaymentPresenter do
       deactivate_buyer_currency_flags(seller) if seller
     end
 
+    it "selects client-confirm quote presentment for a Bulgarian buyer of a single USD-priced product with the flags on" do
+      seller, product = buyer_currency_seller_with_product(price_currency_type: "usd", price_cents: 1500)
+      activate_buyer_currency_flags(seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_test_currency")
+      stub_geoip_country("203.0.113.50", "Bulgaria")
+      add_products = [
+        checkout_product_for(
+          product,
+          buyer_currency_display: {
+            display_mode: "buyer_local",
+            buyer_currency_shown: Currency::EUR,
+          }
+        )
+      ]
+
+      expect(stripe_payment_props(add_products:, ip: "203.0.113.50")).to eq(
+        payment_element_client_confirm_props(buyer_currency_presentment: true, disable_wallets: true)
+      )
+    ensure
+      deactivate_buyer_currency_flags(seller) if seller
+    end
+
+    it "keeps a Bulgarian buyer of a single USD-priced product on the canonical USD element when the seller is not enabled for buyer currency" do
+      _seller, product = buyer_currency_seller_with_product(price_currency_type: "usd", price_cents: 1500)
+      allow(Stripe).to receive(:api_key).and_return("sk_test_currency")
+      stub_geoip_country("203.0.113.50", "Bulgaria")
+
+      props = stripe_payment_props(add_products: [checkout_product_for(product)], ip: "203.0.113.50")
+
+      expect(props.dig(:elements_options, :currency)).to eq(described_class::CLIENT_CONFIRM_CURRENCY)
+      expect(props.dig(:elements_options, :buyer_currency_presentment)).to be(false)
+    end
+
     it "advertises UPI on a real Indian buyer-local client-confirm remount" do
       seller, product = buyer_currency_seller_with_product(price_currency_type: "usd", price_cents: 1500)
       activate_buyer_currency_flags(seller)
@@ -2254,13 +2377,49 @@ describe Checkout::StripePaymentPresenter do
       end
     end
 
-    it "drops the US-locked methods (Cash App Pay, ACH) from the forced-currency element for a US buyer" do
+    it "keeps a US buyer of a EUR product on the USD element, without the EUR-forced methods" do
       seller, product = buyer_currency_seller_with_product(price_cents: 1500)
       activate_buyer_currency_flags(seller)
       allow(Stripe).to receive(:api_key).and_return("sk_test_currency")
+      platform_merchant_account
       stub_geoip_country("104.28.0.1", "United States")
 
       props = stripe_payment_props(add_products: [checkout_product_for(product)], ip: "104.28.0.1")
+
+      expect(props[:elements_options][:currency]).to eq(described_class::CLIENT_CONFIRM_CURRENCY)
+      expect(props[:elements_options][:presentment_amount_cents]).to be_nil
+      expect(props[:elements_options][:payment_method_types]).not_to include("ideal", "bancontact")
+    ensure
+      deactivate_buyer_currency_flags(seller) if seller
+    end
+
+    it "keeps a buyer GeoIP cannot place on the listed EUR element" do
+      seller, product = buyer_currency_seller_with_product(price_cents: 1500)
+      activate_buyer_currency_flags(seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_test_currency")
+      platform_merchant_account
+      allow(GeoIp).to receive(:lookup).with("10.9.9.9").and_return(nil)
+
+      props = stripe_payment_props(add_products: [checkout_product_for(product)], ip: "10.9.9.9")
+
+      expect(props).to eq(
+        payment_element_client_confirm_props(
+          currency: "eur",
+          presentment_amount_cents: 1500,
+          payment_method_types: %w[card link ideal bancontact],
+          disable_wallets: true,
+        )
+      )
+    ensure
+      deactivate_buyer_currency_flags(seller) if seller
+    end
+
+    it "drops the US-locked methods (Cash App Pay, ACH) from the forced-currency element" do
+      seller, product = buyer_currency_seller_with_product(price_cents: 1500)
+      activate_buyer_currency_flags(seller)
+      allow(Stripe).to receive(:api_key).and_return("sk_test_currency")
+
+      props = stripe_payment_props(add_products: [checkout_product_for(product)])
 
       expect(props[:elements_options][:currency]).to eq("eur")
       expect(props[:elements_options][:payment_method_types]).not_to include("cashapp", "us_bank_account")
@@ -2579,6 +2738,7 @@ describe Checkout::StripePaymentPresenter do
       # always seed it. Without this the cart is not method-forced at all and the example would
       # assert client-confirm for the wrong reason. Inlined rather than shared because the
       # equivalent `let` lives in the method-forced describe block above.
+      stub_geoip_country(nil, "Netherlands")
       MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id)&.tap do |account|
         account.update!(charge_processor_merchant_id: "acct_gumroad", currency: Currency::USD)
       end ||

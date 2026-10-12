@@ -53,6 +53,19 @@ describe CustomerMailer do
       end
     end
 
+    context "when the charge has no successful purchases" do
+      let(:seller) { create(:named_seller) }
+      let(:product) { create(:product, user: seller) }
+      let(:failed_purchase) { create(:failed_purchase, link: product, seller:) }
+      let!(:charge) { create(:charge, purchases: [failed_purchase], seller:) }
+
+      it "renders nothing instead of raising mid-render" do
+        rendered = described_class.receipt(failed_purchase.id)
+
+        expect(rendered.message).to be_a(ActionMailer::Base::NullMail)
+      end
+    end
+
     context "when support email exists" do
       subject(:mail) do
         user = create(:user, email: "bob@gumroad.com", name: "bob walsh")
@@ -253,6 +266,13 @@ describe CustomerMailer do
       it "does not include generate invoice section" do
         mail = CustomerMailer.receipt(purchase.id)
         expect(mail.body.encoded).not_to have_link("Generate invoice")
+      end
+
+      it "keeps the order ID and date but omits the $0 total" do
+        body = CustomerMailer.receipt(purchase.id).body.sanitized
+        expect(body).to have_text("Order ID: #{purchase.external_id_for_invoice}")
+        expect(body).to have_text("Order date:")
+        expect(body).not_to have_text("Total:")
       end
     end
 
@@ -994,6 +1014,16 @@ describe CustomerMailer do
         expect(mail.body.sanitized).to match(purchase.link_name)
       end
 
+      context "when the gifter is hidden from the recipient" do
+        before { gift.update!(is_gifter_hidden: true) }
+
+        it "omits the gifter email from the subject and body" do
+          expect(mail.subject).to eq("Someone bought Digital product for you!")
+          expect(mail.body.sanitized).to have_text("Hi! Someone bought this as a gift for you. We hope you like it!")
+          expect(mail.body.sanitized).not_to include("gifter@example.com")
+        end
+      end
+
       context "when the purchase includes shipping" do
         let(:product) { create(:physical_product) }
         let(:gift_sender_purchase) { create(:physical_purchase, link: product, gift_given: gift, is_gift_sender_purchase: true, email: "gifter@example.com") }
@@ -1504,6 +1534,70 @@ describe CustomerMailer do
       expect(mail.subject).to eq("Receipts for Purchases")
     end
 
+    it "reads only bounded newest-first windows of a caller's match" do
+      stub_const("CustomerMailer::GROUPED_RECEIPT_LOOKBACK", 1)
+      stub_const("CustomerMailer::GROUPED_RECEIPT_READ_WINDOWS", 2)
+      older = create(:purchase, link: product, seller:)
+      allow(Charge::Chargeable).to receive(:find_by_purchase_or_charge!).and_call_original
+
+      mail = CustomerMailer.grouped_receipt([older.id] + purchases.map(&:id))
+
+      expect(mail.to).to eq([purchases.last.email])
+      expect(Charge::Chargeable).to have_received(:find_by_purchase_or_charge!).with(purchase: purchases.last).once
+      expect(Charge::Chargeable).to have_received(:find_by_purchase_or_charge!).with(purchase: purchases.first).once
+      expect(Charge::Chargeable).not_to have_received(:find_by_purchase_or_charge!).with(purchase: older)
+    end
+
+    it "keeps reading windows when the newest purchases collapse into a shared charge" do
+      stub_const("CustomerMailer::GROUPED_RECEIPT_LOOKBACK", 2)
+      older = create(:purchase, link: create(:product, user: seller, name: "Older item"), seller:)
+      create(:charge, purchases:, seller:)
+
+      items = Nokogiri::HTML(CustomerMailer.grouped_receipt([older.id] + purchases.map(&:id)).body.decoded)
+        .css(".item .product-checkout-cell h4").map(&:text).map(&:strip)
+
+      expect(items).to include("Older item")
+    end
+
+    it "does not let failed purchases consume the read budget" do
+      stub_const("CustomerMailer::GROUPED_RECEIPT_LOOKBACK", 1)
+      stub_const("CustomerMailer::GROUPED_RECEIPT_READ_WINDOWS", 1)
+      older = create(:purchase, link: create(:product, user: seller, name: "Older item"), seller:)
+      failed = create_list(:failed_purchase, 2, link: product, seller:)
+
+      mail = CustomerMailer.grouped_receipt([older.id] + failed.map(&:id))
+
+      expect(mail.message).not_to be_a(ActionMailer::Base::NullMail)
+      expect(Nokogiri::HTML(mail.body.decoded).css(".item .product-checkout-cell h4").map(&:text).map(&:strip)).to include("Older item")
+    end
+
+    it "sets Reply-To to the product's support email" do
+      product.update!(support_email: "product-support@example.com")
+
+      mail = CustomerMailer.grouped_receipt(purchases.map(&:id))
+
+      expect(mail[:reply_to].value).to eq("product-support@example.com")
+      expect(mail.body.decoded).to include("by replying to this email")
+    end
+
+    it "falls back to the seller's support email when the product has none" do
+      seller.update!(support_email: "seller-support@example.com")
+
+      mail = CustomerMailer.grouped_receipt(purchases.map(&:id))
+
+      expect(mail[:reply_to].value).to eq("seller-support@example.com")
+    end
+
+    it "routes replies to support when the group spans several support addresses" do
+      other_seller = create(:named_seller, support_email: "other-seller@example.com", username: "otherseller", email: "other-seller@example.com")
+      other_purchase = create(:purchase, link: create(:product, user: other_seller), seller: other_seller, email: purchases.first.email)
+
+      mail = CustomerMailer.grouped_receipt(purchases.map(&:id) + [other_purchase.id])
+
+      expect(mail[:reply_to].value).to eq(ApplicationMailer::SUPPORT_EMAIL)
+      expect(mail.body.decoded).to include("mailto:other-seller@example.com")
+    end
+
     it "keeps recommendations enabled by default" do
       purchase = purchases.first
       expect(RecommendedProducts::CheckoutService).to receive(:fetch_for_receipt).with(
@@ -1564,6 +1658,34 @@ describe CustomerMailer do
       expect(mail.message).to be_a(ActionMailer::Base::NullMail)
     end
 
+    it "drops a chargeable whose charge has no successful purchase left" do
+      charge = create(:charge, seller:)
+      charge.purchases << purchases
+      # The state filter admits these purchases as successful, then they leave that state (a refund
+      # or chargeback landing mid-send) before the receipt reads are pinned.
+      allow_any_instance_of(CustomerMailer).to receive(:renderable_chargeables).and_wrap_original do |original, chargeables|
+        renderable = original.call(chargeables)
+        purchases.each { |purchase| purchase.update!(purchase_state: "failed") }
+        renderable
+      end
+
+      expect(CustomerMailer.grouped_receipt(purchases.map(&:id)).message).to be_a(ActionMailer::Base::NullMail)
+    end
+
+    it "does not take the send claim when the whole receipt set drops out before render" do
+      charge = create(:charge, seller:)
+      charge.purchases << purchases
+      allow_any_instance_of(CustomerMailer).to receive(:renderable_chargeables).and_wrap_original do |original, chargeables|
+        renderable = original.call(chargeables)
+        purchases.each { |purchase| purchase.update!(purchase_state: "failed") }
+        renderable
+      end
+
+      expect_any_instance_of(CustomerMailer).not_to receive(:claim_grouped_receipt_send)
+
+      expect(CustomerMailer.grouped_receipt(purchases.map(&:id)).message).to be_a(ActionMailer::Base::NullMail)
+    end
+
     it "eager loads charges and orders to avoid N+1 queries" do
       purchases_with_charges = Array.new(3) do
         purchase = create(:purchase, link: product, seller:)
@@ -1586,6 +1708,31 @@ describe CustomerMailer do
       order_queries = queries.select { |sql| sql.match?(/FROM `orders`/i) }
       expect(charge_queries.size).to be <= 2
       expect(order_queries.size).to be <= 2
+    end
+
+    it "resolves renderability in the same number of queries however many receipts are in the group" do
+      chargeables = Array.new(5) do
+        purchase = create(:purchase, link: product, seller:)
+        charge = create(:charge, seller:)
+        charge.purchases << purchase
+        charge.order.purchases << purchase
+        Charge::Chargeable.find_by_purchase_or_charge!(purchase:)
+      end
+
+      count_purchase_queries = lambda do |group|
+        queries = []
+        callback = lambda { |_name, _start, _finish, _id, payload|
+          queries << payload[:sql] if payload[:sql] && !payload[:name]&.match?(/SCHEMA|TRANSACTION/)
+        }
+
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          CustomerMailer.new.send(:renderable_chargeables, group)
+        end
+
+        queries.count { |sql| sql.match?(/FROM `purchases`|FROM `charge_purchases`/i) }
+      end
+
+      expect(count_purchase_queries.call(chargeables.first(1))).to eq(count_purchase_queries.call(chargeables))
     end
 
     it "caps the number of rendered receipts, keeping the newest purchases" do

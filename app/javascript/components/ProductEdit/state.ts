@@ -77,6 +77,9 @@ export type RecurrencePriceValue =
 export type Tier = Variant & {
   customizable_price: boolean;
   apply_price_changes_to_existing_memberships: boolean;
+  // Served only when the seller may close tiers. Leave it unset otherwise: the
+  // server reads an omitted value as "unchanged", never as "reopen".
+  closed_to_new_purchases?: boolean;
   subscription_price_change_effective_date: string | null;
   subscription_price_change_message: string | null;
   recurrence_price_values: {
@@ -124,6 +127,7 @@ export type TaxonomyAttributeValue = string | boolean | number | null;
 export type Product = {
   name: string;
   description: string;
+  description_changed?: boolean;
   custom_permalink: string | null;
   price_cents: number;
   suggested_price_cents: number | null;
@@ -285,6 +289,7 @@ export const ProductEditContext = React.createContext<{
   currencyType: CurrencyCode;
   setCurrencyType: (newCurrencyCode: CurrencyCode) => void;
   isListedOnDiscover: boolean;
+  canCloseMembershipTiers: boolean;
   isPhysical: boolean;
   profileSections: ProfileSection[];
   taxonomies: Taxonomy[];
@@ -295,12 +300,17 @@ export const ProductEditContext = React.createContext<{
   successfulSalesCount: number;
   ratings: RatingsWithPercentages;
   seller: Seller;
+  // The external id the S3 signature endpoint authorizes, so uploads are keyed under the
+  // account doing the editing rather than under `seller` (the product owner).
+  currentSellerExternalId: string;
   existingFiles: ExistingFileEntry[];
   setExistingFiles: React.Dispatch<React.SetStateAction<ExistingFileEntry[]>>;
   awsKey: string;
   s3Url: string;
   availableCountries: ShippingCountry[];
   saving: boolean;
+  // A save may have reached the server but this page cannot save again safely until it reloads.
+  saveBlocked: boolean;
   // Resolves true only when the save request actually succeeded (false on
   // request failure or when the seller cancels the deletion confirmation) —
   // callers chaining navigation on save() must check it before proceeding.
@@ -324,6 +334,7 @@ export const ProductEditContext = React.createContext<{
   receiptEmailFrom: string;
   priceCheckerEnabled: boolean;
   customHtmlPagesEnabled: boolean;
+  autoMarketingEnabled: boolean;
   // Hostnames this seller controls (their subdomain, their live custom domain).
   // The landing-page preview only follows a navigation request from the
   // sandboxed seller HTML when the destination is one of these.
@@ -348,7 +359,12 @@ type FileStatus =
   | { type: "dropbox"; externalId: string; uploadState: string }
   | {
       type: "unsaved";
-      uploadStatus: { type: "uploaded" } | { type: "uploading"; progress: UploadProgress };
+      uploadStatus:
+        | { type: "uploaded" }
+        | { type: "uploading"; progress: UploadProgress }
+        // A terminal uploader error. A failure variant rather than a removal so the
+        // row can say what failed and stay out of the save.
+        | { type: "failed" };
       url: string;
     };
 
@@ -361,6 +377,9 @@ export type FileEntry = {
   pdf_stamp_enabled: boolean;
   hide_kindle_and_read_buttons: boolean;
   is_streamable: boolean;
+  // Downloads-off eligibility from the server; absent on a file the editor just built, which judges
+  // itself until it is saved. See ProductFile#can_disable_downloads?.
+  can_disable_downloads?: boolean;
   stream_only: boolean;
   is_transcoding_in_progress: boolean;
   // Pixel dimensions of the video, when we know them, so the editor's preview

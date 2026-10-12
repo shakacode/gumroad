@@ -1,13 +1,18 @@
 # frozen_string_literal: true
 
 class ProductPresenter::Card
+  DESCRIPTION_MAX_LENGTH = 100
+  # Room for the Discover featured card's six-line clamp; the frontend ellipsizes the rest.
+  FEATURED_DESCRIPTION_MAX_LENGTH = 300
+
   include Rails.application.routes.url_helpers
   include ProductsHelper
   include CurrencyHelper
 
   ASSOCIATIONS = [
-    :alive_prices, :product_review_stat, :default_offer_code, :skus,
+    :alive_prices, :product_review_stat, :skus,
     {
+      default_offer_code: :variants,
       tiers: :alive_prices,
       user: [:custom_domain, { avatar_attachment: { blob: { variant_records: { image_attachment: :blob } } } }],
       variant_categories_alive: :alive_variants,
@@ -23,7 +28,7 @@ class ProductPresenter::Card
     @product = product
   end
 
-  def for_web(request: nil, recommended_by: nil, recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true)
+  def for_web(request: nil, recommended_by: nil, recommender_model_name: nil, target: nil, show_seller: true, affiliate_id: nil, query: nil, offer_code: nil, compute_description: true, compute_inventory: true, description_max_length: DESCRIPTION_MAX_LENGTH)
     default_recurrence = product.default_price_recurrence
     base_price_cents = product.display_price_cents(for_default_duration: true)
     price_cents = product.discounted_price_cents(base_price_cents)
@@ -57,7 +62,7 @@ class ProductPresenter::Card
     props[:original_price_cents] = original_price_cents if original_price_cents.present?
 
     if compute_description
-      props[:description] = product.plaintext_description.truncate(100)
+      props[:description] = truncate_description(product.plaintext_description, description_max_length)
     end
 
     props
@@ -75,4 +80,13 @@ class ProductPresenter::Card
       },
     }
   end
+
+  private
+    # Drops punctuation before the omission so a cut after a sentence period does not end in "....".
+    def truncate_description(text, max_length)
+      return text if text.length <= max_length
+
+      omission = "..."
+      text[0, max_length - omission.length].sub(/[[:punct:][:space:]]+\z/, "") + omission
+    end
 end

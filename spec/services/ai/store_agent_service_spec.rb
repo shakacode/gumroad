@@ -96,12 +96,482 @@ describe Ai::StoreAgentService do
       service.respond(messages: [{ role: "user", content: "hi" }])
 
       expect(captured[:system]).to include("Gumroad's store assistant")
-      expect(captured[:tools].map { |t| t[:name] }).to contain_exactly("api_read", "api_write", "complete_turn")
+      expect(captured[:tools].map { |t| t[:name] }).to contain_exactly("api_read", "api_write", "prepare_html_undo", "complete_turn")
       expect(captured[:system]).to include("existing Store Agent webhooks can be")
       expect(captured[:system]).to include("the Store Agent cannot create webhooks")
       expect(captured[:system]).to match(/Settings >\s+Advanced > Ping/)
       # System prompt is NOT echoed into the messages array (it's Anthropic's top-level param).
       expect(captured[:messages].none? { |m| m[:role] == "system" }).to be(true)
+    end
+
+    it "explains subscriber eligibility before asking for consent to an unrestricted alternative" do
+      allow(client).to receive(:messages) do |args|
+        expect(args[:system]).to include("cannot enforce subscriber-only redemption")
+        expect(args[:system]).to include("universal controls which products a code covers, not who can redeem it")
+        expect(args[:system]).to include("Universal percentage codes")
+        expect(args[:system]).to include("universal fixed-amount codes cover only products priced in the target")
+        expect(args[:system]).to include("cannot configure existing-customer or product-ownership eligibility")
+        expect(args[:system]).to include("reply_only turn before proposing a supported alternative")
+        expect(args[:system]).to include("Wait for the creator to agree to that alternative")
+        text_result("I cannot restrict redemption to subscribers. Would a code anyone with the code can use work instead?")
+      end
+
+      result = service.respond(messages: [{ role: "user", content: "Create a subscriber-only discount." }])
+
+      expect(result[:proposed_action]).to be_nil
+      expect(result[:reply]).to include("cannot restrict redemption")
+    end
+
+    it "shows redemption eligibility on a supported alternative without claiming a subscriber check" do
+      allow(api_client).to receive(:write)
+      allow(client).to receive(:messages).and_return(
+        tool_result("api_write", {
+                      "endpoint" => "create_offer_code",
+                      "path_params" => { "link_id" => "prod_1" },
+                      "params" => { "name" => "READERS", "amount_off" => 15, "offer_type" => "percent", "universal" => true },
+                    }),
+        text_result("Ready.", outcome: "proposal_ready"),
+      )
+
+      result = service.respond(messages: [{ role: "user", content: "Yes, a storewide code anyone can redeem is fine." }])
+
+      expect(result[:proposed_action][:fields]).to include(
+        { label: "Applies to", value: "All products" },
+        { label: "Redemption", value: "Anyone with the code; no subscriber check" },
+      )
+      expect(result[:reply]).to eq(described_class::PROPOSAL_READY_REPLY)
+      expect(api_client).not_to have_received(:write)
+    end
+
+    context "email audience validation" do
+      let(:body) { { "audience" => "product", "product_id" => "", "subject" => "Update", "body" => "Hello", "draft" => true, "publish" => false } }
+      let(:input) { { "endpoint" => "create_email", "params" => body } }
+
+      before do
+        allow(api_client).to receive(:write)
+        allow(service).to receive(:follow_up_suggestions).and_return([])
+      end
+
+      %i[respond respond_streaming].each do |mode|
+        it "does not stage a product email without an identifier via #{mode}" do
+          provider_method = mode == :respond ? :messages : :stream_messages
+          allow(client).to receive(provider_method).and_return(tool_result("api_write", input), text_result("Ready", outcome: "proposal_ready"))
+          events = []
+          result = service.public_send(mode, messages: [{ role: "user", content: "Draft an email to buyers of my guide." }]) { |event, payload| events << [event, payload] }
+
+          expect(result[:proposed_action]).to be_nil
+          expect(result[:reply]).to eq(described_class::NOTHING_STAGED_REPLY)
+          if mode == :respond_streaming
+            expect(events.map(&:first)).to include(:turn_ready)
+            expect(events.map(&:first)).not_to include(:proposed_action)
+          end
+          expect(api_client).not_to have_received(:write)
+        end
+
+        it "preserves the exact product and draft without writing via #{mode}" do
+          body["product_id"] = create(:product, user: seller).external_id
+          provider_method = mode == :respond ? :messages : :stream_messages
+          allow(client).to receive(provider_method).and_return(tool_result("api_write", input), text_result("Ready", outcome: "proposal_ready"))
+          result = service.public_send(mode, messages: [{ role: "user", content: "Draft this product email, do not send it." }]) { |_event, _payload| }
+
+          expect(result[:proposed_action][:params]).to include("endpoint" => "create_email", "params" => body)
+          expect(result[:reply]).to eq(described_class::PROPOSAL_READY_REPLY)
+          expect(api_client).not_to have_received(:write)
+        end
+      end
+
+      it "returns a corrective error then accepts the identifier from a product read" do
+        product = create(:product, user: seller)
+        allow(api_client).to receive(:get).with("/products", {}).and_return("success" => true, "products" => [{ "id" => product.external_id }])
+        responses = [tool_result("api_write", input), tool_result("api_read", { "endpoint" => "list_products" }),
+                     tool_result("api_write", input.merge("params" => body.merge("product_id" => product.external_id))), text_result("Ready", outcome: "proposal_ready")]
+        errors = []
+        allow(client).to receive(:messages) do |args|
+          errors << captured_tool_result(args)
+          responses.shift
+        end
+
+        result = service.respond(messages: [{ role: "user", content: "Draft an email for buyers of my guide." }])
+
+        expect(errors.compact).to include(include("error" => "Product audience requires a product_id or link_id."))
+        expect(result[:proposed_action][:params]["params"]).to eq(body.merge("product_id" => product.external_id))
+        expect(api_client).to have_received(:get).once
+        expect(api_client).not_to have_received(:write)
+      end
+
+      it "rejects a cross-seller identifier before staging" do
+        body["product_id"] = create(:product).external_id
+        allow(client).to receive(:messages).and_return(tool_result("api_write", input), text_result("Which product in your store?"))
+        expect(service.respond(messages: [{ role: "user", content: "Draft this product email." }])[:proposed_action]).to be_nil
+        expect(api_client).not_to have_received(:write)
+      end
+
+      it "checks role authorization before looking up an email product" do
+        body["product_id"] = create(:product, user: seller).external_id
+        allow(service).to receive(:permitted_scopes).and_return([])
+        expect(seller).not_to receive(:links)
+        responses = [tool_result("api_write", input), text_result("Permission denied.")]
+        error = nil
+        allow(client).to receive(:messages) do |args|
+          error = captured_tool_result(args)
+          responses.shift
+        end
+        expect(service.respond(messages: [{ role: "user", content: "Draft this product email." }])[:proposed_action]).to be_nil
+        expect(error).to eq("error" => "The current user's role can't perform create_email.")
+      end
+
+      it "instructs the model to recover a missing product without broadening or sending" do
+        expect(service.send(:system_prompt)).to include("Never invent a product identifier or broaden the audience")
+        expect(service.send(:system_prompt)).to include("ask which product they mean")
+        expect(service.send(:system_prompt)).to include("draft=true and publish=false")
+      end
+    end
+
+    context "server-owned HTML undo" do
+      let(:conversation) { create(:ai_conversation, seller:) }
+      let(:service) { described_class.new(seller:, pundit_user:, conversation:) }
+      let(:html) { "<p><strong>Keep this instruction.</strong></p>" }
+      let(:inverse) do
+        { "endpoint" => "edit_user_custom_html", "path_params" => {}, "params" => {
+          "find" => html, "replace" => "<p>Keep this instruction.</p>",
+          "expected_custom_html_sha256" => Digest::SHA256.hexdigest(html),
+          "result_custom_html_sha256" => Digest::SHA256.hexdigest("<p>Keep this instruction.</p>"),
+        } }
+      end
+      before do
+        # Shaped like a real claim + finalization: the start marker is what the claim SQL writes.
+        started_at = 2.minutes.ago
+        conversation.ai_messages.create!(
+          role: "assistant",
+          metadata: { action_status: "applied", action_started_at: started_at.utc.strftime("%Y-%m-%d %H:%M:%S.%6N"), html_undo: inverse },
+          updated_at: started_at + 5.seconds,
+        )
+        allow(api_client).to receive(:get).with("/user/custom_html", {}).and_return({ "success" => true, "custom_html" => html })
+        allow(api_client).to receive(:write)
+        allow(service).to receive(:follow_up_suggestions).and_return([])
+      end
+
+      %i[respond respond_streaming].each do |mode|
+        it "prepares the exact inverse without writing through #{mode}" do
+          provider_method = mode == :respond ? :messages : :stream_messages
+          allow(client).to receive(provider_method).and_return(tool_result("prepare_html_undo", {}), text_result("Ready", outcome: "proposal_ready"))
+          result = service.public_send(mode, messages: [{ role: "user", content: "Undo that formatting." }]) { |_event, _payload| }
+          expect(result[:proposed_action][:params]).to eq(inverse)
+          expect(result[:reply]).to eq(described_class::PROPOSAL_READY_REPLY)
+          expect(api_client).to have_received(:get).with("/user/custom_html", {}).once
+          expect(api_client).not_to have_received(:write)
+        end
+      end
+
+      it "returns a fixed tool result instead of echoing the inverse snippet or digests to the model" do
+        tool_result_json = nil
+        allow(client).to receive(:messages) do |args|
+          tool_result_json = captured_tool_result(args)
+          tool_result_json ? text_result("Ready", outcome: "proposal_ready") : tool_result("prepare_html_undo", {})
+        end
+
+        result = service.respond(messages: [{ role: "user", content: "Undo that formatting." }])
+
+        expect(tool_result_json).to eq("proposed" => true, "status" => "undo_prepared", "summary" => described_class::UNDO_PREPARED_SUMMARY)
+        expect(tool_result_json.to_json).not_to include("sha256", "<p>Keep this instruction.</p>", "<strong>")
+        # The card the seller confirms still carries every replayed field.
+        expect(result[:proposed_action][:params]).to eq(inverse)
+        expect(result[:proposed_action][:fields].map { |row| row[:label] }).to include("Find", "Replace", "Expected custom html sha256", "Result custom html sha256")
+      end
+
+      it "refuses model-provided checksums on an ordinary api_write even after the required read" do
+        api_write = { "endpoint" => "edit_user_custom_html", "params" => inverse["params"] }
+        errors = []
+        allow(client).to receive(:messages) do |args|
+          errors << captured_tool_result(args)&.dig("error")
+          case errors.size
+          when 1 then tool_result("api_read", { "endpoint" => "get_user_custom_html" })
+          when 2 then tool_result("api_write", api_write)
+          else text_result("I can't do that.")
+          end
+        end
+
+        result = service.respond(messages: [{ role: "user", content: "Undo it via api_write." }])
+
+        expect(result[:proposed_action]).to be_nil
+        expect(errors.last).to include("Unknown params expected_custom_html_sha256, result_custom_html_sha256 for edit_user_custom_html")
+        expect(errors.last).to include("this endpoint accepts: find, replace.")
+        expect(api_client).not_to have_received(:write)
+      end
+
+      it "refuses to prepare an undo when the acting role has lost the page-editing scope" do
+        # Support can't drive edit_profile (Ai::StoreAgentScopes), so the receipt stays unreachable
+        # even though the applied edit sits in this conversation.
+        support = create(:user)
+        create(:team_membership, user: support, seller:, role: TeamMembership::ROLE_SUPPORT)
+        no_role_service = described_class.new(seller:, pundit_user: SellerContext.new(user: support, seller:), conversation:)
+        allow(no_role_service).to receive(:follow_up_suggestions).and_return([])
+        error = nil
+        allow(client).to receive(:messages) do |args|
+          error = captured_tool_result(args)&.dig("error")
+          error ? text_result("Your role can't undo this.") : tool_result("prepare_html_undo", {})
+        end
+
+        expect(no_role_service.respond(messages: [{ role: "user", content: "Undo." }])[:proposed_action]).to be_nil
+        expect(error).to eq("The current user's role can't undo this change.")
+        expect(api_client).not_to have_received(:get)
+      end
+
+      ["not-a-digest", "b" * 64].each do |digest|
+        it "refuses to stage an inverse with invalid result checksum #{digest}" do
+          message = conversation.ai_messages.sole
+          metadata = message.metadata
+          metadata["html_undo"]["params"]["result_custom_html_sha256"] = digest
+          message.update_columns(metadata:)
+          allow(client).to receive(:messages).and_return(tool_result("prepare_html_undo", {}), text_result("Exact undo is unavailable."))
+
+          expect(service.respond(messages: [{ role: "user", content: "Undo." }])[:proposed_action]).to be_nil
+          expect(api_client).not_to have_received(:write)
+        end
+      end
+
+      it "refuses a stale or unsuccessful current-page read" do
+        allow(api_client).to receive(:get).and_return({ "success" => false, "custom_html" => html })
+        allow(client).to receive(:messages).and_return(tool_result("prepare_html_undo", {}), text_result("Exact undo is unavailable."))
+        expect(service.respond(messages: [{ role: "user", content: "Undo." }])[:proposed_action]).to be_nil
+      end
+
+      it "does not grant a read precondition to another write in the same tool batch" do
+        batch = tool_result("prepare_html_undo", {})
+        batch.tool_uses << { id: "speculative", name: "api_write", input: { "endpoint" => "edit_user_custom_html", "params" => { "find" => html, "replace" => "" } } }
+        captured = nil
+        allow(client).to receive(:messages) do |**args|
+          if captured
+            results = args[:messages].last[:content].map { |item| JSON.parse(item[:content]) }
+            expect(results.last["error"]).to include("requires a successful full read")
+            text_result("Ready", outcome: "proposal_ready")
+          else
+            captured = true
+            batch
+          end
+        end
+        expect(service.respond(messages: [{ role: "user", content: "Undo." }])[:proposed_action][:params]).to eq(inverse)
+      end
+
+      it "rejects model-supplied replacement or target arguments without a read" do
+        allow(client).to receive(:messages).and_return(tool_result("prepare_html_undo", { "replace" => "" }), text_result("No undo prepared."))
+        expect(service.respond(messages: [{ role: "user", content: "Undo." }])[:proposed_action]).to be_nil
+        expect(api_client).not_to have_received(:get)
+      end
+
+      it "retains access to the server receipt outside the truncated message history" do
+        history = 24.times.map { |i| { role: i.even? ? "user" : "assistant", content: "Unrelated exchange" } }
+        allow(client).to receive(:messages).and_return(tool_result("prepare_html_undo", {}), text_result("Ready", outcome: "proposal_ready"))
+        result = service.respond(messages: history + [{ role: "user", content: "Undo the last applied change." }])
+        expect(result[:proposed_action][:params]).to eq(inverse)
+      end
+    end
+
+    context "discount coverage through the real v2 API" do
+      let!(:usd_product) { create(:product, user: seller, name: "USD guide", price_currency_type: "usd", price_cents: 1000) }
+      let!(:eur_product) { create(:product, user: seller, name: "EUR guide", price_currency_type: "eur", price_cents: 1000) }
+      let!(:other_usd_product) { create(:product, user: seller, name: "USD workbook", price_currency_type: "usd", price_cents: 1000) }
+
+      before { allow(Ai::StoreAgentApiClient).to receive(:new).and_call_original }
+
+      [
+        ["usd", "cents", true, "All USD-priced products"],
+        ["eur", "cents", "true", "All EUR-priced products"],
+        ["usd", "percent", true, "All products"],
+        ["eur", "percent", "true", "All products"],
+        ["usd", "cents", false, nil],
+        ["eur", "percent", "false", nil],
+      ].each do |currency, offer_type, universal, coverage|
+        it "matches #{currency} #{offer_type} coverage for universal=#{universal.inspect} to the saved code" do
+          product = currency == "usd" ? usd_product : eur_product
+          body = { "name" => "COVERAGE", "amount_off" => 15, "offer_type" => offer_type, "universal" => universal }
+          allow(client).to receive(:messages).and_return(
+            tool_result("api_write", { "endpoint" => "create_offer_code", "path_params" => { "link_id" => product.external_id }, "params" => body }),
+            text_result("Ready.", outcome: "proposal_ready"),
+          )
+
+          result = nil
+          expect do
+            result = service.respond(messages: [{ role: "user", content: "Create this discount anyone with the code can redeem." }])
+          end.not_to change(OfferCode, :count)
+          action = result.fetch(:proposed_action)
+          expect(action[:params]["params"]).to eq(body)
+          expect(action[:fields]).to include({ label: "Redemption", value: "Anyone with the code; no subscriber check" })
+          if coverage
+            expect(action[:fields]).to include({ label: "Product", value: "#{product.name} (#{product.external_id})" })
+            expect(action[:fields].select { |field| field[:label] == "Applies to" }).to eq([{ label: "Applies to", value: coverage }])
+          else
+            expect(action[:fields]).to include({ label: "Applies to", value: "#{product.name} (#{product.external_id})" }, { label: "Universal", value: "false" })
+          end
+
+          expect(action[:title]).to eq("Create a discount code.")
+          execution = Ai::StoreAgentActionExecutor.new(seller:, pundit_user:).execute(type: action[:type], params: action[:params])
+          expect(execution[:success]).to be(true), execution.inspect
+          expect(execution[:message]).to eq("Done: Create a discount code.")
+          code = seller.offer_codes.sole
+          expected_products = if !coverage
+            [product]
+          elsif offer_type == "percent"
+            [usd_product, eur_product, other_usd_product]
+          else
+            [usd_product, eur_product, other_usd_product].select { |item| item.price_currency_type == currency }
+          end
+          expect(code.applicable_products).to match_array(expected_products)
+          [usd_product, eur_product, other_usd_product].each do |item|
+            applies = expected_products.include?(item)
+            expect(code.applicable?(item)).to eq(applies)
+            expect(item.find_offer_code(code: code.code)).to eq(applies ? code : nil)
+            expect(item.find_offer_code_by_external_id(code.external_id)).to eq(applies ? code : nil)
+            expect(item.product_and_universal_offer_codes.include?(code)).to eq(applies)
+          end
+        end
+      end
+
+      ["TRUE", "1", [true], { "value" => true }, nil].each do |universal|
+        it "keeps non-enabling universal input #{universal.inspect} visible" do
+          body = { "name" => "RAW", "amount_off" => 15, "offer_type" => "cents", "universal" => universal }
+          allow(client).to receive(:messages).and_return(
+            tool_result("api_write", { "endpoint" => "create_offer_code", "path_params" => { "link_id" => usd_product.external_id }, "params" => body }),
+            text_result("Ready.", outcome: "proposal_ready"),
+          )
+          action = service.respond(messages: [{ role: "user", content: "Create this discount." }]).fetch(:proposed_action)
+          value = universal.nil? ? "(blank)" : (universal.is_a?(String) ? universal : universal.to_json)
+          expect(action[:fields]).to include({ label: "Universal", value: })
+          expect(action[:fields]).to include({ label: "Applies to", value: "#{usd_product.name} (#{usd_product.external_id})" })
+          execution = Ai::StoreAgentActionExecutor.new(seller:, pundit_user:).execute(type: action[:type], params: action[:params])
+          expect(execution[:success]).to be(true), execution.inspect
+          expect(seller.offer_codes.sole.applicable_products).to contain_exactly(usd_product)
+        end
+      end
+
+      it "preserves an unrecognized offer type while describing the API's fixed-amount fallback" do
+        body = { "name" => "RAWTYPE", "amount_off" => 15, "offer_type" => ["percent"], "universal" => true }
+        allow(client).to receive(:messages).and_return(
+          tool_result("api_write", { "endpoint" => "create_offer_code", "path_params" => { "link_id" => usd_product.external_id }, "params" => body }),
+          text_result("Ready.", outcome: "proposal_ready"),
+        )
+        action = service.respond(messages: [{ role: "user", content: "Create this discount." }]).fetch(:proposed_action)
+        expect(action[:fields]).to include({ label: "Offer type", value: '["percent"]' }, { label: "Applies to", value: "All USD-priced products" })
+        expect(action[:params]["params"]).to eq(body)
+        execution = Ai::StoreAgentActionExecutor.new(seller:, pundit_user:).execute(type: action[:type], params: action[:params])
+        expect(execution[:success]).to be(true), execution.inspect
+        expect(seller.offer_codes.sole.applicable_products).to contain_exactly(usd_product, other_usd_product)
+      end
+    end
+
+    context "discount result cards through the real v2 API" do
+      let!(:usd_product) { create(:product, user: seller, name: "USD guide", price_currency_type: "usd", price_cents: 2000) }
+      let!(:eur_product) { create(:product, user: seller, name: "EUR guide", price_currency_type: "eur", price_cents: 2000) }
+      let!(:other_usd_product) { create(:product, user: seller, name: "USD workbook", price_currency_type: "usd", price_cents: 2000) }
+      let(:executor) { Ai::StoreAgentActionExecutor.new(seller:, pundit_user:) }
+
+      before { allow(Ai::StoreAgentApiClient).to receive(:new).and_call_original }
+
+      [
+        ["usd", "cents", true, "$5 off", "All USD-priced products"],
+        ["eur", "cents", true, "€5 off", "All EUR-priced products"],
+        ["usd", "percent", true, "15% off", "All products"],
+        ["eur", "cents", false, "€5 off", "EUR guide"],
+        ["usd", "cents", false, "$5 off", "USD guide"],
+        ["eur", "percent", false, "15% off", "EUR guide"],
+      ].each do |currency, offer_type, universal, amount, coverage|
+        it "keeps #{currency} #{offer_type} universal=#{universal} truthful across create, get, list and update", :aggregate_failures do
+          product = currency == "usd" ? usd_product : eur_product
+          path_params = { "link_id" => product.external_id }
+          body = { "name" => "RESULT", "amount_off" => offer_type == "percent" ? 15 : 500, "offer_type" => offer_type, "universal" => universal }
+          created = executor.execute(type: "api_write", params: { "endpoint" => "create_offer_code", "path_params" => path_params, "params" => body })
+          expect(created[:success]).to be(true), created.inspect
+          code = seller.offer_codes.sole
+          expected_products = if !universal
+            [product]
+          elsif offer_type == "percent"
+            [usd_product, eur_product, other_usd_product]
+          else
+            [usd_product, eur_product, other_usd_product].select { |item| item.price_currency_type == currency }
+          end
+          expect(code.applicable_products).to match_array(expected_products)
+          cards = [created.fetch(:object)]
+          path_params["id"] = code.external_id
+          %w[get_offer_code list_offer_codes].each do |endpoint|
+            allow(client).to receive(:messages).and_return(
+              tool_result("api_read", { "endpoint" => endpoint, "path_params" => path_params }),
+              text_result("Here is your discount."),
+            )
+            result = service.respond(messages: [{ role: "user", content: "Show my discount." }])
+            cards << result.fetch(:objects).sole
+          end
+          updated = executor.execute(type: "api_write", params: { "endpoint" => "update_offer_code", "path_params" => path_params, "params" => { "max_purchase_count" => 10 } })
+          expect(updated[:success]).to be(true), updated.inspect
+          cards << updated.fetch(:object)
+          expect(code.reload.max_purchase_count).to eq(10)
+          expect(code.applicable_products).to match_array(expected_products)
+          cards.each do |card|
+            expect(card[:subtitle]).to eq(amount)
+            expect(card[:fields]).to include({ label: "Applies to", value: coverage })
+            expect(card[:fields].pluck(:label)).not_to include("Amount")
+          end
+        end
+      end
+    end
+
+    context "bounded discount cards through the real v2 API" do
+      let!(:product) { create(:product, user: seller, price_currency_type: "eur") }
+      let!(:codes) { Array.new(25) { |i| create(:offer_code, code: "BOUND#{i}", created_at: i.minutes.ago, user: seller, products: [product], currency_type: "eur", amount_cents: 500) } }
+      let(:read_input) { { "endpoint" => "list_offer_codes", "path_params" => { "link_id" => product.external_id } } }
+      let(:enrichment_queries) { [] }
+      let(:enriched_codes) { [] }
+
+      before do
+        allow(Ai::StoreAgentApiClient).to receive(:new).and_call_original
+        allow(Ai::StoreAgentObjectFormatter).to receive(:from_response).and_wrap_original do |original, *args, **kwargs|
+          ActiveSupport::Notifications.subscribed(->(*event) { enrichment_queries << event.last[:sql] }, "sql.active_record") do
+            ActiveSupport::Notifications.subscribed(->(*event) { enriched_codes << event.last[:record_count] if event.last[:class_name] == "OfferCode" }, "instantiation.active_record") do
+              original.call(*args, **kwargs)
+            end
+          end
+        end
+      end
+
+      it "batches only the displayed codes while preserving the full API result for the model" do
+        calls = 0
+        model_response = nil
+        allow(client).to receive(:messages) do |**args|
+          calls += 1
+          if calls == 1
+            tool_result("api_read", read_input)
+          else
+            model_response = captured_tool_result(args)
+            text_result("Here are your codes.")
+          end
+        end
+        result = service.respond(messages: [{ role: "user", content: "List my codes." }])
+        expect(model_response.fetch("offer_codes").size).to eq(25)
+        expect(result[:objects].size).to eq(20)
+        expect(enrichment_queries.grep(/SELECT .*FROM `offer_codes`/).size).to eq(1)
+        expect(enriched_codes.sum).to eq(20)
+        expect(enrichment_queries.grep(/SELECT .*FROM `links`/).size).to eq(20)
+      end
+
+      it "uses the remaining budget after duplicate cards and stops enrichment once full" do
+        service.instance_variable_set(:@objects, [])
+        service.instance_variable_set(:@completed_read_targets, {})
+        first = Ai::StoreAgentObjectFormatter.from_response(Ai::StoreAgentApiCatalog.find("list_offer_codes"), { "offer_codes" => product.product_and_universal_offer_codes.first(19).map { |code| code.as_json_for_api.stringify_keys } }, seller:)
+        service.instance_variable_set(:@objects, first)
+        enrichment_queries.clear
+        response, = service.send(:run_api_read, read_input)
+        objects = service.send(:deduped_objects)
+        expect(response.fetch("offer_codes").size).to eq(25)
+        expect(objects.size).to eq(20)
+        expect(objects.first(19)).to eq(first)
+        code_queries = enrichment_queries.grep(/SELECT .*FROM `offer_codes`/)
+        expect(code_queries.size).to eq(20)
+        expect(code_queries).to all(match(/LIMIT 1|`id` = /))
+        enrichment_queries.clear
+        response, = service.send(:run_api_read, read_input)
+        expect(response.fetch("offer_codes").size).to eq(25)
+        expect(service.send(:deduped_objects)).to eq(objects)
+        expect(enrichment_queries).to be_empty
+      end
     end
 
     context "hidden reasoning on the tool loop" do
@@ -716,7 +1186,7 @@ describe Ai::StoreAgentService do
         expect(captured[:system]).to include(%(<script id="gumroad-data"))
         expect(captured[:system]).to match(/never hard-code the product list/)
         expect(captured[:system]).to match(/Never publish a page that drops the creator's products/)
-        expect(captured[:system]).to match(/unless\s+you actually called api_write in this same reply/)
+        expect(captured[:system]).to match(/unless\s+you actually called api_write or prepare_html_undo in this same reply/)
         expect(captured[:system]).to match(/Only call api_write again after they explicitly ask/)
         expect(captured[:system]).to match(/two copies of an action that is\s+unsafe to run twice/)
       end
@@ -734,7 +1204,8 @@ describe Ai::StoreAgentService do
         service.respond(messages: [{ role: "user", content: "hi" }])
 
         expect(captured[:system]).to match(/your final\s+text is replaced with fixed server copy/)
-        expect(captured[:system]).to match(/answer any informational part of their request BEFORE calling api_write/)
+        expect(captured[:system]).to match(/Any necessary explanation or limitation must be given in an earlier reply_only turn/)
+        expect(captured[:system]).to include("preamble text before api_write is discarded too")
         expect(captured[:system]).to match(/on a proposal turn that text is replaced with\s+fixed server copy and never shown/)
         expect(captured[:system]).not_to match(/After api_write, tell the creator you've prepared it/)
       end
@@ -1585,6 +2056,141 @@ describe Ai::StoreAgentService do
           expect(result[:proposed_action]).to be_nil
         end
       end
+
+      describe "product sections confirmation card" do
+        let(:product) { create(:product, user: seller) }
+        let(:kept) { create(:seller_profile_products_section, seller:, product:, header: "Keep me") }
+        let(:dropped) { create(:seller_profile_products_section, seller:, product:, header: "Drop me") }
+
+        def propose_sections(ids)
+          expect(api_client).to receive(:get).with("/products/#{CGI.escape(product.external_id)}", {}).and_return(
+            { "success" => true, "product" => { "id" => product.external_id }, "http_status" => 200 },
+          )
+          replies = [
+            tool_result("api_read", { "endpoint" => "get_product", "path_params" => { "id" => product.external_id } }),
+            tool_result("api_write", {
+                          "endpoint" => "update_product_sections",
+                          "path_params" => { "id" => product.external_id },
+                          "params" => { "sections" => ids },
+                        }),
+            text_result("Ready.", outcome: "proposal_ready"),
+          ]
+          allow(client).to receive(:messages) { replies.shift }
+          service.respond(messages: [{ role: "user", content: "Remove the section above my product" }]).fetch(:proposed_action)
+        end
+
+        it "names the sections that will be deleted" do
+          product.update!(sections: [kept.id, dropped.id])
+
+          action = propose_sections([kept.external_id])
+
+          expect(action[:fields]).to include(
+            { label: "Sections", value: "Keep me" },
+            { label: "Deleted", value: "1 section will be deleted: Drop me" },
+          )
+        end
+
+        it "pins the sections the card showed so a later section is not deleted on confirm" do
+          product.update!(sections: [kept.id, dropped.id])
+
+          action = propose_sections([kept.external_id])
+
+          expect(action[:params]["params"]).to match(
+            "sections" => [kept.external_id],
+            "known_section_ids" => contain_exactly(kept.external_id, dropped.external_id),
+          )
+        end
+
+        it "refuses a model-supplied known_section_ids" do
+          product.update!(sections: [kept.id, dropped.id])
+          allow(api_client).to receive(:get).and_return({ "success" => true, "product" => {}, "http_status" => 200 })
+
+          captured = nil
+          replies = [
+            tool_result("api_read", { "endpoint" => "get_product", "path_params" => { "id" => product.external_id } }),
+            tool_result("api_write", {
+                          "endpoint" => "update_product_sections",
+                          "path_params" => { "id" => product.external_id },
+                          "params" => { "sections" => [], "known_section_ids" => [] },
+                        }),
+            text_result("I could not prepare that."),
+          ]
+          allow(client).to receive(:messages) do |args|
+            captured = captured_tool_result(args)
+            replies.shift
+          end
+
+          result = service.respond(messages: [{ role: "user", content: "Remove the sections" }])
+
+          expect(result[:proposed_action]).to be_nil
+          expect(captured["error"]).to include("Unknown param known_section_ids")
+        end
+
+        it "says every section will be deleted for an empty list" do
+          product.update!(sections: [kept.id, dropped.id])
+
+          action = propose_sections([])
+
+          expect(action[:fields]).to include(
+            { label: "Sections", value: "(none)" },
+            { label: "Deleted", value: "2 sections will be deleted: Keep me, Drop me" },
+          )
+        end
+      end
+
+      describe "structured read preconditions" do
+        it "treats exactly the two custom page reads as page-body reads" do
+          expect(described_class::PAGE_BODY_READ_ENDPOINTS).to contain_exactly("get_user_custom_html", "get_product_custom_html")
+        end
+
+        it "blocks a product-sections write until get_product succeeds for the same product" do
+          captured = nil
+          first = true
+          expect(api_client).not_to receive(:get)
+          expect(Rails.logger).to receive(:warn).with(described_class::MISSING_REQUIRED_READ_MESSAGE)
+          expect(ErrorNotifier).to receive(:notify).with(
+            described_class::MISSING_REQUIRED_READ_MESSAGE,
+            exclude_request_context: true,
+            write_endpoint: "update_product_sections",
+            required_read_endpoint: "get_product",
+            required_read_path: "/products/:id",
+          )
+          allow(client).to receive(:messages) do |args|
+            if first
+              first = false
+              tool_result("api_write", {
+                            "endpoint" => "update_product_sections",
+                            "path_params" => { "id" => "product-a" },
+                            "params" => { "sections" => [] },
+                          })
+            else
+              captured = captured_tool_result(args)
+              text_result("I need to read the product's sections first.")
+            end
+          end
+
+          result = service.respond(messages: [{ role: "user", content: "Remove the section above my product" }])
+
+          expect(result[:proposed_action]).to be_nil
+          expect(captured["error"]).to include(
+            "successful full read",
+            "Call get_product with api_read",
+            "Status or metadata-only reads do not count",
+          )
+          # This read is structured, not a page body, so there is no custom-page escape hatch.
+          expect(captured["error"]).not_to include("custom-page")
+          expect(captured["corrective_action"]).to eq(
+            "tool" => "api_read",
+            "endpoint" => "get_product",
+            "path_params" => { "id" => "product-a" },
+            "after_success" => {
+              "action" => "retry_write",
+              "endpoint" => "update_product_sections",
+              "timing" => "this_turn",
+            },
+          )
+        end
+      end
     end
 
     context "when the model proposes more than one write in a single turn" do
@@ -1980,6 +2586,7 @@ describe Ai::StoreAgentService do
         expect(client).to have_received(:messages).twice
         expect(client).to have_received(:messages).with(hash_including(max_tokens: described_class::MAX_TRUNCATION_RETRY_TOKENS)).once
         expect(client).to have_received(:messages).with(hash_including(max_tokens: described_class::MAX_REPLY_TOKENS)).once
+        expect(client).to have_received(:messages).with(hash_including(recover_token_cutoff: true)).at_least(:once)
       end
 
       it "returns the honest fallback when the re-ask truncates too" do
@@ -2015,6 +2622,27 @@ describe Ai::StoreAgentService do
                              described_class::MAX_REPLY_TOKENS,
                              described_class::MAX_TRUNCATION_RETRY_TOKENS,
                            ])
+      end
+
+      it "tells the re-ask to send the change in smaller pieces" do
+        # Only the re-ask carries it: a whole page fits no cap, so repeating the same attempt fails
+        # the same way, while the next turn must start from the ordinary prompt again.
+        systems = []
+        allow(client).to receive(:messages) do |**kwargs|
+          systems << kwargs[:system]
+          systems.one? ? truncated_text_result("") : text_result("Let's build it section by section.")
+        end
+
+        service.respond(messages: [{ role: "user", content: "build my profile page" }])
+
+        expect(systems.first).not_to include(described_class::TRUNCATION_RECOVERY_INSTRUCTION)
+        expect(systems.last).to include(described_class::TRUNCATION_RECOVERY_INSTRUCTION)
+      end
+
+      it "never sends the model to a partial value outside a page build" do
+        # A description or a bio is replaced as a whole, so "do the part that fits" would persist an
+        # incomplete value the creator confirmed.
+        expect(described_class::TRUNCATION_RECOVERY_INSTRUCTION).to include("never send half a value")
       end
     end
 
@@ -2117,7 +2745,8 @@ describe Ai::StoreAgentService do
       # suggestions LLM call and before any trailing event is written to the (possibly already
       # dead) client socket — so callers can persist it no matter what happens afterwards.
       expect(order).to eq([:reply_complete, :turn_ready, :suggestions_call, :suggestions])
-      expect(completed_turn).to eq(
+      expect(completed_turn).to match(
+        telemetry_turn_id: a_string_matching(/\A[0-9a-f-]{36}\z/),
         outcome: "reply_only",
         reply: "Here are your numbers.",
         proposed_action: nil,
@@ -2299,6 +2928,51 @@ describe Ai::StoreAgentService do
       expect(tool_loop[:max_tokens]).to eq(described_class::MAX_REPLY_TOKENS)
     end
 
+    it "bounds the first output of the streamed tool loop for DeepSeek when the deadline flag is on" do
+      allow(Ai::AnthropicClient).to receive(:openrouter_configured?).and_return(true)
+      Feature.activate_user(described_class::DEEPSEEK_RAMP_FEATURE, seller)
+      Feature.activate_user(described_class::TTFT_DEADLINE_FEATURE, seller)
+      tool_loop = nil
+      allow(client).to receive(:stream_messages) do |**kwargs, &_on_text|
+        tool_loop ||= kwargs
+        text_result("You have 3 products.")
+      end
+      allow(client).to receive(:messages).and_return(text_result("[]"))
+
+      collect_events([{ role: "user", content: "How many products?" }])
+
+      expect(tool_loop[:ttft_deadline]).to eq(described_class::TTFT_DEADLINE_IN_SECONDS)
+    end
+
+    it "leaves the streamed tool loop without a deadline when the flag is off" do
+      allow(Ai::AnthropicClient).to receive(:openrouter_configured?).and_return(true)
+      Feature.activate_user(described_class::DEEPSEEK_RAMP_FEATURE, seller)
+      tool_loop = nil
+      allow(client).to receive(:stream_messages) do |**kwargs, &_on_text|
+        tool_loop ||= kwargs
+        text_result("You have 3 products.")
+      end
+      allow(client).to receive(:messages).and_return(text_result("[]"))
+
+      collect_events([{ role: "user", content: "How many products?" }])
+
+      expect(tool_loop[:ttft_deadline]).to be_nil
+    end
+
+    it "leaves a non-DeepSeek model's streamed tool loop without a deadline when the flag is on" do
+      Feature.activate_user(described_class::TTFT_DEADLINE_FEATURE, seller)
+      tool_loop = nil
+      allow(client).to receive(:stream_messages) do |**kwargs, &_on_text|
+        tool_loop ||= kwargs
+        text_result("You have 3 products.")
+      end
+      allow(client).to receive(:messages).and_return(text_result("[]"))
+
+      collect_events([{ role: "user", content: "How many products?" }])
+
+      expect(tool_loop[:ttft_deadline]).to be_nil
+    end
+
     it "emits a reset when an intermediate tool-use turn streams preamble text, then streams the real reply" do
       # First turn: the model streams a preamble ("Let me check...") AND asks to call a read tool.
       # That preamble is not the answer, so the service must emit :reset before the final turn.
@@ -2367,6 +3041,7 @@ describe Ai::StoreAgentService do
       events, result = collect_events([{ role: "user", content: "rewrite my whole description" }])
 
       expect(caps).to eq([described_class::MAX_REPLY_TOKENS, described_class::MAX_TRUNCATION_RETRY_TOKENS])
+      expect(client).to have_received(:stream_messages).with(hash_including(recover_token_cutoff: true)).twice
       expect(result[:reply]).to eq("You have 3 products.")
       tokens = events.filter_map { |event, payload| payload[:text] if event == :token }
       expect(tokens.last).to eq("You have 3 products.")
@@ -2378,6 +3053,27 @@ describe Ai::StoreAgentService do
       expect(fragment_index).not_to be_nil
       expect(reset_index).to be > fragment_index
       expect(reset_index).to be < answer_index
+    end
+
+    it "tells the streamed re-ask to send the change in smaller pieces" do
+      truncated = Ai::AnthropicClient::Result.new(text: "", tool_uses: [], stop_reason: "max_tokens")
+      systems = []
+      turns = [
+        { stream: [], result: truncated },
+        { stream: ["Let's build it section by section."], result: text_result("Let's build it section by section.") },
+      ]
+      allow(client).to receive(:stream_messages) do |args, &on_text|
+        systems << args[:system]
+        turn = turns.shift
+        Array(turn[:stream]).each { |piece| on_text&.call(piece) }
+        turn[:result]
+      end
+      allow(client).to receive(:messages).and_return(text_result("[]"))
+
+      collect_events([{ role: "user", content: "build my profile page" }])
+
+      expect(systems.first).not_to include(described_class::TRUNCATION_RECOVERY_INSTRUCTION)
+      expect(systems.last).to include(described_class::TRUNCATION_RECOVERY_INSTRUCTION)
     end
 
     it "gives the streamed larger cap and its re-ask to the turn that truncated only" do
@@ -2475,6 +3171,7 @@ describe Ai::StoreAgentService do
 
       expect(completed_turns).to contain_exactly(
         {
+          telemetry_turn_id: a_string_matching(/\A[0-9a-f-]{36}\z/),
           outcome: "reply_only",
           reply: described_class::NOTHING_STAGED_REPLY,
           proposed_action: nil,
@@ -2597,6 +3294,17 @@ describe Ai::StoreAgentService do
     end
   end
 
+  describe "SYSTEM_PROMPT_HEADER whole-page guidance" do
+    let(:prompt) { described_class::SYSTEM_PROMPT_HEADER.gsub(/[[:space:]\u00a0]+/, " ") }
+
+    # A page write carries the ENTIRE document in its arguments; without the section-by-section
+    # route in the prompt, the agent's only valid shape is the one write that truncates.
+    it "teaches the section-by-section build for a page too big for one reply" do
+      expect(prompt).to include("<!-- gumroad:sections -->")
+      expect(prompt).to include("ONE section per reply with edit_user_custom_html")
+    end
+  end
+
   describe "SYSTEM_PROMPT_HEADER webhook guidance" do
     # Ping is not a general webhook replacement: User#ping_notification_targets only appends
     # notification_endpoint for the "sale" resource, so offering it for a cancellation or refund
@@ -2653,10 +3361,9 @@ describe Ai::StoreAgentService do
 
       expect(captured[:model]).to eq("x-ai/grok-4.5")
       expect(captured[:fallback_model]).to eq("anthropic/claude-opus-5")
-      expect(captured[:gateway]).to be_nil
     end
 
-    it "keeps requesting Opus directly from Anthropic when OpenRouter is not configured" do
+    it "keeps requesting Opus when OpenRouter is not configured" do
       allow(Ai::AnthropicClient).to receive(:openrouter_configured?).and_return(false)
       Feature.activate_user(described_class::GROK_RAMP_FEATURE, seller)
       allow(client).to receive(:messages).and_return(text_result("hi"))
@@ -2678,7 +3385,6 @@ describe Ai::StoreAgentService do
       expect(captured[:model]).to eq(described_class::DEEPSEEK_MODEL)
       expect(captured[:fallback_model]).to eq("anthropic/claude-opus-5")
       expect(captured[:fallback_model]).to eq(described_class::DEEPSEEK_FALLBACK_MODEL)
-      expect(captured[:gateway]).to eq(:vercel)
     end
 
     it "keeps requesting Opus when OpenRouter is configured but the seller is in neither ramp" do
@@ -2714,7 +3420,6 @@ describe Ai::StoreAgentService do
 
       expect(captured[:model]).to eq("deepseek/deepseek-v4.1-flash")
       expect(captured[:fallback_model]).to eq("anthropic/claude-opus-5")
-      expect(captured[:gateway]).to eq(:vercel)
     end
   end
 
@@ -2763,6 +3468,16 @@ describe Ai::StoreAgentService do
       allow(client).to receive(:gateway_name).and_return("vercel")
     end
 
+    it "joins each completed turn to its returned result with a unique telemetry id" do
+      allow(client).to receive(:messages).and_return(text_result("You have 3 products."))
+      turns = 2.times.map { service.respond(messages: [{ role: "user", content: "How many products?" }]) }
+      ids = logged_json(logger_lines).filter_map { |line| line.fetch("telemetry_turn_id") if line["event"] == "store_agent_turn" }
+
+      expect(ids).to eq(turns.map { |turn| turn.fetch(:telemetry_turn_id) })
+      expect(ids.uniq.size).to eq(2)
+      expect(ids).to all(match(/\A[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\z/))
+    end
+
     it "logs every pre-existing turn key unchanged, plus the calls and their rollups" do
       allow(client).to receive(:messages).and_return(text_result("You have 3 products."))
       allow(client).to receive(:call_metrics).and_return([call_metric])
@@ -2776,7 +3491,7 @@ describe Ai::StoreAgentService do
         "calls", "contract_retries", "event", "gateway", "input_tokens_sum", "latency_ms", "model",
         "model_latency_ms_sum", "outcome", "output_tokens_sum", "reasoning_tokens_sum", "requested_model",
         "served_models", "served_providers", "stop_reason", "tool_iterations", "ttft_ms_max",
-        "cache_read_tokens_sum",
+        "cache_read_tokens_sum", "latency_flags", "telemetry_turn_id",
       )
       expect(turn_log).to include(
         "event" => "store_agent_turn",
@@ -2797,6 +3512,32 @@ describe Ai::StoreAgentService do
         "cache_read_tokens_sum" => 300,
         "served_providers" => ["deepinfra"],
       )
+    end
+
+    [false, true].product([false, true]).each do |no_hidden_reasoning, ttft_deadline|
+      it "logs the request's latency flags with no_hidden_reasoning=#{no_hidden_reasoning} and ttft_deadline=#{ttft_deadline}, resolving each once" do
+        allow(Ai::AnthropicClient).to receive(:openrouter_configured?).and_return(true)
+        Feature.activate_user(described_class::DEEPSEEK_RAMP_FEATURE, seller)
+        allow(Feature).to receive(:active?).and_call_original
+        expect(Feature).to receive(:active?).with(described_class::NO_HIDDEN_REASONING_FEATURE, seller).once.and_return(no_hidden_reasoning)
+        expect(Feature).to receive(:active?).with(described_class::TTFT_DEADLINE_FEATURE, seller).once.and_return(ttft_deadline)
+        allow(client).to receive(:messages).and_return(text_result("[]"))
+        allow(client).to receive(:stream_messages).and_return(text_result("You have 3 products."))
+
+        persisted_turn = nil
+        turn = service.respond_streaming(messages: [{ role: "user", content: "How many products do I have?" }], on_reply_complete: ->(completed) { persisted_turn = completed }) { |_event, _payload| }
+
+        expect(turn.fetch(:telemetry_turn_id)).to eq(persisted_turn.fetch(:telemetry_turn_id))
+        expect(logged_json(logger_lines).find { |line| line["event"] == "store_agent_turn" }.fetch("telemetry_turn_id")).to eq(turn.fetch(:telemetry_turn_id))
+        expect(client).to have_received(:stream_messages).with(hash_including(ttft_deadline: ttft_deadline ? described_class::TTFT_DEADLINE_IN_SECONDS : nil))
+        if no_hidden_reasoning
+          expect(client).to have_received(:stream_messages).with(hash_including(thinking: { type: "disabled" }))
+        else
+          expect(client).to have_received(:stream_messages).with(hash_excluding(:thinking))
+        end
+        turn_log = logged_json(logger_lines).find { |line| line["event"] == "store_agent_turn" }
+        expect(turn_log.fetch("latency_flags")).to eq("no_hidden_reasoning" => no_hidden_reasoning, "ttft_deadline" => ttft_deadline)
+      end
     end
 
     it "logs the follow-up-suggestions call on its own line, tagged and excluded from the turn's rollups" do

@@ -68,9 +68,24 @@ class ProductReviewsController < ApplicationController
         return
       end
 
+      # A review stays on the product page after its purchase stops being eligible, so the buyer
+      # keeps one lever over it: taking their name off. Everything else freezes — otherwise a
+      # charged-back buyer could rewrite public copy with no purchase behind it.
+      existing_review = purchase.original_product_review
+      unless purchase.allows_review? || identity_only_change?(existing_review)
+        render json: {
+          success: false,
+          message: existing_review.present? ?
+            "You can no longer change this review, but you can still show it as Anonymous." :
+            "This purchase is no longer eligible for a review."
+        }
+        return
+      end
+
       review = purchase.post_review(
         rating: set_params[:rating].to_i,
         message: set_params[:message],
+        anonymous: submitted_anonymous,
         video_options: set_params[:video_options] || {}
       )
 
@@ -82,6 +97,25 @@ class ProductReviewsController < ApplicationController
       render json: { success: false, message: e.message }
     rescue StandardError
       render json: { success: false, message: "Sorry, something went wrong." }
+    end
+
+    # A client that does not know about the identity choice omits the parameter. Casting that to
+    # false would republish the name of a buyer who had chosen Anonymous — on any purchase, not
+    # only an ineligible one — so absent means "leave it alone".
+    def submitted_anonymous
+      return :unchanged unless set_params.key?(:anonymous)
+
+      ActiveModel::Type::Boolean.new.cast(set_params[:anonymous]) || false
+    end
+
+    # True when the request leaves the rating, the message and the video exactly as they are, which
+    # is what the form sends when the buyer only moves the identity radio, in either direction.
+    def identity_only_change?(review)
+      return false if review.nil?
+
+      set_params[:rating].to_i == review.rating &&
+        set_params[:message].to_s == review.message.to_s &&
+        set_params[:video_options].blank?
     end
 
     def fetch_visible_product
@@ -97,7 +131,7 @@ class ProductReviewsController < ApplicationController
 
     def set_params
       params.permit(
-        :rating, :message,
+        :rating, :message, :anonymous,
         video_options: [
           { destroy: [:id] },
           { create: [:url, :thumbnail_signed_id] }

@@ -48,16 +48,16 @@ describe PakistanBankAccount do
       expect(ba.stripe_external_account_routing_number).to eq("HABBPKKAXXX")
     end
 
-    it "keeps a lowercase head-office BIC unchanged" do
+    it "upcases a lowercase head-office BIC" do
       ba = create(:pakistan_bank_account, bank_code: "habbpkkaxxx")
 
-      expect(ba.stripe_external_account_routing_number).to eq("habbpkkaxxx")
+      expect(ba.stripe_external_account_routing_number).to eq("HABBPKKAXXX")
     end
 
     it "uses the 8-character bank identifier for a lowercase branch-specific BIC" do
       ba = create(:pakistan_bank_account, bank_code: "habbpkka007")
 
-      expect(ba.stripe_external_account_routing_number).to eq("habbpkka")
+      expect(ba.stripe_external_account_routing_number).to eq("HABBPKKA")
     end
   end
 
@@ -98,6 +98,47 @@ describe PakistanBankAccount do
       pk_bank_account = build(:pakistan_bank_account, account_number: "PKABCDE")
       expect(pk_bank_account).to_not be_valid
       expect(pk_bank_account.errors.full_messages.to_sentence).to eq("The account number is invalid.")
+    end
+  end
+
+  describe "#validate_iban_bank_is_routable" do
+    def pk_iban(bank_code)
+      bban = "#{bank_code}0000001123456702"
+      check = 98 - "#{bban}PK00".chars.map { |c| c.to_i(36) }.join.to_i % 97
+      format("PK%02d%s", check, bban)
+    end
+
+    it "rejects a wallet IBAN whatever the BIC" do
+      ["SADAPKKA", "HABBPKKA"].each do |bank_code|
+        bank_account = build(:pakistan_bank_account, account_number: pk_iban("SADA"), bank_code:)
+
+        expect(bank_account).not_to be_valid
+        expect(bank_account.errors.full_messages.to_sentence).to start_with("We can't send payouts to this IBAN.")
+      end
+    end
+
+    it "rejects every unroutable bank code, in either case" do
+      %w[CLRB FMFB FNJA JAZZ JCMA MMBL NAYA NRSP SADA TMFB TRWI UMBL UMFB ZTBL].each do |code|
+        [pk_iban(code), pk_iban(code).downcase].each do |iban|
+          bank_account = build(:pakistan_bank_account, account_number: iban)
+
+          expect(bank_account).not_to be_valid
+          expect(bank_account.errors.full_messages.to_sentence).to start_with("We can't send payouts to this IBAN."), iban
+        end
+      end
+    end
+
+    it "accepts a bank IBAN whose BIC names a different bank" do
+      expect(build(:pakistan_bank_account, account_number: pk_iban("BAHL"), bank_code: "HABBPKKA")).to be_valid
+    end
+
+    it "does not block deleting an existing wallet row" do
+      bank_account = build(:pakistan_bank_account, account_number: pk_iban("NAYA"))
+      bank_account.save!(validate: false)
+
+      bank_account.mark_deleted!
+
+      expect(bank_account.reload).to be_deleted
     end
   end
 end

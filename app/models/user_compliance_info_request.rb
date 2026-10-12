@@ -54,6 +54,9 @@ class UserComplianceInfoRequest < ApplicationRecord
 
   def self.handle_new_user_compliance_info(user_compliance_info)
     UserComplianceInfoFields.all_fields_on_user_compliance_info.each do |field|
+      # A saved nationality may never have reached Stripe; only its requirements can resolve this request.
+      next if field == UserComplianceInfoFields::Individual::NATIONALITY && user_compliance_info.is_individual?
+
       field_value = user_compliance_info.send(field)
       field_value = field_value.decrypt(GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD")) if field_value.is_a?(Strongbox::Lock)
       next if field_value.blank?
@@ -74,7 +77,12 @@ class UserComplianceInfoRequest < ApplicationRecord
 
       field_provided_in_part = field_value.length < field_expected_length if field_expected_length.present?
 
-      requests = user_compliance_info.user.user_compliance_info_requests.requested.where(field_needed: field)
+      field_names = if field == UserComplianceInfoFields::Individual::NATIONALITY
+        UserComplianceInfoFields::Individual::NATIONALITY_FIELDS
+      else
+        field
+      end
+      requests = user_compliance_info.user.user_compliance_info_requests.requested.where(field_needed: field_names)
       requests = requests.only_needs_field_to_be_partially_provided if field_provided_in_part
       requests.find_each(&:mark_provided!)
     end

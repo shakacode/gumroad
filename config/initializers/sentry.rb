@@ -17,26 +17,10 @@ Sentry.init do |config|
     "ActionController::ParameterMissing",
   ]
 
-  # Gumhead gateway requests carry the seller's bearer token in the
-  # Authorization header and their prompt and file contents in the raw
-  # body; with send_default_pii on, Sentry would export both. The scrub
-  # lives here rather than only in the controller because
-  # ActionController::Live runs controller callbacks in a child thread —
-  # events and transactions captured on the parent thread never see a
-  # scope cleared there.
-  # Sentry::Event exposes `request` read-only; the interface's own fields
-  # are writable, so the scrub empties those.
-  scrub_gumhead_gateway_request = lambda do |event|
-    request = event.request
-    if request && request.url.to_s.include?("/v2/gumhead/")
-      request.data = nil
-      request.headers = {}
-      request.cookies = nil
-      request.query_string = nil
-      request.env = nil
-    end
-    event
-  end
+  # Installed Gumhead apps still post prompts and the seller's bearer token to
+  # the retired /v2/gumhead routes. With send_default_pii on, Sentry would keep
+  # both, so drop every event for those URLs.
+  retired_gumhead_request = ->(event) { event.request&.url.to_s.include?("/v2/gumhead/") }
 
   # Drop errors raised by ad-hoc `bin/rails runner` scripts piped in over STDIN
   # (their backtraces contain "stdin:<line>" frames). These are one-off console
@@ -52,10 +36,10 @@ Sentry.init do |config|
       exception.respond_to?(:backtrace) &&
       exception.backtrace&.any? { |frame| frame.start_with?("stdin:") }
 
-    stdin_runner_error ? nil : scrub_gumhead_gateway_request.call(event)
+    stdin_runner_error || retired_gumhead_request.call(event) ? nil : event
   end
 
   config.before_send_transaction = lambda do |event, _hint|
-    scrub_gumhead_gateway_request.call(event)
+    retired_gumhead_request.call(event) ? nil : event
   end
 end

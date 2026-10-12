@@ -101,6 +101,40 @@ describe UpdatePayoutMethod do
         end
       end
 
+      context "when the seller is an Ecuador company" do
+        let!(:bank_account) { create(:ecuador_bank_account, user:, account_holder_full_name: "Old Name") }
+        let!(:compliance_info) do
+          create(:user_compliance_info_business, user:, country: "Ecuador", business_country: "Ecuador",
+                                                 business_state: nil, business_zip_code: "170102", business_city: "Quito")
+        end
+
+        it "saves the name and enqueues HandleNewBankAccountWorker" do
+          params = ActionController::Parameters.new(
+            bank_account: { type: EcuadorBankAccount.name, account_holder_full_name: "Personal Name" }
+          )
+
+          expect do
+            result = described_class.new(user_params: params, seller: user).process
+            expect(result).to eq(success: true)
+          end.to change { HandleNewBankAccountWorker.jobs.size }.by(1)
+
+          expect(bank_account.reload.account_holder_full_name).to eq("Personal Name")
+          expect(HandleNewBankAccountWorker.jobs.last["args"]).to eq([bank_account.id, true])
+        end
+
+        it "does not enqueue HandleNewBankAccountWorker when the seller is an individual" do
+          compliance_info.update_columns(is_business: false)
+          params = ActionController::Parameters.new(
+            bank_account: { type: EcuadorBankAccount.name, account_holder_full_name: "Personal Name" }
+          )
+
+          expect do
+            result = described_class.new(user_params: params, seller: user).process
+            expect(result).to eq(success: true)
+          end.not_to change { HandleNewBankAccountWorker.jobs.size }
+        end
+      end
+
       context "when the seller is in a country that does NOT sync holder name to Stripe" do
         let!(:bank_account) { create(:ach_account, user:, account_holder_full_name: "Old Name") }
 
@@ -167,6 +201,87 @@ describe UpdatePayoutMethod do
           expect(orphaned_bank_account.reload.deleted_at).to be_present
           expect(ErrorNotifier).not_to have_received(:notify)
         end
+      end
+    end
+
+    describe "when the country's bank code is validated by Stripe's directory" do
+      let(:user) { create(:named_user) }
+      let!(:existing_bank_account) { create(:egypt_bank_account, user:, bank_code: "QNBAEGCX", stripe_bank_account_id: "ba_123") }
+
+      def egypt_params(bank_code:)
+        ActionController::Parameters.new(
+          bank_account: {
+            type: EgyptBankAccount.name,
+            account_holder_full_name: "Named User",
+            bank_code:,
+            account_number: "EG800002000156789012345180002",
+            account_number_confirmation: "EG800002000156789012345180002",
+          }
+        )
+      end
+
+      it "saves a code Stripe resolves" do
+        expect(Stripe::Token).to receive(:create).and_return(double)
+
+        result = described_class.new(user_params: egypt_params(bank_code: "NBEGEGCX331"), seller: user).process
+
+        expect(result).to eq(success: true)
+        expect(user.reload.active_bank_account.bank_code).to eq("NBEGEGCX331")
+        expect(existing_bank_account.reload).to be_deleted
+      end
+
+      it "rejects a code Stripe cannot resolve, keeps the current account, and names the 8-character code" do
+        allow(Stripe::Token).to receive(:create).and_raise(
+          Stripe::InvalidRequestError.new("We couldn't find the bank for that BIC", "bank_account[routing_number]", code: "routing_number_invalid")
+        )
+
+        result = described_class.new(user_params: egypt_params(bank_code: "QNBAEGCX027"), seller: user).process
+
+        expect(result[:error]).to eq(:bank_account_error)
+        expect(result[:data]).to include("couldn't find a bank for the bank code QNBAEGCX027")
+        expect(result[:data]).to include("QNBAEGCX rather than QNBAEGCX027")
+        expect(user.reload.active_bank_account).to eq(existing_bank_account)
+        expect(user.bank_accounts.count).to eq(1)
+      end
+
+      it "saves when Stripe cannot be reached" do
+        allow(Stripe::Token).to receive(:create).and_raise(Stripe::APIConnectionError.new("timed out"))
+
+        result = described_class.new(user_params: egypt_params(bank_code: "QNBAEGCX027"), seller: user).process
+
+        expect(result).to eq(success: true)
+        expect(user.reload.active_bank_account.bank_code).to eq("QNBAEGCX027")
+      end
+
+      it "skips the probe when the code matches the attached account" do
+        expect(Stripe::Token).not_to receive(:create)
+
+        result = described_class.new(user_params: egypt_params(bank_code: "QNBAEGCX"), seller: user).process
+
+        expect(result).to eq(success: true)
+      end
+
+      it "does not probe a record our own validation already rejected" do
+        expect(Stripe::Token).not_to receive(:create)
+
+        result = described_class.new(user_params: egypt_params(bank_code: "qnbaegcx027"), seller: user).process
+
+        expect(result[:error]).to eq(:bank_account_error)
+      end
+
+      it "does not overwrite a payout method saved while Stripe was being asked" do
+        concurrent_account = nil
+        allow(Stripe::Token).to receive(:create) do
+          existing_bank_account.mark_deleted!
+          concurrent_account = create(:egypt_bank_account, user:, bank_code: "CIBEEGCX")
+          double
+        end
+
+        result = described_class.new(user_params: egypt_params(bank_code: "NBEGEGCX331"), seller: user).process
+
+        expect(result).to eq(error: :concurrent_payout_method_change)
+        expect(user.reload.active_bank_account).to eq(concurrent_account)
+        expect(user.bank_accounts.alive.count).to eq(1)
       end
     end
 
@@ -270,6 +385,56 @@ describe UpdatePayoutMethod do
         expect(prepared_credit_card).to receive(:destroy!)
 
         expect { service.process }.to raise_error(RuntimeError, "boom")
+      end
+    end
+
+    describe "saving a PayPal address when the bank rail cannot be re-created" do
+      let(:user) { create(:named_user) }
+      let(:params) { ActionController::Parameters.new(payment_address: "paypal@example.com") }
+
+      before do
+        user.update!(payment_address: "")
+        create(:user_compliance_info, user:, country: "India")
+        create(:indian_bank_account, user:)
+        create(:merchant_account, user:)
+      end
+
+      # Stripe refuses new IND accounts, so without confirmation this save would strip a rail the
+      # seller can never rebuild (gumroad-private#2774).
+      it "is refused, and the bank rail is left alone" do
+        result = described_class.new(user_params: params, seller: user).process
+
+        expect(result).to eq(error: :paypal_switch_loses_bank_rail)
+        expect(user.reload.payment_address).to be_blank
+        expect(user.active_bank_account).to be_present
+        expect(user.stripe_account).to be_present
+      end
+
+      it "goes through once the seller confirms" do
+        params = ActionController::Parameters.new(payment_address: "paypal@example.com", confirm_bank_rail_loss: "true")
+
+        result = described_class.new(user_params: params, seller: user).process
+
+        expect(result).to eq(success: true)
+        expect(user.reload.payment_address).to eq("paypal@example.com")
+        expect(user.active_bank_account).to be_nil
+        expect(user.stripe_account).to be_nil
+      end
+
+      # Egypt offers both rails (`can_setup_paypal_payouts?` lists it) and Stripe can rebuild the
+      # bank rail there, so the switch is an ordinary save.
+      it "needs no confirmation where the country can re-create the rail" do
+        user.alive_user_compliance_info.mark_deleted!
+        user.bank_accounts.alive.each(&:mark_deleted!)
+        create(:user_compliance_info, user:, country: "Egypt")
+        create(:egypt_bank_account, user:)
+        user.reload
+        expect(user.paypal_switch_loses_bank_rail?).to be(false)
+
+        result = described_class.new(user_params: params, seller: user).process
+
+        expect(result).to eq(success: true)
+        expect(user.reload.payment_address).to eq("paypal@example.com")
       end
     end
 

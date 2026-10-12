@@ -127,11 +127,31 @@ class Api::V2::LicensesController < Api::V2::BaseController
       @_redis_namespace ||= Redis::Namespace.new(:license_verifications, redis: $redis)
     end
 
+    class << self
+      # Mirrors the last successful read of the key. An unread timestamp must not be
+      # indistinguishable from "no enforcement", so the remembered value keeps the product_id
+      # requirement in place exactly as the key does; only a process that has never read the key
+      # omits it, which is the pre-flag behaviour.
+      attr_accessor :last_known_force_product_id_timestamp
+    end
+
+    # An unread skip_product_id_check leaves the check unskipped, so the product_id requirement is
+    # still enforced — the two flag reads point the same way.
     def skip_product_id_check(product)
       redis_namespace.get("skip_product_id_check_#{product.id}").present?
+    rescue *REDIS_TRANSPORT_ERRORS
+      false
     end
 
     def force_product_id_timestamp
-      @_force_prouct_id_timestamp ||= $redis.get(RedisKey.force_product_id_timestamp)&.to_datetime
+      @_force_prouct_id_timestamp ||= begin
+        timestamp = $redis.get(RedisKey.force_product_id_timestamp)&.to_datetime
+        # Mirrors the last successful read, nil included: a cutoff the operator has removed must not
+        # be restored by a later stall.
+        self.class.last_known_force_product_id_timestamp = timestamp
+        timestamp
+      end
+    rescue *REDIS_TRANSPORT_ERRORS
+      self.class.last_known_force_product_id_timestamp
     end
 end

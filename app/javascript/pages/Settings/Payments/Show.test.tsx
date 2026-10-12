@@ -22,7 +22,10 @@ vi.mock("@inertiajs/react", () => ({
     return {
       data,
       processing: false,
-      setData: (key: keyof T, value: T[keyof T]) => setDataState((prev) => ({ ...prev, [key]: value })),
+      // Inertia's setData takes either one field or a partial payload; the country-change reset uses
+      // the payload form, which a field-only double drops without failing.
+      setData: (key: string | Partial<T>, value?: T[keyof T]) =>
+        setDataState((prev) => (typeof key === "object" ? { ...prev, ...key } : { ...prev, [key]: value })),
       transform: (fn: (d: T) => unknown) => {
         transformRef.current = fn;
       },
@@ -59,6 +62,7 @@ const user = (overrides: Partial<User> = {}): User => ({
   individual_tax_id_last_four: "6789",
   individual_tax_id_is_last_four: false,
   has_outstanding_full_ssn_requirement: false,
+  has_outstanding_nationality_requirement: false,
   business_tax_id_entered: false,
   business_tax_id_last_four: null,
   requires_credit_card: false,
@@ -135,6 +139,10 @@ const pageProps = (userOverrides: Partial<User> = {}, complianceOverrides: Parti
   min_dob_year: 2008,
   user: user(userOverrides),
   compliance_info: complianceInfo(complianceOverrides),
+  us_business_types: [
+    { code: "single_member_llc", name: "LLC (single member)" },
+    { code: "multi_member_llc", name: "LLC (multi-member)" },
+  ],
   uae_business_types: [],
   india_business_types: [],
   canada_business_types: [],
@@ -151,7 +159,9 @@ const pageProps = (userOverrides: Partial<User> = {}, complianceOverrides: Parti
   saved_card: null,
   formatted_balance_to_forfeit_on_country_change: null,
   formatted_balance_to_forfeit_on_payout_method_change: null,
+  paypal_switch_loses_bank_rail: false,
   payouts_paused_internally: false,
+  payout_reserve_available: false,
   payouts_paused_by: null,
   account_status: {
     show_section: false,
@@ -196,6 +206,242 @@ const fullSsnError = () =>
 const typeSsn = (value: string) => {
   fireEvent.change(screen.getByLabelText("Social Security Number"), { target: { value } });
 };
+
+describe("US company representative tax ID", () => {
+  const business = {
+    is_business: true,
+    business_country: "US",
+    country: "DZ",
+    business_type: "single_member_llc",
+    business_name: "Test LLC",
+    business_street_address: "1 Main St",
+    business_city: "San Francisco",
+    business_state: "CA",
+    business_zip_code: "94103",
+    business_phone: "+14155552671",
+    job_title: "Owner",
+    phone: "+213551234567",
+  };
+  it.each(["1234", "12345678", "1234567890", "abcdefghi"])("blocks submission of %s", (value) => {
+    renderPage({ individual_tax_id_entered: false }, business);
+    fireEvent.change(screen.getByLabelText("Personal tax ID"), { target: { value } });
+    save();
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Enter a 9-digit US ITIN or SSN.").length).toBeGreaterThan(0);
+  });
+
+  it.each(["000000000", "000-00-0000", "000 00 0000"])(
+    "submits nine digits for the foreign representative's formatted ITIN %s",
+    (value) => {
+      renderPage({ individual_tax_id_entered: false, business_tax_id_entered: true }, business);
+      fireEvent.change(screen.getByLabelText("Personal tax ID"), { target: { value } });
+      save();
+      expect(mocks.put).toHaveBeenCalledWith(
+        "/settings_payments",
+        expect.objectContaining({
+          user: expect.objectContaining({ individual_tax_id: "000000000" }),
+        }),
+      );
+    },
+  );
+
+  it.each([true, false])("shows the document CTA only when Stripe offers that alternative: %s", async (offered) => {
+    const props = { ...pageProps({ individual_tax_id_entered: false }, business), can_manage_beneficial_owners: true };
+    mocks.usePage.mockReturnValue({ props });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              beneficial_owners: [
+                {
+                  id: "person_test",
+                  first_name: "Test",
+                  last_name: "Representative",
+                  email: null,
+                  phone: null,
+                  dob: null,
+                  address: { country: "DZ" },
+                  relationship: {
+                    representative: true,
+                    owner: true,
+                    director: false,
+                    executive: false,
+                    title: "Owner",
+                    percent_ownership: 100,
+                  },
+                  id_number_provided: false,
+                  ssn_last_4_provided: false,
+                  nationality: null,
+                  verification_status: "unverified",
+                  requirements_currently_due: ["id_number"],
+                  requirements_alternatives: offered
+                    ? [{ original_fields_due: ["id_number"], alternative_fields_due: ["verification.document"] }]
+                    : [],
+                },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+      ),
+    );
+    render(<PaymentsPage />);
+    await screen.findByText("Stripe needs: Personal tax ID");
+    // The link renders a commit after the owner text: the section reports the alternative to the page from an effect.
+    if (offered)
+      expect(
+        (await screen.findByRole("link", { name: "Upload a passport via Stripe instead" })).getAttribute("href"),
+      ).toBe("/remediation_settings_payments");
+    else expect(screen.queryByRole("link", { name: "Upload a passport via Stripe instead" })).toBeNull();
+    vi.unstubAllGlobals();
+  });
+});
+
+// A personal tax ID belongs to the representative, so a business registered in one country whose
+// representative lives in another must not have an ID shape demanded that they cannot hold
+// (Stripe verifies their passport instead).
+describe("personal tax ID shape check for a business whose representative lives elsewhere", () => {
+  const singaporeBusiness = {
+    is_business: true,
+    business_country: "SG",
+    country: "VN",
+    business_type: "corporation",
+    business_name: "Example Pte Ltd",
+    business_street_address: "1 Raffles Place",
+    business_city: "Singapore",
+    business_zip_code: "048616",
+    business_phone: "+6591234567",
+    job_title: "Director",
+    phone: "+84912345678",
+  };
+
+  const renderBusiness = (complianceOverrides: Partial<ComplianceInfo>) => {
+    const props = pageProps(
+      {
+        individual_tax_id_entered: false,
+        business_tax_id_entered: true,
+        individual_tax_id_needed_countries: ["US", "SG"],
+      },
+      { ...singaporeBusiness, ...complianceOverrides },
+    );
+    mocks.usePage.mockReturnValue({ props: { ...props, countries: { SG: "Singapore", VN: "Vietnam" } } });
+    render(<PaymentsPage />);
+  };
+
+  it("saves a personal tax ID that is not an NRIC when the representative is outside Singapore", () => {
+    renderBusiness({});
+
+    fireEvent.change(screen.getByLabelText("Personal tax ID"), { target: { value: "B1234567" } });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ user: expect.objectContaining({ individual_tax_id: "B1234567" }) }),
+    );
+  });
+
+  it("still blocks a malformed NRIC when the representative lives in Singapore", () => {
+    renderBusiness({ country: "SG", phone: "+6591234567" });
+
+    fireEvent.change(screen.getByLabelText("NRIC number / FIN"), { target: { value: "123456789" } });
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/Your NRIC\/FIN must start with S, T, F, G or M/u).length).toBeGreaterThan(0);
+  });
+});
+
+// A stored threshold below the platform minimum changes no payout, so it must not flag the field
+// or block saving an unrelated change.
+describe("stale payout threshold below the platform minimum", () => {
+  const stale = { payout_threshold_cents: 1000, minimum_payout_threshold_cents: 10_000 };
+  const saveButton = () => screen.getByRole("button", { name: "Update settings" });
+  const thresholdField = () => screen.getByLabelText<HTMLInputElement>("Minimum payout threshold");
+
+  it("does not flag the untouched stored value and still allows saving", () => {
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale } });
+    render(<PaymentsPage />);
+
+    expect(thresholdField().getAttribute("aria-invalid")).toBe("false");
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+  });
+
+  it("says the payouts use the minimum while the stored value sits below it", () => {
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale } });
+    render(<PaymentsPage />);
+
+    expect(screen.getByText(/Until you enter a higher amount, your payouts use that minimum\./u)).toBeTruthy();
+  });
+
+  it("omits the note once the stored value reaches the minimum", () => {
+    renderPage();
+
+    expect(screen.queryByText(/Until you enter a higher amount/u)).toBeNull();
+  });
+
+  it("still raises the value when the seller retypes the stale amount", () => {
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale } });
+    render(<PaymentsPage />);
+
+    fireEvent.change(thresholdField(), { target: { value: "10" } });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payout_threshold_cents: 10_000 }),
+    );
+  });
+
+  it("raises the untouched stale value to the minimum when saving another change", () => {
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale, payout_frequency_daily_supported: true } });
+    render(<PaymentsPage />);
+
+    fireEvent.change(screen.getByLabelText("Schedule"), { target: { value: "daily" } });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payout_frequency: "daily", payout_threshold_cents: 10_000 }),
+    );
+  });
+
+  it("still flags a value the seller types below the minimum and blocks saving", () => {
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale } });
+    render(<PaymentsPage />);
+
+    fireEvent.change(thresholdField(), { target: { value: "50" } });
+
+    expect(thresholdField().getAttribute("aria-invalid")).toBe("true");
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+  });
+
+  // These two paths call handleSave past the disabled button.
+  it("refuses a value typed below the minimum when the mobile app saves", () => {
+    vi.stubGlobal("ReactNativeWebView", { postMessage: vi.fn() });
+    mocks.usePage.mockReturnValue({ props: { ...pageProps(), ...stale, is_mobile_app_web_view: true } });
+    render(<PaymentsPage />);
+
+    fireEvent.change(thresholdField(), { target: { value: "50" } });
+    fireEvent(window, new MessageEvent("message", { data: JSON.stringify({ type: "mobileAppSettingsSave" }) }));
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("refuses a value typed below the minimum when the country change is confirmed", () => {
+    mocks.usePage.mockReturnValue({
+      props: { ...pageProps(), ...stale, countries: { US: "United States", CA: "Canada" } },
+    });
+    render(<PaymentsPage />);
+
+    fireEvent.change(thresholdField(), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "CA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+});
 
 describe("full-SSN re-entry validation", () => {
   it("blocks saving when Stripe requires the full SSN and only last-4 is on file", () => {
@@ -326,5 +572,676 @@ describe("buyer local currency description", () => {
 
     expect(screen.getByText(/Checkout still uses USD/u)).toBeTruthy();
     expect(screen.queryByText(/choose the currency they pay in/u)).toBeNull();
+  });
+});
+
+describe("business type validation", () => {
+  const business = {
+    is_business: true,
+    business_type: "llc",
+    business_country: "US",
+    business_name: "Example LLC",
+    business_street_address: "123 Main St",
+    business_city: "San Francisco",
+    business_state: "CA",
+    business_zip_code: "94103",
+    business_phone: "+14155552671",
+    job_title: "Owner",
+  };
+
+  it("blocks a legacy US LLC until the seller selects its member count", () => {
+    renderPage({ business_tax_id_entered: true }, business);
+    const select = screen.getByLabelText<HTMLSelectElement>("Type");
+    expect(select.value).toBe("");
+    save();
+    expect(select.getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText("Please complete the required fields below: Type.")).toBeTruthy();
+    expect(mocks.put).not.toHaveBeenCalled();
+
+    fireEvent.change(select, { target: { value: "multi_member_llc" } });
+    save();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(mocks.put.mock.calls[0]?.[1]).toMatchObject({ user: { business_type: "multi_member_llc" } });
+  });
+
+  it("still accepts a generic LLC where the active country list offers it", () => {
+    renderPage({ business_tax_id_entered: true }, { ...business, business_country: "GB" });
+    save();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("server error naming a field", () => {
+  const message =
+    "Our payment partner couldn't find a bank for the bank code QNBAEGCX027. Use the 8-character SWIFT/BIC code instead: QNBAEGCX rather than QNBAEGCX027.";
+
+  const renderWithServerError = (errors: Record<string, unknown>) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "EG", country_supports_iban: true, payout_currency: "egp" }, { country: "EG" }),
+        countries: { EG: "Egypt" },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+        errors,
+      },
+    });
+    render(<PaymentsPage />);
+  };
+
+  it("shows the banner and flags the named bank-code input", () => {
+    renderWithServerError({ base: [message], field: "bank_code" });
+
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.getByLabelText("SWIFT / BIC Code").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("shows only the banner when the server names no field", () => {
+    renderWithServerError({ base: [message] });
+
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.getByLabelText("SWIFT / BIC Code").getAttribute("aria-invalid")).toBe("false");
+  });
+});
+
+describe("Bolivia bank validation", () => {
+  it("flags the bank picker, not the branch code, when no bank is chosen", () => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "BO", payout_currency: "bob" }, { country: "BO" }),
+        countries: { BO: "Bolivia" },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Bank").getAttribute("aria-invalid")).toBe("true");
+  });
+});
+
+describe("Bangladesh bank code validation", () => {
+  const beftnError = "Enter your bank's 9-digit BEFTN routing number, digits only.";
+
+  const renderBangladeshSeller = (bank_code: string, account_number: string) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "BD", payout_currency: "bdt" }, { country: "BD" }),
+        countries: { BD: "Bangladesh" },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    fireEvent.change(screen.getByLabelText("Bank code"), { target: { value: bank_code } });
+    fireEvent.change(screen.getByLabelText("Account #"), { target: { value: account_number } });
+    save();
+  };
+
+  it("rejects a lettered bank code with the BEFTN message", () => {
+    renderBangladeshSeller("SWIFTCODE1", "1234567890123");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(beftnError).length).toBeGreaterThan(0);
+  });
+
+  // The account-number format check runs after the bank-code one, so it must not displace the
+  // reason the banner and the scroll-to-first-invalid-field are pointing at.
+  it("keeps the BEFTN message when the account number is also invalid", () => {
+    renderBangladeshSeller("SWIFTCODE1", "123");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(beftnError).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Enter your 13 to 17 character account number")).toBeNull();
+  });
+});
+
+describe("switching to PayPal where the bank rail cannot be re-created", () => {
+  // An India seller with a live bank account: the save deletes it and Stripe refuses a new IND
+  // account, so the confirmation must fire even with nothing forfeitable.
+  const renderIndiaSeller = (paypal_switch_loses_bank_rail: boolean, balance: string | null = null) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "IN", payout_currency: "inr" }, { country: "IN" }),
+        countries: { IN: "India" },
+        paypal_switch_loses_bank_rail,
+        formatted_balance_to_forfeit_on_payout_method_change: balance,
+        paypal_address: null,
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: true,
+          is_a_card: false,
+          routing_number: "HDFC0004051",
+          account_number_visual: "******6789",
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    fireEvent.click(screen.getByRole("radio", { name: "PayPal" }));
+    fireEvent.change(screen.getByLabelText("PayPal Email"), { target: { value: "paypal@example.com" } });
+  };
+
+  it("names the account being removed with the masked value the page already holds", () => {
+    renderIndiaSeller(true);
+    save();
+
+    expect(screen.getByText(/will be removed from your payout settings/u)).toBeTruthy();
+    expect(screen.getByText("******6789")).toBeTruthy();
+  });
+
+  it("opens the typed confirmation instead of saving, then saves with the confirmation flag", () => {
+    renderIndiaSeller(true);
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getByText(/you will not be able to switch back/u)).toBeTruthy();
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Type "I understand" to confirm'), { target: { value: "I understand" } });
+    expect(confirm.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(confirm);
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payment_address: "paypal@example.com", confirm_bank_rail_loss: true }),
+    );
+  });
+
+  it("shows both losses and requires typed confirmation when a balance is also forfeited", () => {
+    renderIndiaSeller(true, "$123.45");
+    save();
+
+    expect(screen.getByText(/forfeit your existing balance of/u)).toBeTruthy();
+    expect(screen.getByText("$123.45")).toBeTruthy();
+    expect(screen.getByText(/you will not be able to switch back/u)).toBeTruthy();
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    fireEvent.change(screen.getByLabelText('Type "I understand" to confirm'), { target: { value: "understand" } });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+    expect(mocks.put).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Type "I understand" to confirm'), { target: { value: "I understand" } });
+    fireEvent.click(confirm);
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payment_address: "paypal@example.com", confirm_bank_rail_loss: true }),
+    );
+  });
+
+  it("names the account being removed when only a balance is forfeited and the rail can be re-created", () => {
+    renderIndiaSeller(false, "$123.45");
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getByText(/forfeit your existing balance of/u)).toBeTruthy();
+    expect(screen.getByText(/will also be removed from your payout settings/u)).toBeTruthy();
+    expect(screen.getAllByText("******6789")).toHaveLength(1);
+    expect(screen.queryByText(/you will not be able to switch back/u)).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Type "I understand" to confirm'), { target: { value: "I understand" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payment_address: "paypal@example.com" }),
+    );
+    expect(JSON.stringify(mocks.put.mock.calls[0])).not.toContain("confirm_bank_rail_loss");
+  });
+
+  it("saves straight away where the rail can be re-created", () => {
+    renderIndiaSeller(false);
+    save();
+
+    expect(screen.queryByText(/you will not be able to switch back/u)).toBeNull();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(mocks.put).toHaveBeenCalledWith(
+      "/settings_payments",
+      expect.objectContaining({ payment_address: "paypal@example.com" }),
+    );
+    expect(JSON.stringify(mocks.put.mock.calls[0])).not.toContain("confirm_bank_rail_loss");
+  });
+});
+
+describe("bank payout switch option on the payments page", () => {
+  const renderSeller = (country_code: string, show_bank_account: boolean, is_form_disabled = false) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code, payout_currency: "inr" }, { country: country_code }),
+        countries: { [country_code]: country_code === "IN" ? "India" : "United States" },
+        is_form_disabled,
+        bank_account_details: {
+          show_bank_account,
+          show_paypal: true,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+  };
+
+  it("gives the unavailable India seller a plain restriction with no setup or help action", () => {
+    renderSeller("IN", false);
+
+    expect(screen.queryByRole("button", { name: /direct deposit/u })).toBeNull();
+    const reason = screen.getByText(/new bank payout accounts cannot be set up in India/u);
+    expect(reason.closest('[role="status"]')).toBeTruthy();
+    expect(reason.closest('[role="status"]')?.querySelector("a, button")).toBeNull();
+  });
+
+  it.each(["US", "IN"])("opens the existing bank form in place for an eligible %s seller without saving", (country) => {
+    renderSeller(country, true);
+    fireEvent.click(screen.getByRole("radio", { name: "PayPal" }));
+    fireEvent.change(screen.getByLabelText("PayPal Email"), { target: { value: "unsaved@example.com" } });
+
+    const setup = screen.getByRole("button", { name: "Set up direct deposit" });
+    expect(setup.closest('[role="status"]')).toBeTruthy();
+    fireEvent.click(setup);
+
+    expect(screen.getByRole("radio", { name: "Bank Account" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByLabelText(country === "IN" ? "Account #" : "Account number")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: "PayPal" }));
+    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "PayPal Email" }).value).toBe("unsaved@example.com");
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+
+  it("hides setup for an eligible seller without update permission", () => {
+    renderSeller("IN", true, true);
+    expect(screen.queryByRole("button", { name: /direct deposit/u })).toBeNull();
+    expect(screen.queryByText(/cannot be set up in India/u)).toBeNull();
+    expect(mocks.put).not.toHaveBeenCalled();
+  });
+});
+
+// Stripe refuses an account whose ("Kanji") variation holds no Japanese characters, so the page
+// must refuse it before saving.
+describe("Japanese (Kanji) variation fields", () => {
+  const jpCompliance = (overrides: Partial<ComplianceInfo> = {}) =>
+    complianceInfo({
+      country: "JP",
+      street_address: null,
+      building_number: "1-1",
+      building_number_kana: "1-1",
+      street_address_kanji: "千代田",
+      street_address_kana: "チヨダ",
+      city: "千代田区",
+      city_kana: "チヨダク",
+      state: "東京都",
+      zip_code: "100-0001",
+      first_name_kanji: "太郎",
+      last_name_kanji: "山田",
+      first_name_kana: "タロウ",
+      last_name_kana: "ヤマダ",
+      phone: "+819012345678",
+      ...overrides,
+    });
+
+  const renderJpSeller = (complianceOverrides: Partial<ComplianceInfo> = {}, userOverrides: Partial<User> = {}) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps(
+          { country_code: "JP", payout_currency: "jpy", ...userOverrides },
+          jpCompliance(complianceOverrides),
+        ),
+        countries: { JP: "Japan" },
+      },
+    });
+    render(<PaymentsPage />);
+  };
+
+  const jpBusiness = {
+    is_business: true,
+    business_country: "JP",
+    business_type: "corporation",
+    business_name: "Yamada KK",
+    business_name_kanji: "山田株式会社",
+    business_name_kana: "ヤマダカブシキガイシャ",
+    business_building_number: "1-1",
+    business_building_number_kana: "1-1",
+    business_street_address_kanji: "千代田",
+    business_street_address_kana: "チヨダ",
+    business_city: "千代田区",
+    business_city_kana: "チヨダク",
+    business_state: "東京都",
+    business_zip_code: "100-0001",
+    business_phone: "+819012345678",
+    job_title: "Owner",
+  };
+
+  const renderJpBusiness = (complianceOverrides: Partial<ComplianceInfo> = {}) =>
+    renderJpSeller({ ...jpBusiness, ...complianceOverrides }, { business_tax_id_entered: true });
+
+  // [field, name used in the banner, label rendered next to the input, business branch]
+  const kanjiFields = [
+    ["first_name_kanji", "First name (Kanji)", "First name / 名 (Kanji)", false],
+    ["last_name_kanji", "Last name (Kanji)", "Last name / 姓 (Kanji)", false],
+    ["street_address_kanji", "Town/Cho-me (Kanji)", "Town/Cho-me (Kanji)", false],
+    ["city", "City/Ward (Kanji)", "City/Ward (Kanji)", false],
+    ["business_name_kanji", "Business Name (Kanji)", "Business Name (Kanji)", true],
+    ["business_street_address_kanji", "Business town/Cho-me (Kanji)", "Business town/Cho-me (Kanji)", true],
+    ["business_city", "Business city/Ward (Kanji)", "Business city/Ward (Kanji)", true],
+  ] as const;
+
+  const noJapaneseLetters = [
+    ["romaji", "Chiyoda"],
+    ["only an ideographic space", "\u3000"],
+    ["only fullwidth punctuation and marks", "「ー・」"],
+    ["only halfwidth katakana marks", "ｰ･ﾞ"],
+    ["only kanji iteration marks", "々〻"],
+    ["only kana iteration marks", "ゝゞヽヾ"],
+    ["only Kangxi and CJK radicals", "⼭⺅"],
+    ["only enclosed and squared katakana", "㋐㌀"],
+  ] as const;
+
+  describe.each(kanjiFields)("%s", (field, bannerName, inputLabel, business) => {
+    it.each(noJapaneseLetters)("blocks a value with %s", (_, value) => {
+      if (business) renderJpBusiness({ [field]: value });
+      else renderJpSeller({ [field]: value });
+      save();
+
+      expect(mocks.put).not.toHaveBeenCalled();
+      expect(screen.getByText(`${bannerName} must include Japanese characters.`)).toBeTruthy();
+      expect(screen.getByLabelText(inputLabel).getAttribute("aria-invalid")).toBe("true");
+    });
+  });
+
+  it.each([
+    ["first_name_kanji", "First name / 名 (Kanji)"],
+    ["last_name_kanji", "Last name / 姓 (Kanji)"],
+  ] as const)("requires %s for an individual", (field, inputLabel) => {
+    renderJpSeller({ [field]: "" });
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getByText(`Please complete the required fields below: ${inputLabel}.`)).toBeTruthy();
+    expect(screen.getByLabelText(inputLabel).getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("saves a Japanese seller whose variations hold Japanese characters", () => {
+    renderJpSeller();
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves a Japanese business whose variations hold Japanese characters", () => {
+    renderJpBusiness();
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["kanji with the 々 iteration mark", "佐々木"],
+    ["hiragana with the ゞ iteration mark", "いすゞ"],
+    ["katakana with the ヽ iteration mark", "ノスヽメ"],
+    ["a CJK compatibility ideograph", "山﨑"],
+    ["hiragana", "さくら"],
+    ["katakana with the ー length mark", "ローラ"],
+    ["halfwidth katakana", "ﾛｰﾗ"],
+    ["an ideograph outside the BMP", "𠮷田"],
+    ["kanji mixed with block numbers", "丸の内1丁目2-3"],
+    ["kanji around an ideographic space", "山田\u3000太郎"],
+  ])("saves when every (Kanji) field holds %s", (_, value) => {
+    renderJpBusiness(Object.fromEntries(kanjiFields.map(([field]) => [field, value])));
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["between romaji words", "Yamada\u3000KK"],
+    ["on its own", "\u3000"],
+  ])("blocks a legal business name with an ideographic space %s", (_, value) => {
+    renderJpBusiness({ business_name: value });
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Legal business name must be in romaji (latin characters) for Japanese accounts."),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Legal business name (Romaji)").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  // A failed save focuses the first invalid field, scrolling the banner away, so the reason has to
+  // sit in the input's own fieldset and be what the input is described by.
+  const inlineMessage = (inputLabel: string) => {
+    const input = screen.getByLabelText(inputLabel);
+    const id = input.getAttribute("aria-describedby");
+    if (!id) return null;
+    const message = document.getElementById(id);
+    expect(message).not.toBeNull();
+    expect(input.closest("fieldset")?.contains(message)).toBe(true);
+    return message?.textContent ?? null;
+  };
+
+  const renderJpSellerWith = (props: Record<string, unknown>, complianceOverrides: Partial<ComplianceInfo>) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "JP", payout_currency: "jpy" }, jpCompliance(complianceOverrides)),
+        countries: { JP: "Japan" },
+        ...props,
+      },
+    });
+    render(<PaymentsPage />);
+  };
+
+  describe.each(kanjiFields)("%s", (field, bannerName, inputLabel, business) => {
+    it("explains the rejection beside the input as well as in the banner", () => {
+      if (business) renderJpBusiness({ [field]: "Chiyoda" });
+      else renderJpSeller({ [field]: "Chiyoda" });
+
+      expect(inlineMessage(inputLabel)).toBeNull();
+      save();
+
+      expect(mocks.put).not.toHaveBeenCalled();
+      expect(inlineMessage(inputLabel)).toBe("Must include Japanese characters.");
+      expect(screen.getByText(`${bannerName} must include Japanese characters.`)).toBeTruthy();
+    });
+  });
+
+  it.each([
+    ["first_name_kanji", "First name / 名 (Kanji)"],
+    ["last_name_kanji", "Last name / 姓 (Kanji)"],
+  ] as const)("explains beside the input that a blank %s is required", (field, inputLabel) => {
+    renderJpSeller({ [field]: "" });
+    save();
+
+    expect(inlineMessage(inputLabel)).toBe("Required.");
+    expect(screen.getByText(`Please complete the required fields below: ${inputLabel}.`)).toBeTruthy();
+  });
+
+  it("tells a blank name apart from one without Japanese characters", () => {
+    renderJpSeller({ first_name_kanji: "", last_name_kanji: "Yamada" });
+    save();
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBe("Required.");
+    expect(inlineMessage("Last name / 姓 (Kanji)")).toBe("Must include Japanese characters.");
+    expect(inlineMessage("City/Ward (Kanji)")).toBeNull();
+  });
+
+  it.each([
+    ["street_address_kanji", "Town/Cho-me (Kanji)", false],
+    ["city", "City/Ward (Kanji)", false],
+    ["business_name_kanji", "Business Name (Kanji)", true],
+    ["business_street_address_kanji", "Business town/Cho-me (Kanji)", true],
+    ["business_city", "Business city/Ward (Kanji)", true],
+  ] as const)("explains beside the input that a blank %s is required", (field, inputLabel, business) => {
+    if (business) renderJpBusiness({ [field]: "" });
+    else renderJpSeller({ [field]: "" });
+    save();
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(inlineMessage(inputLabel)).toBe("Required.");
+    expect(screen.getByLabelText(inputLabel).getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText(/^Please complete the required fields below:/u).textContent).toContain(inputLabel);
+  });
+
+  it("clears the reasons with the highlights on the next edit and keeps the banner", () => {
+    renderJpSeller({ first_name_kanji: "Taro", last_name_kanji: "Yamada" });
+    save();
+    expect(inlineMessage("First name / 名 (Kanji)")).toBe("Must include Japanese characters.");
+    expect(inlineMessage("Last name / 姓 (Kanji)")).toBe("Must include Japanese characters.");
+
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Taro" } });
+
+    for (const inputLabel of ["First name / 名 (Kanji)", "Last name / 姓 (Kanji)"]) {
+      expect(inlineMessage(inputLabel)).toBeNull();
+      expect(screen.getByLabelText(inputLabel).getAttribute("aria-invalid")).toBe("false");
+    }
+    expect(screen.getByText("Last name (Kanji) must include Japanese characters.")).toBeTruthy();
+  });
+
+  it("clears every reason when the account type changes", () => {
+    renderJpSeller({ first_name_kanji: "Taro", last_name_kanji: "Yamada" });
+    save();
+    expect(inlineMessage("Last name / 姓 (Kanji)")).toBe("Must include Japanese characters.");
+
+    fireEvent.click(screen.getByRole("radio", { name: /Business/u }));
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBeNull();
+    expect(inlineMessage("Last name / 姓 (Kanji)")).toBeNull();
+  });
+
+  it("clears every reason when the country changes", () => {
+    renderJpSellerWith(
+      { countries: { JP: "Japan", US: "United States" } },
+      { first_name_kanji: "Taro", city: "Chiyoda" },
+    );
+    save();
+    expect(inlineMessage("City/Ward (Kanji)")).toBe("Must include Japanese characters.");
+
+    fireEvent.change(screen.getByLabelText("Country"), { target: { value: "US" } });
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBeNull();
+    expect(inlineMessage("City/Ward (Kanji)")).toBeNull();
+  });
+
+  it("clears every reason when the payout method changes", () => {
+    renderJpSellerWith(
+      { bank_account_details: { ...pageProps().bank_account_details, show_bank_account: true } },
+      { first_name_kanji: "Taro" },
+    );
+    save();
+    expect(inlineMessage("First name / 名 (Kanji)")).toBe("Must include Japanese characters.");
+
+    fireEvent.click(screen.getByRole("radio", { name: /Bank Account/u }));
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBeNull();
+  });
+
+  it("keeps a server error in the banner while the inline reason clears", () => {
+    const serverMessage = "Stripe could not verify the account.";
+    renderJpSellerWith({ errors: { base: [serverMessage] } }, { first_name_kanji: "Taro" });
+    save();
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBe("Must include Japanese characters.");
+    expect(screen.getByText(serverMessage)).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("First name / 名 (Kanji)"), { target: { value: "太郎" } });
+
+    expect(inlineMessage("First name / 名 (Kanji)")).toBeNull();
+    expect(screen.getByText(serverMessage)).toBeTruthy();
+  });
+
+  it("leaves non-Japanese sellers' leftover (Kanji) values alone", () => {
+    renderPage({}, { first_name_kanji: "\u3000", last_name_kanji: "", street_address_kanji: "ー" });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Pause payouts switch under an internal hold", () => {
+  const pauseSwitch = () => screen.getByRole<HTMLInputElement>("switch", { name: "Pause payouts" });
+  const renderHeld = (overrides: Record<string, unknown>) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps(),
+        payouts_paused_internally: true,
+        payouts_paused_by: "system",
+        account_status: { ...pageProps().account_status, show_section: true },
+        ...overrides,
+      },
+    });
+    render(<PaymentsPage />);
+  };
+
+  it("lets a creator turn off their own pause when only the chargeback-rate hold applies", () => {
+    renderHeld({ payout_reserve_available: true, payouts_paused_by_user: true });
+
+    expect(pauseSwitch().disabled).toBe(false);
+    expect(pauseSwitch().checked).toBe(true);
+
+    fireEvent.click(pauseSwitch());
+
+    expect(pauseSwitch().disabled).toBe(false);
+    expect(pauseSwitch().checked).toBe(false);
+    expect(screen.getByText(/Turn off Pause payouts below and save/u)).toBeTruthy();
+  });
+
+  it("submits payouts_paused_by_user false when the creator turns the pause off", () => {
+    renderHeld({ payout_reserve_available: true, payouts_paused_by_user: true });
+
+    fireEvent.click(pauseSwitch());
+    save();
+
+    expect(mocks.put).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ payouts_paused_by_user: false }),
+    );
+  });
+
+  it("keeps the switch locked for a chargeback-rate hold the creator has not paused themselves", () => {
+    renderHeld({ payout_reserve_available: true, payouts_paused_by_user: false });
+
+    expect(pauseSwitch().disabled).toBe(true);
+    expect(pauseSwitch().checked).toBe(true);
+  });
+
+  it("keeps the switch locked for a security hold even when the creator also paused", () => {
+    renderHeld({ payout_reserve_available: false, payouts_paused_by_user: true });
+
+    expect(pauseSwitch().disabled).toBe(true);
+    expect(pauseSwitch().checked).toBe(true);
+    expect(screen.queryByText(/Turn off Pause payouts below and save/u)).toBeNull();
+  });
+
+  it("keeps the switch locked for an admin hold", () => {
+    renderHeld({ payouts_paused_by: "admin", payout_reserve_available: false, payouts_paused_by_user: true });
+
+    expect(pauseSwitch().disabled).toBe(true);
   });
 });

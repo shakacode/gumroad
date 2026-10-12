@@ -6,7 +6,7 @@ class Thumbnail < ApplicationRecord
 
   DISPLAY_THUMBNAIL_DIMENSION = 600
   MAX_FILE_SIZE = 5.megabytes
-  ALLOW_CONTENT_TYPES = /jpeg|gif|png|jpg/i
+  ALLOW_CONTENT_TYPES = /jpeg|gif|png|jpg|webp/i
   RemoteFileTooLarge = Class.new(StandardError)
 
   # `touch: true` bumps the product's updated_at whenever a thumbnail is created, replaced or
@@ -94,19 +94,19 @@ class Thumbnail < ApplicationRecord
     return unless file.attached?
 
     # Don't post process for gifs
-    return cdn_url_for(storage_url_for(file)) if file.content_type.include?("gif")
+    return cdn_url_for(file.url) if file.content_type.include?("gif")
 
     case variant
     when :default
-      cdn_url_for(storage_url_for(thumbnail_variant))
+      cdn_url_for(thumbnail_variant.url)
     when :original
-      cdn_url_for(storage_url_for(file))
+      cdn_url_for(file.url)
     else
-      cdn_url_for(storage_url_for(file))
+      cdn_url_for(file.url)
     end
   rescue MiniMagick::Error, ActiveStorage::Error, Errno::ENOENT => e
     Rails.logger.warn("Thumbnail#url error (#{id}): #{e.class} => #{e.message}")
-    cdn_url_for(storage_url_for(file))
+    cdn_url_for(file.url)
   end
 
   def thumbnail_variant

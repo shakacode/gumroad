@@ -4,7 +4,7 @@ import * as React from "react";
 import { setProductRating } from "$app/data/product_reviews";
 import { assertDefined } from "$app/utils/assert";
 import FileUtils from "$app/utils/file";
-import { assertResponseError } from "$app/utils/request";
+import { assertResponseError, ResponseError } from "$app/utils/request";
 import { summarizeUploadProgress } from "$app/utils/summarizeUploadProgress";
 
 import { Button } from "$app/components/Button";
@@ -16,12 +16,15 @@ import { ReviewVideoRecorderUiState, VideoState } from "$app/components/ReviewFo
 import { useReviewVideoUploader } from "$app/components/ReviewForm/useReviewVideoUploader";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
+import { Fieldset, FieldsetDescription, FieldsetTitle } from "$app/components/ui/Fieldset";
 import { Label } from "$app/components/ui/Label";
 import { LinkButton } from "$app/components/ui/LinkButton";
+import { Radio } from "$app/components/ui/Radio";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { Textarea } from "$app/components/ui/Textarea";
 
 export type Review = {
+  anonymous: boolean;
   rating: number;
   message: string | null;
   video: {
@@ -109,15 +112,29 @@ export const ReviewForm = React.forwardRef<
     disabledStatus?: string | null;
     style?: React.CSSProperties;
     className?: string;
+    /** The name this account would publish. null when there is none, which pins the review to Anonymous. */
+    accountName?: string | null;
   }
 >(
   (
-    { permalink, purchaseId, purchaseEmailDigest, review, onChange, preview, disabledStatus, style, className },
+    {
+      permalink,
+      purchaseId,
+      purchaseEmailDigest,
+      review,
+      onChange,
+      preview,
+      disabledStatus,
+      style,
+      className,
+      accountName,
+    },
     ref,
   ) => {
     const appDomain = useAppDomain();
     const [isLoading, setIsLoading] = React.useState(false);
     const [rating, setRating] = React.useState<number | null>(review?.rating ?? null);
+    const [anonymous, setAnonymous] = React.useState(review?.anonymous ?? false);
     const [message, setMessage] = React.useState(review?.message ?? "");
     const [reviewMode, setReviewMode] = React.useState<"text" | "video">(review?.video ? "video" : "text");
     const [formState, setFormState] = React.useState<"viewing" | "editing">(review ? "viewing" : "editing");
@@ -131,7 +148,10 @@ export const ReviewForm = React.forwardRef<
     const [videoRecorderUiState, setVideoRecorderUiState] = React.useState<ReviewVideoRecorderUiState | null>(null);
 
     const loggedInUser = useLoggedInUser();
-    const { error, readyToUpload, evaporateUploader, s3UploadConfig } = useReviewVideoUploader({ preview: !!preview });
+    const { error, readyToUpload, evaporateUploader, s3UploadConfig } = useReviewVideoUploader({
+      enabled: reviewMode === "video" && formState === "editing",
+      preview: !!preview,
+    });
 
     // Autosave bookkeeping: a monotonically increasing sequence number lets us
     // ignore responses from superseded autosaves (e.g. the buyer taps 3 stars,
@@ -194,6 +214,11 @@ export const ReviewForm = React.forwardRef<
             setUploadProgress(null);
             setUploadCancellationKey(null);
             resolve(fileUrl);
+          },
+          onError: () => {
+            setUploadProgress(null);
+            setUploadCancellationKey(null);
+            reject(new ResponseError("Your video couldn't be uploaded. Please try again."));
           },
           onProgress: setUploadProgress,
         });
@@ -272,6 +297,7 @@ export const ReviewForm = React.forwardRef<
               purchaseEmailDigest: purchaseEmailDigest ?? "",
               rating: newRating,
               message: message || null,
+              anonymous,
             });
             if (sequence !== autosaveSequence.current) return;
             showAlert(message ? "Rating saved!" : "Rating saved! Add a written review to tell others more.", "success");
@@ -315,6 +341,7 @@ export const ReviewForm = React.forwardRef<
           purchaseEmailDigest: purchaseEmailDigest ?? "",
           rating,
           ...content,
+          anonymous,
         });
         setFormState("viewing");
         onChange?.(review);
@@ -325,6 +352,7 @@ export const ReviewForm = React.forwardRef<
             : { kind: "none" },
         );
         setMessage(review.message ?? "");
+        setAnonymous(review.anonymous);
         setReviewMode(review.video ? "video" : "text");
 
         showAlert("Review submitted successfully!", "success");
@@ -425,6 +453,22 @@ export const ReviewForm = React.forwardRef<
       </Button>
     );
 
+    // A guest purchase has no identity to publish, so there is nothing to choose between.
+    const identityChoice = accountName ? (
+      <Fieldset disabled={disabled} className="w-full">
+        <FieldsetTitle>Show your review as</FieldsetTitle>
+        <Label>
+          <Radio name={`${uid}-identity`} checked={!anonymous} onChange={() => setAnonymous(false)} /> {accountName}
+        </Label>
+        <Label>
+          <Radio name={`${uid}-identity`} checked={anonymous} onChange={() => setAnonymous(true)} /> Anonymous
+        </Label>
+        <FieldsetDescription>
+          This is the only name the product page shows. The seller always sees the name on your purchase.
+        </FieldsetDescription>
+      </Fieldset>
+    ) : null;
+
     const disabledStatusWarning = disabledStatus && (
       <Alert role="status" variant="warning">
         {disabledStatus}
@@ -459,6 +503,7 @@ export const ReviewForm = React.forwardRef<
 
         {!viewing ? reviewModeRadioButtons : null}
         {reviewMode === "video" ? videoReview : textReview}
+        {viewing ? null : identityChoice}
         {disabledStatusWarning}
         {reviewButton}
       </form>

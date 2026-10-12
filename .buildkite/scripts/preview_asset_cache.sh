@@ -8,8 +8,8 @@
 # it on every push — including backend-only pushes and "merge main into the
 # preview branch" refreshes.
 #
-# This helper caches the compiled artifacts (node_modules, browser assets,
-# public/public-rsc, ssr-generated, and pages Tailwind) in S3, keyed on a hash of every input
+# This helper caches the compiled artifacts (node_modules, public/vite,
+# public/js, the pages Tailwind build and its manifest) in S3, keyed on a hash of every input
 # that feeds the compile. On a hit, compile_assets.sh restores the artifacts
 # into a fresh web-image container and commits that as the staging image,
 # skipping npm install / js:export / Vite entirely. On a miss it builds
@@ -29,7 +29,7 @@ PREVIEW_ASSET_CACHE_BUCKET="buildkite-branch-cache"
 PREVIEW_ASSET_CACHE_PREFIX="preview-asset-cache"
 # Bump to invalidate every existing cache entry at once (e.g. after changing
 # the artifact list below or discovering a missing hash input).
-PREVIEW_ASSET_CACHE_VERSION="v2"
+PREVIEW_ASSET_CACHE_VERSION="v3"
 PREVIEW_ASSET_CACHE_TARBALL="preview-asset-cache.tar.gz"
 # Local scratch file for the SHA-256 sidecar (see restore/save below).
 PREVIEW_ASSET_CACHE_CHECKSUM="preview-asset-cache.tar.gz.sha256"
@@ -68,10 +68,16 @@ preview_asset_cache_logger() {
 # read of config/ — a JS `import` from config/, a new file consumed by
 # js:export or the Vite configs, or a routes-file reference to a constant
 # defined outside config/domain.rb — add its path here.
+#
+# Tailwind also scans files outside app/javascript for class names: the
+# `@source` globs in app/javascript/stylesheets/tailwind.css pull in
+# app/views/**/*.erb and public/help/**/*.html. If you add an `@source`, add
+# its path here.
 preview_asset_cache_inputs() {
   git ls-tree -r HEAD -- \
     app/assets \
     app/javascript \
+    app/views \
     config/routes.rb \
     config/routes \
     config/domain.rb \
@@ -84,13 +90,12 @@ preview_asset_cache_inputs() {
     lib/utilities/global_config.rb \
     config/initializers/js-routes.rb \
     config/vite.json \
-    config/vite \
-    config/currencies.json \
     config/rspack \
     config/shakapacker.yml \
     config/initializers/react_on_rails.rb \
     config/initializers/react_on_rails_pro.rb \
-    config/initializers/active_support_cache_notifications.rb \
+    config/vite \
+    config/currencies.json \
     lib/json_schemas \
     lib/tasks \
     Rakefile \
@@ -103,6 +108,9 @@ preview_asset_cache_inputs() {
     docker/web/push_assets_to_s3.sh \
     .buildkite/scripts/compile_assets.sh \
     .buildkite/scripts/preview_asset_cache.sh \
+    .buildkite/scripts/main_asset_cache.sh \
+    .buildkite/scripts/main_node_modules_cache.sh \
+    .buildkite/scripts/main_pages_tailwind_cache.sh \
     Makefile \
     package.json \
     package-lock.json \
@@ -200,7 +208,7 @@ preview_asset_cache_save() {
   # gzip -1: node_modules dominates the tarball and compresses slowly at the
   # default level; speed matters more than a few percent of S3 storage.
   if ! docker run --rm --entrypoint="" "$image" \
-    bash -c 'set -o pipefail; cd /app && paths=""; for p in node_modules public/vite public/js public/public-rsc ssr-generated public/pages-tailwind.css public/assets/pages public/pages-tailwind-manifest.json; do [ -e "$p" ] && paths="$paths $p"; done; tar -cf - $paths | gzip -1' \
+    bash -c 'set -o pipefail; cd /app && paths=""; for p in node_modules public/vite public/public-rsc ssr-generated public/js public/pages-tailwind.css public/assets/pages public/pages-tailwind-manifest.json; do [ -e "$p" ] && paths="$paths $p"; done; tar -cf - $paths | gzip -1' \
     > "$PREVIEW_ASSET_CACHE_TARBALL"; then
     preview_asset_cache_logger "Failed to extract assets from $image; skipping cache save"
     rm -f "$PREVIEW_ASSET_CACHE_TARBALL"

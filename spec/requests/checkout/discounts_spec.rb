@@ -236,7 +236,7 @@ describe("Checkout discounts page", type: :system, js: true) do
           click_on "New discount"
 
           find(:label, "Products").click
-          expect(page).to have_combo_box "Products", options: ["Product 2", "Membership"]
+          expect(page).to have_combo_box "Products", options: ["Product 2", "Membership", "Membership (First Tier)", "Membership (Second Tier)"]
         end
       end
 
@@ -394,7 +394,7 @@ describe("Checkout discounts page", type: :system, js: true) do
           choose "Fixed amount"
 
           find(:label, "Products").click
-          expect(page).to have_combo_box "Products", options: ["Product 1", "Product 2", "Membership", "Product 3"]
+          expect(page).to have_combo_box "Products", options: ["Product 1", "Product 2", "Membership", "Membership (First Tier)", "Membership (Second Tier)", "Product 3"]
           select_combo_box_option "Product 1", from: "Products"
           find(:label, "Products").click
           expect(page).to have_combo_box "Products", options: ["Product 2", "Membership", "Product 3"]
@@ -442,7 +442,7 @@ describe("Checkout discounts page", type: :system, js: true) do
           within_modal "Discount" do
             click_on "Edit"
           end
-          expect(page).to have_select("Currency", selected: "£", visible: false)
+          expect(page).to have_select("Currency", selected: "£ (British Pounds)", visible: false)
 
           expect(OfferCode.last.currency_type).to eq("gbp")
         end
@@ -692,6 +692,33 @@ describe("Checkout discounts page", type: :system, js: true) do
   end
 
   describe "editing offer codes" do
+    it "saves a valid seller datetime during the browser's DST gap" do
+      seller.update!(timezone: "UTC")
+      visit checkout_discounts_path
+      original_time_zone = get_client_time_zone
+      page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: "America/New_York")
+      expect(get_client_time_zone).to eq("America/New_York")
+
+      within find(:table_row, { "Discount" => "Discount 2" }) do
+        click_on "Edit"
+      end
+      date = find_field("Valid from")
+      date.set(Time.utc(2027, 3, 14, 2, 30))
+      date.send_keys(:tab)
+      click_on "Save changes"
+
+      expect(page).to have_alert(text: "Successfully updated discount!")
+      expect(offer_code2.reload.valid_at).to eq(Time.utc(2027, 3, 14, 2, 30))
+
+      refresh
+      within find(:table_row, { "Discount" => "Discount 2" }) do
+        click_on "Edit"
+      end
+      expect(page).to have_field("Valid from", with: "2027-03-14T02:30")
+    ensure
+      page.driver.browser.execute_cdp("Emulation.setTimezoneOverride", timezoneId: original_time_zone) if original_time_zone
+    end
+
     it "updates the offer code" do
       # Allows us to test editing an offer code that already has `valid_at`
       # set with fewer date picker interactions
@@ -717,7 +744,7 @@ describe("Checkout discounts page", type: :system, js: true) do
       expect(page).to have_field("Fixed amount", with: "2")
       expect(page).to have_unchecked_field("All products")
       find("label", text: "Products").click
-      expect(page).to have_combo_box("Products", options: ["Membership"])
+      expect(page).to have_combo_box("Products", options: ["Membership", "Membership (First Tier)", "Membership (Second Tier)"])
       expect(page).to have_checked_field("Limit quantity")
       expect(page).to have_field("Quantity", with: "20")
       expect(page).to have_field("Valid from", with: offer_code2.valid_at.in_time_zone(seller.timezone).iso8601[0..15])
@@ -891,11 +918,46 @@ describe("Checkout discounts page", type: :system, js: true) do
         end
 
         find(:label, "Products").click
-        expect(page).to have_combo_box "Products", options: ["Product 1", "Product 2", "Membership"]
+        expect(page).to have_combo_box "Products", options: ["Membership (First Tier)", "Membership (Second Tier)"]
 
         click_on "Save changes"
 
         expect(offer_code1.reload.products).to eq([product1, product2, membership])
+      end
+    end
+
+    context "when a selected product has options" do
+      let(:icon_library) { create(:product, name: "Icon library", user: seller, price_cents: 2000) }
+      let(:license) { create(:variant_category, link: icon_library, title: "License") }
+      let!(:single_user) { create(:variant, variant_category: license, name: "Single-user") }
+      let!(:team) { create(:variant, variant_category: license, name: "Team") }
+      let!(:launch_code) { create(:percentage_offer_code, name: "Launch", code: "launch", products: [icon_library], user: seller) }
+
+      it "limits the discount to the options picked in the products field" do
+        visit checkout_discounts_path
+        find(:table_row, { "Discount" => "Launch" }).click
+        within_modal("Launch") { click_on "Edit" }
+
+        select_combo_box_option "Icon library (Single-user)", from: "Products"
+        click_on "Save changes"
+
+        within find(:table_row, { "Discount" => "Launch" }) do
+          expect(page).to have_text("off of Icon library (Single-user)")
+        end
+        expect(launch_code.reload.products).to eq([icon_library])
+        expect(launch_code.variants).to eq([single_user])
+
+        find(:table_row, { "Discount" => "Launch" }).click
+        within_modal("Launch") { click_on "Edit" }
+
+        select_combo_box_option "Icon library", from: "Products"
+        click_on "Save changes"
+
+        within find(:table_row, { "Discount" => "Launch" }) do
+          expect(page).to have_no_text("Icon library (Single-user)")
+        end
+        expect(launch_code.reload.products).to eq([icon_library])
+        expect(launch_code.variants).to be_empty
       end
     end
   end
@@ -952,7 +1014,7 @@ describe("Checkout discounts page", type: :system, js: true) do
     expect(page).to have_field("Percentage", with: "50")
     expect(page).to have_unchecked_field("All products")
     find("label", text: "Products").click
-    expect(page).to have_combo_box("Products", options: ["Product 1", "Product 2"])
+    expect(page).to have_combo_box("Products", options: ["Membership (First Tier)", "Membership (Second Tier)"])
     find("body").native.send_key("escape") # to dismiss the combo box so the limit quantity checkbox is visible
     expect(page).to have_checked_field("Limit quantity")
     expect(page).to have_field("Quantity", with: "12")

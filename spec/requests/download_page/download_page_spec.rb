@@ -16,7 +16,7 @@ describe("Download Page", type: :system, js: true) do
 
       visit("/d/#{url_redirect.token}")
       select_disclosure "Open in app" do
-        expect(page).to have_text("Download from the App Store")
+        expect(page).to have_text("Get the app")
       end
 
       vcr_turned_on do
@@ -56,7 +56,7 @@ describe("Download Page", type: :system, js: true) do
       visit("/d/#{url_redirect.token}")
 
       select_disclosure "Open in app" do
-        expect(page).to have_text("Download from the App Store")
+        expect(page).to have_text("Get the app")
         expect(page).to(have_link("App Store"))
         expect(page).to(have_link("Play Store"))
       end
@@ -485,7 +485,7 @@ describe("Download Page", type: :system, js: true) do
       click_on "Resend receipt"
     end
     expect(page).to have_alert(text: "Receipt resent")
-    expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(url_redirect.purchase.id).on("critical")
+    expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(url_redirect.purchase.id, true).on("critical")
   end
 
   describe "archive actions" do
@@ -719,7 +719,7 @@ describe("Download Page", type: :system, js: true) do
 
       click_on "Resend receipt"
       expect(page).to have_alert(text: "Receipt resent")
-      expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(purchase.id).on("critical")
+      expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(purchase.id, true).on("critical")
     end
   end
 

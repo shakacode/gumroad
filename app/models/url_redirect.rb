@@ -23,6 +23,14 @@ class UrlRedirect < ApplicationRecord
             2 => :admin_generated,
             3 => :is_rental,
             4 => :is_done_pdf_stamping,
+            # Set by a download click while a checkout stamp already holds the purchase lock.
+            # A cache entry expires and can be evicted before that job reads it, so the promise
+            # to email the buyer lives on this row until the mail is enqueued.
+            5 => :files_ready_notification_requested,
+            # Set when that mail is enqueued, so the stamp job and its follower cannot both send.
+            # A new click clears it; otherwise the second sender would treat the first send as done
+            # and drop a request that arrived after the first sender already checked.
+            6 => :files_ready_notification_enqueued,
             :column => "flags",
             :flag_query_mode => :bit_operator,
             check_for_column: false
@@ -32,6 +40,7 @@ class UrlRedirect < ApplicationRecord
   FAKE_VIDEO_URL_GUID_FOR_OBFUSCATION = "ef64f2fef0d6c776a337050020423fc0"
   GUID_GETTER_FROM_S3_URL_REGEX = %r{attachments/(.*)/original}
   BUNDLE_ARCHIVE_FAILED_RETRY_COOLDOWN = 24.hours
+  BUNDLE_ARCHIVE_MAX_TOO_LARGE_RETRY_COOLDOWN = 1.week
   BUNDLE_ARCHIVE_MAX_FAILED_ATTEMPTS = 3
   # Bounds buyer-poll enqueues per product once the job's until_executing lock is released at start.
   # Kept below the job's LOCK_TTL so a stranded lock, not this window, is the recovery bound.
@@ -161,23 +170,28 @@ class UrlRedirect < ApplicationRecord
 
   # Public: used to pass the list of downloadable files to Dropbox.
   def product_files_hash
-    alive_product_files.map do |product_file|
+    alive_product_files.filter_map do |product_file|
       next if product_file.stream_only?
 
+      url = signed_location_for_file(product_file)
+      next if url.blank?
+
       {
-        url: signed_location_for_file(product_file),
+        url:,
         filename: product_file.s3_filename
       }
-    end.compact.to_json
+    end.to_json
   end
 
+  # The bundle's own files live on the parent link, and the library drops the parent card as soon as
+  # a member row survives, so this ZIP is the only surface left that can deliver them.
   def bundle_archive_product_files
     return ProductFile.none unless purchase&.is_bundle_purchase?
 
     member_redirects = purchase.product_purchases.visible_in_library.includes(:url_redirect).filter_map(&:url_redirect)
     return ProductFile.none if member_redirects.any? { _1.with_product_files.has_stampable_pdfs? }
 
-    file_ids = member_redirects.flat_map do |url_redirect|
+    file_ids = ([self] + member_redirects).flat_map do |url_redirect|
       next [] unless url_redirect.with_product_files.is_downloadable?
 
       url_redirect.alive_product_files.filter_map { _1.id if _1.archivable? }
@@ -200,13 +214,25 @@ class UrlRedirect < ApplicationRecord
     owner = rich_content_provider.presence || with_product_files
     owner.with_lock do
       matching_archives = matching_bundle_archives(bundle_files)
-      return if matching_archives.any? { |archive| !archive.failed? }
+      return if matching_archives.any? { |archive| !archive.failed? && !archive.too_large? }
 
       failed_archives = matching_archives.select(&:failed?)
       return if failed_archives.size >= BUNDLE_ARCHIVE_MAX_FAILED_ATTEMPTS
 
-      latest_failure_at = failed_archives.map(&:updated_at).compact.max
-      return if failed_archives.size >= 2 && latest_failure_at > BUNDLE_ARCHIVE_FAILED_RETRY_COOLDOWN.ago
+      # Too-large archives stay off the failure budget so a raised cap can heal the bundle, but their
+      # retry window doubles per attempt up to a week. Only a too-large LATEST attempt picks that window,
+      # so an old oversized row cannot hold back a later build that failed for another reason.
+      too_large_archives = matching_archives.select(&:too_large?)
+      latest_attempt = (failed_archives + too_large_archives).max_by(&:id)
+      latest_attempt_at = (failed_archives + too_large_archives).map(&:updated_at).compact.max
+      if latest_attempt_at.present?
+        retry_cooldown_seconds = if latest_attempt&.too_large?
+          [BUNDLE_ARCHIVE_FAILED_RETRY_COOLDOWN.to_i * 2**(too_large_archives.size - 1), BUNDLE_ARCHIVE_MAX_TOO_LARGE_RETRY_COOLDOWN.to_i].min
+        elsif failed_archives.size >= 2
+          BUNDLE_ARCHIVE_FAILED_RETRY_COOLDOWN.to_i
+        end
+        return if retry_cooldown_seconds && latest_attempt_at > retry_cooldown_seconds.seconds.ago
+      end
 
       product_files_archive = product_files_archives.new
       product_files_archive.product_files = bundle_files
@@ -225,18 +251,30 @@ class UrlRedirect < ApplicationRecord
     if preorder.present?
       signed_download_url_for_s3_key_and_filename(preorder.preorder_link.s3_key, preorder.preorder_link.s3_filename)
     elsif alive_product_files.count == 1
-      signed_location_for_file(alive_product_files.first)
+      file = alive_product_files.first
+      # /r/ would otherwise sign the original upload while the stamp is still running.
+      if file.must_be_pdf_stamped? && missing_stamped_pdf?(file)
+        download_page_url
+      else
+        signed_location_for_file(file)
+      end
     else
       download_page_url
     end
   end
 
-  def signed_location_for_file(product_file)
+  # allow_unstamped is the seller editor only. A buyer fetch must not receive the
+  # original upload while the watermarked copy is still missing.
+  def signed_location_for_file(product_file, allow_unstamped: false)
     return product_file.url if product_file.external_link?
     s3_retrievable = product_file
     if product_file.must_be_pdf_stamped?
       stamped_s3_retrievable = alive_stamped_pdfs.where(product_file_id: product_file.id).first
-      s3_retrievable = stamped_s3_retrievable if stamped_s3_retrievable.present?
+      if stamped_s3_retrievable.present?
+        s3_retrievable = stamped_s3_retrievable
+      elsif !allow_unstamped
+        return nil
+      end
     end
     s3_key = s3_retrievable.s3_key
     s3_filename = s3_retrievable.s3_filename
@@ -268,8 +306,11 @@ class UrlRedirect < ApplicationRecord
   end
 
   def mark_as_seen
-    self.has_been_seen = true
-    save!
+    # save! would write this instance's flags integer and undo a notification bit
+    # set by update_all earlier in the same request.
+    bit = self.class.flag_mapping.fetch("flags").fetch(:has_been_seen).to_i
+    self.class.where(id:).update_all(["flags = COALESCE(flags, 0) | ?, updated_at = ?", bit, Time.current])
+    reload
   end
 
   def mark_unseen

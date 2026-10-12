@@ -17,7 +17,7 @@ export default function ProductStickyCta({
   cart: boolean;
   hasHero: boolean;
 }) {
-  const { selection, ctaButtonRef, configurationSelectorRef, discountCode } = useProductState();
+  const { selection, setSelection, ctaButtonRef, configurationSelectorRef, discountCode } = useProductState();
 
   return (
     <CtaBar
@@ -26,6 +26,7 @@ export default function ProductStickyCta({
       discountCode={discountCode}
       ctaLabel={cart ? "Add to cart" : undefined}
       selection={selection}
+      setSelection={setSelection}
       ctaButtonRef={ctaButtonRef}
       configurationSelectorRef={configurationSelectorRef}
       hasHero={hasHero}
