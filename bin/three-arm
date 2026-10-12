@@ -1,0 +1,358 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Local three-arm product page comparison harness.
+#
+# One checkout, one build, three Rails servers in the benchmark environment:
+#   A  current Inertia page, client rendered
+#   B  the same page with Inertia SSR enabled (Node SSR server)
+#   C  Pro streaming with RSC (seller flag on, Pro Node renderer)
+#
+# Each arm gets its own Docker service stack (MySQL, Redis, DynamoDB,
+# Elasticsearch, MinIO, memcached) seeded identically. Arms differ only by the
+# runtime toggles that define them. ShakaPerf `compare` then runs against two
+# arms at a time. See docs/shakaperf.md for the original single-pair launcher.
+#
+# Usage:
+#   bin/three-arm services up|down        start or remove all three service stacks
+#   bin/three-arm build                   shared build (needs arm A services for js:export)
+#   bin/three-arm seed                    create and seed each arm's database
+#   bin/three-arm servers start|stop      start or stop Rails, SSR and renderer processes
+#   bin/three-arm identity                show which rendering path each arm serves
+#   bin/three-arm provenance              write tmp/three-arm/provenance.json
+#   bin/three-arm env <arm>               print an arm's environment (for one-off commands)
+
+require "digest"
+require "etc"
+require "fileutils"
+require "json"
+require "net/http"
+require "open3"
+require "socket"
+require "time"
+require "timeout"
+
+ROOT = File.expand_path("..", __dir__)
+STATE = File.join(ROOT, "tmp", "three-arm")
+FileUtils.mkdir_p(STATE)
+SYSTEM_ENV = ENV.select { |name, _| %w[PATH HOME TMPDIR LANG GEM_HOME GEM_PATH BUNDLE_PATH CHROME_PATH].include?(name) }
+                .merge("LANG" => "C.UTF-8").freeze
+
+ARMS = {
+  "A" => { index: 1, label: "Inertia client rendered" },
+  "B" => { index: 2, label: "Inertia SSR" },
+  "C" => { index: 3, label: "Pro streaming with RSC" },
+  # Twin of A for the A/A calibration: two separate servers with identical toggles.
+  "D" => { index: 4, label: "Inertia client rendered (A/A twin of A)" },
+}.freeze
+
+# Optional arm list after the action, e.g. `bin/three-arm seed D`; default is every arm.
+def selected_arms
+  requested = ARGV[2..] || []
+  return ARMS.keys if requested.empty?
+
+  requested.each { |arm| abort "Unknown arm #{arm}" unless ARMS.key?(arm) }
+  requested
+end
+
+def ports(arm)
+  i = ARMS.fetch(arm).fetch(:index)
+  { web: 3420 + i, db: 3340 + i, redis: 6410 + i, dynamo: 8050 + i, es: 9250 + i,
+    s3: 9060 + i, s3_console: 9070 + i, memcached: 11230 + i, ssr: 13730 + i, renderer: 3820 + i }
+end
+
+# Fixed local-only values, identical for every arm. None of these is a real secret.
+SHARED_SECRETS = {
+  "SECRET_KEY_BASE" => "three-arm-local-secret-key-base-0123456789abcdef0123456789abcdef",
+  "DEVISE_SECRET_KEY" => "three-arm-local-devise-secret-key-0123456789abcdef0123456789abcdef",
+  "OBFUSCATE_IDS_CIPHER_KEY" => "test",
+  "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY" => "1234",
+  "STRONGBOX_GENERAL_PASSWORD" => "1234",
+  "RENDERER_PASSWORD" => "three-arm-local-renderer-password",
+  "ANYCABLE_SECRET" => "anycable-local-secret",
+  "MOBILE_TOKEN" => "development-mobile-token",
+  "MOBILE_API_OAUTH_APPLICATION_UID" => "MOBILE_DEVELOPMENT_CLIENT_kx3sRpN217qPwqk9s",
+  "INTERNAL_ADMIN_API_TOKEN" => "development-admin-token",
+  "GOOGLE_CLIENT_ID" => "dummy_key",
+  "SECRET_FEATURE_KEY" => "dummy_key",
+  "PAYPAL_PARTNER_CLIENT_ID" => "sb",
+}.freeze
+
+def strongbox_key
+  path = File.join(STATE, "strongbox.pem")
+  unless File.exist?(path)
+    require "openssl"
+    File.write(path, OpenSSL::PKey::RSA.generate(2048).to_pem)
+  end
+  File.read(path)
+end
+
+def arm_env(arm)
+  p = ports(arm)
+  SHARED_SECRETS.merge(
+    "STRONGBOX_GENERAL" => strongbox_key,
+    "RAILS_ENV" => "benchmark", "RACK_ENV" => "benchmark", "NODE_ENV" => "production",
+    "VITE_RUBY_MODE" => "production", "VITE_RUBY_AUTO_BUILD" => "false",
+    "RAILS_SERVE_STATIC_FILES" => "true", "RAILS_LOG_TO_STDOUT" => "true",
+    "RAILS_MAX_THREADS" => "3", "DB_POOL_SIZE" => "5", "PUMA_WORKER_PROCESSES" => "1",
+    "DISABLE_SPRING" => "1", "SKIP_NATIVE_MYSQL_RECONNECT" => "true",
+    # macOS: clustered Puma forks after Apple frameworks initialise in the parent; without this the worker aborts on its first real request.
+    "OBJC_DISABLE_INITIALIZE_FORK_SAFETY" => "YES",
+    "BENCHMARK_HOST" => "localhost", "BENCHMARK_PROTOCOL" => "http",
+    "DEV_LANE_PORT" => p[:web].to_s, "PORT" => p[:web].to_s,
+    "BENCHMARK_CACHE_NAMESPACE" => "three-arm-#{arm}", "BENCHMARK_STORAGE_SERVICE" => "benchmark",
+    "SESSION_COOKIE_DOMAIN" => "", "SESSION_COOKIE_SECURE" => "false",
+    "REVISION" => "three-arm-#{arm}", "BRANCH" => "three-arm",
+    "DATABASE_HOST" => "127.0.0.1", "DATABASE_PORT" => p[:db].to_s,
+    "DATABASE_NAME" => "gumroad_shakaperf_#{arm}", "DATABASE_USERNAME" => "root", "DATABASE_PASSWORD" => "password",
+    "USE_DB_WORKER_REPLICAS" => "false",
+    "DYNAMODB_ENDPOINT" => "http://127.0.0.1:#{p[:dynamo]}", "DYNAMODB_TABLE_PREFIX" => "benchmark_",
+    "REDIS_HOST" => "127.0.0.1:#{p[:redis]}/0", "SIDEKIQ_REDIS_HOST" => "127.0.0.1:#{p[:redis]}/1",
+    "RPUSH_REDIS_HOST" => "127.0.0.1:#{p[:redis]}/2", "RACK_ATTACK_REDIS_HOST" => "127.0.0.1:#{p[:redis]}/3",
+    "ANYCABLE_REDIS_URL" => "redis://127.0.0.1:#{p[:redis]}/5",
+    "ANYCABLE_WEBSOCKET_URL" => "ws://cable.localhost:8080/cable",
+    "MEMCACHE_SERVERS" => "127.0.0.1:#{p[:memcached]}",
+    "ELASTICSEARCH_HOST" => "http://127.0.0.1:#{p[:es]}",
+    "AWS_S3_ENDPOINT" => "http://127.0.0.1:#{p[:s3]}", "AWS_ACCESS_KEY_ID" => "minioadmin",
+    "AWS_SECRET_ACCESS_KEY" => "minioadmin", "AWS_DEFAULT_REGION" => "us-east-1",
+    "S3_DELETER_ACCESS_KEY_ID" => "minioadmin", "S3_DELETER_SECRET_ACCESS_KEY" => "minioadmin",
+    # Arm-defining toggles. A and B keep the renderer unused; A and C keep SSR off.
+    "INERTIA_SSR_ENABLED" => (arm == "B").to_s, "INERTIA_SSR_URL" => "http://127.0.0.1:#{p[:ssr]}",
+    "INERTIA_SSR_PORT" => p[:ssr].to_s,
+    "REACT_RENDERER_URL" => "http://127.0.0.1:#{p[:renderer]}", "RENDERER_PORT" => p[:renderer].to_s,
+    "RENDERER_HOST" => "127.0.0.1", "RENDERER_WORKERS_COUNT" => "1", "RENDERER_LOG_LEVEL" => "info",
+    "THREE_ARM" => arm,
+  )
+end
+
+def run!(env, *command, chdir: ROOT, log: nil)
+  puts "+ #{command.join(' ')}"
+  options = { chdir: chdir, unsetenv_others: true, exception: true }
+  options.merge!(out: log, err: log) if log
+  system(SYSTEM_ENV.merge(env), *command, **options)
+end
+
+def output!(*command, env: {})
+  out, status = Open3.capture2(SYSTEM_ENV.merge(env), *command, chdir: ROOT, unsetenv_others: true)
+  abort "Command failed: #{command.join(' ')}" unless status.success?
+  out.strip
+end
+
+def compose_command(arm)
+  project = "gumroad-3arm-#{Digest::SHA256.hexdigest(ROOT)[0, 8]}-#{arm.downcase}"
+  compose_path = File.join(STATE, "#{arm}-compose.json")
+  unless File.exist?(compose_path)
+    p = ports(arm)
+    compose = JSON.parse(output!("docker", "compose", "-f", "docker/docker-compose-local.yml", "config", "--format", "json"))
+    compose.delete("name")
+    { "db" => [3306, p[:db]], "redis" => [6379, p[:redis]], "dynamodb" => [8000, p[:dynamo]],
+      "elasticsearch" => [9200, p[:es]], "minio" => [9000, p[:s3]] }.each do |service, (target, port)|
+      compose.fetch("services").fetch(service)["ports"] = [{ "target" => target, "published" => port.to_s, "host_ip" => "127.0.0.1" }]
+    end
+    compose.fetch("services").fetch("minio")["ports"] << { "target" => 9001, "published" => p[:s3_console].to_s, "host_ip" => "127.0.0.1" }
+    # The benchmark environment uses a memcached cache store, as production does.
+    compose.fetch("services")["memcached"] = {
+      "image" => "memcached:latest",
+      "ports" => [{ "target" => 11211, "published" => p[:memcached].to_s, "host_ip" => "127.0.0.1" }],
+    }
+    compose.fetch("volumes").each_value { |volume| volume.delete("name") }
+    compose.fetch("networks").each_value { |network| network.delete("name") }
+    File.write(compose_path, JSON.pretty_generate(compose))
+  end
+  ["docker", "compose", "-p", project, "-f", compose_path]
+end
+
+def wait_for(url, pid: nil, seconds: 240)
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + seconds
+  loop do
+    abort "Process exited before readiness: #{url}" if pid && Process.waitpid(pid, Process::WNOHANG)
+    begin
+      uri = URI(url)
+      response = Net::HTTP.start(uri.host, uri.port, open_timeout: 2, read_timeout: 10) { |http| http.get(uri.request_uri) }
+      return response if response.is_a?(Net::HTTPSuccess)
+    rescue IOError, SystemCallError, Timeout::Error
+      nil
+    end
+    abort "Readiness timeout: #{url}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+    sleep 1
+  end
+end
+
+def pid_path(arm, process) = File.join(STATE, "#{arm}-#{process}.pid")
+
+def spawn_logged(arm, process, env, *command)
+  log = File.join(STATE, "#{arm}-#{process}.log")
+  pid = Process.spawn(SYSTEM_ENV.merge(env), *command, chdir: ROOT, unsetenv_others: true,
+                                              out: [log, "a"], err: [log, "a"], pgroup: true)
+  File.write(pid_path(arm, process), pid.to_s)
+  Process.detach(pid)
+  puts "started #{arm} #{process} pid=#{pid} log=#{log}"
+  pid
+end
+
+def stop_pid_file(path)
+  return unless File.exist?(path)
+
+  pid = File.read(path).to_i
+  begin
+    Process.kill("TERM", -pid)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 15
+    while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      begin
+        Process.kill(0, -pid)
+      rescue Errno::ESRCH
+        break
+      end
+      sleep 0.2
+    end
+    Process.kill("KILL", -pid) rescue Errno::ESRCH
+  rescue Errno::ESRCH, Errno::EPERM
+    nil
+  end
+  puts "stopped pid=#{pid} (#{File.basename(path)})"
+  File.delete(path)
+end
+
+def services(action)
+  selected_arms.each do |arm|
+    cmd = compose_command(arm)
+    case action
+    when "up"
+      ports(arm).values_at(:db, :redis, :dynamo, :es, :s3, :s3_console, :memcached).each do |port|
+        TCPServer.new("127.0.0.1", port).close
+      rescue Errno::EADDRINUSE
+        abort "Port #{port} is in use; refusing to start arm #{arm} services"
+      end
+      run!({}, *cmd, "up", "-d", "--wait", "db", "redis", "dynamodb", "elasticsearch", "minio", "memcached")
+      %w[createbuckets copyfixturefiles].each { |service| run!({}, *cmd, "run", "--rm", "--no-deps", service) }
+    when "down"
+      run!({}, *cmd, "down", "--volumes")
+    else
+      abort "services up|down"
+    end
+  end
+end
+
+def build
+  env = arm_env("A")
+  # js:export and generate_packs boot Rails, which needs arm A's database to be reachable.
+  run!(env, "npm", "run", "setup")
+  # The RSC client chunks and Flight hints bake an asset host at build time; only arm C serves them.
+  run!(env.merge("SHAKAPACKER_ASSET_HOST" => "http://localhost:#{ports('C')[:web]}"), "npm", "run", "build:public-rsc")
+  # The Vite build keeps a relative base so every arm serves the same files from its own asset host.
+  run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "npm", "run", "build")
+  run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "bin/vite", "build", "--ssr", "--mode", "production")
+  record_build_identity
+end
+
+def record_build_identity
+  identity = {}
+  %w[public/vite/.vite/manifest.json public/vite/.vite/manifest-assets.json public/vite-ssr/ssr.mjs
+     public/public-rsc/manifest.json ssr-generated/server-bundle.js ssr-generated/rsc-bundle.js].each do |path|
+    full = File.join(ROOT, path)
+    identity[path] = File.exist?(full) ? Digest::SHA256.file(full).hexdigest : nil
+  end
+  File.write(File.join(STATE, "build-identity.json"), JSON.pretty_generate(identity))
+  puts JSON.pretty_generate(identity)
+end
+
+def seed
+  selected_arms.each do |arm|
+    env = arm_env(arm)
+    run!(env, "bundle", "exec", "rails", "db:create", "db:schema:load")
+    run!(env, "bundle", "exec", "rails", "runner", File.join(ROOT, "scripts", "seed_shakaperf_product.rb"))
+    run!(env, "bundle", "exec", "rails", "runner", File.join(ROOT, "scripts", "three_arm_seed.rb"))
+  end
+end
+
+def servers(action)
+  case action
+  when "start"
+    selected_arms.each do |arm|
+      env = arm_env(arm)
+      p = ports(arm)
+      if arm == "B"
+        spawn_logged(arm, "ssr", env, "node", "public/vite-ssr/ssr.mjs")
+        wait_for("http://127.0.0.1:#{p[:ssr]}/health")
+      end
+      if arm == "C"
+        spawn_logged(arm, "renderer", env, "node", "client/node-renderer.cjs")
+        sleep 3
+      end
+      pid = spawn_logged(arm, "rails", env, "bundle", "exec", "rails", "server", "-b", "127.0.0.1", "-p", p[:web].to_s,
+                         "-P", File.join(STATE, "#{arm}-puma-server.pid"))
+      wait_for("http://localhost:#{p[:web]}/healthcheck", pid: pid)
+    end
+    identity
+  when "stop"
+    selected_arms.each do |arm|
+      %w[rails renderer ssr].each { |process| stop_pid_file(pid_path(arm, process)) }
+    end
+  else
+    abort "servers start|stop"
+  end
+end
+
+def product_url(arm) = "http://shakaperf.localhost:#{ports(arm)[:web]}/l/shakaperf?layout=profile&recommended_by=search"
+
+def identity
+  report = {}
+  ARMS.each_key do |arm|
+    uri = URI(product_url(arm))
+    body = nil
+    status = nil
+    headers = {}
+    begin
+      Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout: 60) do |http|
+        response = http.get(uri.request_uri)
+        status = response.code
+        body = response.body.to_s
+        headers = { "content-type" => response["content-type"], "transfer-encoding" => response["transfer-encoding"],
+                    "cache-control" => response["cache-control"], "x-request-id" => response["x-request-id"] }
+      end
+    rescue StandardError => e
+      status = e.class.name
+    end
+    report[arm] = {
+      label: ARMS.fetch(arm).fetch(:label), url: uri.to_s, status: status, headers: headers,
+      bytes: body&.bytesize,
+      data_page_component: body&.match(/data-page="([^"]*)"/)&.then { |m| CGI.unescapeHTML(m[1])[/"component":"([^"]+)"/, 1] },
+      app_root_has_children: body&.match(%r{<div id="app"[^>]*>(.*?)</div>\s*<script|<div id="app"[^>]*>(.+)}m)&.then { |m| (m[1] || m[2]).to_s.strip.length > 0 },
+      public_rsc_bootstrap: body&.include?("public_rsc_bootstrap") || false,
+      has_article: body&.include?("<article") || false,
+      inertia_ssr_head: body&.include?("inertia-ssr") || false,
+    }
+  end
+  File.write(File.join(STATE, "identity-#{Time.now.utc.strftime('%Y%m%dT%H%M%SZ')}.json"), JSON.pretty_generate(report))
+  puts JSON.pretty_generate(report)
+end
+
+def provenance
+  manifest = {
+    recorded_at: Time.now.utc.iso8601,
+    commit: output!("git", "rev-parse", "HEAD"),
+    dirty: !output!("git", "status", "--porcelain", "--untracked-files=no").empty?,
+    versions: { ruby: output!("ruby", "--version"), node: output!("node", "--version"), docker: output!("docker", "--version"),
+                kernel: output!("uname", "-sm") },
+    machine: { logical_cpus: Etc.nprocessors, uptime: output!("uptime") },
+    arms: ARMS.to_h { |arm, meta| [arm, { label: meta[:label], url: product_url(arm), ports: ports(arm),
+                                         env: arm_env(arm).reject { |k, _| k == "STRONGBOX_GENERAL" } }] },
+    build_identity: (JSON.parse(File.read(File.join(STATE, "build-identity.json"))) rescue nil),
+  }
+  File.write(File.join(STATE, "provenance.json"), JSON.pretty_generate(manifest))
+  puts File.join(STATE, "provenance.json")
+end
+
+require "cgi"
+abort "Run from the repository root" unless Dir.pwd == ROOT
+case ARGV[0]
+when "services" then services(ARGV[1])
+when "build" then build
+when "seed" then seed
+when "servers" then servers(ARGV[1])
+when "identity" then identity
+when "provenance" then provenance
+when "env" then arm_env(ARGV.fetch(1)).each { |k, v| puts "#{k}=#{v.inspect}" unless k == "STRONGBOX_GENERAL" }
+else
+  abort File.read(__FILE__).lines.grep(/^#   /).join
+end

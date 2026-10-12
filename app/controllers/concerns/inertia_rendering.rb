@@ -14,6 +14,7 @@ module InertiaRendering
     inertia_share do
       RenderingExtension.custom_context(view_context).merge(
         authenticity_token: form_authenticity_token,
+        href: request.original_url, # SSRLocationProvider needs the request URL where window.location is absent
         flash: inertia_flash_props,
         title: page_title
       )

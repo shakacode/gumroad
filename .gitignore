@@ -33,6 +33,7 @@
 /public/vite
 /public/vite-dev
 /public/vite-test
+/public/vite-ssr
 /public/public-rsc
 /vendor/bundle
 app/javascript/json_schemas
@@ -83,3 +84,4 @@ autoresearch.*
 # Baked CI test-database dump (created inside the test image at build time;
 # never committed — see docker/ci/dump_test_db.sh)
 db/prepared_test_db.sql.gz
+/tools/shakaperf/node_modules

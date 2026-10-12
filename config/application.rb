@@ -83,6 +83,7 @@ module Gumroad
     config.yjit = false
     config.active_support.cache_format_version = 7.1
     config.active_storage.variant_processor = :mini_magick
+    config.active_storage.web_image_content_types += ["image/webp"]
 
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
@@ -110,7 +111,7 @@ module Gumroad
     config.eager_load_paths += %w[./lib/errors]
     config.eager_load_paths += Dir[Rails.root.join("app", "business", "**/")]
 
-    config.middleware.insert_before(ActionDispatch::Cookies, Rack::SSL, exclude: ->(env) { env["HTTP_HOST"] != DOMAIN || Rails.env.test? || Rails.env.development? })
+    config.middleware.insert_before(ActionDispatch::Cookies, Rack::SSL, exclude: ->(env) { env["HTTP_HOST"] != DOMAIN || Rails.env.test? || Rails.env.development? || Rails.env.benchmark? })
 
     config.action_view.sanitized_allowed_tags = ["div", "p", "a", "u", "strong", "b", "em", "i", "br"]
     config.action_view.sanitized_allowed_attributes = ["href", "class", "target"]

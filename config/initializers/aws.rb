@@ -8,13 +8,15 @@ AWS_DEFAULT_REGION = GlobalConfig.get("AWS_DEFAULT_REGION", "us-east-1")
 
 USING_MINIO = AWS_S3_ENDPOINT.present? && !AWS_S3_ENDPOINT.include?("amazonaws.com")
 
-aws_config = {
-  region: AWS_DEFAULT_REGION,
-  credentials: Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
-}
+aws_config = { region: AWS_DEFAULT_REGION }
+# Control Plane uses separate credentials for DynamoDB Local and R2 storage.
+control_plane_benchmark = Rails.env.benchmark? && ENV["CONTROL_PLANE_BENCHMARK"] == "true"
+if AWS_ACCESS_KEY.present? && AWS_SECRET_KEY.present? && !control_plane_benchmark
+  aws_config[:credentials] = Aws::Credentials.new(AWS_ACCESS_KEY, AWS_SECRET_KEY)
+end
 
 # Support for MinIO in development and test environments
-if Rails.env.development? || Rails.env.test?
+if Rails.env.development? || Rails.env.test? || Rails.env.benchmark?
   aws_config[:endpoint] = AWS_S3_ENDPOINT if AWS_S3_ENDPOINT.present?
   aws_config[:ssl_verify_peer] = false if USING_MINIO
   Aws.config[:s3] = { force_path_style: true }
@@ -37,6 +39,7 @@ KINDLE_EMAIL_REGEX = /\A(?=.{3,255}$)(                                         #
 
 S3_BUCKET = {
   development: "gumroad-dev",
+  benchmark: "gumroad-dev",
   staging: "gumroad_dev",
   test: "gumroad-specs",
   production: "gumroad"
@@ -47,6 +50,7 @@ S3_BASE_URL = GlobalConfig.get("S3_BASE_URL_TEMPLATE", "#{AWS_S3_ENDPOINT}/#{S3_
 
 PUBLIC_STORAGE_S3_BUCKET = {
   development: "gumroad-dev-public-storage",
+  benchmark: "gumroad-dev-public-storage",
   staging: "gumroad-dev-public-storage",
   test: "gumroad-specs",
   production: "gumroad-public-storage"

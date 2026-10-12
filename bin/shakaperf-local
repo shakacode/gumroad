@@ -1,0 +1,171 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "digest"
+require "etc"
+require "fileutils"
+require "json"
+require "net/http"
+require "open3"
+require "socket"
+require "time"
+require "timeout"
+
+ROOT = File.expand_path("..", __dir__)
+CONTROL_SHA = "921e1d56e1685084b66cb4a532439e4b3069de4c"
+TOOL_VERSION = "0.3.1"
+TOOL_DIR = File.join(ROOT, "tools", "shakaperf")
+STATE = File.join(ROOT, "tmp", "shakaperf-local")
+SYSTEM_ENV = ENV.select { |name, _| %w[PATH HOME TMPDIR GEM_HOME GEM_PATH BUNDLE_PATH CHROME_PATH].include?(name) }.freeze
+processes = []
+projects = []
+%w[INT TERM].each { |signal| Signal.trap(signal) { raise Interrupt, signal } }
+
+def run!(env, directory, *command)
+  system(SYSTEM_ENV.merge(env), *command, chdir: directory, unsetenv_others: true, exception: true)
+end
+
+def output!(*command)
+  output, status = Open3.capture2(SYSTEM_ENV, *command, chdir: ROOT, unsetenv_others: true)
+  abort "Command failed: #{command.first}" unless status.success?
+  output.strip
+end
+
+def wait_for(url, pid)
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 180
+  loop do
+    abort "Server exited before readiness: #{url}" if Process.waitpid(pid, Process::WNOHANG)
+    begin
+      uri = URI(url)
+      response = Net::HTTP.start(uri.host, uri.port, open_timeout: 2, read_timeout: 5) { |http| http.get(uri.request_uri) }
+      return if response.is_a?(Net::HTTPSuccess)
+    rescue IOError, SystemCallError, Timeout::Error
+      # Servers can refuse connections while Rails boots.
+    end
+    abort "Readiness timeout: #{url}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+    sleep 1
+  end
+end
+
+def executable!(name)
+  path = SYSTEM_ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |directory| File.join(directory, name) }
+                   .find { |candidate| File.file?(candidate) && File.executable?(candidate) }
+  abort "Missing native build prerequisite: #{name}" unless path
+  path
+end
+
+abort "Run from the repository root" unless Dir.pwd == ROOT
+abort "Remove repository-root .env before capture; the tool eagerly loads it" if File.exist?(File.join(ROOT, ".env"))
+abort "Commit tracked changes before a campaign; both sides use clean commit snapshots" unless output!("git", "status", "--porcelain", "--untracked-files=no").empty?
+output!("node", "-e", "if (require('shaka-shared/package.json').version !== '0.3.0' || require('playwright-core/package.json').version !== '1.58.2') process.exit(1)")
+native_env = { "CC" => executable!("cc"), "CXX" => executable!("c++"), "PYTHON" => executable!("python3") }
+native_env["PYTHON"] = output!(native_env.fetch("PYTHON"), "-c", "import sys; print(sys.executable)")
+native_versions = native_env.transform_values { |path| output!(path, "--version") }
+abort "State already exists; preserve results and remove tmp/shakaperf-local before a new campaign" if File.exist?(STATE)
+FileUtils.mkdir_p(STATE)
+control_dir = File.join(STATE, "control")
+run!({}, ROOT, "git", "worktree", "add", "--detach", control_dir, CONTROL_SHA)
+experiment_dir = File.join(STATE, "experiment")
+run!({}, ROOT, "git", "worktree", "add", "--detach", experiment_dir, "HEAD")
+seed = File.join(ROOT, "scripts", "seed_shakaperf_product.rb")
+manifest = { started_at: Time.now.utc.iso8601, control_sha: CONTROL_SHA,
+             experiment_sha: output!("git", "rev-parse", "HEAD"),
+             dirty: !output!("git", "status", "--porcelain").empty?, tool_version: TOOL_VERSION,
+             mode: "Development Rails with prebuilt Vite assets; no architecture or production speedup claim",
+             sampling: "18 simultaneous pairs per viewport; paired native inference", sides: {} }
+manifest[:versions] = { ruby: output!("ruby", "--version"), node: output!("node", "--version"),
+                        docker: output!("docker", "--version"), kernel: output!("uname", "-sm") }
+manifest[:machine] = { logical_cpus: Etc.nprocessors, load_before: output!("uptime") }
+manifest[:source_diff_sha256] = Digest::SHA256.hexdigest(output!("git", "--no-pager", "diff", "--no-ext-diff", "--binary", CONTROL_SHA, "HEAD"))
+manifest[:integration_files] = {}
+%w[abtests.config.ts ab-tests/product-landing.abtest.ts bin/shakaperf-local scripts/seed_shakaperf_product.rb tools/shakaperf/package-lock.json].each do |path|
+  manifest[:integration_files][path] = Digest::SHA256.file(File.join(ROOT, path)).hexdigest
+end
+
+begin
+  [["control", control_dir, 3411, 3331, 6401, 8041, 9241, 9041],
+   ["experiment", experiment_dir, 3412, 3332, 6402, 8042, 9242, 9042]].each do |side, directory, web, db, redis, dynamo, es, s3|
+    [web, web + 100, db, redis, dynamo, es, s3, s3 + 10].each { |port| TCPServer.new("127.0.0.1", port).close }
+    project = "gumroad-s1-#{Digest::SHA256.hexdigest(ROOT)[0, 8]}-#{side}"
+    compose = JSON.parse(output!("docker", "compose", "-f", "docker/docker-compose-local.yml", "config", "--format", "json"))
+    compose.delete("name")
+    { "db" => [3306, db], "redis" => [6379, redis], "dynamodb" => [8000, dynamo], "elasticsearch" => [9200, es], "minio" => [9000, s3] }.each do |service, (target, port)|
+      compose.fetch("services").fetch(service)["ports"] = [{ "target" => target, "published" => port.to_s, "host_ip" => "127.0.0.1" }]
+    end
+    compose.fetch("services").fetch("minio")["ports"] << { "target" => 9001, "published" => (s3 + 10).to_s, "host_ip" => "127.0.0.1" }
+    compose.fetch("volumes").each_value { |volume| volume.delete("name") }
+    compose.fetch("networks").each_value { |network| network.delete("name") }
+    compose_path = File.join(STATE, "#{side}-compose.json")
+    File.write(compose_path, JSON.pretty_generate(compose))
+    compose_command = ["docker", "compose", "-p", project, "-f", compose_path]
+    projects << compose_command
+    run!({}, ROOT, *compose_command, "up", "-d", "--wait", "db", "redis", "dynamodb", "elasticsearch", "minio")
+    %w[createbuckets copyfixturefiles].each do |service|
+      run!({}, ROOT, *compose_command, "run", "--rm", "--no-deps", service)
+    end
+    env = { "RAILS_ENV" => "development", "NODE_ENV" => "production", "PROTOCOL" => "http", "DISABLE_SPRING" => "1",
+            "DATABASE_NAME" => "gumroad_shakaperf_#{side}", "DATABASE_PORT" => db.to_s,
+            "DATABASE_HOST" => "127.0.0.1", "DATABASE_USERNAME" => "root", "DATABASE_PASSWORD" => "password",
+            "DATABASE_URL" => nil, "PRIMARY_DATABASE_URL" => nil,
+            "USE_DB_WORKER_REPLICAS" => "false", "TEST_DATABASE_NAME" => "gumroad_shakaperf_test_#{side}",
+            "DEV_LANE_PORT" => web.to_s, "DYNAMODB_ENDPOINT" => "http://127.0.0.1:#{dynamo}",
+            "ELASTICSEARCH_HOST" => "http://127.0.0.1:#{es}", "AWS_S3_ENDPOINT" => "http://127.0.0.1:#{s3}",
+            "REDIS_HOST" => "127.0.0.1:#{redis}/0", "SIDEKIQ_REDIS_HOST" => "127.0.0.1:#{redis}/1",
+            "RPUSH_REDIS_HOST" => "127.0.0.1:#{redis}/2", "RACK_ATTACK_REDIS_HOST" => "127.0.0.1:#{redis}/3",
+            "VITE_RUBY_AUTO_BUILD" => "false", "VITE_RUBY_MODE" => "production",
+            "VITE_RUBY_ASSET_HOST" => "http://shakaperf.localhost:#{web}" }
+    env.merge!("VITE_RUBY_HOST" => "127.0.0.1", "VITE_RUBY_PORT" => (web + 100).to_s,
+               "ASSET_DOMAIN" => "shakaperf.localhost:#{web}")
+    run!(env, directory, "npm", "ci", "--include=dev")
+    run!(env, directory, "bundle", "exec", "rails", "db:create", "db:schema:load")
+    run!(env, directory, "bundle", "exec", "rails", "runner", seed)
+    run!(env, directory, "bundle", "exec", "rails", "js:export")
+    run!(env.merge("RAILS_ENV" => "production"), directory, "npm", "run", "build")
+    log = File.join(STATE, "#{side}-rails.log")
+    processes << Process.spawn(SYSTEM_ENV.merge(env), "bundle", "exec", "rails", "server", "-b", "127.0.0.1", "-p", web.to_s,
+                               "-P", File.join(STATE, "#{side}.pid"), chdir: directory, unsetenv_others: true, out: log, err: log, pgroup: true)
+    wait_for("http://localhost:#{web}/healthcheck", processes.last)
+    manifest[:sides][side] = { url: "http://localhost:#{web}", environment: env, compose_project: project }
+  end
+  File.write(File.join(STATE, "provenance.json"), JSON.pretty_generate(manifest))
+  run!({}, ROOT, "npm", "ci", "--ignore-scripts", "--prefix", TOOL_DIR)
+  package = File.join(TOOL_DIR, "node_modules", "shaka-perf", "package.json")
+  abort "Unexpected ShakaPerf version" unless JSON.parse(File.read(package)).fetch("version") == TOOL_VERSION
+  package_directory = File.dirname(package)
+  run!(native_env, package_directory, "node", File.join(package_directory, "node_modules/node-gyp/bin/node-gyp.js"), "rebuild")
+  output!("node", "-e", "require(process.argv[1]).socketpair().forEach(fd => require('fs').closeSync(fd))",
+          File.join(package_directory, "build/Release/shaka_perf_socketpair.node"))
+  native_sources = {}
+  %w[binding.gyp native/socketpair.cpp].each { |path| native_sources[path] = Digest::SHA256.file(File.join(package_directory, path)).hexdigest }
+  manifest[:native_build] = { node_gyp: JSON.parse(File.read(File.join(package_directory, "node_modules/node-gyp/package.json"))).fetch("version"),
+                              selected_tools: native_env, versions: native_versions,
+                              sources: native_sources,
+                              binary_sha256: Digest::SHA256.file(File.join(package_directory, "build/Release/shaka_perf_socketpair.node")).hexdigest }
+  manifest[:tool_dependencies] = JSON.parse(output!("node", "-e", <<~JS, package))
+    const req = require("module").createRequire(process.argv[1]);
+    console.log(JSON.stringify(Object.fromEntries(["playwright", "playwright-core", "lighthouse", "shaka-shared"].map(name => [name, req(name + "/package.json").version]))));
+  JS
+  File.write(File.join(STATE, "provenance.json"), JSON.pretty_generate(manifest))
+  measurement_started = Time.now.utc
+  run!({}, ROOT, File.join(TOOL_DIR, "node_modules", ".bin", "shaka-perf"), "compare", "--filter", "ab-tests/product-landing.abtest.ts")
+ensure
+  processes.each do |pid|
+    Process.kill("TERM", -pid)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
+    until Process.waitpid(pid, Process::WNOHANG)
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        Process.kill("KILL", -pid)
+        Process.waitpid(pid)
+        break
+      end
+      sleep 0.1
+    end
+  rescue Errno::ESRCH, Errno::ECHILD
+    nil
+  end
+  projects.reverse_each { |command| system(SYSTEM_ENV, *command, "down", "--volumes", chdir: ROOT, unsetenv_others: true) }
+  manifest[:finished_at] = Time.now.utc.iso8601
+  manifest[:comparison_seconds] = Time.now.utc - measurement_started if measurement_started
+  manifest[:machine][:load_after] = output!("uptime")
+  File.write(File.join(STATE, "provenance.json"), JSON.pretty_generate(manifest))
+end

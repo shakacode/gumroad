@@ -62,7 +62,7 @@ function sanitizeChunkName(name: string) {
   return BLOCKABLE_NAME_PATTERNS.some((pattern) => pattern.test(name)) ? "third_party_tracking" : name;
 }
 
-export default defineConfig(() => ({
+export default defineConfig(({ isSsrBuild }) => ({
   plugins: [
     RubyPlugin(),
     excludePublicRscEntrypoints(),
@@ -95,14 +95,22 @@ export default defineConfig(() => ({
   ],
   resolve: {
     alias: {
+      // The SSR server has no window; see app/javascript/ssr/stubs/activestorage.ts.
+      ...(isSsrBuild ? { "@rails/activestorage": path.join(rootPath, "app/javascript/ssr/stubs/activestorage.ts") } : {}),
       $app: path.join(rootPath, "app/javascript"),
       $assets: path.join(rootPath, "public"),
       $vendor: path.join(rootPath, "vendor/assets/javascripts"),
       jwplayer: path.join(rootPath, "vendor/assets/components/jwplayer-7.12.13/jwplayer"),
     },
   },
+  ssr: {
+    // CommonJS-only packages the SSR entry imports by name; Node cannot load them as ESM externals.
+    noExternal: ["react-sortablejs", "react-media-recorder", "braintree-web", "classnames", "clipboard"],
+  },
   define: {
-    SSR: false,
+    // `bin/vite build --ssr` compiles app/javascript/ssr/ssr.tsx for Node; the
+    // browser build keeps SSR false.
+    SSR: Boolean(isSsrBuild),
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "test"),
     "process.env.RAILS_ENV": JSON.stringify(process.env.RAILS_ENV || "test"),
     "process.env.PROTOCOL": JSON.stringify(process.env.PROTOCOL || "https"),
@@ -118,8 +126,10 @@ export default defineConfig(() => ({
         // [name]-[hash] keeps filenames readable in devtools / logs.
         // sanitizeChunkName strips tracker-like words (see above) so client-side
         // blockers can't take a page down by refusing one of its static imports.
-        chunkFileNames: (chunkInfo) => `assets/${sanitizeChunkName(chunkInfo.name)}-[hash].js`,
-        entryFileNames: "assets/[name]-[hash].js",
+        // The SSR build is run by Node from public/vite-ssr/ssr.mjs (`bin/vite ssr`); the
+        // package is CommonJS, so the ESM output needs the .mjs extension.
+        chunkFileNames: (chunkInfo) => `assets/${sanitizeChunkName(chunkInfo.name)}-[hash].${isSsrBuild ? "mjs" : "js"}`,
+        entryFileNames: isSsrBuild ? "[name].mjs" : "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
       },
     },

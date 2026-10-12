@@ -18,6 +18,7 @@
   <% if @product_rsc_document_props %>
     <%= erb_meta_tags(inertia_managed: false) %>
   <% else %>
-    <%= inertia_rendering? ? inertia_meta_tags : erb_meta_tags %>
+    <%# Inertia SSR returns the rendered <Head> (meta tags, title) separately; without SSR the server helper emits them. %>
+    <%= inertia_rendering? ? (inertia_ssr_head.presence || inertia_meta_tags) : erb_meta_tags %>
   <% end %>
 </head>

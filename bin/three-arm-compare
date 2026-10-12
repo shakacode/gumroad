@@ -1,0 +1,91 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Run one ShakaPerf paired comparison between two arms started by bin/three-arm.
+#
+#   bin/three-arm-compare <control-arm> <experiment-arm> <label>
+#
+# Records host load and per-arm identity, warms both arms with three loads of the
+# measured URL, runs `shaka-perf compare` with the two arm origins, then files the
+# native compare-results directory and a campaign manifest under
+# tmp/three-arm/campaigns/<label>-<timestamp>/. Nothing here changes an arm.
+
+require "digest"
+require "fileutils"
+require "json"
+require "net/http"
+require "open3"
+require "time"
+
+ROOT = File.expand_path("..", __dir__)
+STATE = File.join(ROOT, "tmp", "three-arm")
+TOOL = File.join(ROOT, "tools", "shakaperf", "node_modules", ".bin", "shaka-perf")
+SYSTEM_ENV = ENV.select { |name, _| %w[PATH HOME TMPDIR LANG GEM_HOME GEM_PATH BUNDLE_PATH CHROME_PATH].include?(name) }
+                .merge("LANG" => "C.UTF-8").freeze
+
+control, experiment, label = ARGV
+abort "Usage: bin/three-arm-compare <control-arm> <experiment-arm> <label>" unless %w[A B C].include?(control) && %w[A B C].include?(experiment) && label.to_s.match?(/\A[a-z0-9-]+\z/)
+abort "Run from the repository root" unless Dir.pwd == ROOT
+abort "Remove repository-root .env before capture; the tool eagerly loads it" if File.exist?(File.join(ROOT, ".env"))
+
+def output!(*command, env: {})
+  out, status = Open3.capture2(SYSTEM_ENV.merge(env), *command, chdir: ROOT, unsetenv_others: true)
+  abort "Command failed: #{command.join(' ')}" unless status.success?
+  out.strip
+end
+
+def port(arm) = 3420 + { "A" => 1, "B" => 2, "C" => 3 }.fetch(arm)
+def url(arm) = "http://shakaperf.localhost:#{port(arm)}/l/shakaperf?layout=profile&recommended_by=search"
+
+def fetch(uri_string)
+  uri = URI(uri_string)
+  started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  response = Net::HTTP.start(uri.host, uri.port, open_timeout: 5, read_timeout: 90) { |http| http.get(uri.request_uri) }
+  { status: response.code, bytes: response.body.to_s.bytesize,
+    seconds: (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3) }
+end
+
+stamp = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
+campaign_dir = File.join(STATE, "campaigns", "#{label}-#{stamp}")
+FileUtils.mkdir_p(campaign_dir)
+results_dir = File.join(ROOT, "compare-results")
+abort "compare-results already exists; file it before a new campaign" if File.exist?(results_dir)
+
+manifest = {
+  label: label, control_arm: control, experiment_arm: experiment,
+  control_url: url(control), experiment_url: url(experiment),
+  started_at: Time.now.utc.iso8601,
+  commit: output!("git", "rev-parse", "HEAD"),
+  dirty: !output!("git", "status", "--porcelain", "--untracked-files=no").empty?,
+  tool_version: JSON.parse(File.read(File.join(ROOT, "tools/shakaperf/node_modules/shaka-perf/package.json"))).fetch("version"),
+  host_before: { uptime: output!("uptime"),
+                 top: output!("ps", "-eo", "pcpu,pmem,comm", "-r").lines[1, 12].map(&:strip) },
+  build_identity: (JSON.parse(File.read(File.join(STATE, "build-identity.json"))) rescue nil),
+  scenario_sha256: Digest::SHA256.file(File.join(ROOT, "ab-tests/product-landing.abtest.ts")).hexdigest,
+  config_sha256: Digest::SHA256.file(File.join(ROOT, "abtests.config.ts")).hexdigest,
+  warmup: {},
+}
+
+# Identity check through bin/three-arm, retained with the campaign.
+system(SYSTEM_ENV, "bin/three-arm", "identity", chdir: ROOT, unsetenv_others: true, out: File.join(campaign_dir, "identity.json"))
+
+[control, experiment].uniq.each do |arm|
+  manifest[:warmup][arm] = 3.times.map { fetch(url(arm)) }
+end
+File.write(File.join(campaign_dir, "manifest.json"), JSON.pretty_generate(manifest))
+puts JSON.pretty_generate(manifest.slice(:label, :control_arm, :experiment_arm, :host_before, :warmup))
+
+compare_env = { "SHAKAPERF_CONTROL_URL" => "http://shakaperf.localhost:#{port(control)}",
+                "SHAKAPERF_EXPERIMENT_URL" => "http://shakaperf.localhost:#{port(experiment)}" }
+measurement_started = Time.now.utc
+status = system(SYSTEM_ENV.merge(compare_env), TOOL, "compare", "--filter", "ab-tests/product-landing.abtest.ts",
+                chdir: ROOT, unsetenv_others: true)
+manifest[:compare_exit_status] = $?.exitstatus
+manifest[:compare_started_at] = measurement_started.iso8601
+manifest[:finished_at] = Time.now.utc.iso8601
+manifest[:comparison_seconds] = (Time.now.utc - measurement_started).round(1)
+manifest[:host_after] = { uptime: output!("uptime") }
+FileUtils.mv(results_dir, File.join(campaign_dir, "compare-results")) if File.exist?(results_dir)
+File.write(File.join(campaign_dir, "manifest.json"), JSON.pretty_generate(manifest))
+puts "campaign filed at #{campaign_dir} (compare exit #{manifest[:compare_exit_status]}, #{manifest[:comparison_seconds]} s)"
+exit(status ? 0 : 1)

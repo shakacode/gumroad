@@ -1,6 +1,6 @@
 import { createInertiaApp, router } from "@inertiajs/react";
 import { createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 
 import AppWrapper from "../inertia/app_wrapper.tsx";
 import Layout, { PublicLayout, LoggedInUserLayout } from "../inertia/layout.tsx";
@@ -165,8 +165,14 @@ createInertiaApp({
     const global = props.initialPage.props;
     syncRequestCsrfToken(global.authenticity_token);
 
-    const root = createRoot(el);
-    root.render(createElement(AppWrapper, { global }, createElement(App, props)));
+    // Server-rendered documents (Inertia SSR) arrive with markup inside the root;
+    // hydrate it instead of discarding it. Client-rendered documents are unchanged.
+    const tree = createElement(AppWrapper, { global }, createElement(App, props));
+    if (el.hasChildNodes()) {
+      hydrateRoot(el, tree);
+    } else {
+      createRoot(el).render(tree);
+    }
     installFileDropNavigationGuard();
   },
 });

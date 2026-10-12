@@ -1,7 +1,8 @@
 {
   "all": {
     "sourceCodeDir": "app/javascript",
-    "skipCompatibilityCheck": true
+    "skipCompatibilityCheck": true,
+    "ssrBuildEnabled": true
   },
   "development": {
     "autoBuild": true,
@@ -12,6 +13,10 @@
     "autoBuild": true,
     "publicOutputDir": "vite-test",
     "port": 3037
+  },
+  "benchmark": {
+    "autoBuild": false,
+    "publicOutputDir": "vite"
   },
   "staging": {
     "assetHost": "https://staging-assets.gumroad.com",
