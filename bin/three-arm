@@ -3,19 +3,26 @@
 
 # Local three-arm product page comparison harness.
 #
-# One checkout, one build, three Rails servers in the benchmark environment:
+# One commit, one build per arm, one Rails server per arm in the benchmark
+# environment:
 #   A  current Inertia page, client rendered
 #   B  the same page with Inertia SSR enabled (Node SSR server)
 #   C  Pro streaming with RSC (seller flag on, Pro Node renderer)
+#   D  twin of A, for A/A calibration
 #
-# Each arm gets its own Docker service stack (MySQL, Redis, DynamoDB,
-# Elasticsearch, MinIO, memcached) seeded identically. Arms differ only by the
-# runtime toggles that define them. ShakaPerf `compare` then runs against two
-# arms at a time. See docs/shakaperf.md for the original single-pair launcher.
+# Each arm is a detached git worktree of the same commit under
+# tmp/three-arm/src/<arm>, built with its own origin (rails js:export bakes the
+# application domain into utils/routes.js, so a shared build would send every
+# arm's client-side absolute URLs to one arm). Each arm gets its own Docker
+# service stack (MySQL, Redis, DynamoDB, Elasticsearch, MinIO, memcached)
+# seeded identically. Arms differ only by their origin and the runtime toggles
+# that define them. ShakaPerf `compare` then runs against two arms at a time.
+# See docs/shakaperf.md for the original single-pair launcher.
 #
-# Usage:
-#   bin/three-arm services up|down        start or remove all three service stacks
-#   bin/three-arm build                   shared build (needs arm A services for js:export)
+# Usage (an optional arm list after the action limits it, e.g. `seed D`):
+#   bin/three-arm services up|down        start or remove the service stacks
+#   bin/three-arm prepare                 create each arm's worktree at HEAD and npm ci
+#   bin/three-arm build                   build each arm (needs its services for js:export)
 #   bin/three-arm seed                    create and seed each arm's database
 #   bin/three-arm servers start|stop      start or stop Rails, SSR and renderer processes
 #   bin/three-arm identity                show which rendering path each arm serves
@@ -48,7 +55,8 @@ ARMS = {
 
 # Optional arm list after the action, e.g. `bin/three-arm seed D`; default is every arm.
 def selected_arms
-  requested = ARGV[2..] || []
+  # services and servers take an action word first; the other commands take arms directly.
+  requested = ARGV[(%w[services servers].include?(ARGV[0]) ? 2 : 1)..] || []
   return ARMS.keys if requested.empty?
 
   requested.each { |arm| abort "Unknown arm #{arm}" unless ARMS.key?(arm) }
@@ -60,6 +68,9 @@ def ports(arm)
   { web: 3420 + i, db: 3340 + i, redis: 6410 + i, dynamo: 8050 + i, es: 9250 + i,
     s3: 9060 + i, s3_console: 9070 + i, memcached: 11230 + i, ssr: 13730 + i, renderer: 3820 + i }
 end
+
+# Each arm's detached worktree of the same commit.
+def src(arm) = File.join(STATE, "src", arm)
 
 # Fixed local-only values, identical for every arm. None of these is a real secret.
 SHARED_SECRETS = {
@@ -182,7 +193,7 @@ def pid_path(arm, process) = File.join(STATE, "#{arm}-#{process}.pid")
 
 def spawn_logged(arm, process, env, *command)
   log = File.join(STATE, "#{arm}-#{process}.log")
-  pid = Process.spawn(SYSTEM_ENV.merge(env), *command, chdir: ROOT, unsetenv_others: true,
+  pid = Process.spawn(SYSTEM_ENV.merge(env), *command, chdir: src(arm), unsetenv_others: true,
                                               out: [log, "a"], err: [log, "a"], pgroup: true)
   File.write(pid_path(arm, process), pid.to_s)
   Process.detach(pid)
@@ -233,35 +244,62 @@ def services(action)
   end
 end
 
-def build
-  env = arm_env("A")
-  # js:export and generate_packs boot Rails, which needs arm A's database to be reachable.
-  run!(env, "npm", "run", "setup")
-  # The RSC client chunks and Flight hints bake an asset host at build time; only arm C serves them.
-  run!(env.merge("SHAKAPACKER_ASSET_HOST" => "http://localhost:#{ports('C')[:web]}"), "npm", "run", "build:public-rsc")
-  # The Vite build keeps a relative base so every arm serves the same files from its own asset host.
-  run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "npm", "run", "build")
-  run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "bin/vite", "build", "--ssr", "--mode", "production")
-  record_build_identity
+def prepare
+  abort "Commit tracked changes first; every arm is a worktree of HEAD" unless output!("git", "status", "--porcelain", "--untracked-files=no").empty?
+  head = output!("git", "rev-parse", "HEAD")
+  selected_arms.each do |arm|
+    dir = src(arm)
+    if File.exist?(File.join(dir, ".git"))
+      at = output!("git", "-C", dir, "rev-parse", "HEAD")
+      abort "Arm #{arm} worktree is at #{at}, not HEAD #{head}; remove it first" unless at == head
+    else
+      FileUtils.mkdir_p(File.dirname(dir))
+      run!({}, "git", "worktree", "add", "--detach", dir, head)
+    end
+    run!({ "NODE_ENV" => "development" }, "npm", "ci", "--include=dev", chdir: dir)
+  end
 end
 
-def record_build_identity
-  identity = {}
-  %w[public/vite/.vite/manifest.json public/vite/.vite/manifest-assets.json public/vite-ssr/ssr.mjs
-     public/public-rsc/manifest.json ssr-generated/server-bundle.js ssr-generated/rsc-bundle.js].each do |path|
-    full = File.join(ROOT, path)
-    identity[path] = File.exist?(full) ? Digest::SHA256.file(full).hexdigest : nil
+def build
+  selected_arms.each do |arm|
+    env = arm_env(arm)
+    dir = src(arm)
+    # js:export and generate_packs boot Rails, which needs this arm's database to be reachable.
+    # They also bake this arm's origin into utils/routes.js, which is why each arm builds itself.
+    run!(env, "npm", "run", "setup", chdir: dir)
+    # The RSC client chunks and Flight hints bake an asset host at build time.
+    run!(env.merge("SHAKAPACKER_ASSET_HOST" => "http://localhost:#{ports(arm)[:web]}"), "npm", "run", "build:public-rsc", chdir: dir)
+    # The Vite build keeps a relative base; Rails adds the arm's asset host to the tags.
+    run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "npm", "run", "build", chdir: dir)
+    run!(env.merge("VITE_RUBY_ASSET_HOST" => ""), "bin/vite", "build", "--ssr", "--mode", "production", chdir: dir)
+    record_build_identity(arm)
   end
-  File.write(File.join(STATE, "build-identity.json"), JSON.pretty_generate(identity))
+end
+
+BUILD_IDENTITY_PATHS = %w[app/javascript/utils/routes.js public/vite/.vite/manifest.json public/vite/.vite/manifest-assets.json
+                          public/vite-ssr/ssr.mjs public/public-rsc/manifest.json ssr-generated/server-bundle.js
+                          ssr-generated/rsc-bundle.js].freeze
+
+def record_build_identity(arm)
+  dir = src(arm)
+  identity = { commit: output!("git", "-C", dir, "rev-parse", "HEAD"), files: {} }
+  BUILD_IDENTITY_PATHS.each do |path|
+    full = File.join(dir, path)
+    identity[:files][path] = File.exist?(full) ? { sha256: Digest::SHA256.file(full).hexdigest, bytes: File.size(full) } : nil
+  end
+  File.write(File.join(STATE, "build-identity-#{arm}.json"), JSON.pretty_generate(identity))
   puts JSON.pretty_generate(identity)
 end
 
 def seed
   selected_arms.each do |arm|
     env = arm_env(arm)
-    run!(env, "bundle", "exec", "rails", "db:create", "db:schema:load")
-    run!(env, "bundle", "exec", "rails", "runner", File.join(ROOT, "scripts", "seed_shakaperf_product.rb"))
-    run!(env, "bundle", "exec", "rails", "runner", File.join(ROOT, "scripts", "three_arm_seed.rb"))
+    dir = src(arm)
+    # Two commands: a combined `db:create db:schema:load` failed before the database existed.
+    run!(env, "bundle", "exec", "rails", "db:create", chdir: dir)
+    run!(env, "bundle", "exec", "rails", "db:schema:load", chdir: dir)
+    run!(env, "bundle", "exec", "rails", "runner", File.join(dir, "scripts", "seed_shakaperf_product.rb"), chdir: dir)
+    run!(env, "bundle", "exec", "rails", "runner", File.join(dir, "scripts", "three_arm_seed.rb"), chdir: dir)
   end
 end
 
@@ -335,9 +373,9 @@ def provenance
     versions: { ruby: output!("ruby", "--version"), node: output!("node", "--version"), docker: output!("docker", "--version"),
                 kernel: output!("uname", "-sm") },
     machine: { logical_cpus: Etc.nprocessors, uptime: output!("uptime") },
-    arms: ARMS.to_h { |arm, meta| [arm, { label: meta[:label], url: product_url(arm), ports: ports(arm),
-                                         env: arm_env(arm).reject { |k, _| k == "STRONGBOX_GENERAL" } }] },
-    build_identity: (JSON.parse(File.read(File.join(STATE, "build-identity.json"))) rescue nil),
+    arms: ARMS.to_h { |arm, meta| [arm, { label: meta[:label], url: product_url(arm), ports: ports(arm), worktree: src(arm),
+                                         env: arm_env(arm).reject { |k, _| k == "STRONGBOX_GENERAL" },
+                                         build_identity: (JSON.parse(File.read(File.join(STATE, "build-identity-#{arm}.json"))) rescue nil) }] },
   }
   File.write(File.join(STATE, "provenance.json"), JSON.pretty_generate(manifest))
   puts File.join(STATE, "provenance.json")
@@ -347,6 +385,7 @@ require "cgi"
 abort "Run from the repository root" unless Dir.pwd == ROOT
 case ARGV[0]
 when "services" then services(ARGV[1])
+when "prepare" then prepare
 when "build" then build
 when "seed" then seed
 when "servers" then servers(ARGV[1])
