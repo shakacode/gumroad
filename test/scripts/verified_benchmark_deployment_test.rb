@@ -21,7 +21,8 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     git("remote", "add", "origin", "https://github.com/shakacode/gumroad.git")
     %w[.agents/bin/setup .agents/bin/test .agents/bin/validate .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore
        .controlplane/controlplane.yml .controlplane/release_script.sh .controlplane/entrypoint.sh
-       config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb].each do |path|
+       config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb
+       scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb].each do |path|
       FileUtils.mkdir_p(File.dirname("#{@root}/#{path}"))
       File.write("#{@root}/#{path}", "fixture\n")
     end

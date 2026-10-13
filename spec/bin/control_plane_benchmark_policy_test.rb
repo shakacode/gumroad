@@ -34,6 +34,37 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
     end
   end
 
+  def test_public_benchmark_enforces_tls_on_root_seller_api_and_instance_hosts
+    result = probe(environment: "benchmark", public_benchmark: "true")
+    result.fetch("tls").each do |row|
+      assert_equal 301, row.fetch("http_status"), row.fetch("host")
+      assert_equal "https://#{row.fetch('host')}/l/bgfjk?layout=profile", row.fetch("location")
+      assert_equal 307, row.fetch("post_status")
+      assert_equal 200, row.fetch("https_status")
+      assert_equal "max-age=31536000", row.fetch("hsts")
+      assert_includes row.fetch("cookie"), "; secure"
+    end
+  end
+
+  def test_local_harness_remains_http_and_ordinary_tls_behavior_is_preserved
+    [nil, "false"].each do |public_benchmark|
+      probe(environment: "benchmark", public_benchmark:).fetch("tls").each do |row|
+        assert_equal 200, row.fetch("http_status")
+        assert_nil row.fetch("hsts")
+      end
+    end
+    %w[production staging].each do |environment|
+      rows = probe(environment:).fetch("tls")
+      assert_equal 301, rows.first.fetch("http_status")
+      assert_equal "max-age=31536000", rows.first.fetch("hsts")
+      assert_equal 200, rows[1].fetch("http_status")
+      assert_nil rows[1].fetch("hsts")
+    end
+    %w[development test].each do |environment|
+      assert_equal 200, probe(environment:).fetch("tls").first.fetch("http_status")
+    end
+  end
+
   private
     def probe(environment:, public_benchmark: nil)
       @probes ||= {}
@@ -60,8 +91,27 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
           app.call(Rack::MockRequest.env_for("https://benchmark.example.com/",
             "REMOTE_ADDR" => "198.51.100.1")).first
         end
+        options = nil
+        recorder = Object.new
+        recorder.define_singleton_method(:insert_before) do |anchor, middleware, *args|
+          options = args.first if middleware == Rack::SSL
+        end
+        recorder.define_singleton_method(:method_missing) { |*| nil }
+        Rails.application.config.middleware.merge_into(recorder)
+        raise "Rack::SSL options missing" unless options
+        ssl = Rack::SSL.new(->(_) { [200, { "Set-Cookie" => "session=fixture" }, ["ok"]] }, options)
+        hosts = [DOMAIN, "luisfurushio.gumroad-rorp.reactonrails.com", "api.gumroad-rorp.reactonrails.com",
+          "rails-qaxqqpc4ry8hw.cpln.app", "rails-gumroad-rorp.aws-us-east-2.cpln.app"]
+        tls = hosts.map do |host|
+          url = "http://\#{host}/l/bgfjk?layout=profile"
+          http = ssl.call(Rack::MockRequest.env_for(url, "HTTP_HOST" => host))
+          post = ssl.call(Rack::MockRequest.env_for(url, "HTTP_HOST" => host, method: "POST"))
+          https = ssl.call(Rack::MockRequest.env_for(url, "HTTP_HOST" => host, "HTTP_X_FORWARDED_PROTO" => "https"))
+          { host: host, http_status: http.first, location: http[1]["Location"], post_status: post.first,
+            https_status: https.first, hsts: https[1]["Strict-Transport-Security"], cookie: https[1]["Set-Cookie"] }
+        end
         puts JSON.generate(types: Rails.application.config.active_storage.web_image_content_types,
-          successes: statuses.count(200), last_status: statuses.last)
+          successes: statuses.count(200), last_status: statuses.last, tls: tls)
       RUBY
       output, error, status = Open3.capture3(
         { "RAILS_ENV" => environment, "RACK_ENV" => environment,
@@ -69,7 +119,9 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
           "RAILS_MASTER_KEY" => nil, "DISABLE_TEST_REDIS_ISOLATION" => "true",
           "REDIS_HOST" => "127.0.0.1:1/0", "RACK_ATTACK_REDIS_HOST" => "127.0.0.1:1/0",
           "MEMCACHE_SERVERS" => "127.0.0.1:1", "REVISION" => "policy-test",
-          "BRANCH_DEPLOYMENT" => nil, "CUSTOM_DOMAIN" => nil, "CUSTOM_PROTOCOL" => nil },
+          "BRANCH_DEPLOYMENT" => nil,
+          "CUSTOM_DOMAIN" => environment == "benchmark" && public_benchmark == "true" ? "gumroad-rorp.reactonrails.com" : nil,
+          "CUSTOM_PROTOCOL" => nil },
         RbConfig.ruby, "-e", script, chdir: ROOT
       )
       assert status.success?, error

@@ -6,6 +6,7 @@ require "json"
 
 class ConfigureControlPlaneProductPageTest < Minitest::Test
   SCRIPT = File.expand_path("../../scripts/configure_control_plane_product_page.rb", __dir__)
+  PREFLIGHT = File.expand_path("../../scripts/verify_control_plane_product_page.rb", __dir__)
   HARNESS = <<~'CODE'
     require "json"
     require "ostruct"
@@ -30,26 +31,56 @@ class ConfigureControlPlaneProductPageTest < Minitest::Test
     when "global" then Feature.activate(flag)
     when "other" then Feature.activate_user(flag, OTHER)
     when "percentage" then Feature.activate_percentage(flag, 50)
+    when "time" then Flipper[flag].enable_percentage_of_time(10)
+    when "group" then Flipper[flag].enable_group(:unexpected)
+    when "expression" then Flipper[flag].enable_expression(Flipper::Expression.build({"Equal" => ["a", "a"]}))
     when "seller" then Feature.activate_user(flag, SELLER)
     end
+    before = JSON.generate(Flipper.adapter.get_all)
     begin
       load ARGV.fetch(0)
     ensure
       values = Flipper[flag].gate_values
       puts JSON.generate(global: values.boolean, actors: values.actors.to_a.sort,
         percentage: values.percentage_of_actors, seller: Feature.active?(flag, SELLER),
-        other: Feature.active?(flag, OTHER), unrelated: Feature.active?(:unrelated, OTHER))
+        other: Feature.active?(flag, OTHER), unrelated: Feature.active?(:unrelated, OTHER),
+        before: before, after: JSON.generate(Flipper.adapter.get_all))
     end
   CODE
 
-  def run_script(overrides = {})
+  def run_script(overrides = {}, script: SCRIPT)
     env = {
       "TEST_BENCHMARK" => "true", "CONTROL_PLANE_BENCHMARK" => "true",
       "CPLN_GVC" => "gumroad-rorp", "GUMROAD_RENDERING_SURFACE" => "rorp",
       "TEST_MISSING_PRODUCT" => "false", "TEST_GATE" => "", "TEST_SELLER" => "luisfurushio",
     }.merge(overrides)
-    output, error, status = Open3.capture3(env, RbConfig.ruby, "-e", HARNESS, SCRIPT)
+    output, error, status = Open3.capture3(env, RbConfig.ruby, "-e", HARNESS, script)
+    raise error if output.lines.empty?
     [JSON.parse(output.lines.last), error, status]
+  end
+
+  def test_preflight_checks_both_surfaces_without_changing_seller_or_unrelated_flags
+    %w[inertia rorp].each do |surface|
+      ["", "seller"].each do |gate|
+        state, error, status = run_script({ "CPLN_GVC" => "gumroad-#{surface}", "GUMROAD_RENDERING_SURFACE" => surface, "TEST_GATE" => gate }, script: PREFLIGHT)
+        assert status.success?, error
+        assert_equal gate == "seller" ? ["User:1"] : [], state.fetch("actors")
+        assert_equal false, state.fetch("global")
+        assert state.fetch("unrelated")
+        assert_equal state.fetch("before"), state.fetch("after")
+      end
+    end
+  end
+
+  def test_preflight_rejects_every_conflicting_gate_and_missing_or_wrong_fixture
+    overrides = %w[global other percentage time group expression].map { |gate| { "TEST_GATE" => gate } } +
+      [{ "TEST_MISSING_PRODUCT" => "true" }, { "TEST_SELLER" => "unexpected" }, { "CONTROL_PLANE_BENCHMARK" => "false" }]
+    overrides.each do |override|
+      state, _error, status = run_script(override, script: PREFLIGHT)
+      assert_equal false, status.success?, override.inspect
+      assert state.fetch("unrelated")
+      assert_equal state.fetch("before"), state.fetch("after")
+    end
   end
 
   def test_enables_only_the_expected_seller_and_preserves_unrelated_features
@@ -63,7 +94,7 @@ class ConfigureControlPlaneProductPageTest < Minitest::Test
   end
 
   def test_inertia_removes_only_the_test_seller_gate
-    state, error, status = run_script("CPLN_GVC" => "gumroad-inertia", "GUMROAD_RENDERING_SURFACE" => "inertia", "TEST_GATE" => "seller")
+    state, error, status = run_script({ "CPLN_GVC" => "gumroad-inertia", "GUMROAD_RENDERING_SURFACE" => "inertia", "TEST_GATE" => "seller" })
     assert status.success?, error
     assert_empty state.fetch("actors")
     assert_equal false, state.fetch("seller")
@@ -72,7 +103,7 @@ class ConfigureControlPlaneProductPageTest < Minitest::Test
 
   def test_rejects_broad_or_other_seller_gates_without_clearing_them
     %w[global other percentage].each do |gate|
-      state, error, status = run_script("TEST_GATE" => gate)
+      state, error, status = run_script({ "TEST_GATE" => gate })
       assert_equal false, status.success?, gate
       assert_includes error, "Existing product-page gates"
       assert state.fetch("unrelated")
@@ -83,7 +114,7 @@ class ConfigureControlPlaneProductPageTest < Minitest::Test
   end
 
   def test_rejects_a_product_owned_by_the_wrong_seller
-    state, error, status = run_script("TEST_SELLER" => "unexpected")
+    state, error, status = run_script({ "TEST_SELLER" => "unexpected" })
     assert_equal false, status.success?
     assert_includes error, "Expected seller luisfurushio"
     assert_empty state.fetch("actors")

@@ -51,6 +51,9 @@ wait_for_tcp "elasticsearch.${app_name}.cpln.local" 9200 elasticsearch
 
 [ -x ./bin/rails ] || error_exit "./bin/rails does not exist or is not executable"
 
+log "Checking product-page gates before release writes"
+./bin/rails runner scripts/verify_control_plane_product_page.rb || error_exit "Product-page preflight failed; no release writes performed"
+
 log "Preparing the benchmark database"
 ./bin/rails db:prepare || error_exit "Database preparation failed"
 

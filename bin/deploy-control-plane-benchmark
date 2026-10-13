@@ -15,7 +15,8 @@ class VerifiedBenchmarkDeployment
   WORKLOADS = %w[rails sidekiq renderer].freeze
   REQUIRED_FILES = %w[.agents/bin/setup .agents/bin/test .agents/bin/validate
                       .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore .controlplane/controlplane.yml .controlplane/release_script.sh
-                      .controlplane/entrypoint.sh config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb].freeze
+                      .controlplane/entrypoint.sh config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb
+                      scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb].freeze
 
   def initialize(root:, app:, source:, manifest:, runner: nil, foundation: FOUNDATION, sleeper: nil)
     @root, @app, @source = File.realpath(root), app, source
