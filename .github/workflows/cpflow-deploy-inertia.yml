@@ -188,6 +188,9 @@ jobs:
           cpflow_version: ${{ vars.CPFLOW_VERSION }}
           control_plane_flow_ref: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@refs/tags/v5.2.0
 
+      - name: Verify Rails probe configuration before deployment writes
+        run: ruby .controlplane/verify_rails_probes.rb --app "${APP_NAME}" --org "${CPLN_ORG}"
+
       - name: Prepare renderer password
         run: ruby .controlplane/prepare_renderer_secret.rb
 

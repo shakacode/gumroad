@@ -22,7 +22,8 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     %w[.agents/bin/setup .agents/bin/test .agents/bin/validate .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore
        .controlplane/controlplane.yml .controlplane/release_script.sh .controlplane/entrypoint.sh
        config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb
-       scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb].each do |path|
+       scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb
+       .controlplane/verify_rails_probes.rb].each do |path|
       FileUtils.mkdir_p(File.dirname("#{@root}/#{path}"))
       File.write("#{@root}/#{path}", "fixture\n")
     end
@@ -39,6 +40,10 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     @digest = DIGEST
     @image_source = @source
     @runner = method(:run_command)
+    @rails_probes = %w[livenessProbe readinessProbe].index_with do |name|
+      { httpGet: { path: "/healthcheck", port: 3000,
+                   httpHeaders: [{ name: "X-Forwarded-Proto", value: "https" }] } }
+    end
   end
 
   def teardown
@@ -106,6 +111,34 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
     assert_raises(RuntimeError) { deployment.deploy }
     assert_equal false, @commands.any? { |command| command[0, 2] == %w[cpflow run] }
     assert_equal false, @commands.any? { |command| command[0, 3] == %w[cpln workload update] }
+  end
+
+  def test_missing_probe_headers_stop_before_release_or_host_updates_and_preserve_the_manifest
+    deployment.build
+    @rails_probes.fetch("readinessProbe")[:httpGet][:httpHeaders] = []
+    previous = @images.dup
+    assert_match(/readinessProbe/, assert_raises(RuntimeError) { deployment.deploy }.message)
+    assert_equal false, @commands.any? { |command| command[0, 2] == %w[cpflow run] }
+    assert_equal false, @commands.any? { |command| command[0, 3] == %w[cpln workload update] }
+    assert_equal previous, @images
+    record = JSON.parse(File.read(@manifest))
+    assert_equal "probe_preflight_failed", record.fetch("phase")
+    assert_equal "built", record.fetch("probe_preflight_failed_phase")
+    assert_raises(RuntimeError) { deployment.deploy }
+  end
+
+  def test_probe_changes_during_release_stop_before_promotion_without_erasing_release_history
+    deployment.build
+    @change_probes_during_release = true
+    previous = @images.dup
+    assert_raises(RuntimeError) { deployment.deploy }
+    assert_equal false, @commands.any? { |command| command[0, 3] == %w[cpln workload update] }
+    assert_equal previous, @images
+    record = JSON.parse(File.read(@manifest))
+    assert_equal "release_started", record.fetch("probe_preflight_failed_phase")
+    assert_equal previous, record.fetch("previous_images")
+    assert_raises(RuntimeError) { deployment.deploy }
+    assert_equal 1, @commands.count { |command| command[0, 2] == %w[cpflow run] }
   end
 
   def test_partial_promotion_failure_restores_all_prior_images
@@ -188,10 +221,13 @@ class VerifiedBenchmarkDeploymentTest < Minitest::Test
         "pulled"
       elsif args[0, 2] == %w[cpflow run]
         return ["", "release rejected", Success.new(false)] if @fail_release
+        @rails_probes.fetch("livenessProbe")[:httpGet][:httpHeaders] = [] if @change_probes_during_release
         "release completed"
       elsif args[0, 3] == %w[cpln workload get]
         workload = args[3]
-        JSON.generate(spec: { containers: [{ name: workload, image: @images.fetch(workload) }] })
+        container = { name: workload, image: @images.fetch(workload) }
+        container.merge!(@rails_probes) if workload == "rails"
+        JSON.generate(name: workload, spec: { containers: [container] })
       elsif args[0, 3] == %w[cpln workload update]
         workload = args[3]
         if @fail_update == workload

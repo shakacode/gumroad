@@ -7,6 +7,7 @@ require "tmpdir"
 require "digest"
 require "optparse"
 require "time"
+require_relative "../.controlplane/verify_rails_probes"
 
 class VerifiedBenchmarkDeployment
   ORG = "shakacode-open-source-examples-staging"
@@ -16,7 +17,8 @@ class VerifiedBenchmarkDeployment
   REQUIRED_FILES = %w[.agents/bin/setup .agents/bin/test .agents/bin/validate
                       .controlplane/Dockerfile .controlplane/Dockerfile.dockerignore .controlplane/controlplane.yml .controlplane/release_script.sh
                       .controlplane/entrypoint.sh config/environments/benchmark.rb scripts/configure_control_plane_product_page.rb
-                      scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb].freeze
+                      scripts/verify_control_plane_product_page.rb lib/extras/control_plane_product_page.rb
+                      .controlplane/verify_rails_probes.rb].freeze
 
   def initialize(root:, app:, source:, manifest:, runner: nil, foundation: FOUNDATION, sleeper: nil)
     @root, @app, @source = File.realpath(root), app, source
@@ -74,6 +76,7 @@ class VerifiedBenchmarkDeployment
     raise "Manifest does not match this source and app" unless record.values_at("source_sha", "app", "org", "phase") == [@source, @app, ORG, "built"]
     raise "Source tree differs from the build record" unless record["source_tree"] == command("git", "rev-parse", "HEAD^{tree}").strip
     raise "Image source differs from the build record" unless record["image_source_sha"] == @source
+    verify_rails_probes!(record)
     image = record.fetch("image")
     digest = record.fetch("digest")
     raise "Built image identity changed" unless image_details(image).fetch("digest") == digest
@@ -93,6 +96,7 @@ class VerifiedBenchmarkDeployment
     save(record)
     command("cpflow", "run", "--app", @app, "--org", ORG, "--image", "#{image}@#{digest}", "--",
             "ALLOW_BENCHMARK_SEED=true .controlplane/release_script.sh")
+    verify_rails_probes!(record)
     record["phase"] = "promoting"
     save(record)
     begin
@@ -116,6 +120,18 @@ class VerifiedBenchmarkDeployment
   end
 
   private
+    def verify_rails_probes!(record)
+      workload = JSON.parse(command("cpln", "workload", "get", "rails", "--org", ORG, "--gvc", @app, "--output", "json"))
+      ControlPlaneRailsProbes.verify!(workload)
+    rescue StandardError => error
+      record["probe_preflight_failed_phase"] = record.fetch("phase")
+      record["phase"] = "probe_preflight_failed"
+      save(record)
+      raise "Rails workload did not return valid JSON" if error.is_a?(JSON::ParserError)
+
+      raise
+    end
+
     def verify_source!
       raise "Requested SHA differs from checkout HEAD" unless command("git", "rev-parse", "HEAD").strip == @source
       raise "Dirty or untracked source checkout" unless command("git", "status", "--porcelain", "--untracked-files=all").empty?

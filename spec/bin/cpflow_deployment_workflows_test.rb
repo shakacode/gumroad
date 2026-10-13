@@ -5,6 +5,8 @@ require "open3"
 require "tmpdir"
 require "yaml"
 require "json"
+require "fileutils"
+require "rbconfig"
 
 class CpflowDeploymentWorkflowsTest < Minitest::Test
   def test_only_the_deployment_branch_and_explicit_preparation_dispatch_can_deploy
@@ -49,6 +51,39 @@ class CpflowDeploymentWorkflowsTest < Minitest::Test
       concurrency.fetch("group")
     end
     assert_equal 2, groups.uniq.size
+  end
+
+  def test_probe_guard_failure_stops_both_hosted_paths_before_deployment_writes
+    workflows.each do |workflow|
+      steps = workflow.fetch("jobs").fetch("deploy").fetch("steps")
+      index = steps.index { |step| step["run"].to_s.include?("verify_rails_probes.rb") }
+      refute_nil index
+      guard = steps.fetch(index)
+      refute guard["continue-on-error"]
+      %w[prepare_renderer_secret.rb apply-template deploy-image].each do |command|
+        assert_operator index, :<, steps.index { |step| step["run"].to_s.include?(command) }
+      end
+      Dir.mktmpdir do |directory|
+        FileUtils.mkdir_p("#{directory}/.controlplane")
+        FileUtils.cp(File.expand_path("../../.controlplane/verify_rails_probes.rb", __dir__), "#{directory}/.controlplane/verify_rails_probes.rb")
+        File.write("#{directory}/cpln", <<~RUBY)
+          #!#{RbConfig.ruby}
+          require "json"
+          File.write(ENV.fetch("PROBE_COMMAND_RECORD"), JSON.generate(ARGV))
+          puts JSON.generate(name: "rails", spec: { containers: [{ name: "rails" }] })
+        RUBY
+        FileUtils.chmod(0o755, "#{directory}/cpln")
+        record = "#{directory}/command.json"
+        env = workflow.fetch("env").merge("CPLN_ORG" => "shakacode-open-source-examples-staging",
+                                          "PATH" => "#{directory}:#{ENV.fetch('PATH')}", "PROBE_COMMAND_RECORD" => record,
+                                          "BASH_ENV" => nil, "ENV" => nil)
+        _, status = Open3.capture2e(env,
+                                    "bash", "-e", "-c", guard.fetch("run"), chdir: directory)
+        refute status.success?
+        assert_equal ["workload", "get", "rails", "--org", "shakacode-open-source-examples-staging",
+                      "--gvc", workflow.fetch("env").fetch("APP_NAME"), "--output", "json"], JSON.parse(File.read(record))
+      end
+    end
   end
 
   private
