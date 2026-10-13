@@ -65,6 +65,18 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
     end
   end
 
+  def test_template_health_probes_reach_the_handler_without_disabling_public_tls
+    probe(environment: "benchmark", public_benchmark: "true").fetch("health_probes").each do |row|
+      assert_equal 200, row.fetch("status"), row.fetch("probe")
+      assert_equal "healthcheck", row.fetch("body")
+      assert_equal 1, row.fetch("calls")
+      assert_equal 503, row.fetch("unhealthy_status")
+      assert_equal 1, row.fetch("unhealthy_calls")
+      assert_equal 301, row.fetch("without_header_status")
+      assert_equal 0, row.fetch("without_header_calls")
+    end
+  end
+
   private
     def probe(environment:, public_benchmark: nil)
       @probes ||= {}
@@ -78,6 +90,7 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
         require "stringio"
         require "rack/mock"
         require "rack/deflater"
+        require "yaml"
         require "./config/application"
         load "config/environments/\#{Rails.env}.rb"
         load "config/initializers/rack_attack.rb"
@@ -110,8 +123,28 @@ class ControlPlaneBenchmarkPolicyTest < Minitest::Test
           { host: host, http_status: http.first, location: http[1]["Location"], post_status: post.first,
             https_status: https.first, hsts: https[1]["Strict-Transport-Security"], cookie: https[1]["Set-Cookie"] }
         end
+        container = YAML.load_file(".controlplane/templates/rails.yml").fetch("spec").fetch("containers").first
+        health_probes = %w[livenessProbe readinessProbe].map do |name|
+          request = container.fetch(name).fetch("httpGet")
+          headers = request.fetch("httpHeaders", []).to_h do |header|
+            ["HTTP_" + header.fetch("name").upcase.tr("-", "_"), header.fetch("value")]
+          end
+          url = "http://10.20.0.8:\#{request.fetch('port')}\#{request.fetch('path')}"
+          run_health = lambda do |request_headers, status|
+            calls = 0
+            handler = ->(_) { calls += 1; [status, {}, ["healthcheck"]] }
+            response = Rack::SSL.new(handler, options).call(Rack::MockRequest.env_for(url, request_headers))
+            [response, calls]
+          end
+          healthy, calls = run_health.call(headers, 200)
+          unhealthy, unhealthy_calls = run_health.call(headers, 503)
+          without_header, without_header_calls = run_health.call({}, 200)
+          { probe: name, status: healthy.first, body: healthy.last.join, calls: calls,
+            unhealthy_status: unhealthy.first, unhealthy_calls: unhealthy_calls,
+            without_header_status: without_header.first, without_header_calls: without_header_calls }
+        end
         puts JSON.generate(types: Rails.application.config.active_storage.web_image_content_types,
-          successes: statuses.count(200), last_status: statuses.last, tls: tls)
+          successes: statuses.count(200), last_status: statuses.last, tls: tls, health_probes: health_probes)
       RUBY
       output, error, status = Open3.capture3(
         { "RAILS_ENV" => environment, "RACK_ENV" => environment,

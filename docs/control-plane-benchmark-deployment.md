@@ -77,7 +77,9 @@ done
 
 Verify all six values are true and each workload is ready. Stop both apps only when the operator has chosen offline operation; otherwise leave them available with adaptive allocation. Preserve the measurement's fixed-allocation evidence separately from the everyday idle settings.
 
-## Bootstrap the app
+## Configure app infrastructure
+
+These commands prepare infrastructure and secrets. They do not initialize a fresh or reset database. Normal release requires an existing schema, Product `bgfjk` and seller `luisfurushio`; otherwise its pre-write guard aborts. No database bootstrap path is supplied here. Any first-time initialization needs a separately reviewed procedure and explicit operator authorization before writes.
 
 Use cpflow 5.2 from the repository root. Authenticate `cpln` with its saved profile or `CPLN_TOKEN`. Supply credentials scoped to the existing R2 bucket:
 
@@ -117,6 +119,8 @@ The historical RORP release globally enabled this feature; expect a boolean conf
 Final seller configuration repeats the same read-only check before changing the actor gate; it never erases a conflict. Verify luisfurushio enabled only on RORP, Inertia off, another seller unaffected and unrelated flags unchanged. The check is not a lock against concurrent flag edits: retain the exclusive operation window and stop competing operations. Keep automatic deployment-base pushes blocked. Release writes after a successful preflight still require authorization and are not undone by image rollback.
 
 With `CONTROL_PLANE_BENCHMARK=true`, Rack::SSL preserves HTTPS redirects, HSTS and secure cookies for all public benchmark hosts, including seller, API and generated instance endpoints. Forwarded HTTPS requests do not redirect again. The local HTTP harness remains exempt, and ordinary environments retain their existing host policy. Local middleware regressions prove these source behaviors; the final deployed proxy scheme, certificate, routing and headers still require verification in the separately authorized operation. Do not warm a host during preparation.
+
+Rails liveness and readiness probes send `X-Forwarded-Proto: https` to `/healthcheck` on the private container port, so Rack::SSL reaches the health handler instead of redirecting. Public HTTP remains subject to the same redirect policy, including `/healthcheck`. Image promotion does not install these probe headers; reconcile the live probe configuration in the authorized operation and verify readiness against the final app.
 
 The command releases the explicit digest, promotes Rails/Sidekiq/renderer and verifies their running images. Promotion failure attempts each workload’s own prior digest. Release writes are not undone by image rollback. The schedule-suspended release runner’s job and configuration synchronization require authorization.
 
