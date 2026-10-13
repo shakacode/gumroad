@@ -282,6 +282,167 @@ describe ProductDuplicatorService do
     expect(duplicated_variant.subscription_price_change_message).to be_nil
   end
 
+  describe "inventory" do
+    let(:product) { create(:product, user: seller, max_purchase_count: 2) }
+
+    it "starts duplicated products with their full inventory" do
+      create(:purchase, link: product, quantity: 2)
+      expect(product.reload.remaining_for_sale_count).to eq(0)
+
+      duplicate_product = described_class.new(product.id).duplicate
+
+      expect(duplicate_product.sales).to be_empty
+      expect(duplicate_product.sales_count_for_inventory).to eq(0)
+      expect(duplicate_product.max_purchase_count).to eq(2)
+      expect(duplicate_product.remaining_for_sale_count).to eq(2)
+      expect(product.reload.sales_count_for_inventory).to eq(2)
+      expect(product.remaining_for_sale_count).to eq(0)
+    end
+
+    context "with digital versions" do
+      let(:product) { create(:product_with_digital_versions, user: seller) }
+
+      it "starts duplicated versions with their full inventory" do
+        version = product.alive_variants.first
+        version.update!(max_purchase_count: 2)
+        create(:purchase, link: product, variant_attributes: [version], quantity: 2)
+        expect(version.reload.quantity_left).to eq(0)
+
+        duplicate_product = described_class.new(product.id).duplicate
+        duplicated_version = duplicate_product.alive_variants.find_by!(name: version.name)
+
+        expect(duplicated_version.purchases).to be_empty
+        expect(duplicated_version.sales_count_for_inventory).to eq(0)
+        expect(duplicated_version.max_purchase_count).to eq(2)
+        expect(duplicated_version.quantity_left).to eq(2)
+        expect(duplicated_version).to be_available
+        expect(version.reload.sales_count_for_inventory).to eq(2)
+        expect(version.quantity_left).to eq(0)
+      end
+    end
+
+    context "with membership tiers" do
+      let(:product) { create(:membership_product, user: seller) }
+
+      it "starts duplicated tiers with their full inventory" do
+        tier = product.default_tier
+        tier.update!(max_purchase_count: 2)
+        create(:membership_purchase, link: product, tier:, quantity: 2)
+        expect(tier.reload.quantity_left).to eq(0)
+
+        duplicate_product = described_class.new(product.id).duplicate
+        duplicated_tier = duplicate_product.default_tier
+
+        expect(duplicated_tier.purchases).to be_empty
+        expect(duplicated_tier.sales_count_for_inventory).to eq(0)
+        expect(duplicated_tier.max_purchase_count).to eq(2)
+        expect(duplicated_tier.quantity_left).to eq(2)
+        expect(duplicated_tier).to be_available
+        expect(tier.reload.sales_count_for_inventory).to eq(2)
+        expect(tier.quantity_left).to eq(0)
+      end
+    end
+
+    context "with physical SKUs" do
+      let(:product) { create(:physical_product, user: seller) }
+
+      it "starts duplicated SKUs with their full inventory" do
+        sku = product.skus.is_default_sku.sole
+        sku.update!(max_purchase_count: 2)
+        create(:physical_purchase, link: product, variant_attributes: [sku], quantity: 2)
+        expect(sku.reload.quantity_left).to eq(0)
+
+        duplicate_product = described_class.new(product.id).duplicate
+        duplicated_sku = duplicate_product.skus.is_default_sku.sole
+
+        expect(duplicated_sku.purchases).to be_empty
+        expect(duplicated_sku.sales_count_for_inventory).to eq(0)
+        expect(duplicated_sku.max_purchase_count).to eq(2)
+        expect(duplicated_sku.quantity_left).to eq(2)
+        expect(duplicated_sku).to be_available
+        expect(sku.reload.sales_count_for_inventory).to eq(2)
+        expect(sku.quantity_left).to eq(0)
+      end
+    end
+  end
+
+  describe "call durations" do
+    let(:seller) { create(:user, :eligible_for_service_products) }
+    let(:product) { create(:call_product, user: seller, durations: [30, 60]) }
+
+    it "preserves the buyer's duration options when duplicating a call" do
+      source_category = product.variant_categories.alive.sole
+      product.alive_variants.find_by!(duration_in_minutes: 60).update!(
+        description: "An extended consultation",
+        price_difference_cents: 500
+      )
+      source_options = product.options
+
+      duplicate_product = described_class.new(product.id).duplicate
+
+      expect(duplicate_product.options.map { _1.except(:id) }).to eq(source_options.map { _1.except(:id) })
+      expect(duplicate_product.variant_categories.alive.sole.title).to eq("Duration")
+      expect(duplicate_product.alive_variants.pluck(:duration_in_minutes)).to contain_exactly(30, 60)
+      expect(duplicate_product.options.pluck(:id)).not_to include(*source_options.pluck(:id))
+      expect(product.reload.variant_categories.alive.sole).to eq(source_category)
+      expect(product.options).to eq(source_options)
+    end
+
+    [false, true].each do |with_deleted_child|
+      it "recovers durations when the first legacy category has #{with_deleted_child ? 'only deleted variants' : 'no variants'}" do
+        legacy_product = create(:call_product, :unpublished, user: seller, durations: [])
+        shadow_category = legacy_product.variant_categories.alive.sole
+        if with_deleted_child
+          deleted_child = create(:variant, variant_category: shadow_category, name: "Deleted 15 minutes", duration_in_minutes: 15)
+          deleted_child.update_attribute(:deleted_at, Time.current)
+        end
+        populated_category = create(:variant_category, link: legacy_product, title: "Duration")
+        create(:variant, variant_category: populated_category, name: "30 minutes", duration_in_minutes: 30)
+        create(:variant, variant_category: populated_category, name: "60 minutes", duration_in_minutes: 60, price_difference_cents: 500)
+        deleted_category = create(:variant_category, link: legacy_product, title: "Old durations", deleted_at: Time.current)
+        deleted_variant = create(:variant, variant_category: deleted_category, name: "15 minutes", duration_in_minutes: 15, deleted_at: Time.current)
+        source_category_ids = legacy_product.variant_categories.alive.pluck(:id)
+        source_variant_ids = legacy_product.alive_variants.pluck(:id)
+        expect(legacy_product.options).to eq([])
+
+        duplicate_product = described_class.new(legacy_product.id).duplicate
+
+        expect(duplicate_product.options.pluck(:duration_in_minutes)).to eq([30, 60])
+        expect(duplicate_product.options.pluck(:price_difference_cents)).to eq([0, 500])
+        expect(duplicate_product.variant_categories.alive.sole.title).to eq("Duration")
+        copied_deleted_category = duplicate_product.variant_categories.find_by!(title: "Old durations")
+        expect(copied_deleted_category).to be_deleted
+        expect(copied_deleted_category.variants.sole).to be_deleted
+        expect(copied_deleted_category.variants.sole.name).to eq("15 minutes")
+        if with_deleted_child
+          copied_deleted_child = duplicate_product.base_variants.find_by!(name: "Deleted 15 minutes")
+          expect(copied_deleted_child).to be_deleted
+          expect(copied_deleted_child.variant_category).to be_deleted
+          expect(deleted_child.reload.variant_category).to eq(shadow_category)
+          expect(deleted_child).to be_deleted
+        end
+        expect(shadow_category.reload).to be_alive
+        expect(legacy_product.reload.variant_categories.alive.pluck(:id)).to eq(source_category_ids)
+        expect(legacy_product.alive_variants.pluck(:id)).to eq(source_variant_ids)
+        expect(legacy_product.options).to eq([])
+        expect(deleted_category.reload).to be_deleted
+        expect(deleted_variant.reload).to be_deleted
+      end
+    end
+
+    it "keeps an empty duration category when copying an unfinished call draft" do
+      empty_product = create(:call_product, :unpublished, user: seller, durations: [])
+      source_category = empty_product.variant_categories.alive.sole
+
+      duplicate_product = described_class.new(empty_product.id).duplicate
+
+      expect(duplicate_product.variant_categories.alive.sole.title).to eq("Duration")
+      expect(duplicate_product.alive_variants).to be_empty
+      expect(duplicate_product.options).to eq([])
+      expect(empty_product.reload.variant_categories.alive.sole).to eq(source_category)
+    end
+  end
+
   describe "prices" do
     it "handles products with rental prices" do
       product.is_recurring_billing = false

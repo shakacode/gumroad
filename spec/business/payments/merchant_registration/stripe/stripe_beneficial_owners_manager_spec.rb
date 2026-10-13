@@ -104,6 +104,16 @@ describe StripeBeneficialOwnersManager do
       expect(result.last[:requirements_currently_due]).to eq(["verification.document"])
     end
 
+    it "exposes Stripe's document alternative for a personal tax ID requirement" do
+      alternative = { original_fields_due: ["id_number"], alternative_fields_due: ["verification.document"] }
+      representative_person.requirements = { currently_due: ["id_number"], alternatives: [alternative] }
+      allow(Stripe::Account).to receive(:list_persons).and_return({ "data" => [representative_person, other_owner_person] })
+
+      result = described_class.list(user)
+      expect(result.first[:requirements_alternatives]).to eq([alternative])
+      expect(result.last[:requirements_alternatives]).to eq([])
+    end
+
     it "returns the lone representative when no other owners exist" do
       allow(Stripe::Account).to receive(:list_persons).and_return({ "data" => [representative_person] })
       result = described_class.list(user)
@@ -281,6 +291,41 @@ describe StripeBeneficialOwnersManager do
       missing_nationality[:nationality] = ""
       expect { described_class.create(user, missing_nationality) }
         .to raise_error(StripeBeneficialOwnersManager::MissingRequiredFieldError, /Nationality is required/)
+    end
+
+    context "with a Hong Kong company" do
+      before do
+        user.alive_user_compliance_info.mark_deleted!
+        create(:user_compliance_info_business, user:, business_country: "Hong Kong", country: "Hong Kong")
+        allow(Stripe::Account).to receive(:create_person).and_return(other_owner_person)
+      end
+
+      it "requires the passport issuing country when the owner lives outside Hong Kong" do
+        foreign = params.deep_dup
+        foreign[:address] = foreign[:address].merge(country: "GB")
+        foreign[:nationality] = ""
+        expect { described_class.create(user, foreign) }
+          .to raise_error(StripeBeneficialOwnersManager::MissingRequiredFieldError, /Passport issuing country is required/)
+      end
+
+      it "sends the passport number as id_number with the issuing country as nationality" do
+        foreign = params.deep_dup
+        foreign[:address] = foreign[:address].merge(country: "GB", state: nil)
+        foreign[:id_number] = "GB1234567"
+        foreign[:nationality] = "GB"
+        expect(Stripe::Account).to receive(:create_person) do |_account_id, attrs|
+          expect(attrs).to include(id_number: "GB1234567", nationality: "GB")
+          other_owner_person
+        end
+        described_class.create(user, foreign)
+      end
+
+      it "does not ask for an issuing country when the owner lives in Hong Kong" do
+        local = params.deep_dup
+        local[:address] = { line1: "1 Queen's Rd", city: "Central", postal_code: "999077", country: "HK" }
+        local[:nationality] = ""
+        expect { described_class.create(user, local) }.not_to raise_error
+      end
     end
 
     it "sends kanji/kana name + address_kanji + address_kana for JP business sellers" do

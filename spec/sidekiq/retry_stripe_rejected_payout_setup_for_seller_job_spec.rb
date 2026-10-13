@@ -49,6 +49,17 @@ describe RetryStripeRejectedPayoutSetupForSellerJob do
       expect(note.json_data["last_retried_at"]).to be_present
     end
 
+    it "keeps the note when the bank link cannot be restored" do
+      expect(StripeMerchantAccountManager).to receive(:update_bank_account).and_return(:bank_link_not_restored)
+
+      described_class.new.perform(user.id)
+
+      note.reload
+      expect(note).to be_alive
+      expect(note.json_data["retry_count"]).to eq(1)
+      expect(user.comments.alive.with_type_payout_note.map(&:content)).not_to include(described_class::RESOLVED_NOTE)
+    end
+
     it "abandons the retry loop when payments on the Stripe account are blocked at the platform level" do
       expect(StripeMerchantAccountManager).to receive(:update_bank_account).and_return(:account_blocked_by_platform)
 
@@ -394,6 +405,136 @@ describe RetryStripeRejectedPayoutSetupForSellerJob do
     end
   end
 
+  describe "no-verdict account creation failure" do
+    let(:no_verdict_prefix) { StripeMerchantAccountManager::NO_VERDICT_FAILURE_NOTE_PREFIX }
+    let!(:note) { add_note(no_verdict_prefix) }
+
+    it "re-attempts account creation quietly and resolves on success" do
+      expect(StripeMerchantAccountManager).to receive(:create_account).with(user, hash_including(notify: false))
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).not_to be_alive
+    end
+
+    it "resolves when the seller already has an account and Stripe has no bank destination" do
+      create(:merchant_account, user:)
+      allow(Stripe::Account).to receive(:retrieve).and_return(
+        Stripe::Account.construct_from(id: "acct_live", object: "account", external_accounts: { object: "list", data: [], has_more: false })
+      )
+      expect(StripeMerchantAccountManager).not_to receive(:create_account)
+      expect(StripeMerchantAccountManager).not_to receive(:handle_new_user_compliance_info)
+      expect(StripeMerchantAccountManager).not_to receive(:update_bank_account)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).not_to be_alive
+    end
+
+    it "keeps the note when the leftover Stripe bank is the default and cannot be deleted" do
+      create(:merchant_account, user:)
+      stripe_account = Stripe::Account.construct_from(
+        id: "acct_live",
+        object: "account",
+        external_accounts: {
+          object: "list",
+          has_more: false,
+          data: [{ id: "ba_default", object: "bank_account", default_for_currency: true }]
+        }
+      )
+      allow(Stripe::Account).to receive(:retrieve).and_return(stripe_account)
+      expect(Stripe::Account).not_to receive(:delete_external_account)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).to be_alive
+    end
+
+    it "clears a leftover Stripe bank before resolving a seller with no bank row" do
+      create(:merchant_account, user:)
+      stripe_account = Stripe::Account.construct_from(
+        id: "acct_live",
+        object: "account",
+        external_accounts: {
+          object: "list",
+          has_more: false,
+          data: [{ id: "ba_removed", object: "bank_account" }]
+        }
+      )
+      allow(Stripe::Account).to receive(:retrieve).and_return(stripe_account)
+      expect(Stripe::Account).to receive(:delete_external_account).with("acct_live", "ba_removed")
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).not_to be_alive
+    end
+
+    it "keeps the note when a live account is still missing its bank link" do
+      create(:merchant_account, user:)
+      create(:ach_account, user:)
+      expect(StripeMerchantAccountManager).not_to receive(:create_account)
+      expect(StripeMerchantAccountManager).to receive(:update_bank_account)
+        .with(user, hash_including(notify: false)).and_return(:bank_link_not_restored)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).to be_alive
+      expect(note.json_data["retry_count"]).to eq(1)
+      expect(user.comments.alive.with_type_payout_note.map(&:content)).not_to include(described_class::RESOLVED_NOTE)
+    end
+
+    it "resolves once the missing bank link is restored" do
+      create(:merchant_account, user:)
+      create(:ach_account, user:)
+      expect(StripeMerchantAccountManager).to receive(:update_bank_account).and_return(:synced)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).not_to be_alive
+    end
+
+    it "resolves without a bank sync when the bank row is already linked to the live account" do
+      merchant_account = create(:merchant_account, user:)
+      create(:ach_account, user:, stripe_bank_account_id: "ba_already_linked", stripe_connect_account_id: merchant_account.charge_processor_merchant_id)
+      expect(StripeMerchantAccountManager).not_to receive(:update_bank_account)
+      expect(StripeMerchantAccountManager).not_to receive(:create_account)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).not_to be_alive
+    end
+
+    it "does not treat a bank link from an older Stripe account as finished" do
+      create(:merchant_account, user:)
+      create(:ach_account, user:, stripe_bank_account_id: "ba_old_account", stripe_connect_account_id: "acct_previous")
+      expect(StripeMerchantAccountManager).to receive(:update_bank_account).and_return(:bank_link_not_restored)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload).to be_alive
+    end
+
+    it "records an attempt when creation fails again" do
+      allow(StripeMerchantAccountManager).to receive(:create_account).and_raise(Stripe::APIError.new("An unknown error occurred"))
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload.json_data["retry_count"]).to eq(1)
+    end
+
+    it "abandons for support without sending the bank/postal exhausted email" do
+      note.json_data["retry_count"] = RetryStripeRejectedPayoutSetupsJob::MAX_RETRIES
+      note.save!
+
+      expect(ContactingCreatorMailer).not_to receive(:payout_setup_retry_exhausted)
+
+      described_class.new.perform(user.id)
+
+      expect(note.reload.json_data["abandoned_at"]).to be_present
+      expect(user.comments.alive.with_type_payout_note.last.content).to eq(described_class::NO_VERDICT_GAVE_UP_NOTE)
+    end
+  end
+
   describe "postal code remediation" do
     context "when the seller already has an alive Stripe account" do
       let!(:merchant_account) { create(:merchant_account, user:) }
@@ -635,6 +776,85 @@ describe RetryStripeRejectedPayoutSetupForSellerJob do
       expect(note).to be_present
       expect(note.json_data["retry_count"]).to eq(1)
       expect(business_user.comments.alive.with_type_payout_note.where(content: described_class::RESOLVED_NOTE)).to be_empty
+    end
+  end
+
+  # gumroad-private#2882: the retry used to stop on the metadata match while the local bank row was
+  # still unlinked, so the note was resolved as if the sync had worked and the seller stayed
+  # unpayable forever. A retry that reports success has to leave the row linked.
+  describe "bank account remediation when Stripe already holds the account but the row is unlinked" do
+    let!(:merchant_account) { create(:merchant_account, user:) }
+    let!(:bank_account) { create(:ach_account, user:) }
+    let!(:note) { add_note(bank_prefix) }
+
+    before do
+      bank_account.update_columns(stripe_bank_account_id: nil, stripe_connect_account_id: nil, stripe_fingerprint: nil)
+      bank_account.reload
+      allow(CheckPaymentAddressWorker).to receive(:perform_async)
+      allow(Stripe::Account).to receive(:retrieve).with(user.stripe_account.charge_processor_merchant_id).and_return(
+        Stripe::Account.construct_from(
+          id: user.stripe_account.charge_processor_merchant_id,
+          metadata: { "bank_account_id" => bank_account.external_id },
+          external_accounts: Stripe::ListObject.construct_from(
+            object: "list",
+            url: "/v1/accounts/#{user.stripe_account.charge_processor_merchant_id}/external_accounts",
+            has_more: false,
+            data: [
+              Stripe::StripeObject.construct_from(
+                id: "ba_recovered_from_stripe",
+                object: "bank_account",
+                last4: bank_account.account_number_last_four,
+                routing_number: bank_account.stripe_external_account_routing_number,
+                currency: bank_account.stripe_external_account_currency,
+                country: bank_account.stripe_external_account_country,
+                account_holder_name: bank_account.account_holder_full_name,
+                fingerprint: "fp_recovered_from_stripe"
+              )
+            ]
+          )
+        )
+      )
+    end
+
+    it "restores the missing link and only then resolves the note" do
+      described_class.new.perform(user.id)
+
+      expect(bank_account.reload.stripe_bank_account_id).to eq("ba_recovered_from_stripe")
+      expect(StripePayoutProcessor.has_valid_payout_info?(user.reload)).to be(true)
+      expect(note.reload).not_to be_alive
+      expect(user.comments.alive.with_type_payout_note.last.content).to eq(described_class::RESOLVED_NOTE)
+    end
+
+    it "does not resolve the note when the external account cannot be shown to be this row" do
+      allow(Stripe::Account).to receive(:retrieve).with(user.stripe_account.charge_processor_merchant_id).and_return(
+        Stripe::Account.construct_from(
+          id: user.stripe_account.charge_processor_merchant_id,
+          metadata: { "bank_account_id" => bank_account.external_id },
+          external_accounts: Stripe::ListObject.construct_from(
+            object: "list",
+            has_more: false,
+            data: [
+              Stripe::StripeObject.construct_from(
+                id: "ba_other",
+                object: "bank_account",
+                last4: "9999",
+                routing_number: bank_account.stripe_external_account_routing_number,
+                currency: bank_account.stripe_external_account_currency,
+                country: bank_account.stripe_external_account_country,
+                account_holder_name: bank_account.account_holder_full_name,
+                fingerprint: "fp_other"
+              )
+            ]
+          )
+        )
+      )
+
+      described_class.new.perform(user.id)
+
+      expect(bank_account.reload.stripe_bank_account_id).to be_nil
+      expect(note.reload).to be_alive
+      expect(note.json_data["retry_count"]).to eq(1)
+      expect(user.comments.alive.with_type_payout_note.map(&:content)).not_to include(described_class::RESOLVED_NOTE)
     end
   end
 

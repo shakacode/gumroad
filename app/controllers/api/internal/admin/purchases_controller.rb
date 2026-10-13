@@ -15,7 +15,7 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
 
     ActiveRecord::Associations::Preloader.new(records: [purchase], associations: ADMIN_PURCHASE_INCLUDES).call
     risk_level = Radar::ChargeRiskLevelService.fetch(purchase)
-    render json: { success: true, purchase: serialize_purchase(purchase, with_clusters: true, stripe_risk_level: risk_level) }
+    render json: { success: true, purchase: serialize_purchase(purchase, with_clusters: true, stripe_risk_level: risk_level, with_ping_deliveries: true) }
   end
 
   def search
@@ -44,6 +44,11 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
     }
   rescue AdminSearchService::InvalidDateError
     render json: { success: false, message: "purchase_date must use YYYY-MM-DD format." }, status: :bad_request
+  rescue AdminSearchService::InsufficientSearchCriteriaError
+    render json: {
+      success: false,
+      message: "card_last4 needs a narrower search: also provide card_type, purchase_date, query, email, creator_email, or license_key."
+    }, status: :bad_request
   end
 
   def lookup
@@ -109,7 +114,7 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
     end
 
     record_admin_write(action: "purchases.refund_taxes", target: purchase) do
-      if purchase.refund_gumroad_taxes!(refunding_user_id: current_admin_actor_id, note: params[:note], business_vat_id: params[:business_vat_id])
+      if purchase.refund_gumroad_taxes!(refunding_user_id: current_admin_actor_id, note: params[:note], business_vat_id: params[:business_vat_id], vat_exempt_territory: ActiveModel::Type::Boolean.new.cast(params[:vat_exempt_territory]) || false)
         render json: {
           success: true,
           message: "Successfully refunded taxes for purchase number #{purchase.external_id_numeric}",
@@ -171,7 +176,13 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
 
       unless force
         unless purchase.within_refund_policy_timeframe?
-          return render json: { success: false, message: "Purchase is outside of the refund policy timeframe" }, status: :unprocessable_entity
+          # Without a snapshot there is no window to have expired, so "outside" would misstate why.
+          message = if purchase.purchase_refund_policy.blank?
+            "Purchase has no recorded refund policy"
+          else
+            "Purchase is outside of the refund policy timeframe"
+          end
+          return render json: { success: false, message: }, status: :unprocessable_entity
         end
 
         if purchase.purchase_refund_policy&.fine_print.present?
@@ -313,6 +324,21 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
 
     record_admin_write(action: "purchases.unblock_buyer", target: purchase) do
       unless purchase.buyer_blocked? || purchase.is_buyer_blocked_by_admin?
+        # buyer_blocked? cannot see an account IP and the unblock would not clear one, so a buyer
+        # held only there is reported, not unblocked and not called "not blocked".
+        ip_holds = purchase.checkout_ip_holds.to_a
+        if ip_holds.any?
+          return render json: {
+            success: true,
+            status: "held_by_ip_block",
+            surviving_blocks: ip_holds.map { |block| { object_type: block.object_type, object_value: block.object_value } },
+            message: "Nothing the unblock clears is blocking the buyer for purchase number #{purchase.external_id_numeric}, " \
+                     "but #{ip_holds.size} IP block(s) still hold them at checkout: " \
+                     "#{ip_holds.map { |block| "#{block.object_type} #{block.object_value}" }.join(", ")}. " \
+                     "IP blocks are shared, so lifting one is a human decision."
+          }
+        end
+
         return render json: {
           success: true,
           status: "not_blocked",
@@ -465,6 +491,7 @@ class Api::Internal::Admin::PurchasesController < Api::Internal::Admin::BaseCont
       when :no_changes then :unprocessable_entity
       when :locked then :unprocessable_entity
       when :fingerprint_anomaly then :unprocessable_entity
+      when :ambiguous_ownership then :unprocessable_entity
       end
     end
 end

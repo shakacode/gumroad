@@ -90,6 +90,9 @@ export class StaleContentConflictError extends Error {
 // current token of its own.
 export class StaleDeletionConflictError extends Error {}
 
+// The server refused an ambiguous unmarked clear before writing any edits.
+export class UnmarkedInstallmentPlanClearConflictError extends Error {}
+
 // The server's error payload for a rejected save. Every conflict the editor can
 // act on is discriminated by `error_code`, never by HTTP status: stale-content
 // and stale-deletion both answer 409 but demand opposite handling (reload vs.
@@ -113,16 +116,41 @@ export const saveProductError = (error: SaveProductErrorPayload): Error => {
       return new StaleContentConflictError(error.error_message, error.stale_records ?? []);
     case "stale_deletion_conflict":
       return new StaleDeletionConflictError(error.error_message);
+    case "unmarked_installment_plan_clear_conflict":
+      return new UnmarkedInstallmentPlanClearConflictError(error.error_message);
     default:
       return new ResponseError(error.error_message);
   }
 };
 
-export const filesForSave = <T extends { id: string }>(
+// A failed upload has no object in S3, so a saved row would point at nothing. The editor keeps the
+// row on screen to be removed, but no save may carry it — the keep-all retry included.
+const isFailedUpload = (file: { status?: { type?: string; uploadStatus?: { type?: string } } | null }) =>
+  file.status?.type === "unsaved" && file.status.uploadStatus?.type === "failed";
+
+export const failedUploadFileIds = (
+  files: { id: string; status?: { type?: string; uploadStatus?: { type?: string } } | null }[],
+) => new Set(files.filter(isFailedUpload).map((file) => file.id));
+
+// Its embed goes with it: the node would save as content that renders nothing.
+export const withoutFailedFileEmbeds = <T extends { description: object }>(
+  pages: T[],
+  failedFileIds: Set<string>,
+): T[] =>
+  failedFileIds.size === 0
+    ? pages
+    : pages.map((page) => ({ ...page, description: removeFileEmbedsFromRichContent(page.description, failedFileIds) }));
+
+export const filesForSave = <
+  T extends { id: string; status?: { type?: string; uploadStatus?: { type?: string } } | null },
+>(
   files: T[],
   embeddedFileIds: Set<unknown>,
   keepAllFiles: boolean,
-) => (keepAllFiles ? files : files.filter((file) => embeddedFileIds.has(file.id)));
+) => {
+  const savable = files.filter((file) => !isFailedUpload(file));
+  return keepAllFiles ? savable : savable.filter((file) => embeddedFileIds.has(file.id));
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 
@@ -357,6 +385,26 @@ const removeFileEmbeds = (value: unknown, fileIds: Set<string>): unknown => {
   return { ...value, content };
 };
 
+const collectFileEmbedIds = (value: unknown, ids: Set<string>) => {
+  if (Array.isArray(value)) value.forEach((child) => collectFileEmbedIds(child, ids));
+  else if (isRecord(value)) {
+    if (value.type === "fileEmbed" && isRecord(value.attrs) && typeof value.attrs.id === "string")
+      ids.add(value.attrs.id);
+    collectFileEmbedIds(value.content, ids);
+  }
+};
+
+// Only these are left out of a save. A failed entry whose embed the seller deleted is already
+// gone from their content, so it is not worth a warning.
+export const embeddedFailedUploadIds = (
+  files: { id: string; status?: { type?: string; uploadStatus?: { type?: string } } | null }[],
+  pages: { description: object }[],
+) => {
+  const embedded = new Set<string>();
+  pages.forEach((page) => collectFileEmbedIds(page.description, embedded));
+  return new Set([...failedUploadFileIds(files)].filter((id) => embedded.has(id)));
+};
+
 export const removeFileEmbedsFromRichContent = (description: object, fileIds: Set<string>): object => {
   const cleaned = removeFileEmbeds(description, fileIds);
   return isRecord(cleaned) ? cleaned : description;
@@ -429,6 +477,25 @@ export const reconcileMountedEditorFileEmbedIds = (editor: Editor, fileIdMapping
   if (transaction.docChanged) editor.view.dispatch(transaction);
 };
 
+// An emptied rich-text field is markup, not "": the editor writes an empty
+// paragraph as `<p><br></p>`, and block wrappers keep their own styling. Only
+// strip text-bearing blocks (attributes and all) and truly bare wrappers —
+// an element that could carry the payload, like the media node's
+// `<div class="tiptap__raw" data-url=…></div>`, has to read as content.
+// Over-retaining markup only ever means "not blank", which cannot drop copy.
+const EMPTY_RICH_TEXT_MARKUP =
+  /<\/?(?:p|br|h[1-6]|ul|ol|li|blockquote|code|pre)\b[^>]*>|<\/?(?:div|span|a|strong|em|b|i|u|s)>/giu;
+
+export const isBlankDescription = (description: string | null | undefined) => {
+  if (!description) return true;
+  return (
+    description
+      .replace(EMPTY_RICH_TEXT_MARKUP, "")
+      .replace(/&nbsp;|&#160;/gu, " ")
+      .trim() === ""
+  );
+};
+
 // Only send a scalar when this session changed it or changed the input that
 // drives it. A blank custom URL is "not specified" unless the session is
 // clearing one it knows about; an unchanged blank can be a stale tab snapshot
@@ -443,15 +510,22 @@ export const reconcileMountedEditorFileEmbedIds = (editor: Editor, fileIdMapping
 export const scalarSettingsForSave = (
   product: {
     custom_permalink: string | null;
+    description?: string;
+    description_changed?: boolean | undefined;
     customizable_price: boolean;
     price_cents: number;
     hasPaidVariantPricing: boolean;
+    installment_plan: { number_of_installments: number } | null;
+    allow_installment_plan: boolean;
   },
   lastSaved: {
     custom_permalink: string | null;
+    description?: string | null | undefined;
     customizable_price: boolean | null;
     price_cents: number;
     hasPaidVariantPricing: boolean;
+    installment_plan: { number_of_installments: number } | null;
+    allow_installment_plan: boolean | null;
   },
 ) => {
   const settings: Record<string, unknown> = {};
@@ -461,12 +535,39 @@ export const scalarSettingsForSave = (
     settings.custom_permalink = null;
     settings.custom_permalink_changed = true;
   }
+  // Blank description is unspecified unless this session edited the field: the
+  // editor's empty document is markup (`<p><br></p>`), not "". A non-blank one
+  // is this session's to write only when it differs from the copy last saved
+  // here — an identical one is a stale snapshot from another editor.
+  if (!isBlankDescription(product.description)) {
+    if (lastSaved.description === undefined || product.description !== lastSaved.description) {
+      settings.description = product.description;
+    }
+  } else if (product.description_changed) {
+    settings.description = null;
+    settings.description_changed = true;
+  }
   const flagIsDerivedFromUnchangedInputs =
     lastSaved.customizable_price !== null &&
     product.price_cents === lastSaved.price_cents &&
     product.hasPaidVariantPricing === lastSaved.hasPaidVariantPricing;
   if (!flagIsDerivedFromUnchangedInputs || product.customizable_price !== lastSaved.customizable_price) {
     settings.customizable_price = product.customizable_price;
+  }
+  // A null plan hard-deletes the seller's plan server-side, so a stale snapshot
+  // must omit it; a deliberate clear is marked `installment_plan_changed`.
+  const installmentBaselineKnown = lastSaved.allow_installment_plan !== null;
+  const installmentToggled = product.allow_installment_plan !== lastSaved.allow_installment_plan;
+  const installmentCountChanged =
+    (product.installment_plan?.number_of_installments ?? null) !==
+    (lastSaved.installment_plan?.number_of_installments ?? null);
+  if (product.allow_installment_plan) {
+    if (!installmentBaselineKnown || installmentToggled || installmentCountChanged) {
+      settings.installment_plan = product.installment_plan;
+    }
+  } else if (!installmentBaselineKnown || installmentToggled) {
+    settings.installment_plan = null;
+    settings.installment_plan_changed = true;
   }
   return settings;
 };
@@ -486,14 +587,20 @@ export const saveProduct = async (
     lastSavedCustomizablePrice?: boolean | null;
     lastSavedPriceCents?: number | null;
     lastSavedHasPaidVariantPricing?: boolean | null;
+    lastSavedInstallmentPlan?: { number_of_installments: number } | null;
+    lastSavedAllowInstallmentPlan?: boolean | null;
+    lastSavedDescription?: string | null;
   } = {},
 ): Promise<SaveProductResponse> => {
   // TODO remove this once we have a better content uploader
   const editor = new Editor(baseEditorOptions(extensions(id)));
-  const richContents =
+  const failedFileIds = failedUploadFileIds(product.files);
+  const richContents = withoutFailedFileEmbeds(
     product.has_same_rich_content_for_all_variants || !product.variants.length
       ? product.rich_content
-      : product.variants.flatMap((variant) => variant.rich_content);
+      : product.variants.flatMap((variant) => variant.rich_content),
+    failedFileIds,
+  );
   const fileIds = new Set(
     richContents.flatMap((content) =>
       findChildren(
@@ -509,25 +616,42 @@ export const saveProduct = async (
   // would make "Keep version content" delete files embedded in the hidden
   // pages even though that retry asks us to preserve every file.
   const files = filesForSave(product.files, fileIds, options.keepAllFiles ?? false);
-  const { custom_html: _customHtml, custom_permalink, customizable_price, ...productParams } = product;
+  const {
+    custom_html: _customHtml,
+    custom_permalink,
+    customizable_price,
+    description,
+    description_changed,
+    installment_plan,
+    allow_installment_plan,
+    ...productParams
+  } = product;
   const response = await request({
     method: "POST",
     accept: "json",
     url: Routes.link_path(permalink),
     data: {
       ...productParams,
+      rich_content: withoutFailedFileEmbeds(product.rich_content, failedFileIds),
       ...scalarSettingsForSave(
         {
           custom_permalink,
+          description,
+          description_changed,
           customizable_price,
           price_cents: product.price_cents,
           hasPaidVariantPricing: hasPaidVariantPricing(product),
+          installment_plan,
+          allow_installment_plan,
         },
         {
           custom_permalink: options.lastSavedCustomPermalink ?? null,
+          description: options.lastSavedDescription,
           customizable_price: options.lastSavedCustomizablePrice ?? null,
           price_cents: options.lastSavedPriceCents ?? product.price_cents,
           hasPaidVariantPricing: options.lastSavedHasPaidVariantPricing ?? hasPaidVariantPricing(product),
+          installment_plan: options.lastSavedInstallmentPlan ?? null,
+          allow_installment_plan: options.lastSavedAllowInstallmentPlan ?? null,
         },
       ),
       files,
@@ -536,9 +660,10 @@ export const saveProduct = async (
       // Variants created in this session are sent with id: null (the server
       // assigns the canonical id) plus the client's own id as client_id so
       // the response can map one to the other.
-      variants: product.variants.map(({ newlyAdded, ...variant }) =>
-        newlyAdded ? { ...variant, id: null, client_id: variant.id } : variant,
-      ),
+      variants: product.variants.map(({ newlyAdded, ...variant }) => {
+        const pruned = { ...variant, rich_content: withoutFailedFileEmbeds(variant.rich_content, failedFileIds) };
+        return newlyAdded ? { ...pruned, id: null, client_id: variant.id } : pruned;
+      }),
       confirmed_removed_variant_ids: product.confirmed_removed_variant_ids ?? [],
       confirmed_removed_rich_content_ids: product.confirmed_removed_rich_content_ids ?? [],
       preserved_rich_content_ids: product.preserved_rich_content_ids ?? [],
@@ -563,10 +688,31 @@ export const saveProduct = async (
       availabilities: product.availabilities.map(({ newlyAdded, ...availability }) =>
         newlyAdded ? { ...availability, id: null } : availability,
       ),
-      installment_plan: product.allow_installment_plan ? product.installment_plan : null,
     },
   });
-  if (!response.ok) throw saveProductError(typia.assert<SaveProductErrorPayload>(await response.json()));
+  if (!response.ok) throw saveProductError(typia.assert<SaveProductErrorPayload>(await readFailureJson(response)));
   if (response.status === 204) return {};
-  return typia.assert<SaveProductResponse>(await response.json());
+  try {
+    return typia.assert<SaveProductResponse>(await response.json());
+  } catch (cause) {
+    throw new UnconfirmedSaveError(cause);
+  }
+};
+
+// A 2xx the editor cannot read: the server may already have kept the save, so a blind retry could
+// resend stale ids and duplicate records. The editor keeps Save disabled until the seller reloads.
+export class UnconfirmedSaveError extends ResponseError {
+  constructor(public originalError: unknown) {
+    super("We could not confirm that your changes saved. Reload the page to check before saving again.");
+  }
+}
+
+// A proxy error page or a truncated body is not JSON. Answer it with a ResponseError the editor
+// reports, not a SyntaxError it does not expect.
+const readFailureJson = async (response: Response): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    throw new ResponseError();
+  }
 };

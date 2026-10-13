@@ -53,6 +53,14 @@ describe CustomerSurchargeController, :vcr do
     expect(response.parsed_body).to include(expected_surcharge_response)
   end
 
+  it "responds with 503 rather than quoting a surcharge priced off a substituted rate" do
+    allow(controller).to receive(:get_rate).and_raise(CurrencyHelper::RateUnavailable.new("EUR"))
+
+    post "calculate_all", params: { products: [{ permalink: @product.unique_permalink, price: 100, quantity: 1 }] }, as: :json
+
+    expect(response).to have_http_status(:service_unavailable)
+  end
+
   it "returns the correct non-zero tax value when buyer location is EU and no VAT ID is provided" do
     create(:zip_tax_rate, combined_rate: 0.19, country: "DE", state: nil, zip_code: nil, is_seller_responsible: false)
 
@@ -1003,6 +1011,13 @@ describe CustomerSurchargeController, :vcr do
 
   it "allows querying multiple products at once" do
     post "calculate_all", params: { products: [{ permalink: @product.unique_permalink, price: 100, quantity: 1 }, { permalink: @physical_product.unique_permalink, price: 200, quantity: 3 }], postal_code: 98039, country: "US" }, as: :json
+    expect(response.parsed_body).to include(expected_surcharge_response(shipping_rate_cents: 20, tax_cents: 32, subtotal: 300))
+  end
+
+  it "quotes a string quantity the same as the numeric form" do
+    post "calculate_all", params: { products: [{ permalink: @product.unique_permalink, price: 100, quantity: 1 }, { permalink: @physical_product.unique_permalink, price: 200, quantity: "3" }], postal_code: 98039, country: "US" }, as: :json
+
+    expect(response).to have_http_status(:ok)
     expect(response.parsed_body).to include(expected_surcharge_response(shipping_rate_cents: 20, tax_cents: 32, subtotal: 300))
   end
 

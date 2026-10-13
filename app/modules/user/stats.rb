@@ -245,6 +245,17 @@ module User::Stats
     chargeback_rates
   end
 
+  # Admin emails render inside a mail job, where the connection's five-minute session
+  # max_execution_time (config/database.yml) lets a lifetime aggregate over a million-purchase
+  # creator run until it takes the whole notification down with it. Bound it; nil = not computable.
+  LOST_CHARGEBACKS_BUDGET = 5.seconds
+
+  def lost_chargebacks_bounded
+    WithMaxExecutionTime.timeout_queries(seconds: LOST_CHARGEBACKS_BUDGET) { lost_chargebacks }
+  rescue WithMaxExecutionTime::QueryTimeoutError
+    nil
+  end
+
   # The payout gate's view of the same ratio, restricted to the trailing
   # PAYOUT_CHARGEBACK_RATE_WINDOW. Lifetime is the wrong measure for a hold a seller is supposed to
   # be able to work their way out of: on a long-lived account the denominator is so large that
@@ -297,11 +308,14 @@ module User::Stats
       .sum("amount_cents")
   end
 
+  # Automatic deductions keep amount_cents in the account's currency, so report the USD their
+  # applied transaction booked. Manual ones book amount_cents itself.
   def loan_repayment_cents_for_balances(balance_ids)
     credits
-      .where("financing_paydown_purchase_id IS NOT NULL OR json_data->>'$.stripe_loan_paydown_id' IS NOT NULL")
+      .where("credits.financing_paydown_purchase_id IS NOT NULL OR credits.json_data->>'$.stripe_loan_paydown_id' IS NOT NULL")
       .where(balance_id: balance_ids)
-      .sum("amount_cents")
+      .joins("LEFT JOIN balance_transactions ON balance_transactions.credit_id = credits.id AND balance_transactions.balance_id = credits.balance_id")
+      .sum("COALESCE(balance_transactions.issued_amount_net_cents, credits.amount_cents)")
   end
 
   def fees_cents_for_balances(balance_ids)
@@ -316,7 +330,9 @@ module User::Stats
     refunded_fee += refunded_sales_fee_not_waived.joins(:effective_refunds).sum("refunds.fee_cents - COALESCE(refunds.json_data->'$.retained_fee_cents', 0)")
     disputed_sales = sales.where("purchase_chargeback_balance_id IN (?)", balance_ids)
     disputed_fee = disputed_sales.sum(:fee_cents) - disputed_sales.joins(:effective_refunds).sum("refunds.fee_cents")
-    refunded_fee + disputed_fee
+    written_off_fee = BalanceTransaction.refund_fee_write_offs.where(user: self, balance_id: balance_ids)
+      .sum("balance_transactions.issued_amount_net_cents")
+    refunded_fee + disputed_fee + written_off_fee
   end
 
   def taxes_cents_for_balances(balance_ids)
@@ -785,7 +801,10 @@ module User::Stats
     refunded_fee += refunded_sales_fee_not_waived.joins(:effective_refunds).sum("refunds.fee_cents - COALESCE(refunds.json_data->'$.retained_fee_cents', 0)")
     disputed_sales = sales.was_discover_fee_charged.where("purchase_chargeback_balance_id IN (?)", balance_ids)
     disputed_fee = disputed_sales.sum(:fee_cents) - disputed_sales.joins(:effective_refunds).sum("refunds.fee_cents")
-    refunded_fee + disputed_fee
+    written_off_fee = BalanceTransaction.refund_fee_write_offs.where(user: self, balance_id: balance_ids)
+      .joins(credit: { fee_retention_refund: :purchase }).merge(Purchase.was_discover_fee_charged)
+      .sum("balance_transactions.issued_amount_net_cents")
+    refunded_fee + disputed_fee + written_off_fee
   end
 
   def direct_fees_cents_for_balances(balance_ids)
@@ -800,7 +819,10 @@ module User::Stats
     refunded_fee += refunded_sales_fee_not_waived.joins(:effective_refunds).sum("refunds.fee_cents - COALESCE(refunds.json_data->'$.retained_fee_cents', 0)")
     disputed_sales = sales.not_was_discover_fee_charged.where("purchase_chargeback_balance_id IN (?)", balance_ids)
     disputed_fee = disputed_sales.sum(:fee_cents) - disputed_sales.joins(:effective_refunds).sum("refunds.fee_cents")
-    refunded_fee + disputed_fee
+    written_off_fee = BalanceTransaction.refund_fee_write_offs.where(user: self, balance_id: balance_ids)
+      .joins(credit: { fee_retention_refund: :purchase }).merge(Purchase.not_was_discover_fee_charged)
+      .sum("balance_transactions.issued_amount_net_cents")
+    refunded_fee + disputed_fee + written_off_fee
   end
 
   def discover_sales_count_for_balances(balance_ids)

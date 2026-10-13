@@ -15,6 +15,7 @@ class AffiliateMailer < ApplicationMailer
     # early aborts delivery (ActionMailer produces a NullMail).
     @direct_affiliate = DirectAffiliate.find_by(id: affiliate_id)
     return if @direct_affiliate.nil?
+    return if @direct_affiliate.reassignment_blocked?
 
     @seller = @direct_affiliate.seller
     @seller_name = @direct_affiliate.seller.name_or_username
@@ -42,7 +43,11 @@ class AffiliateMailer < ApplicationMailer
   end
 
   def notify_affiliate_of_sale(purchase_id)
-    @purchase = Purchase.find(purchase_id)
+    # A worker's replica read can see the purchase but not the credit created with it, and the render
+    # dereferences nil, so the credit has to come back with the purchase from the primary.
+    @purchase = ApplicationRecord.connected_to(role: :writing) do
+      Purchase.includes(:affiliate_credit).find(purchase_id)
+    end
     @affiliate = @purchase.affiliate
 
     if @affiliate.collaborator?
@@ -51,8 +56,13 @@ class AffiliateMailer < ApplicationMailer
       @affiliate_percentage_text = "#{@affiliate.basis_points(product_id: @purchase.link_id) / 100}%"
       @purchase_price_formatted = MoneyFormatter.format(@purchase.price_cents, :usd, no_cents_if_whole: true, symbol: true)
       @affiliate_amount_formatted = MoneyFormatter.format(@purchase.affiliate_credit_cents, :usd, no_cents_if_whole: true, symbol: true)
-      @free_trial_end_date = @purchase.link.is_tiered_membership? ? @purchase.subscription.free_trial_end_date_formatted : nil
-      @recurring_commission_text = @purchase.is_original_subscription_purchase? ? "You'll continue to receive a commission once #{recurrence_long_indicator(@purchase.subscription.recurrence)} as long as the subscription is active." : nil
+      # Not every membership purchase has its subscription attached yet when this job runs, so both
+      # the trial date and the recurrence have to come off the association.
+      subscription = @purchase.subscription
+      @free_trial_end_date = subscription&.free_trial_end_date_formatted
+      @recurring_commission_text = if subscription && @purchase.is_original_subscription_purchase?
+        "You'll continue to receive a commission once #{recurrence_long_indicator(subscription.recurrence)} as long as the subscription is active."
+      end
 
       if @affiliate.global?
         notify_global_affiliate_of_sale
@@ -64,6 +74,8 @@ class AffiliateMailer < ApplicationMailer
 
   def notify_direct_affiliate_of_updated_products(affiliate_id)
     @direct_affiliate = DirectAffiliate.find(affiliate_id)
+    return if @direct_affiliate.reassignment_blocked?
+
     @products = @direct_affiliate.enabled_products
                                  .sort_by { -_1[:fee_percent] }
     seller_name = @direct_affiliate.seller.name_or_username
@@ -75,6 +87,8 @@ class AffiliateMailer < ApplicationMailer
 
   def notify_direct_affiliate_of_new_product(affiliate_id, product_id)
     @direct_affiliate = DirectAffiliate.find(affiliate_id)
+    return if @direct_affiliate.reassignment_blocked?
+
     @seller_name = @direct_affiliate.seller.name_or_username
     product = Link.find(product_id)
     @product_name = product.name
@@ -228,7 +242,12 @@ class AffiliateMailer < ApplicationMailer
       @quantity = @purchase.quantity
       @variants = @purchase.variants_list
       @variants_count = @purchase.variant_names&.count || 0
-      @cut = MoneyFormatter.format(@purchase.affiliate_credit_cents + @purchase.affiliate_credit.fee_cents, :usd, no_cents_if_whole: true, symbol: true)
+      # The balance credits the cut MINUS the collaborator's share of the Gumroad fee, so show that
+      # deduction; a bare "Your cut" overstates what actually lands in the balance.
+      @fee_share_cents = @purchase.affiliate_credit.fee_cents
+      @cut = MoneyFormatter.format(@purchase.affiliate_credit_cents + @fee_share_cents, :usd, no_cents_if_whole: true, symbol: true)
+      @fee_share_formatted = MoneyFormatter.format(@fee_share_cents, :usd, no_cents_if_whole: true, symbol: true)
+      @credited_formatted = MoneyFormatter.format(@purchase.affiliate_credit_cents, :usd, no_cents_if_whole: true, symbol: true)
 
       @subject = "You made a sale!"
       set_notify_of_sale_headers(is_preorder: @is_preorder)

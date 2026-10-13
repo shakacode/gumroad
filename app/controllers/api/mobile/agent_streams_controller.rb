@@ -155,7 +155,7 @@ class Api::Mobile::AgentStreamsController < Api::Mobile::BaseController
         write_event.call(done_payload, "done")
         done_written = true
       end
-      result = ::Ai::StoreAgentService.new(seller:, pundit_user:)
+      result = ::Ai::StoreAgentService.new(seller:, pundit_user:, conversation:)
         .respond_streaming(messages: history, on_reply_complete:) do |event, payload|
         # Extend only a marker that is still in progress. on_reply_complete runs before trailing
         # object/proposal/suggestion events and can mark persistence failed; no later event may
@@ -201,6 +201,16 @@ class Api::Mobile::AgentStreamsController < Api::Mobile::BaseController
   end
 
   private
+    # Capture directly with Sentry before re-raising: Rails.error can fail in the streaming thread
+    # and mask the original exception (e.g. a non-StandardError timeout the action never rescues).
+    # Sentry dedupes the same exception object, so the later Rails report is not a second event.
+    def process_action(*)
+      super
+    rescue Exception => e
+      ErrorNotifier.notify(e, source: "mobile_agent_stream")
+      raise
+    end
+
     def seller
       current_resource_owner
     end

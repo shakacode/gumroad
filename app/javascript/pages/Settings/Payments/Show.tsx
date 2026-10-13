@@ -10,7 +10,9 @@ import { SettingPage } from "$app/parsers/settings";
 import type { ComplianceInfo, PayoutMethod, FormFieldName, User, PayoutDebitCardData } from "$app/types/payments";
 import { COLOMBIA_ID_NUMBER_ERROR_MESSAGE, isValidColombiaIdNumber } from "$app/utils/colombiaIdNumbers";
 import { formatPriceCentsWithCurrencySymbol, formatPriceCentsWithoutCurrencySymbol } from "$app/utils/currency";
+import { GUATEMALA_NIT_ERROR_MESSAGE, isValidGuatemalaNit } from "$app/utils/guatemalaNit";
 import { accountNumberFormatError } from "$app/utils/payoutAccountNumbers";
+import { normalizeUsTaxId, personalTaxIdError, usesHongKongPassport, usesUsTaxId } from "$app/utils/personalTaxId";
 import { countryRequiresPostalCode } from "$app/utils/postalCodes";
 import { asyncVoid } from "$app/utils/promise";
 
@@ -20,7 +22,7 @@ import { CountrySelectionModal } from "$app/components/CountrySelectionModal";
 import { PriceInput } from "$app/components/PriceInput";
 import { CreditCardForm } from "$app/components/Settings/AdvancedPage/CreditCardForm";
 import { Layout } from "$app/components/Settings/Layout";
-import AccountDetailsSection from "$app/components/Settings/PaymentsPage/AccountDetailsSection";
+import AccountDetailsSection, { getBusinessTypes } from "$app/components/Settings/PaymentsPage/AccountDetailsSection";
 import AccountStatusSection, { type AccountStatus } from "$app/components/Settings/PaymentsPage/AccountStatusSection";
 import AusBackTaxesSection, { type AusBacktaxDetails } from "$app/components/Settings/PaymentsPage/AusBackTaxesSection";
 import BankAccountSection, {
@@ -59,11 +61,15 @@ const GAMBIA_SWIFT_BIC_REGEX = /^[0-9A-Za-z]{8,11}$/u;
 // the difference between `014` and `BCA`. Stripe resolves the ID bank from its 3-digit Sandi Bank
 // directory, so a letter code saves here and then fails bank-sync with routing_number_invalid.
 const INDONESIA_BANK_CODE_REGEX = /^[0-9]{3}$/u;
+const BANGLADESH_BANK_CODE_REGEX = /^[0-9]{9}$/u;
 
 const KANA_NAME_ERROR = "may only contain katakana characters, spaces, dashes, and dots.";
 const KANA_ADDRESS_ERROR = "may only contain katakana, latin characters, digits, spaces, dashes, and dots.";
 
+// Keep ideographic spaces in the romaji check; the server ignores space-only edits.
 const HAS_JAPANESE_CHARS = /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uFF65-\uFF9F]/u;
+// Require a base letter: script properties also include iteration marks, radicals, and enclosed kana.
+const HAS_JAPANESE_LETTERS = /(?=\p{Lo})[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 const HAS_KATAKANA = /[\u30A0-\u30FF\u31F0-\u31FF\uFF65-\uFF9F]/u;
 
 const PAYOUT_FREQUENCIES = ["daily", "weekly", "monthly", "quarterly"] as const;
@@ -193,6 +199,7 @@ type PaymentsPageProps = {
   min_dob_year: number;
   user: User;
   compliance_info: ComplianceInfo;
+  us_business_types: { code: string; name: string }[];
   uae_business_types: { code: string; name: string }[];
   india_business_types: { code: string; name: string }[];
   canada_business_types: { code: string; name: string }[];
@@ -209,7 +216,9 @@ type PaymentsPageProps = {
   saved_card: SavedCreditCard | null;
   formatted_balance_to_forfeit_on_country_change: string | null;
   formatted_balance_to_forfeit_on_payout_method_change: string | null;
+  paypal_switch_loses_bank_rail: boolean;
   payouts_paused_internally: boolean;
+  payout_reserve_available: boolean;
   payouts_paused_by: "stripe" | "admin" | "system" | "user" | null;
   payout_reserve_percent?: number | null;
   account_status: AccountStatus;
@@ -228,6 +237,7 @@ type PaymentsPageProps = {
   legal_guardian: LegalGuardianProps;
   errors?: {
     base?: string[];
+    field?: string;
   };
 };
 
@@ -236,10 +246,12 @@ type ErrorMessageInfo = {
   code?: string | null;
 };
 
+const isFormFieldName = (value: string): value is FormFieldName => value in FIELD_LABELS;
+
 export default function PaymentsPage() {
   const page = usePage();
   const props = typia.assert<PaymentsPageProps>(page.props);
-  const errors = typia.assert<{ base?: string[] } | undefined>(page.props.errors);
+  const errors = typia.assert<{ base?: string[]; field?: string } | undefined>(page.props.errors);
 
   const [clientErrorMessage, setClientErrorMessage] = React.useState<ErrorMessageInfo | null>(null);
   const formRef = React.useRef<HTMLDivElement & HTMLFormElement>(null);
@@ -248,9 +260,16 @@ export default function PaymentsPage() {
   // well as in state because validateForm both writes it (through markFieldInvalid, from a dozen
   // nested helpers) and reads it back within the same synchronous call, before React has re-rendered.
   const errorFieldNamesRef = React.useRef(errorFieldNames);
+  // Reasons shown beside the (Kanji) variation fields. Focusing the first invalid field scrolls the
+  // banner out of view, so without these the seller sees a red border and no reason. They clear with
+  // the highlights so a reason never outlives its field's aria-invalid.
+  const [fieldErrorMessages, setFieldErrorMessages] = React.useState(() => new Map<FormFieldName, string>());
+  const setFieldErrorMessage = (fieldName: FormFieldName, message: string) =>
+    setFieldErrorMessages((messages) => new Map(messages).set(fieldName, message));
   const resetErrorFieldNames = () => {
     errorFieldNamesRef.current = new Set();
     setErrorFieldNames(errorFieldNamesRef.current);
+    setFieldErrorMessages(new Map());
   };
   // Counts failed save attempts. The scroll-to-first-invalid-field effect keys off this rather than
   // off errorFieldNames, so it fires once per press of "Update settings" and never again while the
@@ -263,6 +282,7 @@ export default function PaymentsPage() {
   const [isUpdateCountryConfirmed, setIsUpdateCountryConfirmed] = React.useState(false);
   const [isPayoutMethodChangeConfirmed, setIsPayoutMethodChangeConfirmed] = React.useState(false);
   const [saveCounter, setSaveCounter] = React.useState(0);
+  const [hasIdDocumentAlternative, setHasIdDocumentAlternative] = React.useState(false);
 
   const form = useForm<{
     user: ComplianceInfo;
@@ -393,11 +413,25 @@ export default function PaymentsPage() {
     setShowNewBankAccount(!props.bank_account_details.account_number_visual);
   }, [props.bank_account_details.account_number_visual]);
 
+  // A server-side rejection that names a field (the bank code Stripe's directory could not resolve)
+  // is flagged on that input like a client-side failure, and counted as a failed attempt so the
+  // scroll effect below runs again once the input carries aria-invalid.
+  React.useEffect(() => {
+    if (!errors?.field || !isFormFieldName(errors.field)) return;
+    markFieldInvalid(errors.field);
+    setFailedSaveAttempts((count) => count + 1);
+  }, [errors]);
+
   React.useEffect(() => {
     const hasServerError = Boolean(errors?.base && errors.base.length > 0);
-    // failedSaveAttempts only ever increments on a client-side validation failure, so a non-zero
-    // value here means the last press of "Update settings" was rejected before it left the browser.
+    // failedSaveAttempts increments on a client-side validation failure, or on a server error that
+    // names a field, so a non-zero value here means the last press of "Update settings" was rejected.
     if (!hasServerError && !clientErrorMessage && failedSaveAttempts === 0) return;
+    // The effect above has flagged the server-named field, but the input only carries aria-invalid
+    // after the re-render that flag causes; this effect runs again then, via failedSaveAttempts.
+    const serverNamedField = errors?.field && isFormFieldName(errors.field) ? errors.field : null;
+    const firstInvalidField = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    if (serverNamedField && !firstInvalidField) return;
 
     // The individual checks in validateForm set a specific message for the cases they know about
     // (P.O. Box address, phone format, Kana character sets, and so on). When none of them did, fill
@@ -415,7 +449,6 @@ export default function PaymentsPage() {
     // any field clears that set (see updateComplianceInfo), which would re-run this effect with no
     // invalid field left and scroll the seller back to the top of the form mid-keystroke — away from
     // the very field the banner just told them to fill in.
-    const firstInvalidField = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
     if (firstInvalidField) {
       firstInvalidField.scrollIntoView({ behavior: "smooth", block: "center" });
       firstInvalidField.focus({ preventScroll: true });
@@ -425,11 +458,12 @@ export default function PaymentsPage() {
     // errorFieldNames is deliberately NOT a dependency — see the comment above.
   }, [errors, clientErrorMessage, failedSaveAttempts]);
 
+  // Mirrors PoBoxAddress.match? in app/services/po_box_address.rb — the two have to stay in step.
   const isStreetAddressPOBox = (input: string) =>
     input
       .replace(/[^\w]*/gu, "")
       .toLocaleLowerCase()
-      .includes("pobox");
+      .includes("pobox") || /post[^a-z0-9]*office[^a-z0-9]*box(?![a-z])/iu.test(input);
 
   const poBoxAddressErrorMessage = (countryCode: CountryCode) => {
     if (countryCode === "US") {
@@ -468,6 +502,17 @@ export default function PaymentsPage() {
     if (value && !regex.test(value)) {
       markFieldInvalid(fieldName);
       setClientErrorMessage({ message: `${label} ${errorSuffix}` });
+    }
+  };
+
+  // Each (Kanji) field is Stripe's Japanese-script variation of the value beside it, and an account
+  // whose variation carries no Japanese character is refused later, naming neither the field nor the
+  // rule. Kana counts: a seller whose name has no kanji form can use its katakana rendering.
+  const validateJapaneseScriptField = (fieldName: FormFieldName, value: string | null | undefined, label: string) => {
+    if (value && !HAS_JAPANESE_LETTERS.test(value)) {
+      markFieldInvalid(fieldName);
+      setClientErrorMessage({ message: `${label} must include Japanese characters.` });
+      setFieldErrorMessage(fieldName, "Must include Japanese characters.");
     }
   };
 
@@ -653,7 +698,7 @@ export default function PaymentsPage() {
       markFieldInvalid("branch_code");
     }
     if (form.data.bank_account.type === "BoliviaBankAccount" && !form.data.bank_account.bank_code) {
-      markFieldInvalid("branch_code");
+      markFieldInvalid("bank_code");
     }
     if (form.data.bank_account.type === "GhanaBankAccount" && !form.data.bank_account.bank_code) {
       markFieldInvalid("bank_code");
@@ -703,8 +748,13 @@ export default function PaymentsPage() {
     if (form.data.bank_account.type === "SriLankaBankAccount" && !form.data.bank_account.branch_code) {
       markFieldInvalid("branch_code");
     }
-    if (form.data.bank_account.type === "BangladeshBankAccount" && !form.data.bank_account.bank_code) {
-      markFieldInvalid("bank_code");
+    if (form.data.bank_account.type === "BangladeshBankAccount") {
+      if (!form.data.bank_account.bank_code) {
+        markFieldInvalid("bank_code");
+      } else if (!BANGLADESH_BANK_CODE_REGEX.test(form.data.bank_account.bank_code)) {
+        markFieldInvalid("bank_code");
+        setClientErrorMessage({ message: "Enter your bank's 9-digit BEFTN routing number, digits only." });
+      }
     }
     if (form.data.bank_account.type === "BhutanBankAccount" && !form.data.bank_account.bank_code) {
       markFieldInvalid("bank_code");
@@ -756,7 +806,9 @@ export default function PaymentsPage() {
       const formatError = accountNumberFormatError(props.user.country_code, form.data.bank_account.account_number);
       if (formatError) {
         markFieldInvalid("account_number");
-        setClientErrorMessage({ message: formatError });
+        // Keep a reason an earlier check already set for a field above this one: the banner and the
+        // scroll-to-first-invalid-field both address that first field, not this one.
+        setClientErrorMessage((current: ErrorMessageInfo | null) => current ?? { message: formatError });
       }
     }
     if (!form.data.bank_account.account_number_confirmation) {
@@ -786,12 +838,14 @@ export default function PaymentsPage() {
       }
       if (!form.data.user.street_address_kanji) {
         markFieldInvalid("street_address_kanji");
+        setFieldErrorMessage("street_address_kanji", "Required.");
       }
       if (!form.data.user.street_address_kana) {
         markFieldInvalid("street_address_kana");
       }
       if (!form.data.user.city) {
         markFieldInvalid("city");
+        setFieldErrorMessage("city", "Required.");
       }
       if (!form.data.user.city_kana) {
         markFieldInvalid("city_kana");
@@ -839,6 +893,18 @@ export default function PaymentsPage() {
         "City (Kana)",
         "must include katakana characters.",
       );
+      if (!form.data.user.first_name_kanji) {
+        markFieldInvalid("first_name_kanji");
+        setFieldErrorMessage("first_name_kanji", "Required.");
+      }
+      if (!form.data.user.last_name_kanji) {
+        markFieldInvalid("last_name_kanji");
+        setFieldErrorMessage("last_name_kanji", "Required.");
+      }
+      validateJapaneseScriptField("first_name_kanji", form.data.user.first_name_kanji, "First name (Kanji)");
+      validateJapaneseScriptField("last_name_kanji", form.data.user.last_name_kanji, "Last name (Kanji)");
+      validateJapaneseScriptField("street_address_kanji", form.data.user.street_address_kanji, "Town/Cho-me (Kanji)");
+      validateJapaneseScriptField("city", form.data.user.city, "City/Ward (Kanji)");
     } else if (
       !form.data.user.street_address ||
       (streetAddressValidationContextChanged &&
@@ -896,6 +962,11 @@ export default function PaymentsPage() {
     ) {
       markFieldInvalid("individual_tax_id");
     }
+    const taxIdError = personalTaxIdError(form.data.user, props.user, form.data.user.individual_tax_id ?? "");
+    if (taxIdError) {
+      markFieldInvalid("individual_tax_id");
+      setClientErrorMessage({ message: taxIdError });
+    }
     // Stripe's id_number requirement follows the account country — business_country for
     // businesses (same rule as the Peru DNI check below).
     const ssnRequirementCountry = form.data.user.is_business ? form.data.user.business_country : form.data.user.country;
@@ -912,9 +983,19 @@ export default function PaymentsPage() {
         });
       }
     }
-    const peruDniRequired = form.data.user.is_business
-      ? form.data.user.business_country === "PE"
-      : form.data.user.country === "PE";
+    // A personal tax ID belongs to the representative, so its shape is only knowable from the
+    // representative's country — the same pairing UpdateUserComplianceInfo enforces. An SG
+    // business whose representative lives elsewhere has no NRIC/FIN to enter.
+    const representativeCountry = form.data.user.country ?? props.compliance_info.country;
+    const individualIdCountryMatches = (country: string) =>
+      representativeCountry === country && (!form.data.user.is_business || form.data.user.business_country === country);
+
+    if (usesHongKongPassport(form.data.user) && form.data.user.individual_tax_id && !form.data.user.nationality) {
+      markFieldInvalid("nationality");
+      setClientErrorMessage({ message: "Choose the country that issued your passport." });
+    }
+
+    const peruDniRequired = individualIdCountryMatches("PE");
     if (
       peruDniRequired &&
       form.data.user.individual_tax_id &&
@@ -925,9 +1006,7 @@ export default function PaymentsPage() {
         message: "Your DNI must include the verification digit (for example, 12345678-9).",
       });
     }
-    const singaporeNricRequired = form.data.user.is_business
-      ? form.data.user.business_country === "SG"
-      : form.data.user.country === "SG";
+    const singaporeNricRequired = individualIdCountryMatches("SG");
     if (
       singaporeNricRequired &&
       form.data.user.individual_tax_id &&
@@ -939,9 +1018,7 @@ export default function PaymentsPage() {
           "Your NRIC/FIN must start with S, T, F, G or M and end with a letter (for example, S1234567A). Please enter it exactly as it appears on your ID.",
       });
     }
-    const colombiaIdRequired = form.data.user.is_business
-      ? form.data.user.business_country === "CO"
-      : form.data.user.country === "CO";
+    const colombiaIdRequired = individualIdCountryMatches("CO");
     if (
       colombiaIdRequired &&
       form.data.user.individual_tax_id &&
@@ -950,8 +1027,22 @@ export default function PaymentsPage() {
       markFieldInvalid("individual_tax_id");
       setClientErrorMessage({ message: COLOMBIA_ID_NUMBER_ERROR_MESSAGE });
     }
+    if (
+      individualIdCountryMatches("GT") &&
+      form.data.user.individual_tax_id &&
+      !isValidGuatemalaNit(form.data.user.individual_tax_id)
+    ) {
+      markFieldInvalid("individual_tax_id");
+      setClientErrorMessage({ message: GUATEMALA_NIT_ERROR_MESSAGE });
+    }
     if (form.data.user.is_business) {
-      if (!form.data.user.business_type) {
+      const businessTypes = getBusinessTypes(form.data.user.business_country, {
+        US: props.us_business_types,
+        AE: props.uae_business_types,
+        IN: props.india_business_types,
+        CA: props.canada_business_types,
+      });
+      if (!businessTypes.some(({ code }) => code === form.data.user.business_type)) {
         markFieldInvalid("business_type");
       }
       if (!form.data.user.business_name) {
@@ -960,6 +1051,7 @@ export default function PaymentsPage() {
       if (form.data.user.business_country === "JP") {
         if (!form.data.user.business_name_kanji) {
           markFieldInvalid("business_name_kanji");
+          setFieldErrorMessage("business_name_kanji", "Required.");
         }
         if (!form.data.user.business_name_kana) {
           markFieldInvalid("business_name_kana");
@@ -969,12 +1061,14 @@ export default function PaymentsPage() {
         }
         if (!form.data.user.business_street_address_kanji) {
           markFieldInvalid("business_street_address_kanji");
+          setFieldErrorMessage("business_street_address_kanji", "Required.");
         }
         if (!form.data.user.business_street_address_kana) {
           markFieldInvalid("business_street_address_kana");
         }
         if (!form.data.user.business_city) {
           markFieldInvalid("business_city");
+          setFieldErrorMessage("business_city", "Required.");
         }
         if (!form.data.user.business_city_kana) {
           markFieldInvalid("business_city_kana");
@@ -1021,6 +1115,13 @@ export default function PaymentsPage() {
           "Business city (Kana)",
           "must include katakana characters.",
         );
+        validateJapaneseScriptField("business_name_kanji", form.data.user.business_name_kanji, "Business Name (Kanji)");
+        validateJapaneseScriptField(
+          "business_street_address_kanji",
+          form.data.user.business_street_address_kanji,
+          "Business town/Cho-me (Kanji)",
+        );
+        validateJapaneseScriptField("business_city", form.data.user.business_city, "Business city/Ward (Kanji)");
         if (form.data.user.business_name && HAS_JAPANESE_CHARS.test(form.data.user.business_name)) {
           markFieldInvalid("business_name");
           setClientErrorMessage({
@@ -1073,12 +1174,24 @@ export default function PaymentsPage() {
     }
   };
 
+  // A threshold stored before the platform minimum rose sits below it forever and changes no
+  // payout (`minimum_payout_amount_cents` takes the max server-side), so flag it only once the
+  // seller edits the field too low — otherwise it blocks every unrelated save with a red box.
+  const payoutThresholdEdited = form.data.payout_threshold_cents !== props.payout_threshold_cents;
+  const payoutThresholdBelowMinimum =
+    form.data.payout_threshold_cents != null && form.data.payout_threshold_cents < props.minimum_payout_threshold_cents;
+  const payoutThresholdError = payoutThresholdEdited && payoutThresholdBelowMinimum;
+
   const validateForm = () => {
     setClientErrorMessage(null);
     // Start from a clean slate every attempt. Not every input clears the set as it changes (the
     // PayPal email field and the saved-bank-account toggle don't), so a leftover entry from a
     // previous attempt would otherwise block a save and name a field the seller has since filled in.
     resetErrorFieldNames();
+
+    // The country-change confirmation and the mobile-app save call handleSave past the disabled
+    // button, so a below-minimum edit has to be refused here too.
+    if (payoutThresholdError) return false;
 
     if (isUpdateCountryConfirmed) {
       return true;
@@ -1126,7 +1239,7 @@ export default function PaymentsPage() {
     } else if (
       selectedPayoutMethod === "paypal" &&
       props.bank_account_details.account_number_visual !== null &&
-      props.formatted_balance_to_forfeit_on_payout_method_change !== null &&
+      (props.formatted_balance_to_forfeit_on_payout_method_change !== null || props.paypal_switch_loses_bank_rail) &&
       !isPayoutMethodChangeConfirmed
     ) {
       setShowPayoutMethodChangeConfirmationModal(true);
@@ -1135,9 +1248,21 @@ export default function PaymentsPage() {
 
     form.transform((data) => {
       const transformed: Record<string, unknown> = {
-        user: data.user,
+        user: {
+          ...data.user,
+          ...(usesUsTaxId(data.user, props.user) && data.user.individual_tax_id
+            ? { individual_tax_id: normalizeUsTaxId(data.user.individual_tax_id) }
+            : {}),
+        },
         payouts_paused_by_user: data.payouts_paused_by_user,
-        payout_threshold_cents: data.payout_threshold_cents,
+        // A stored threshold below a raised platform minimum makes the server reject every save, so
+        // raise the untouched value; an edited value never reaches here (validateForm refuses it).
+        payout_threshold_cents:
+          data.payout_threshold_cents != null &&
+          data.payout_threshold_cents === props.payout_threshold_cents &&
+          data.payout_threshold_cents < props.minimum_payout_threshold_cents
+            ? props.minimum_payout_threshold_cents
+            : data.payout_threshold_cents,
         payout_frequency: data.payout_frequency,
         disable_buyer_local_currency: data.disable_buyer_local_currency,
         disable_buyer_currency_rounding: data.disable_buyer_currency_rounding,
@@ -1149,6 +1274,8 @@ export default function PaymentsPage() {
         transformed.card = cardData;
       } else if (selectedPayoutMethod === "paypal") {
         transformed.payment_address = data.payment_address;
+        // The server refuses a rail-losing switch without this (UpdatePayoutMethod).
+        if (props.paypal_switch_loses_bank_rail) transformed.confirm_bank_rail_loss = isPayoutMethodChangeConfirmed;
       }
 
       return transformed;
@@ -1194,22 +1321,25 @@ export default function PaymentsPage() {
     }
   }, [isPayoutMethodChangeConfirmed]);
 
-  const payoutThresholdError =
-    form.data.payout_threshold_cents != null && form.data.payout_threshold_cents < props.minimum_payout_threshold_cents;
-
   const handlePayoutThresholdBlur = () => {
     if (!form.data.payout_threshold_cents) {
       form.setData("payout_threshold_cents", props.minimum_payout_threshold_cents);
     }
   };
 
+  // Read from saved props, not form state, so unchecking the switch doesn't lock it before the save.
+  // Only a hold that pays the reserve once the creator's own pause is off can be cleared by them.
+  const canClearOwnPayoutsPause =
+    props.payouts_paused_internally && props.payout_reserve_available && props.payouts_paused_by_user;
+  const isPayoutsPausedToggleLocked = props.payouts_paused_internally && !canClearOwnPayoutsPause;
+
   const payoutsPausedToggle = (
     <Fieldset>
       <Switch
-        checked={form.data.payouts_paused_by_user || props.payouts_paused_internally}
+        checked={form.data.payouts_paused_by_user || isPayoutsPausedToggleLocked}
         onChange={(e) => form.setData("payouts_paused_by_user", e.target.checked)}
         aria-label="Pause payouts"
-        disabled={props.is_form_disabled || props.payouts_paused_internally}
+        disabled={props.is_form_disabled || isPayoutsPausedToggleLocked}
         label="Pause payouts"
       />
       <FieldsetDescription>
@@ -1241,6 +1371,8 @@ export default function PaymentsPage() {
       {showPayoutMethodChangeConfirmationModal ? (
         <ConfirmBalanceForfeitOnPayoutMethodChangeModal
           balance={props.formatted_balance_to_forfeit_on_payout_method_change}
+          losesBankRail={props.paypal_switch_loses_bank_rail}
+          bankAccountNumberVisual={props.bank_account_details.account_number_visual}
           open={showPayoutMethodChangeConfirmationModal}
           onConfirm={confirmPayoutMethodChange}
           onClose={cancelPayoutMethodChange}
@@ -1251,6 +1383,7 @@ export default function PaymentsPage() {
           accountStatus={props.account_status}
           payoutsPausedBy={props.payouts_paused_by}
           payoutReservePercent={props.payout_reserve_percent ?? null}
+          canClearOwnPause={canClearOwnPayoutsPause}
         />
 
         {props.aus_backtax_details.show_au_backtax_prompt ? (
@@ -1342,9 +1475,12 @@ export default function PaymentsPage() {
                   symbolFormat: "long",
                 })}
                 .
+                {payoutThresholdBelowMinimum && !payoutThresholdEdited
+                  ? " Until you enter a higher amount, your payouts use that minimum."
+                  : null}
               </FieldsetDescription>
             </Fieldset>
-            {props.payouts_paused_internally ? (
+            {isPayoutsPausedToggleLocked ? (
               <WithTooltip
                 tip={
                   props.payouts_paused_by === "stripe"
@@ -1529,12 +1665,15 @@ export default function PaymentsPage() {
                 minDobYear={props.min_dob_year}
                 isFormDisabled={props.is_form_disabled}
                 countries={props.countries}
+                usBusinessTypes={props.us_business_types}
                 uaeBusinessTypes={props.uae_business_types}
                 indiaBusinessTypes={props.india_business_types}
                 canadaBusinessTypes={props.canada_business_types}
                 states={props.states}
                 errorFieldNames={errorFieldNames}
+                fieldErrorMessages={fieldErrorMessages}
                 saveCounter={saveCounter}
+                hasIdDocumentAlternative={hasIdDocumentAlternative}
               />
             ) : (
               <StripeConnectSection
@@ -1559,6 +1698,7 @@ export default function PaymentsPage() {
               countries={props.countries}
               states={props.states}
               defaultCountry={form.data.user.business_country ?? form.data.user.country}
+              onIdDocumentAlternativeChange={setHasIdDocumentAlternative}
               minDobYear={props.min_dob_year}
               isFormDisabled={props.is_form_disabled}
             />

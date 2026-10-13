@@ -2,23 +2,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 
-import { profileRichTextNeedsClientEnhancement } from "$app/components/Profile/ProfileRichText";
 import { ProfileRichTextContent } from "$app/components/Profile/ProfileRichTextContent";
-
-it("detects nested nodes that require client enhancement", () => {
-  expect(
-    profileRichTextNeedsClientEnhancement({
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "text", text: "Static creator story" }] }],
-    }),
-  ).toBe(false);
-  expect(
-    profileRichTextNeedsClientEnhancement({
-      type: "doc",
-      content: [{ type: "paragraph", content: [{ type: "raw" }] }],
-    }),
-  ).toBe(true);
-});
 
 it("renders safe rich text links without emitting unsafe hrefs", () => {
   const html = renderToStaticMarkup(
@@ -129,4 +113,33 @@ it("does not emit non-web image sources", () => {
   );
 
   expect(html).not.toContain("my-app://open");
+});
+
+it.each([undefined, {}, { level: 0 }, { level: 7 }, { level: 1.5 }, { level: "2" }])(
+  "preserves headings with missing or unsupported levels like the editor (%j)",
+  (attrs) => {
+    const html = renderToStaticMarkup(
+      <ProfileRichTextContent
+        content={{
+          type: "doc",
+          content: [{ type: "heading", attrs, content: [{ type: "text", text: "Default heading" }] }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("<h1>Default heading</h1>");
+  },
+);
+
+it.each([1, 2, 3, 4, 5, 6])("preserves authored heading level %i", (level) => {
+  const html = renderToStaticMarkup(
+    <ProfileRichTextContent
+      content={{
+        type: "doc",
+        content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: "Authored heading" }] }],
+      }}
+    />,
+  );
+
+  expect(html).toContain(`<h${level}>Authored heading</h${level}>`);
 });

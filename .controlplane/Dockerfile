@@ -66,6 +66,7 @@ COPY . ./
 RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     VITE_RUBY_ASSET_HOST='' \
     RENDERER_PASSWORD=build-placeholder-renderer-password \
+    VITE_RUBY_SKIP_ASSETS_PRECOMPILE_INSTALL=true \
     SECRET_KEY_BASE=build-placeholder-secret-key-base \
     DEVISE_SECRET_KEY=build-placeholder-devise-secret-key \
     OBFUSCATE_IDS_CIPHER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
@@ -105,8 +106,7 @@ RUN export NODE_OPTIONS=--max-old-space-size=4096 \
     GUMROAD_RENDERING_SURFACE=${BENCHMARK_APP#gumroad-} \
     SKIP_BRANCH_APP_ES_INDEX_SETUP=true && \
     npm run setup && \
-    npm run build:public-rsc && \
-    npx vite build && \
+    npm run build:widget && \
     bundle exec rails assets:precompile && \
     bundle exec rails react_on_rails_pro:pre_seed_renderer_cache
 

@@ -88,7 +88,9 @@ class CheckoutController < ApplicationController
         cart_product.quantity = item[:quantity]
         cart_product.recurrence = item[:recurrence]
         cart_product.recommended_by = item[:recommended_by]
-        cart_product.rent = item[:rent]
+        # `rent` is a NOT NULL boolean, so a blank value from a client that serializes absent URL
+        # params as empty strings casts to nil and aborts the whole cart save. Blank is not a rental.
+        cart_product.rent = ActiveModel::Type::Boolean.new.cast(item[:rent]) || false
         # `url_parameters` and `referrer` are required by CartProduct (the former must be a JSON
         # object, the latter must be present). Some clients send a cart item without those keys at
         # all, in which case `item[:x]` is nil and a plain assignment would wipe the value the
@@ -158,6 +160,7 @@ class CheckoutController < ApplicationController
           text_color: profile.text_color_on_background,
           danger_color: profile.danger_color,
           font_family: profile.font_family,
+          border_radius: profile.border_radius_css,
         },
       }
     rescue SassC::SyntaxError

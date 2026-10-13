@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/consistent-type-assertions -- Mocks only read the recurring-purchase fields below. */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Product as ProductData, ProductDiscount, Purchase } from "$app/components/Product";
@@ -10,12 +12,11 @@ import {
   ProductPurchaseControls,
   ProductPurchaseControlsFromState,
 } from "$app/components/Product/ProductPurchaseControls.client";
+import { ProductHydrationProvider } from "$app/components/PublicPages/ProductHydration.client";
 
 const {
   assertResponseError,
   loggedInUser,
-  modalModuleLoaded,
-  modalRenderFails,
   productState,
   selectionAttributes,
   shareProps,
@@ -24,8 +25,6 @@ const {
 } = vi.hoisted(() => ({
   assertResponseError: vi.fn(),
   loggedInUser: { value: { id: "buyer" } as { id: string } | null },
-  modalModuleLoaded: vi.fn(),
-  modalRenderFails: { value: false },
   productState: { value: null as unknown },
   selectionAttributes: {
     value: {
@@ -123,20 +122,17 @@ vi.mock("$app/components/Product/CtaButton", async () => {
   return { CtaButton };
 });
 
-vi.mock("$app/components/Product/SubscriptionChoiceModal", () => {
-  modalModuleLoaded();
-
-  return {
-    SubscriptionChoiceModal: ({ checkoutUrl }: { checkoutUrl: string }) => {
-      if (modalRenderFails.value) throw new Error("Chunk failed");
-      return <div role="dialog">Choose subscription for {checkoutUrl}</div>;
-    },
-  };
-});
+vi.mock("$app/components/Product/SubscriptionChoiceModal", () => ({
+  SubscriptionChoiceModal: ({ checkoutUrl }: { checkoutUrl: string }) => {
+    if (!checkoutUrl) return null;
+    return <div role="dialog">Choose subscription for {checkoutUrl}</div>;
+  },
+}));
 
 const buildProduct = (overrides: Partial<ProductData> = {}) =>
   ({
     can_edit: false,
+    options: [],
     currency_code: "usd",
     is_recurring_billing: true,
     native_type: "digital",
@@ -199,12 +195,56 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
-  modalModuleLoaded.mockClear();
-  modalRenderFails.value = false;
 });
 
 describe("ProductPurchaseControls", () => {
-  it("loads the subscription choice dialog only after the CTA is activated", async () => {
+  it("hydrates PPP percentage and seller-currency text using the request locale", async () => {
+    selectionAttributes.value = {
+      ...selectionAttributes.value,
+      priceCents: 200_000,
+      discountedPriceCents: 123_456,
+      pppDiscounted: true,
+    };
+    vi.spyOn(Number.prototype, "toLocaleString").mockImplementation(function (this: number, locales, options) {
+      return new Intl.NumberFormat(locales ?? "de-DE", options).format(this);
+    });
+    const content = (
+      <ProductHydrationProvider value={{ locale: "en-US", timeZone: "UTC", referenceTime: 0 }}>
+        <ProductPurchaseControls
+          product={buildProduct({ ppp_details: { country: "Germany", factor: 0.61728, minimum_price: 0 } })}
+          purchase={null}
+          selection={selection}
+          availabilityNotice={null}
+          membershipNotices={null}
+          onDiscountExpiration={vi.fn()}
+        />
+      </ProductHydrationProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(content);
+    expect(container.textContent).toContain("38%");
+    expect(container.textContent).toContain("$1,234.56");
+    const serverNotice = container.querySelector("[role=status]");
+    const errors = vi.fn();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const root = hydrateRoot(container, content, { onRecoverableError: errors });
+    try {
+      await React.act(async () => {
+        await Promise.resolve();
+      });
+      expect(errors).not.toHaveBeenCalled();
+      expect(container.querySelector("[role=status]")).toBe(serverNotice);
+      expect(container.textContent).toContain("$1.234,56");
+      expect(container.textContent).toContain(new Intl.NumberFormat("de-DE", { style: "percent" }).format(0.38));
+    } finally {
+      await React.act(async () => {
+        root.unmount();
+        await Promise.resolve();
+      });
+    }
+  });
+
+  it("opens the shared subscription choice dialog after the CTA is activated", async () => {
     render(
       <ProductPurchaseControls
         product={product}
@@ -216,35 +256,11 @@ describe("ProductPurchaseControls", () => {
       />,
     );
 
-    expect(modalModuleLoaded).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("link", { name: "Buy" }));
 
     expect((await screen.findByRole("dialog")).textContent).toContain("/checkout");
-    expect(modalModuleLoaded).toHaveBeenCalledOnce();
-  });
-
-  it("shows a recoverable error when the subscription dialog cannot render", async () => {
-    modalRenderFails.value = true;
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-
-    render(
-      <ProductPurchaseControls
-        product={product}
-        purchase={purchase}
-        selection={selection}
-        availabilityNotice={null}
-        membershipNotices={null}
-        onDiscountExpiration={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("link", { name: "Buy" }));
-
-    expect((await screen.findByRole("alert")).textContent).toContain("Purchase options could not be loaded.");
-    expect(screen.getByRole("button", { name: "Cancel" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Reload and try again" })).not.toBeNull();
   });
 
   it("marks a missing pay-what-you-want price and focuses its input", () => {
@@ -258,7 +274,7 @@ describe("ProductPurchaseControls", () => {
         purchase={purchase}
         selection={selection}
         setSelection={setSelection}
-        configurationSelectorRef={{ current: { focusRequiredInput } }}
+        configurationSelectorRef={{ current: { focusRequiredInput, scrollIntoView: vi.fn() } }}
         availabilityNotice={null}
         membershipNotices={null}
         onDiscountExpiration={vi.fn()}
@@ -285,7 +301,7 @@ describe("ProductPurchaseControls", () => {
         purchase={purchase}
         selection={underMinimum}
         setSelection={setSelection}
-        configurationSelectorRef={{ current: { focusRequiredInput } }}
+        configurationSelectorRef={{ current: { focusRequiredInput, scrollIntoView: vi.fn() } }}
         availabilityNotice={null}
         membershipNotices={null}
         onDiscountExpiration={vi.fn()}

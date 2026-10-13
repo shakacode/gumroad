@@ -61,6 +61,7 @@ revision
 tmp
 ssr-generated/
 .node-renderer-bundles/
+.node-renderer-bundles.preseed.lock
 web_base_sha
 spoom_data/*
 spoom_report.html
@@ -83,4 +84,3 @@ autoresearch.*
 # Baked CI test-database dump (created inside the test image at build time;
 # never committed — see docker/ci/dump_test_db.sh)
 db/prepared_test_db.sql.gz
-benchmark-results/**/

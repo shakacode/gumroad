@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "inertia_rails/rspec"
 
 describe LinksController, :vcr, type: :controller do
   CUSTOM_HTML_CSP = LinksController::CUSTOM_HTML_CSP
@@ -281,6 +282,65 @@ describe LinksController, :vcr, type: :controller do
       expect(response).to be_redirect
       expect(response.location).to include("/checkout")
       expect(response.body).not_to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+    end
+
+    describe "?native=true", inertia: true do
+      it "serves the standard product page instead of the custom page" do
+        get :show, params: { id: product.unique_permalink, native: "true" }
+
+        expect(response).to be_successful
+        expect(inertia).to render_component("Products/Show")
+        expect(response.body).not_to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+      end
+
+      it "still serves the custom page for any other value" do
+        get :show, params: { id: product.unique_permalink, native: "false" }
+
+        expect(response.body).to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+      end
+    end
+
+    describe "review-reminder links", inertia: true do
+      let(:product) { create(:product, :bundle, user: seller, custom_html: "<section><h1>Live landing page</h1></section>") }
+      let(:purchase) { create(:free_purchase, link: product, is_bundle_purchase: true) }
+      let(:review_params) { { id: product.unique_permalink, purchase_id: purchase.external_id, purchase_email_digest: purchase.email_digest } }
+
+      it "falls through to the standard page and hands the bundle purchase to the review form" do
+        expect(controller).to receive(:prepare_product_page).and_call_original
+
+        get :show, params: review_params
+
+        expect(response).to be_successful
+        expect(response.body).not_to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+        expect(inertia).to render_component("Products/Show")
+        expect(inertia.props[:purchase]).to include(id: purchase.external_id, email_digest: purchase.email_digest, review: nil)
+      end
+
+      it "verifies the link on the primary database" do
+        pinned = nil
+        allow_any_instance_of(Link).to receive(:review_link_purchase?).and_wrap_original do |method, *args|
+          pinned = ApplicationRecord.connected_to_stack.any? do |entry|
+            entry[:role] == :writing && entry[:klasses].include?(ApplicationRecord)
+          end
+          method.call(*args)
+        end
+
+        get :show, params: review_params
+
+        expect(pinned).to eq(true)
+      end
+
+      it "still serves the custom page when the digest does not match the purchase" do
+        get :show, params: review_params.merge(purchase_email_digest: "not-the-digest")
+
+        expect(response.body).to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+      end
+
+      it "still serves the custom page when only the purchase id is present" do
+        get :show, params: review_params.except(:purchase_email_digest)
+
+        expect(response.body).to include(%(src="/l/#{product.unique_permalink}/landing/embed"))
+      end
     end
   end
 

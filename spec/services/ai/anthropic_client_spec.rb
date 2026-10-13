@@ -5,16 +5,21 @@ require "spec_helper"
 describe Ai::AnthropicClient do
   subject(:client) { described_class.new(timeout: 5) }
 
-  let(:url) { "https://api.anthropic.com/v1/messages" }
+  let(:url) { "https://openrouter.ai/api/v1/messages" }
 
   before do
     allow(GlobalConfig).to receive(:get).and_call_original
-    allow(GlobalConfig).to receive(:get).with("ANTHROPIC_API_KEY").and_return("sk-ant-test")
-    # Pin OpenRouter routing OFF by default so these specs exercise the direct-to-Anthropic path
-    # regardless of what the host machine's environment has configured.
-    allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return(nil)
-    allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_KEY").and_return(nil)
-    allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return(nil)
+    # Pin routing so these specs do not depend on the host machine's environment.
+    allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
+    allow(GlobalConfig).to receive(:get).with("OPENROUTER_FALLBACK_MODEL").and_return(nil)
+    allow(GlobalConfig).to receive(:get).with("STORE_AGENT_OPENROUTER_API_KEY").and_return(nil)
+    allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return(nil)
+  end
+
+  def sse_stream(text)
+    "event: content_block_start\ndata: #{{ index: 0, content_block: { type: "text" } }.to_json}\n\n" \
+      "event: content_block_delta\ndata: #{{ index: 0, delta: { type: "text_delta", text: } }.to_json}\n\n" \
+      "event: message_delta\ndata: #{{ delta: { stop_reason: "end_turn" } }.to_json}\n\n"
   end
 
   describe "#messages" do
@@ -22,7 +27,7 @@ describe Ai::AnthropicClient do
       body = { "content" => [{ "type" => "text", "text" => "You have 3 products." }], "stop_reason" => "end_turn" }
       stub = stub_request(:post, url)
         .with(
-          headers: { "x-api-key" => "sk-ant-test", "anthropic-version" => "2023-06-01" },
+          headers: { "x-api-key" => "sk-or-test", "anthropic-version" => "2023-06-01" },
           body: hash_including("model" => described_class::DEFAULT_MODEL, "stream" => false),
         )
         .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
@@ -121,6 +126,33 @@ describe Ai::AnthropicClient do
       expect(stub).to have_been_requested.once
     end
 
+    it "does not retry a tool-call token cutoff, and does not treat it as a transient error" do
+      body = { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }.to_json
+      stub = stub_request(:post, url).to_return(status: 400, body: body)
+
+      expect { client.messages(system: "s", messages: [{ role: "user", content: "x" }]) }
+        .to raise_error(described_class::ToolCallTokenCutoffError, /Tool calls cutoff by max_tokens/)
+      expect(stub).to have_been_requested.once
+      expect(described_class::ToolCallTokenCutoffError).not_to be < described_class::TransientError
+    end
+
+    it "returns a max_tokens result for a tool-call token cutoff only when the caller opts in" do
+      body = { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }.to_json
+      stub = stub_request(:post, url).to_return(status: 400, body: body)
+
+      result = client.messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true)
+
+      expect(result).to have_attributes(text: "", tool_uses: [], stop_reason: "max_tokens")
+      expect(stub).to have_been_requested.once
+    end
+
+    it "still raises a different max_tokens 400 when the caller opts in" do
+      stub_request(:post, url).to_return(status: 400, body: { error: { message: "max_tokens must be positive" } }.to_json)
+
+      expect { client.messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true) }
+        .to raise_error(described_class::Error, /max_tokens must be positive/)
+    end
+
     it "sleeps the Retry-After header value on a 429 instead of the default backoff" do
       body = { "content" => [{ "type" => "text", "text" => "ok" }], "stop_reason" => "end_turn" }
       stub_request(:post, url)
@@ -208,14 +240,171 @@ describe Ai::AnthropicClient do
         read: 45,
       )
     end
+
+    it "spends the deadline once across reads and lifts it on the first delta" do
+      armed = []
+      allow(HTTP::Client).to receive(:new).and_wrap_original do |original, options|
+        opts = options.is_a?(HTTP::Options) ? options : HTTP::Options.new(options)
+        armed << opts if opts.timeout_options.key?(:first_byte_timeout)
+        original.call(opts)
+      end
+
+      stub_request(:post, url).to_return(status: 200, body: sse_stream("hi"), headers: { "Content-Type" => "text/event-stream" })
+      described_class.new(timeout: 45).stream_messages(system: "s", messages: [{ role: "user", content: "x" }], ttft_deadline: 9) { |_| }
+
+      expect(armed).not_to be_empty
+      expect(armed.map(&:timeout_class)).to all(be < HTTP::Timeout::PerOperation)
+      options = armed.last.timeout_options
+      expect(options).to include(first_byte_timeout: 9, read_timeout: 45)
+      # The stream's own first delta is what lifts the deadline for the rest of the stream.
+      expect(options[:first_byte_marker]).to be_arrived
+
+      waits = []
+      fresh_marker = options[:first_byte_marker].class.new
+      timeout = armed.last.timeout_class.new(options.merge(first_byte_marker: fresh_marker))
+      timeout.instance_variable_set(:@socket, blocking_socket(waits))
+
+      expect { timeout.readpartial(16) }.to raise_error(described_class::TtftDeadlineError)
+      expect(waits.first).to be <= 9
+      expect(waits.first).to be > 8
+
+      # A second read before any delta gets what is left of the budget, not a fresh interval.
+      sleep 0.01
+      expect { timeout.readpartial(16) }.to raise_error(described_class::TtftDeadlineError)
+      expect(waits.first - waits.last).to be > 0.005
+
+      # Past the first delta a read timeout is silence, not the deadline — a different error class.
+      fresh_marker.arrived!
+      expect { timeout.readpartial(16) }.to raise_error(an_instance_of(HTTP::TimeoutError))
+      expect(waits.last).to eq(45)
+    end
+
+    it "leaves the timeouts as they are today when no deadline is given" do
+      allow(HTTP).to receive(:timeout).and_call_original
+      armed = []
+      allow(HTTP::Client).to receive(:new).and_wrap_original do |original, options|
+        opts = options.is_a?(HTTP::Options) ? options : HTTP::Options.new(options)
+        armed << opts if opts.timeout_options.key?(:first_byte_timeout)
+        original.call(opts)
+      end
+
+      stub_request(:post, url).to_return(status: 200, body: sse_stream("hi"), headers: { "Content-Type" => "text/event-stream" })
+      described_class.new(timeout: 45).stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |_| }
+
+      expect(HTTP).to have_received(:timeout).with(
+        connect: described_class::CONNECT_TIMEOUT_IN_SECONDS,
+        write: described_class::WRITE_TIMEOUT_IN_SECONDS,
+        read: 45,
+      )
+      expect(armed).to be_empty
+    end
+
+    # A socket that never becomes readable, so #readpartial runs its timeout path and the error
+    # names the read timeout it waited with.
+    def blocking_socket(waits)
+      io = Object.new
+      io.define_singleton_method(:wait_readable) { |seconds| waits << seconds; false }
+
+      socket = Object.new
+      socket.define_singleton_method(:to_io) { io }
+      socket.define_singleton_method(:read_nonblock) { |_size, _buffer = nil, **_options| :wait_readable }
+      socket
+    end
+  end
+
+  describe "first-byte deadline failover" do
+    let(:vercel_url) { "https://ai-gateway.vercel.sh/v1/messages" }
+    let(:vercel_client) do
+      described_class.new(timeout: 120, model: "deepseek/deepseek-v4.1-flash", fallback_model: "anthropic/claude-opus-5")
+    end
+
+    before do
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return("gw-test")
+      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return(nil)
+    end
+
+    it "re-issues on the fallback model when the deadline expires before any output" do
+      calls = 0
+      allow(vercel_client).to receive(:http).and_wrap_original do |original, **kwargs|
+        calls += 1
+        raise described_class::TtftDeadlineError, "Anthropic produced no output within 15s" if calls == 1
+
+        original.call(**kwargs)
+      end
+      opus = stub_request(:post, vercel_url)
+        .with(body: hash_including("model" => "anthropic/claude-opus-5"))
+        .to_return(status: 200, body: sse_stream("hi"), headers: { "Content-Type" => "text/event-stream" })
+      allow(vercel_client).to receive(:sleep)
+
+      chunks = []
+      result = vercel_client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], ttft_deadline: 15) { |text| chunks << text }
+
+      expect(chunks).to eq(["hi"])
+      expect(result.text).to eq("hi")
+      expect(opus).to have_been_requested.once
+      # The stalled attempt is what telemetry records, and no same-model retry spent the deadline again.
+      expect(vercel_client.call_metrics.first[:error]).to eq(described_class::TtftDeadlineError.name)
+      expect(vercel_client).not_to have_received(:sleep)
+    end
+
+    it "keeps the ordinary retries when the timeout is not the deadline" do
+      # WebMock's to_timeout raises the plain HTTP::TimeoutError — a connection-level failure, not
+      # the deadline-bounded read — so the same model keeps its retries.
+      deepseek = stub_request(:post, vercel_url)
+        .with(body: hash_including("model" => "deepseek/deepseek-v4.1-flash"))
+        .to_timeout
+        .then
+        .to_return(status: 200, body: sse_stream("hi"), headers: { "Content-Type" => "text/event-stream" })
+      allow(vercel_client).to receive(:sleep)
+
+      chunks = []
+      vercel_client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], ttft_deadline: 15) { |text| chunks << text }
+
+      expect(deepseek).to have_been_requested.twice
+      expect(chunks).to eq(["hi"])
+      expect(vercel_client).to have_received(:sleep).once
+    end
+
+    it "leaves the fallback replay on the ordinary timeouts" do
+      allow(HTTP).to receive(:timeout).and_call_original
+      calls = 0
+      allow(vercel_client).to receive(:http).and_wrap_original do |original, **kwargs|
+        calls += 1
+        raise described_class::TtftDeadlineError, "Anthropic produced no output within 15s" if calls == 1
+
+        original.call(**kwargs)
+      end
+      allow(vercel_client).to receive(:sleep)
+      stub_request(:post, vercel_url)
+        .to_return(status: 200, body: sse_stream("hi"), headers: { "Content-Type" => "text/event-stream" })
+
+      vercel_client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], ttft_deadline: 15) { |_| }
+
+      expect(HTTP).to have_received(:timeout).with(
+        connect: described_class::CONNECT_TIMEOUT_IN_SECONDS,
+        write: described_class::WRITE_TIMEOUT_IN_SECONDS,
+        read: 120,
+      )
+    end
+
+    it "keeps re-issuing the same model when no deadline was given" do
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return(nil)
+      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
+      allow(client).to receive(:sleep)
+      stub_request(:post, url).to_timeout
+
+      expect { client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |_| } }
+        .to raise_error(described_class::TransientError, /network error/i)
+      expect(client).to have_received(:sleep).twice
+    end
   end
 
   describe "API key resolution" do
-    it "uses ANTHROPIC_API_KEY when it is set" do
-      allow(GlobalConfig).to receive(:get).with("ANTHROPIC_API_KEY").and_return("sk-ant-dedicated")
+    it "prefers the store agent's own OpenRouter key on the default route" do
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_OPENROUTER_API_KEY").and_return("sk-or-store-agent")
 
       stub = stub_request(:post, url)
-        .with(headers: { "x-api-key" => "sk-ant-dedicated" })
+        .with(headers: { "x-api-key" => "sk-or-store-agent" })
         .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
 
       client.messages(system: "s", messages: [{ role: "user", content: "x" }])
@@ -223,27 +412,16 @@ describe Ai::AnthropicClient do
       expect(stub).to have_been_requested
     end
 
-    it "falls back to WALKS_ANTHROPIC_API_KEY when ANTHROPIC_API_KEY is blank" do
-      allow(GlobalConfig).to receive(:get).with("ANTHROPIC_API_KEY").and_return("")
+    it "raises instead of calling Anthropic directly when no OpenRouter key is configured" do
+      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("")
       allow(GlobalConfig).to receive(:get).with("WALKS_ANTHROPIC_API_KEY").and_return("sk-ant-walks")
-
-      stub = stub_request(:post, url)
-        .with(headers: { "x-api-key" => "sk-ant-walks" })
-        .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
-
-      client.messages(system: "s", messages: [{ role: "user", content: "x" }])
-
-      expect(stub).to have_been_requested
-    end
-
-    it "raises a clear error (no blank-key request) when both keys are missing" do
-      allow(GlobalConfig).to receive(:get).with("ANTHROPIC_API_KEY").and_return("")
-      allow(GlobalConfig).to receive(:get).with("WALKS_ANTHROPIC_API_KEY").and_return(nil)
-      request = stub_request(:post, url)
+      openrouter = stub_request(:post, url)
+      anthropic = stub_request(:post, "https://api.anthropic.com/v1/messages")
 
       expect { client.messages(system: "s", messages: [{ role: "user", content: "x" }]) }
         .to raise_error(described_class::Error, /not configured/i)
-      expect(request).not_to have_been_requested
+      expect(openrouter).not_to have_been_requested
+      expect(anthropic).not_to have_been_requested
     end
   end
 
@@ -338,19 +516,6 @@ describe Ai::AnthropicClient do
       expect(client).to have_received(:sleep).once
     end
 
-    it "does not send fallbacks or touch OpenRouter when the key is not configured" do
-      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("")
-      captured = nil
-      stub = stub_request(:post, url)
-        .with(headers: { "x-api-key" => "sk-ant-test" }) { |request| captured = JSON.parse(request.body); true }
-        .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
-
-      client.messages(system: "s", messages: [{ role: "user", content: "x" }])
-
-      expect(stub).to have_been_requested
-      expect(captured).not_to have_key("fallbacks")
-    end
-
     describe "served-model logging" do
       before { allow(Rails.logger).to receive(:warn) }
 
@@ -395,18 +560,17 @@ describe Ai::AnthropicClient do
     subject(:client) do
       described_class.new(
         timeout: 5,
-        gateway: :vercel,
         model: "deepseek/deepseek-v4.1-flash",
         fallback_model: "anthropic/claude-opus-5",
       )
     end
 
     before do
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_KEY").and_return("sk-vercel-test")
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return("https://ai-gateway.vercel.sh")
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return("sk-vercel-test")
+      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return(nil)
     end
 
-    it "routes to Vercel with the Gumhead key, no OpenRouter fallbacks, and Vercel model failover" do
+    it "routes to Vercel with the store agent's gateway key, no OpenRouter fallbacks, and Vercel model failover" do
       captured = nil
       stub = stub_request(:post, vercel_url)
         .with(headers: { "x-api-key" => "sk-vercel-test", "anthropic-version" => "2023-06-01" }) { |request| captured = JSON.parse(request.body); true }
@@ -423,19 +587,8 @@ describe Ai::AnthropicClient do
       expect(client.served_models).to eq(["deepseek/deepseek-v4.1-flash"])
     end
 
-    it "joins a /v1 base onto /messages rather than doubling /v1" do
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return("https://ai-gateway.vercel.sh/v1")
-      stub = stub_request(:post, vercel_url)
-        .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
-
-      client.messages(system: "s", messages: [{ role: "user", content: "x" }])
-
-      expect(stub).to have_been_requested
-    end
-
-    it "falls back to OpenRouter when Vercel config is blank" do
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_KEY").and_return(nil)
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return(nil)
+    it "falls back to OpenRouter when the store agent has no gateway key" do
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return(nil)
       allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
       captured = nil
       stub = stub_request(:post, openrouter_url)
@@ -451,19 +604,192 @@ describe Ai::AnthropicClient do
       expect(captured).not_to have_key("providerOptions")
     end
 
-    it "falls back to OpenRouter when the Gumhead base is not the Vercel host" do
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return("https://openrouter.ai/api/v1")
+    it "prefers the store agent's own OpenRouter key over the shared one" do
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return(nil)
       allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
+      allow(GlobalConfig).to receive(:get).with("STORE_AGENT_OPENROUTER_API_KEY").and_return("sk-or-store-agent")
       stub = stub_request(:post, openrouter_url)
+        .with(headers: { "x-api-key" => "sk-or-store-agent" })
         .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
 
       client.messages(system: "s", messages: [{ role: "user", content: "x" }])
 
       expect(stub).to have_been_requested
-      expect(client.gateway_name).to eq("openrouter")
     end
 
-    it "replays the Opus fallback model on the same Vercel URL after a non-retryable error" do
+    context "when OpenRouter is configured" do
+      let(:credit_error) { { status: 402, body: { error: { message: "A positive credit balance is required" } }.to_json } }
+      let(:reply) { { "model" => "anthropic/claude-opus-5", "content" => [{ "type" => "text", "text" => "ok" }], "stop_reason" => "end_turn" } }
+
+      before do
+        allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
+      end
+
+      it "uses OpenRouter credentials and format for the fallback, then restores Vercel for the next call" do
+        allow(Rails.logger).to receive(:warn)
+        primary = stub_request(:post, vercel_url)
+          .with(headers: { "x-api-key" => "sk-vercel-test" }, body: hash_including("model" => "deepseek/deepseek-v4.1-flash"))
+          .to_return(credit_error, { status: 200, body: reply.merge("model" => "deepseek/deepseek-v4.1-flash").to_json, headers: { "Content-Type" => "application/json" } })
+        captured = nil
+        fallback = stub_request(:post, openrouter_url)
+          .with(headers: { "x-api-key" => "sk-or-test" }) { |request| captured = JSON.parse(request.body); true }
+          .to_return(status: 200, body: reply.to_json, headers: { "Content-Type" => "application/json" })
+
+        result = client.messages(system: "s", messages: [{ role: "user", content: "x" }], thinking: { type: "disabled" })
+
+        expect(result.text).to eq("ok")
+        expect(captured["model"]).to eq("anthropic/claude-opus-5")
+        expect(captured.keys).not_to include("providerOptions", "fallbacks", "thinking")
+        expect(client.call_metrics.map { |call| call.slice(:gateway, :status) }).to eq(
+          [{ gateway: "vercel", status: 402 }, { gateway: "openrouter", status: 200 }]
+        )
+        expect(Rails.logger).to have_received(:warn).with(a_string_matching(/replaying fallback.*gateway=openrouter/))
+
+        expect(client.messages(system: "s", messages: [{ role: "user", content: "y" }]).text).to eq("ok")
+        expect(primary).to have_been_requested.twice
+        expect(fallback).to have_been_requested.once
+        expect(client.gateway_name).to eq("vercel")
+      end
+
+      it "sends the store agent's Grok route to Vercel on its own key and replays the Opus fallback on its own OpenRouter key" do
+        allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return("sk-vercel-store-agent")
+        allow(GlobalConfig).to receive(:get).with("STORE_AGENT_OPENROUTER_API_KEY").and_return("sk-or-store-agent")
+        grok_client = described_class.new(
+          timeout: 5,
+          model: Ai::StoreAgentService::GROK_MODEL,
+          fallback_model: Ai::StoreAgentService::GROK_FALLBACK_MODEL,
+        )
+        primary = stub_request(:post, vercel_url)
+          .with(
+            headers: { "x-api-key" => "sk-vercel-store-agent" },
+            body: hash_including("model" => "x-ai/grok-4.5", "providerOptions" => { "gateway" => { "models" => ["anthropic/claude-opus-5"] } }),
+          )
+          .to_return(credit_error)
+        fallback = stub_request(:post, openrouter_url)
+          .with(headers: { "x-api-key" => "sk-or-store-agent" }, body: hash_including("model" => "anthropic/claude-opus-5"))
+          .to_return(status: 200, body: reply.to_json, headers: { "Content-Type" => "application/json" })
+
+        result = grok_client.messages(system: "s", messages: [{ role: "user", content: "x" }])
+
+        expect(result.text).to eq("ok")
+        expect(primary).to have_been_requested.once
+        expect(fallback).to have_been_requested.once
+        expect(grok_client.call_metrics.map { |call| call.slice(:gateway, :status) }).to eq(
+          [{ gateway: "vercel", status: 402 }, { gateway: "openrouter", status: 200 }]
+        )
+      end
+
+      it "streams the OpenRouter fallback when Vercel rejects a request for insufficient credits" do
+        primary = stub_request(:post, vercel_url).to_return(credit_error)
+        fallback = stub_request(:post, openrouter_url)
+          .with(headers: { "x-api-key" => "sk-or-test" }, body: hash_including("model" => "anthropic/claude-opus-5", "stream" => true))
+          .to_return(status: 200, body: sse_stream("ok"), headers: { "Content-Type" => "text/event-stream" })
+        chunks = []
+
+        result = client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |text| chunks << text }
+
+        expect(result.text).to eq("ok")
+        expect(result.stop_reason).to eq("end_turn")
+        expect(chunks).to eq(["ok"])
+        expect(primary).to have_been_requested.once
+        expect(fallback).to have_been_requested.once
+        expect(client.call_metrics.map { |call| call[:gateway] }).to eq(%w[vercel openrouter])
+      end
+
+      it "keeps unreadable stream recovery on OpenRouter before restoring the primary gateway" do
+        allow(client).to receive(:sleep)
+        primary = stub_request(:post, vercel_url).to_return(credit_error)
+        corrupted = [
+          ["content_block_start", { index: 0, content_block: { type: "tool_use", id: "toolu_1", name: "api_read" } }],
+          ["content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: "not-json" } }],
+          ["message_delta", { delta: { stop_reason: "tool_use" } }],
+        ].map { |event, data| "event: #{event}\ndata: #{data.to_json}\n\n" }.join
+        streamed = stub_request(:post, openrouter_url)
+          .with(headers: { "x-api-key" => "sk-or-test" }, body: hash_including("model" => "anthropic/claude-opus-5", "stream" => true))
+          .to_return(status: 200, body: corrupted, headers: { "Content-Type" => "text/event-stream" })
+        buffered = stub_request(:post, openrouter_url)
+          .with(headers: { "x-api-key" => "sk-or-test" }, body: hash_including("model" => "anthropic/claude-opus-5", "stream" => false))
+          .to_return(status: 200, body: reply.to_json, headers: { "Content-Type" => "application/json" })
+        chunks = []
+
+        result = client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |text| chunks << text }
+
+        expect(result.text).to eq("ok")
+        expect(chunks).to eq(["ok"])
+        expect(primary).to have_been_requested.once
+        expect(streamed).to have_been_requested.times(described_class::MAX_ATTEMPTS)
+        expect(buffered).to have_been_requested.once
+        expect(client.call_metrics.map { |call| call[:gateway] }).to eq(%w[vercel openrouter openrouter])
+        expect(client.gateway_name).to eq("vercel")
+      end
+
+      it "raises an OpenRouter failure once and restores the primary gateway" do
+        primary = stub_request(:post, vercel_url).to_return(credit_error)
+        fallback = stub_request(:post, openrouter_url)
+          .to_return(status: 401, body: { error: { message: "Invalid OpenRouter key" } }.to_json)
+
+        expect { client.messages(system: "s", messages: [{ role: "user", content: "x" }]) }
+          .to raise_error(described_class::Error, /Invalid OpenRouter key/)
+
+        expect(primary).to have_been_requested.once
+        expect(fallback).to have_been_requested.once
+        expect(client.gateway_name).to eq("vercel")
+      end
+
+      it "does not replay on OpenRouter after streaming text to the caller" do
+        stream = "event: content_block_start\ndata: #{{ index: 0, content_block: { type: "text" } }.to_json}\n\n" \
+                 "event: content_block_delta\ndata: #{{ index: 0, delta: { type: "text_delta", text: "partial" } }.to_json}\n\n" \
+                 "event: error\ndata: #{{ error: { type: "api_error", message: "Interrupted" } }.to_json}\n\n"
+        primary = stub_request(:post, vercel_url)
+          .to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+        chunks = []
+
+        expect { client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |text| chunks << text } }
+          .to raise_error(described_class::TransientError, /Interrupted/)
+
+        expect(chunks).to eq(["partial"])
+        expect(primary).to have_been_requested.once
+        expect(WebMock).not_to have_requested(:post, openrouter_url)
+      end
+    end
+
+    it "does not replay a tool-call token cutoff on the fallback model" do
+      cutoff = { status: 400, body: { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }.to_json }
+      primary = stub_request(:post, vercel_url)
+        .with { |request| JSON.parse(request.body)["model"] == "deepseek/deepseek-v4.1-flash" }
+        .to_return(cutoff)
+      fallback = stub_request(:post, vercel_url)
+        .with { |request| JSON.parse(request.body)["model"] == "anthropic/claude-opus-5" }
+        .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
+
+      result = client.messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true)
+
+      expect(result).to have_attributes(text: "", tool_uses: [], stop_reason: "max_tokens")
+      expect(primary).to have_been_requested.once
+      expect(fallback).not_to have_been_requested
+    end
+
+    it "returns max_tokens for a no-text streamed cutoff without replaying the fallback model" do
+      stream = [
+        ["content_block_start", { index: 0, content_block: { type: "tool_use", id: "toolu_x", name: "api_write" } }],
+        ["content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: '{"description":"<p>cut' } }],
+        ["error", { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }],
+      ].map { |event, data| "event: #{event}\ndata: #{data.to_json}\n\n" }.join
+      primary = stub_request(:post, vercel_url)
+        .with { |request| JSON.parse(request.body)["model"] == "deepseek/deepseek-v4.1-flash" }
+        .to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+      fallback = stub_request(:post, vercel_url)
+        .with { |request| JSON.parse(request.body)["model"] == "anthropic/claude-opus-5" }
+        .to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+
+      result = client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true)
+
+      expect(result).to have_attributes(text: "", tool_uses: [], stop_reason: "max_tokens")
+      expect(primary).to have_been_requested.once
+      expect(fallback).not_to have_been_requested
+    end
+
+    it "replays the Opus fallback on Vercel when OpenRouter is not configured" do
       stub_request(:post, vercel_url)
         .with { |request| JSON.parse(request.body)["model"] == "deepseek/deepseek-v4.1-flash" }
         .to_return(status: 400, body: { error: { message: "unavailable" } }.to_json)
@@ -540,20 +866,6 @@ describe Ai::AnthropicClient do
       expect(captured.last["providerOptions"]).to eq("gateway" => { "models" => ["anthropic/claude-opus-5"] })
     end
 
-    it "falls back to OpenRouter when the Vercel base is http" do
-      allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return("http://ai-gateway.vercel.sh")
-      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
-      stub = stub_request(:post, openrouter_url)
-        .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
-      plaintext = stub_request(:post, "http://ai-gateway.vercel.sh/v1/messages")
-
-      client.messages(system: "s", messages: [{ role: "user", content: "x" }])
-
-      expect(stub).to have_been_requested
-      expect(plaintext).not_to have_been_requested
-      expect(client.gateway_name).to eq("openrouter")
-    end
-
     it "logs the gateway name with the served model" do
       allow(Rails.logger).to receive(:info)
       stub_request(:post, vercel_url)
@@ -564,18 +876,20 @@ describe Ai::AnthropicClient do
       expect(Rails.logger).to have_received(:info).with(/served by deepseek\/deepseek-v4.1-flash via vercel/)
     end
 
-    it "does not send fallbacks on a default Anthropic client" do
+    it "routes a default Opus client through Vercel ahead of a configured OpenRouter key" do
+      allow(GlobalConfig).to receive(:get).with("OPENROUTER_API_KEY").and_return("sk-or-test")
       default_client = described_class.new(timeout: 5)
       captured = nil
-      stub_request(:post, url)
+      stub = stub_request(:post, vercel_url)
         .with { |request| captured = JSON.parse(request.body); true }
         .to_return(status: 200, body: { "content" => [], "stop_reason" => "end_turn" }.to_json, headers: { "Content-Type" => "application/json" })
 
       default_client.messages(system: "s", messages: [{ role: "user", content: "x" }])
 
-      expect(default_client.gateway_name).to eq("anthropic")
+      expect(stub).to have_been_requested
+      expect(default_client.gateway_name).to eq("vercel")
+      expect(captured["model"]).to eq(described_class::DEFAULT_MODEL)
       expect(captured).not_to have_key("fallbacks")
-      expect(captured).not_to have_key("providerOptions")
     end
   end
 
@@ -1069,6 +1383,55 @@ describe Ai::AnthropicClient do
       expect { client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) }
         .to raise_error(described_class::Error, /overloaded/i)
     end
+
+    it "raises ToolCallTokenCutoffError when a stream api_error reports a tool-call token cutoff" do
+      stream = sse(
+        ["content_block_start", { index: 0, content_block: { type: "text" } }],
+        ["content_block_delta", { index: 0, delta: { type: "text_delta", text: "Updating that now. " } }],
+        ["error", { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }],
+      )
+      stub = stub_request(:post, url).to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+      chunks = []
+
+      expect { client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |text| chunks << text } }
+        .to raise_error(described_class::ToolCallTokenCutoffError, /Tool calls cutoff by max_tokens/)
+
+      expect(chunks).to eq(["Updating that now. "])
+      expect(stub).to have_been_requested.once
+      expect(a_request(:post, url).with(body: hash_including("stream" => false))).not_to have_been_made
+    end
+
+    it "returns max_tokens for a streamed tool-call cutoff when the caller opts in, without replaying" do
+      stream = sse(
+        ["content_block_start", { index: 0, content_block: { type: "text" } }],
+        ["content_block_delta", { index: 0, delta: { type: "text_delta", text: "Updating that now. " } }],
+        ["content_block_start", { index: 1, content_block: { type: "tool_use", id: "toolu_x", name: "api_write" } }],
+        ["content_block_delta", { index: 1, delta: { type: "input_json_delta", partial_json: "{\"description\":\"<p>cut" } }],
+        ["error", { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }],
+      )
+      stub = stub_request(:post, url).to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+      chunks = []
+
+      result = client.stream_messages(
+        system: "s",
+        messages: [{ role: "user", content: "x" }],
+        recover_token_cutoff: true,
+      ) { |text| chunks << text }
+
+      expect(result).to have_attributes(text: "", tool_uses: [], stop_reason: "max_tokens")
+      expect(chunks).to eq(["Updating that now. "])
+      expect(stub).to have_been_requested.once
+      expect(a_request(:post, url).with(body: hash_including("stream" => false))).not_to have_been_made
+    end
+
+    it "does not turn a different stream api_error into max_tokens when the caller opts in" do
+      stream = sse(["error", { error: { type: "api_error", message: "Interrupted" } }])
+      stub_request(:post, url).to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+
+      expect do
+        client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true)
+      end.to raise_error(described_class::TransientError, /Interrupted/)
+    end
   end
 
   # Per-call latency/TTFT/tokens/provider, read by StoreAgentService after a turn. The clock is
@@ -1110,7 +1473,7 @@ describe Ai::AnthropicClient do
             reasoning_tokens: nil,
             served_model: "claude-opus-4-7",
             served_provider: nil,
-            gateway: "anthropic",
+            gateway: "openrouter",
             status: 200,
             error: nil,
           },
@@ -1186,15 +1549,13 @@ describe Ai::AnthropicClient do
       subject(:client) do
         described_class.new(
           timeout: 5,
-          gateway: :vercel,
           model: "deepseek/deepseek-v4.1-flash",
           fallback_model: "anthropic/claude-opus-5",
         )
       end
 
       before do
-        allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_KEY").and_return("sk-vercel-test")
-        allow(GlobalConfig).to receive(:get).with("GUMHEAD_UPSTREAM_API_BASE").and_return("https://ai-gateway.vercel.sh")
+        allow(GlobalConfig).to receive(:get).with("STORE_AGENT_AI_GATEWAY_API_KEY").and_return("sk-vercel-test")
       end
 
       it "reads the served provider from the gateway's response header" do
@@ -1209,6 +1570,58 @@ describe Ai::AnthropicClient do
 
         expect(client.call_metrics.first)
           .to include(gateway: "vercel", served_provider: "deepinfra", served_model: "deepseek/deepseek-v4.1-flash")
+      end
+
+      it "reads the served provider from the streamed message_delta when no header is sent" do
+        stub_call_clock(0.0, 0.3, 1.0)
+        stream = sse(
+          ["message_start", { message: { model: "deepseek/deepseek-v4.1-flash" } }],
+          ["content_block_start", { index: 0, content_block: { type: "text" } }],
+          ["content_block_delta", { index: 0, delta: { type: "text_delta", text: "hi" } }],
+          ["message_delta", { delta: { stop_reason: "end_turn" },
+                              provider_metadata: { gateway: { routing: { resolvedProvider: "alibaba" } } } }],
+        )
+        stub_request(:post, vercel_url)
+          .to_return(status: 200, body: stream, headers: { "Content-Type" => "text/event-stream" })
+
+        client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }]) { |_| }
+
+        expect(client.call_metrics.first).to include(gateway: "vercel", served_provider: "alibaba")
+      end
+
+      it "reads the served provider from a buffered body's routing metadata" do
+        stub_call_clock(0.0, 0.3, 0.6)
+        body = {
+          "model" => "deepseek/deepseek-v4.1-flash",
+          "content" => [],
+          "stop_reason" => "end_turn",
+          "provider_metadata" => { "gateway" => { "routing" => { "resolvedProvider" => "baseten" } } },
+        }
+        stub_request(:post, vercel_url)
+          .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
+
+        client.messages(system: "s", messages: [{ role: "user", content: "x" }])
+
+        expect(client.call_metrics.first).to include(gateway: "vercel", served_provider: "baseten")
+      end
+
+      it "prefers a response header over the body's routing metadata" do
+        stub_call_clock(0.0, 0.3, 0.6)
+        body = {
+          "model" => "deepseek/deepseek-v4.1-flash",
+          "content" => [],
+          "stop_reason" => "end_turn",
+          "provider_metadata" => { "gateway" => { "routing" => { "resolvedProvider" => "baseten" } } },
+        }
+        stub_request(:post, vercel_url).to_return(
+          status: 200,
+          body: body.to_json,
+          headers: { "Content-Type" => "application/json", "x-vercel-ai-gateway-provider" => "deepinfra" },
+        )
+
+        client.messages(system: "s", messages: [{ role: "user", content: "x" }])
+
+        expect(client.call_metrics.first).to include(served_provider: "deepinfra")
       end
 
       it "keeps TTFT and latency on the attempt that delivered when the first attempt is retried" do
@@ -1254,6 +1667,55 @@ describe Ai::AnthropicClient do
           error: "Ai::AnthropicClient::UnreadableToolCallError",
         )
         expect(replay).to include(streamed: false, buffered_fallback: true, retries: 0, latency_ms: 1000, error: nil)
+      end
+
+      it "turns a cutoff on the buffered replay into truncation when the caller opts in" do
+        allow(client).to receive(:sleep)
+        stub_call_clock(0.0, 0.1, 0.2, 0.3, 0.4, 10.0, 10.5, 11.0)
+        corrupted = sse(
+          ["content_block_start", { index: 0, content_block: { type: "tool_use", id: "toolu_x", name: "api_write" } }],
+          ["content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: '{"endpoint":"update_product","params":{"name":"cut off' } }],
+          ["message_delta", { delta: { stop_reason: "tool_use" } }],
+        )
+        stub_request(:post, vercel_url).with(body: hash_including("stream" => true))
+          .to_return(status: 200, body: corrupted, headers: { "Content-Type" => "text/event-stream" })
+        # The replay regenerates the turn, so it is the longest attempt and can hit the same cap.
+        stub_request(:post, vercel_url).with(body: hash_including("stream" => false)).to_return(
+          status: 400,
+          body: { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }.to_json,
+          headers: { "Content-Type" => "application/json" },
+        )
+
+        result = client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }], recover_token_cutoff: true)
+
+        expect(result.stop_reason).to eq("max_tokens")
+        expect(result.tool_uses).to eq([])
+        expect(client.call_metrics.last).to include(
+          streamed: false,
+          buffered_fallback: true,
+          error: "Ai::AnthropicClient::ToolCallTokenCutoffError",
+        )
+      end
+
+      it "keeps the unreadable-tool-call error when the caller has not opted into cutoff recovery" do
+        allow(client).to receive(:sleep)
+        stub_call_clock(0.0, 0.1, 0.2, 0.3, 0.4, 10.0, 10.5, 11.0)
+        corrupted = sse(
+          ["content_block_start", { index: 0, content_block: { type: "tool_use", id: "toolu_x", name: "api_write" } }],
+          ["content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: '{"endpoint":"update_product","params":{"name":"cut off' } }],
+          ["message_delta", { delta: { stop_reason: "tool_use" } }],
+        )
+        stub_request(:post, vercel_url).with(body: hash_including("stream" => true))
+          .to_return(status: 200, body: corrupted, headers: { "Content-Type" => "text/event-stream" })
+        stub_request(:post, vercel_url).with(body: hash_including("stream" => false)).to_return(
+          status: 400,
+          body: { error: { type: "api_error", message: "HttpError: HTTP 400: Tool calls cutoff by max_tokens." } }.to_json,
+          headers: { "Content-Type" => "application/json" },
+        )
+
+        expect do
+          client.stream_messages(system: "s", messages: [{ role: "user", content: "x" }])
+        end.to raise_error(described_class::UnreadableToolCallError)
       end
     end
 

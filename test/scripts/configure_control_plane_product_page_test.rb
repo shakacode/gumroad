@@ -6,84 +6,128 @@ require "json"
 
 class ConfigureControlPlaneProductPageTest < Minitest::Test
   SCRIPT = File.expand_path("../../scripts/configure_control_plane_product_page.rb", __dir__)
+  PREFLIGHT = File.expand_path("../../scripts/verify_control_plane_product_page.rb", __dir__)
   HARNESS = <<~'CODE'
     require "json"
     require "ostruct"
+    require "flipper"
+    Flipper.configure { |config| config.default { Flipper.new(Flipper::Adapters::Memory.new) } }
+    require_relative "lib/utilities/feature"
+    Seller = Struct.new(:username, :flipper_id)
+    SELLER = Seller.new(ENV.fetch("TEST_SELLER", "luisfurushio"), "User:1")
+    OTHER = Seller.new("other", "User:2")
     module Rails
       def self.env = OpenStruct.new(benchmark?: ENV["TEST_BENCHMARK"] == "true")
     end
     module Link
       def self.find_by!(unique_permalink:)
         raise "Missing fixture" if ENV["TEST_MISSING_PRODUCT"] == "true"
-        OpenStruct.new(unique_permalink:, user: Object.new)
+        OpenStruct.new(unique_permalink:, user: SELLER)
       end
     end
-    module Feature
-      def self.deactivate(*)
-        @enabled = false
-        @actor_enabled = false
-        puts "cleared existing gates"
-      end
-      def self.activate(*) = @enabled = true
-      def self.active?(*)
-        return false if ENV["TEST_VERIFY_FAILURE"] == "true"
-        @enabled || @actor_enabled
-      end
-      @enabled = true
-      @actor_enabled = true
+    flag = :product_page_react_on_rails
+    Feature.activate_user(:unrelated, OTHER)
+    case ENV["TEST_GATE"]
+    when "global" then Feature.activate(flag)
+    when "other" then Feature.activate_user(flag, OTHER)
+    when "percentage" then Feature.activate_percentage(flag, 50)
+    when "time" then Flipper[flag].enable_percentage_of_time(10)
+    when "group" then Flipper[flag].enable_group(:unexpected)
+    when "expression" then Flipper[flag].enable_expression(Flipper::Expression.build({"Equal" => ["a", "a"]}))
+    when "seller" then Feature.activate_user(flag, SELLER)
     end
-    load ARGV.fetch(0)
+    before = JSON.generate(Flipper.adapter.get_all)
+    begin
+      load ARGV.fetch(0)
+    ensure
+      values = Flipper[flag].gate_values
+      puts JSON.generate(global: values.boolean, actors: values.actors.to_a.sort,
+        percentage: values.percentage_of_actors, seller: Feature.active?(flag, SELLER),
+        other: Feature.active?(flag, OTHER), unrelated: Feature.active?(:unrelated, OTHER),
+        before: before, after: JSON.generate(Flipper.adapter.get_all))
+    end
   CODE
 
-  def run_script(overrides = {})
+  def run_script(overrides = {}, script: SCRIPT)
     env = {
       "TEST_BENCHMARK" => "true", "CONTROL_PLANE_BENCHMARK" => "true",
       "CPLN_GVC" => "gumroad-rorp", "GUMROAD_RENDERING_SURFACE" => "rorp",
-      "TEST_MISSING_PRODUCT" => "false", "TEST_VERIFY_FAILURE" => "false",
+      "TEST_MISSING_PRODUCT" => "false", "TEST_GATE" => "", "TEST_SELLER" => "luisfurushio",
     }.merge(overrides)
-    Open3.capture3(env, RbConfig.ruby, "-e", HARNESS, SCRIPT)
+    output, error, status = Open3.capture3(env, RbConfig.ruby, "-e", HARNESS, script)
+    raise error if output.lines.empty?
+    [JSON.parse(output.lines.last), error, status]
   end
 
-  def test_enables_rorp
-    out, err, status = run_script
-    assert status.success?, err
-    assert_equal true, JSON.parse(out.lines.last).fetch("product_page_react_on_rails")
+  def test_preflight_checks_both_surfaces_without_changing_seller_or_unrelated_flags
+    %w[inertia rorp].each do |surface|
+      ["", "seller"].each do |gate|
+        state, error, status = run_script({ "CPLN_GVC" => "gumroad-#{surface}", "GUMROAD_RENDERING_SURFACE" => surface, "TEST_GATE" => gate }, script: PREFLIGHT)
+        assert status.success?, error
+        assert_equal gate == "seller" ? ["User:1"] : [], state.fetch("actors")
+        assert_equal false, state.fetch("global")
+        assert state.fetch("unrelated")
+        assert_equal state.fetch("before"), state.fetch("after")
+      end
+    end
   end
 
-  def test_inertia_clears_existing_global_and_actor_gates
-    out, err, status = run_script("CPLN_GVC" => "gumroad-inertia", "GUMROAD_RENDERING_SURFACE" => "inertia")
-    assert status.success?, err
-    assert_includes out, "cleared existing gates"
-    assert_equal false, JSON.parse(out.lines.last).fetch("product_page_react_on_rails")
+  def test_preflight_rejects_every_conflicting_gate_and_missing_or_wrong_fixture
+    overrides = %w[global other percentage time group expression].map { |gate| { "TEST_GATE" => gate } } +
+      [{ "TEST_MISSING_PRODUCT" => "true" }, { "TEST_SELLER" => "unexpected" }, { "CONTROL_PLANE_BENCHMARK" => "false" }]
+    overrides.each do |override|
+      state, _error, status = run_script(override, script: PREFLIGHT)
+      assert_equal false, status.success?, override.inspect
+      assert state.fetch("unrelated")
+      assert_equal state.fetch("before"), state.fetch("after")
+    end
   end
 
-  def test_rejects_non_benchmark_environment_before_changing_flags
-    out, _err, status = run_script("TEST_BENCHMARK" => "false")
+  def test_enables_only_the_expected_seller_and_preserves_unrelated_features
+    state, error, status = run_script
+    assert status.success?, error
+    assert_equal ["User:1"], state.fetch("actors")
+    assert_equal false, state.fetch("global")
+    assert state.fetch("seller")
+    assert_equal false, state.fetch("other")
+    assert state.fetch("unrelated")
+  end
+
+  def test_inertia_removes_only_the_test_seller_gate
+    state, error, status = run_script({ "CPLN_GVC" => "gumroad-inertia", "GUMROAD_RENDERING_SURFACE" => "inertia", "TEST_GATE" => "seller" })
+    assert status.success?, error
+    assert_empty state.fetch("actors")
+    assert_equal false, state.fetch("seller")
+    assert state.fetch("unrelated")
+  end
+
+  def test_rejects_broad_or_other_seller_gates_without_clearing_them
+    %w[global other percentage].each do |gate|
+      state, error, status = run_script({ "TEST_GATE" => gate })
+      assert_equal false, status.success?, gate
+      assert_includes error, "Existing product-page gates"
+      assert state.fetch("unrelated")
+      assert state.fetch("global") if gate == "global"
+      assert_equal ["User:2"], state.fetch("actors") if gate == "other"
+      assert_equal 50, state.fetch("percentage") if gate == "percentage"
+    end
+  end
+
+  def test_rejects_a_product_owned_by_the_wrong_seller
+    state, error, status = run_script({ "TEST_SELLER" => "unexpected" })
     assert_equal false, status.success?
-    assert_empty out
+    assert_includes error, "Expected seller luisfurushio"
+    assert_empty state.fetch("actors")
+    assert state.fetch("unrelated")
   end
 
-  def test_rejects_mismatched_app_before_changing_flags
-    out, _err, status = run_script("CPLN_GVC" => "gumroad-inertia")
-    assert_equal false, status.success?
-    assert_empty out
-  end
-
-  def test_rejects_missing_benchmark_guard_before_changing_flags
-    out, _err, status = run_script("CONTROL_PLANE_BENCHMARK" => "false")
-    assert_equal false, status.success?
-    assert_empty out
-  end
-
-  def test_requires_fixture_before_changing_flags
-    out, _err, status = run_script("TEST_MISSING_PRODUCT" => "true")
-    assert_equal false, status.success?
-    assert_empty out
-  end
-
-  def test_fails_release_when_flag_verification_fails
-    _out, err, status = run_script("TEST_VERIFY_FAILURE" => "true")
-    assert_equal false, status.success?
-    assert_includes err, "Product-page flag mismatch"
+  def test_rejects_invalid_environment_or_missing_fixture_before_mutation
+    [{ "TEST_BENCHMARK" => "false" }, { "CPLN_GVC" => "gumroad-inertia" },
+     { "CONTROL_PLANE_BENCHMARK" => "false" }, { "TEST_MISSING_PRODUCT" => "true" }].each do |overrides|
+      state, _error, status = run_script(overrides)
+      assert_equal false, status.success?
+      assert_empty state.fetch("actors")
+      assert state.fetch("unrelated")
+    end
   end
 end

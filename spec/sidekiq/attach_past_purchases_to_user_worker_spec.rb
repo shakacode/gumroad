@@ -17,6 +17,34 @@ describe AttachPastPurchasesToUserWorker do
       expect(purchase_already_linked.reload.purchaser).not_to eq(user)
     end
 
+    it "attaches purchases under the given email after the account email has changed" do
+      user = create(:user, email: "confirmed@example.com")
+      purchase = create(:purchase, email: "confirmed@example.com", purchaser: nil)
+      user.update_column(:email, "changed@example.com")
+
+      described_class.new.perform(user.id, "confirmed@example.com")
+
+      expect(purchase.reload.purchaser).to eq(user)
+    end
+
+    it "does not attach purchases to an unconfirmed user when queued without an email" do
+      user = create(:unconfirmed_user)
+      purchase = create(:purchase, email: user.email, purchaser: nil)
+
+      described_class.new.perform(user.id)
+
+      expect(purchase.reload.purchaser).to be_nil
+    end
+
+    it "attaches purchases to a confirmed user when queued without an email" do
+      user = create(:user)
+      purchase = create(:purchase, email: user.email, purchaser: nil)
+
+      described_class.new.perform(user.id)
+
+      expect(purchase.reload.purchaser).to eq(user)
+    end
+
     it "does nothing when user has a blank email" do
       user = create(:user)
       user.update_column(:email, "")
@@ -28,6 +56,25 @@ describe AttachPastPurchasesToUserWorker do
       user = create(:user)
 
       expect { described_class.new.perform(user.id) }.not_to raise_error
+    end
+
+    it "keeps attaching the remaining purchases when one of them raises" do
+      user = create(:user)
+      failing = create(:purchase, email: user.email, purchaser: nil)
+      later = create(:purchase, email: user.email, purchaser: nil)
+
+      allow_any_instance_of(Purchase).to receive(:attach_to_user_and_card).and_wrap_original do |original, *args|
+        raise "attach failed" if original.receiver.id == failing.id
+
+        original.call(*args)
+      end
+      allow(ErrorNotifier).to receive(:notify)
+
+      expect { described_class.new.perform(user.id) }.to raise_error(RuntimeError, "attach failed")
+
+      expect(later.reload.purchaser).to eq(user)
+      expect(failing.reload.purchaser).to be_nil
+      expect(ErrorNotifier).to have_received(:notify).once
     end
   end
 end

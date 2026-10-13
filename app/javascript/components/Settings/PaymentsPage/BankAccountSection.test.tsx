@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -34,6 +34,7 @@ const makeUser = (countryCode: string, supportsIban = false): User => ({
   individual_tax_id_last_four: null,
   individual_tax_id_is_last_four: false,
   has_outstanding_full_ssn_requirement: false,
+  has_outstanding_nationality_requirement: false,
   business_tax_id_entered: false,
   business_tax_id_last_four: null,
   requires_credit_card: false,
@@ -43,14 +44,21 @@ const makeUser = (countryCode: string, supportsIban = false): User => ({
 
 // The section keeps the entered account number in its parent, so a stateful wrapper is what
 // lets these tests exercise the rendered field rather than a single passed-in prop.
-const renderForCountry = (countryCode: string, supportsIban = false) => {
+const renderForCountry = (
+  countryCode: string,
+  supportsIban = false,
+  onUpdate: (next: Partial<BankAccount>) => void = () => {},
+) => {
   const Harness = () => {
     const [bankAccount, setBankAccount] = React.useState<Partial<BankAccount> | null>(null);
     return (
       <BankAccountSection
         bankAccountDetails={bankAccountDetails}
         bankAccount={bankAccount}
-        updateBankAccount={(next) => setBankAccount((prev) => ({ ...prev, ...next }))}
+        updateBankAccount={(next) => {
+          onUpdate(next);
+          setBankAccount((prev) => ({ ...prev, ...next }));
+        }}
         hasConnectedStripe={false}
         user={makeUser(countryCode, supportsIban)}
         isFormDisabled={false}
@@ -85,7 +93,7 @@ const COUNTRY_EXAMPLES: {
   pattern: string;
 }[] = [
   { code: "MA", label: "IBAN", example: "MA64011519000001205000534921", pattern: "MA[0-9]{26}" },
-  { code: "SN", label: "IBAN", example: "SN08SN0100152000048500003035", pattern: "SN[0-9SN]{20,26}" },
+  { code: "SN", label: "IBAN", example: "SN08SN0100152000048500003035", pattern: "SN[0-9]{2}[0-9A-Z]{2}[0-9]{22}" },
   { code: "RS", label: "IBAN", example: "RS35260005601001611379", pattern: "RS[0-9]{18,20}" },
   { code: "MD", label: "IBAN", example: "MD24AG000225100013104168", pattern: "MD[0-9]{2}[A-Z0-9]{20}" },
   { code: "GM", label: "Account #", example: "000123000456000789", pattern: "[0-9A-Za-z]{18}" },
@@ -94,7 +102,7 @@ const COUNTRY_EXAMPLES: {
   { code: "MK", label: "IBAN", example: "MK49250120000058907", pattern: "[0-9A-Za-z]{19}" },
   { code: "GA", label: "Account #", example: "00001234567890123456789", pattern: "[0-9]{23}" },
   { code: "DZ", label: "Account #", example: "00001234567890123456", pattern: "[0-9]{20}" },
-  { code: "ET", label: "Account #", example: "0000000012345", pattern: "[0-9A-Za-z]{13,16}" },
+  { code: "ET", label: "Account #", example: "0000000012345", pattern: "[0-9]{13,16}" },
   { code: "BD", label: "Account #", example: "1234567890123", pattern: "[0-9A-Za-z]{13,17}" },
   { code: "AM", label: "Account #", example: "00001234567890", pattern: "[0-9]{11,16}" },
   { code: "AR", label: "Account number", example: "0110000600000000000000", pattern: "[0-9]{22}" },
@@ -211,20 +219,66 @@ describe("BankAccountSection account-number hints", () => {
   );
 });
 
-describe("BankAccountSection Bolivia bank code", () => {
-  // gp#1967: the placeholder used to read as a real value ("060"), and 0/128 submissions
-  // ever linked a live Stripe account because sellers copied that literal placeholder
-  // instead of their bank's actual ASFI code. The placeholder must not look like a value.
-  it("advertises a real ASFI code is required without a copyable-looking placeholder", () => {
+describe("BankAccountSection IBAN-box placeholders", () => {
+  // spec/models/iban_account_number_placeholder_spec.rb checks every value in the table against its
+  // bank-account model; this checks the IBAN box actually renders it.
+  it.each([
+    ["JO", "JO00CBJO0010000000000131000303"],
+    ["DE", "DE00370400440532013001"],
+    ["MG", "MG0000005030010101914016057"],
+  ])("shows %s a full-length IBAN example in both boxes", (code, example) => {
+    renderForCountry(code, true);
+
+    expect(accountNumberField("IBAN").placeholder).toBe(example);
+    expect(accountNumberField("Confirm IBAN").placeholder).toBe(example);
+  });
+
+  it("never falls back to the country code followed by 1234567890", () => {
+    renderForCountry("XX", true);
+
+    expect(accountNumberField("IBAN").placeholder).toBe("");
+  });
+});
+
+describe("BankAccountSection Bolivia bank picker", () => {
+  it("lists banks by name and stores the processor's 3-digit code", () => {
     renderForCountry("BO");
 
-    const field = screen.getByLabelText<HTMLInputElement>("Bank code");
-    expect(field.maxLength).toBe(3);
-    // The old placeholder was a specific-looking value sellers copied literally.
-    expect(/\d{3}/u.test(field.placeholder)).toBe(false);
-    expect(field.placeholder.toLowerCase()).toContain("asfi");
+    const select = screen.getByLabelText<HTMLSelectElement>("Bank");
+    const options = [...select.options].filter((o) => !o.disabled);
+    expect(options).toHaveLength(47);
+    expect(options.find((o) => o.value === "006")?.textContent).toBe("Banco Unión");
+    expect(options.some((o) => o.value === "048" || o.value === "020")).toBe(false);
+    expect(screen.queryByText(/ASFI|support/u)).toBeNull();
+  });
 
-    expect(screen.getByText(/3-digit ASFI code/u)).toBeTruthy();
+  it("passes the selected bank's 3-digit code to the account state", () => {
+    const updates: Partial<BankAccount>[] = [];
+    renderForCountry("BO", false, (next) => updates.push(next));
+
+    fireEvent.change(screen.getByLabelText("Bank"), { target: { value: "006" } });
+
+    expect(updates).toContainEqual({ bank_code: "006" });
+    expect(screen.getByLabelText<HTMLSelectElement>("Bank").value).toBe("006");
+  });
+
+  it("shows the saved account's bank by name", () => {
+    render(
+      <BankAccountSection
+        bankAccountDetails={{ ...bankAccountDetails, routing_number: "040", account_number_visual: "******6789" }}
+        bankAccount={null}
+        updateBankAccount={() => {}}
+        hasConnectedStripe={false}
+        user={makeUser("BO")}
+        isFormDisabled={false}
+        feeInfoText=""
+        showNewBankAccount={false}
+        setShowNewBankAccount={() => {}}
+        errorFieldNames={new Set()}
+      />,
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>("Bank").value).toBe("Cooperativa San Joaquín");
   });
 });
 
@@ -304,5 +358,37 @@ describe("BankAccountSection Indonesian bank code", () => {
     // maxLength alone cannot reject these — they are already 3 characters.
     expect(pattern.test("BCA")).toBe(false);
     expect(pattern.test("IDR")).toBe(false);
+  });
+});
+describe("BankAccountSection Egyptian bank code", () => {
+  // Egyptian banks publish an 8-char BIC and a separate branch number, and an 11-char "BIC + branch"
+  // code resolves only when Stripe's directory lists that branch. So the field advertises the 8-char
+  // form, which resolves for every bank.
+  it("advertises the 8-character BIC rather than a branch-suffixed code", () => {
+    renderForCountry("EG", true);
+    const field = screen.getByLabelText<HTMLInputElement>("SWIFT / BIC Code");
+
+    expect(field.placeholder).toBe("NBEGEGCX");
+    expect(field.placeholder).not.toHaveLength(11);
+  });
+});
+describe("BankAccountSection Korean bank code", () => {
+  // Stripe resolves only the 8-character SWIFT/BIC and its 11-character branch-suffixed form. The
+  // old placeholder `ABCDKR00123` was an 11-character code with a digit tail — the shape that saves
+  // and then fails at bank-sync — so the field's own example advertised an unresolvable code.
+  it("advertises a SWIFT/BIC that Stripe resolves rather than a digit-tailed example", () => {
+    renderForCountry("KR");
+    const field = screen.getByLabelText<HTMLInputElement>("Bank code");
+
+    expect(field.placeholder).toBe("NACFKRSEXXX");
+    expect(field.placeholder).not.toBe("ABCDKR00123");
+  });
+
+  it("states the two accepted lengths next to the field", () => {
+    renderForCountry("KR");
+
+    expect(
+      screen.getByText("Your bank's SWIFT/BIC code, 8 or 11 uppercase characters (e.g. NACFKRSE or NACFKRSEXXX)."),
+    ).toBeTruthy();
   });
 });

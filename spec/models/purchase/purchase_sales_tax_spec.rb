@@ -240,6 +240,28 @@ describe "PurchaseSalesTax", :vcr do
           end
         end
 
+        describe "Spain with a Canary Islands postal code" do
+          before(:context) do
+            @tax_country = "ES"
+            @buyer_zip = "35001"
+
+            @purchase_country = "Spain"
+            @purchase_chargeable_country = "ES"
+            @purchase_ip_country = "Spain"
+
+            @purchase_transaction_amount = 10_00
+            @amount_for_gumroad_cents = @fee_cents
+          end
+
+          after(:context) { @buyer_zip = nil }
+
+          it "is outside the EU VAT area, so no VAT is applied" do
+            expect(@purchase.was_purchase_taxable).to be(false)
+            expect(@purchase.gumroad_tax_cents).to eq(0)
+            expect(@purchase.total_transaction_cents).to eq(10_00)
+          end
+        end
+
         describe "IP address in EU , card country in EU, country != either and in EU" do
           before(:context) do
             @tax_country = "ES"
@@ -253,8 +275,8 @@ describe "PurchaseSalesTax", :vcr do
             expect(ChargeProcessor).to_not receive(:create_payment_intent_or_charge!).with(anything, anything, chargeable, @purchase_transaction_amount, anything, anything, anything)
           end
 
-          it "fails validation" do
-            expect(@purchase.errors[:base].present?).to be(true)
+          it "fails validation and tells the buyer which countries the selection must match" do
+            expect(@purchase.errors[:base]).to eq(["We couldn't confirm the country you selected. It needs to match where you're connecting from or where your card was issued. If you're using a VPN, turn it off and try again."])
             expect(@purchase.error_code).to eq(PurchaseErrorCode::TAX_VALIDATION_FAILED)
           end
         end

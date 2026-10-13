@@ -80,17 +80,12 @@ class User::OmniauthCallbacksController < Devise::OmniauthCallbacksController
                             .find { |ma| ma.is_a_stripe_connect_account? }&.user
 
       if user.nil?
-        stripe_email = auth.dig("info", "email")
-        user = User.find_by(email: stripe_email) if stripe_email.present?
-
-        if user.nil?
-          if Feature.active?(:disable_stripe_signup)
-            flash[:alert] = "Sorry, we could not find an account associated with that Stripe account."
-            return safe_redirect_to referer
-          else
-            user = User.find_or_create_for_stripe_connect_account(auth)
-          end
+        if Feature.active?(:disable_stripe_signup)
+          flash[:alert] = "Sorry, we could not find an account associated with that Stripe account."
+          return safe_redirect_to referer
         end
+
+        user = User.find_or_create_for_stripe_connect_account(auth)
       end
 
       if user.nil?
@@ -261,6 +256,11 @@ class User::OmniauthCallbacksController < Devise::OmniauthCallbacksController
     elsif params[:error_description].present?
       redirect_to settings_payments_path, notice: params[:error_description]
     elsif params[REQ_PARAM_STATE] != :async_link_twitter_account.to_s
+      if connect_provider.blank?
+        # This route is reachable without an OmniAuth flow; super (Devise's #failure) reads
+        # failed_strategy.name and 500s when the request carries no strategy.
+        return redirect_to login_path
+      end
       Rails.logger.info("OAuth failure and request state unexpected: #{params}")
       Rails.logger.info("OAuth failure message: #{failure_message}")
       Rails.logger.info("OAuth failure kind: #{request.env['omniauth.error.type']}")
@@ -283,12 +283,12 @@ class User::OmniauthCallbacksController < Devise::OmniauthCallbacksController
       provider = action_name == "failure" ? request.env["omniauth.error.strategy"]&.name.to_s : action_name
       connecting = %w[youtube instagram tiktok].include?(provider) ||
         (provider == "twitter" && request.env.dig("omniauth.params", REQ_PARAM_STATE) == "link_twitter_account")
-      @return_to_onboarding = connecting && consume_social_connect_return
+      @social_connect_return_destination = consume_social_connect_return if connecting
       session.delete(:social_connect_return) unless connecting || action_name == "failure"
     end
 
     def social_connect_destination
-      @return_to_onboarding ? dashboard_path : settings_social_connections_path
+      @social_connect_return_destination || settings_social_connections_path
     end
 
     def hide_layouts
@@ -330,6 +330,9 @@ class User::OmniauthCallbacksController < Devise::OmniauthCallbacksController
       User.query_twitter(logged_in_user, data)
 
       logged_in_user.update!(twitter_oauth_token: access_token["credentials"]["token"], twitter_oauth_secret: access_token["credentials"]["secret"])
+      # The new token replaces the read-only one that produced the reason, so the card must
+      # stop telling the seller they cannot post.
+      Marketing::Action.awaiting_reconnect.where(user: logged_in_user).update_all(error_code: nil, updated_at: Time.current)
     end
 
     def async_link_twitter_account

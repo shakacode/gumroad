@@ -1,3 +1,4 @@
+const { RspackManifestPlugin } = require("rspack-manifest-plugin");
 const { config: shakapacker, generateRspackConfig } = require("shakapacker/rspack");
 
 const {
@@ -14,11 +15,10 @@ const {
 shakapacker.publicPathWithoutCDN = publicAssetPath;
 const shakapackerConfig = generateRspackConfig();
 delete shakapackerConfig.entry["server-bundle"];
+const manifestPlugin = shakapackerConfig.plugins.find((plugin) => plugin instanceof RspackManifestPlugin);
+if (!manifestPlugin) throw new Error("Shakapacker's Rspack manifest plugin is missing.");
+manifestPlugin.options.publicPath = publicAssetPath;
 
-const manifestPlugin = shakapackerConfig.plugins.find(
-  ({ constructor }) => constructor.name === "WebpackManifestPlugin",
-);
-if (manifestPlugin) manifestPlugin.options.publicPath = publicAssetPath;
 const environmentPlugin = shakapackerConfig.plugins.find(({ constructor }) => constructor.name === "EnvironmentPlugin");
 if (environmentPlugin) {
   environmentPlugin.keys = environmentPlugin.keys.filter((key) => key !== "NODE_ENV");

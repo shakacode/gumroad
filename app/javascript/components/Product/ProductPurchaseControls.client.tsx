@@ -4,10 +4,7 @@ import * as React from "react";
 
 import type { Discount } from "$app/parsers/checkout";
 import { type BuyerLocalCurrencyContext, formatBuyerLocalOrSetPrice } from "$app/utils/currency";
-import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
-import { Button } from "$app/components/Button";
-import { useLoggedInUser } from "$app/components/LoggedInUser";
 import type { Product as ProductData, ProductDiscount, Purchase } from "$app/components/Product";
 import {
   applySelection,
@@ -17,47 +14,12 @@ import {
   type PriceSelection,
   withConfiguredOncePerCartAmount,
 } from "$app/components/Product/ConfigurationSelector";
-import { CtaButton } from "$app/components/Product/CtaButton";
 import { DiscountExpirationCountdown } from "$app/components/Product/DiscountExpirationCountdown";
+import { ProductPurchaseRecoveryLink } from "$app/components/Product/ProductPurchaseRecoveryLink.client";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
-import { showAlert } from "$app/components/server-components/Alert";
+import { PurchaseButton } from "$app/components/Product/PurchaseButton";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 import { Alert } from "$app/components/ui/Alert";
-
-const importSubscriptionChoiceModal = () =>
-  import("$app/components/Product/SubscriptionChoiceModal").then(({ SubscriptionChoiceModal }) => ({
-    default: SubscriptionChoiceModal,
-  }));
-const SubscriptionChoiceModal = React.lazy(() => fetchWithOneRetry(importSubscriptionChoiceModal));
-
-class SubscriptionChoiceModalBoundary extends React.Component<
-  { children: React.ReactNode; onClose: () => void },
-  { failed: boolean }
-> {
-  constructor(props: { children: React.ReactNode; onClose: () => void }) {
-    super(props);
-    this.state = { failed: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  override render() {
-    if (!this.state.failed) return this.props.children;
-
-    return (
-      <Alert role="alert" variant="danger">
-        <div className="grid gap-4">
-          Purchase options could not be loaded.
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={this.props.onClose}>Cancel</Button>
-            <Button onClick={() => window.location.reload()}>Reload and try again</Button>
-          </div>
-        </div>
-      </Alert>
-    );
-  }
-}
 
 export const formatDiscountAmount = (discount: Discount, buyerLocalContext: BuyerLocalCurrencyContext) => {
   if (discount.type === "percent") {
@@ -85,57 +47,30 @@ export const ProductPurchaseControls = ({
   availabilityNotice,
   membershipNotices,
   onDiscountExpiration,
+  disableAnalytics,
 }: {
   product: ProductData;
   purchase: Purchase | null;
   discountCode?: ProductDiscount | null | undefined;
   selection: PriceSelection;
   setSelection?: React.Dispatch<React.SetStateAction<PriceSelection>> | undefined;
-  ctaButtonRef?: React.MutableRefObject<HTMLAnchorElement | null> | undefined;
-  configurationSelectorRef?: React.MutableRefObject<ConfigurationSelectorHandle | null> | undefined;
+  ctaButtonRef?: React.RefObject<HTMLAnchorElement | null> | undefined;
+  configurationSelectorRef?: React.RefObject<ConfigurationSelectorHandle | null> | undefined;
   ctaLabel?: string | undefined;
   availabilityNotice: React.ReactNode;
   membershipNotices: React.ReactNode;
   onDiscountExpiration: () => void;
+  disableAnalytics?: boolean | undefined;
 }) => {
-  const [checkoutUrlForModal, setCheckoutUrlForModal] = React.useState<string | null>(null);
-  const loggedInUser = useLoggedInUser();
+  const snapshot = useProductHydration();
+  const buyerLocalContext = { ...buyerLocalContextFor(product), locale: snapshot?.locale };
   const selectionAttributes = applySelection(product, discountCode?.valid ? discountCode.discount : null, selection);
-  const { priceCents, discountedPriceCents, pppDiscounted, isPWYW, maxQuantity } = selectionAttributes;
+  const { priceCents, discountedPriceCents, pppDiscounted, maxQuantity } = selectionAttributes;
 
   React.useEffect(() => {
     if (maxQuantity !== null && selection.quantity > maxQuantity)
       setSelection?.({ ...selection, quantity: maxQuantity });
   }, [maxQuantity, selection.quantity]);
-
-  const validate = () => {
-    if (isPWYW && (selection.price.value === null || selection.price.value < discountedPriceCents)) {
-      setSelection?.({ ...selection, price: { ...selection.price, error: true } });
-      if (selection.price.value === null) {
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert("You must input an amount", "warning");
-      } else if (selection.price.value < discountedPriceCents) {
-        const formattedMinPrice = formatBuyerLocalOrSetPrice(
-          discountedPriceCents,
-          {
-            currencyCode: product.currency_code,
-            buyerCurrency: product.buyer_currency,
-            buyerLocalCurrencyRate: product.buyer_local_currency_rate,
-            buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
-          },
-          { symbolFormat: "short" },
-        );
-        configurationSelectorRef?.current?.focusRequiredInput();
-        showAlert(`Minimum price for this product is ${formattedMinPrice}.`, "error");
-      }
-      return false;
-    }
-    if (product.native_type === "call" && !selection.callStartTime) {
-      showAlert("You must select a date and time for the call", "warning");
-      return false;
-    }
-    return true;
-  };
 
   return (
     <>
@@ -149,8 +84,8 @@ export const ProductPurchaseControls = ({
             <Alert role="status" variant="success">
               <div className="flex flex-col gap-4">
                 {discountCode.discount.minimum_quantity
-                  ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
-                  : `${formatDiscountAmount(discountCode.discount, buyerLocalContextFor(product))} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
+                  ? `Get ${formatDiscountAmount(discountCode.discount, buyerLocalContext)} off when you buy ${discountCode.discount.minimum_quantity} or more (Code ${discountCode.code.toUpperCase()})`
+                  : `${formatDiscountAmount(discountCode.discount, buyerLocalContext)} off will be applied at checkout (Code ${discountCode.code.toUpperCase()})`}
                 {discountCode.discount.duration_in_billing_cycles && product.is_recurring_billing ? (
                   <div>This discount will only apply to the first payment of your subscription.</div>
                 ) : null}
@@ -159,12 +94,12 @@ export const ProductPurchaseControls = ({
                     {(discountCode.discount.product_ids?.length ?? 0) === 1
                       ? `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
                           discountCode.discount.minimum_amount_cents,
-                          buyerLocalContextFor(product),
+                          buyerLocalContext,
                           { symbolFormat: "short" },
                         )} or more.`
                       : `This discount will apply when you spend ${formatBuyerLocalOrSetPrice(
                           discountCode.discount.minimum_amount_cents,
-                          buyerLocalContextFor(product),
+                          buyerLocalContext,
                           { symbolFormat: "short" },
                         )} or more in ${
                           !discountCode.discount.product_ids && product.seller ? `${product.seller.name}'s` : "selected"
@@ -204,13 +139,13 @@ export const ProductPurchaseControls = ({
           This product supports purchasing power parity. Because you're located in <b>{product.ppp_details.country}</b>,
           the price has been discounted by{" "}
           <b>
-            {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(undefined, {
+            {(Math.round((1 - discountedPriceCents / priceCents) * 100) / 100).toLocaleString(snapshot?.locale, {
               style: "percent",
             })}
           </b>{" "}
           to{" "}
           <b>
-            {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContextFor(product), {
+            {formatBuyerLocalOrSetPrice(discountedPriceCents, buyerLocalContext, {
               symbolFormat: "long",
             })}
           </b>
@@ -221,7 +156,7 @@ export const ProductPurchaseControls = ({
         </Alert>
       ) : null}
       {membershipNotices}
-      <CtaButton
+      <PurchaseButton
         ref={ctaButtonRef}
         product={product}
         purchase={purchase}
@@ -229,41 +164,16 @@ export const ProductPurchaseControls = ({
         selection={selection}
         label={ctaLabel}
         showInstallmentPlanNotes
-        onClick={(event) => {
-          if (!validate()) {
-            event.preventDefault();
-            return;
-          }
-          if (
-            loggedInUser &&
-            purchase &&
-            (purchase.membership || purchase.subscription_has_lapsed) &&
-            product.is_recurring_billing
-          ) {
-            event.preventDefault();
-            setCheckoutUrlForModal(event.currentTarget.href);
-          }
-        }}
+        setSelection={setSelection}
+        configurationSelectorRef={configurationSelectorRef}
       />
-      {checkoutUrlForModal &&
-      purchase &&
-      (purchase.membership || purchase.subscription_has_lapsed) &&
-      product.is_recurring_billing ? (
-        <SubscriptionChoiceModalBoundary onClose={() => setCheckoutUrlForModal(null)}>
-          <React.Suspense
-            fallback={
-              <span className="sr-only" role="status">
-                Loading purchase options…
-              </span>
-            }
-          >
-            <SubscriptionChoiceModal
-              purchase={purchase}
-              checkoutUrl={checkoutUrlForModal}
-              onClose={() => setCheckoutUrlForModal(null)}
-            />
-          </React.Suspense>
-        </SubscriptionChoiceModalBoundary>
+      {purchase === null && !product.can_edit ? (
+        <ProductPurchaseRecoveryLink
+          permalink={product.permalink}
+          isLicensed={product.is_licensed}
+          hasDownload={!product.is_physical && product.native_type !== "call" && product.native_type !== "commission"}
+          disableAnalytics={disableAnalytics}
+        />
       ) : null}
     </>
   );

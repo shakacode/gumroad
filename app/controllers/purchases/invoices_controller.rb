@@ -29,14 +29,18 @@ class Purchases::InvoicesController < ApplicationController
     submitted_vat_id = invoice_params[:vat_id]&.strip.presence
     refundable_vat_id = nil
     refundable_vat_id = submitted_vat_id if @chargeable.taxed_by_gumroad? && is_vat_id_valid?(submitted_vat_id)
+    # Zero-rated at checkout with a stored VAT ID: keep the note when that same ID is re-entered, without refunding.
+    already_reverse_charged = !@chargeable.taxed_by_gumroad? && stored_vat_id?(submitted_vat_id)
     business_vat_id =
       if refundable_vat_id
         refundable_vat_id
+      elsif already_reverse_charged
+        @chargeable.purchase_sales_tax_info.business_vat_id
       elsif submitted_vat_id && InvoicePresenter::FormInfo::BUSINESS_ID_COUNTRY_CODES.include?(selected_country_code)
         submitted_vat_id
       end
-    business_vat_id_country_code = selected_country_code if business_vat_id.present? && refundable_vat_id.blank?
-    show_reverse_charge_note = refundable_vat_id.present? if business_vat_id.present?
+    business_vat_id_country_code = selected_country_code if business_vat_id.present? && refundable_vat_id.blank? && !already_reverse_charged
+    show_reverse_charge_note = (refundable_vat_id.present? || already_reverse_charged) if business_vat_id.present?
 
     invoice_presenter = InvoicePresenter.new(
       @chargeable,
@@ -110,10 +114,28 @@ class Purchases::InvoicesController < ApplicationController
       form_data: -> { new_invoice_presenter.invoice_generation_form_data_props },
       form_metadata: -> { new_invoice_presenter.invoice_generation_form_metadata_props },
       invoice_file_url: InertiaRails.optional { session.delete(invoice_file_url_session_key) },
+      payment_id: @purchase.external_id,
+      payments: -> { payment_options },
     }
   end
 
   private
+    # Every payment shares the confirmed email byte-for-byte (see Purchase#invoiceable_charges),
+    # so switching between them never re-triggers require_email_confirmation.
+    def payment_options
+      payments = @purchase.invoiceable_charges
+      return [] unless payments.size > 1 && payments.include?(@purchase)
+
+      payments.map do |payment|
+        charge_info = ReceiptPresenter::ChargeInfo.new(Charge::Chargeable.find_by_purchase_or_charge!(purchase: payment), for_email: false, order_items_count: 1)
+        {
+          id: payment.external_id,
+          label: "#{charge_info.formatted_created_at} · #{charge_info.formatted_total_transaction_amount}",
+          url: new_purchase_invoice_path(payment.external_id, email: payment.email),
+        }
+      end
+    end
+
     def invoice_file_url_session_key
       "invoice_file_url_#{@purchase.external_id}"
     end
@@ -142,6 +164,14 @@ class Purchases::InvoicesController < ApplicationController
       return false unless raw_vat_id.present?
       country_code, state_code = @chargeable.purchase_sales_tax_info&.values_at(:country_code, :state_code) || [nil, nil]
       RegionalVatIdValidationService.new(raw_vat_id, country_code:, state_code:).process
+    end
+
+    def stored_vat_id?(raw_vat_id)
+      stored_vat_id = @chargeable.purchase_sales_tax_info&.business_vat_id
+      return false if raw_vat_id.blank? || stored_vat_id.blank?
+
+      normalize = ->(id) { id.gsub(/[\s.-]/, "").upcase }
+      normalize.(raw_vat_id) == normalize.(stored_vat_id)
     end
 
     def require_email_confirmation

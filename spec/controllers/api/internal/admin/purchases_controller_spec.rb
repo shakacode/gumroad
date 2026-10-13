@@ -243,7 +243,7 @@ describe Api::Internal::Admin::PurchasesController do
         { email: " #{buyer_email} " },
         { creator_email: " #{seller.email} " },
         { license_key: " #{license.serial} " },
-        { card_last4: " 4242 " },
+        { card_last4: " 4242 ", card_type: "visa" },
         { card_type: " visa " },
       ].each do |search_params|
         get :search, params: search_params
@@ -253,6 +253,19 @@ describe Api::Internal::Admin::PurchasesController do
           expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([purchase.external_id_numeric.to_s])
         end
       end
+    end
+
+    it "asks for a narrower search when card_last4 is the only criterion" do
+      purchase = create(:free_purchase)
+      purchase.update_columns(card_type: "visa", card_visual: "**** **** **** 4242", stripe_fingerprint: "test-fingerprint")
+
+      get :search, params: { card_last4: "4242", charge_amount: "98.69" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body["success"]).to be(false)
+      expect(response.parsed_body["message"]).to eq(
+        "card_last4 needs a narrower search: also provide card_type, purchase_date, query, email, creator_email, or license_key."
+      )
     end
 
     it "preloads purchase associations before serializing search results" do
@@ -462,6 +475,28 @@ describe Api::Internal::Admin::PurchasesController do
         "refund_status" => nil,
         "receipt_url" => receipt_purchase_url(purchase.external_id, host: UrlService.domain_with_protocol, email: purchase.email)
       )
+    end
+
+    it "includes the ping delivery results for that sale" do
+      purchase = create(:free_purchase)
+      delivery = create(:ping_delivery, user: purchase.seller, purchase:, response_code: 403, succeeded: false)
+
+      get :show, params: { id: purchase.external_id_numeric }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]["ping_deliveries"]).to eq([
+                                                                          {
+                                                                            "id" => delivery.id,
+                                                                            "resource_name" => "sale",
+                                                                            "sale_id" => purchase.external_id_numeric.to_s,
+                                                                            "subscription_id" => nil,
+                                                                            "post_url" => "https://example.com/hook",
+                                                                            "attempt" => 1,
+                                                                            "outcome" => "HTTP 403",
+                                                                            "succeeded" => false,
+                                                                            "created_at" => delivery.created_at.as_json,
+                                                                          },
+                                                                        ])
     end
 
     it "returns nil seller fields when the purchase has no seller" do
@@ -928,6 +963,80 @@ describe Api::Internal::Admin::PurchasesController do
         end
       end
 
+      context "when no refund policy snapshot is recorded for the purchase" do
+        before do
+          allow(purchase).to receive(:within_refund_policy_timeframe?).and_call_original
+          allow(purchase).to receive(:purchase_refund_policy).and_call_original
+        end
+
+        it "returns 422 naming the missing policy and does not refund without force" do
+          expect(purchase.purchase_refund_policy).to be_nil
+          expect(purchase).not_to receive(:refund!)
+
+          post :refund, params: params
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body).to eq({ success: false, message: "Purchase has no recorded refund policy" }.as_json)
+        end
+
+        it "names the missing policy and does not refund a chargedback purchase without force" do
+          purchase.update_column(:chargeback_date, Time.current)
+          expect(purchase).to be_chargedback
+          expect(purchase.purchase_refund_policy).to be_nil
+          expect(purchase).not_to receive(:refund!)
+
+          post :refund, params: params
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body).to eq({ success: false, message: "Purchase has no recorded refund policy" }.as_json)
+        end
+
+        it "succeeds with force=true" do
+          expect(purchase).to receive(:refund!).with(refunding_user_id: admin_user.id, amount: nil, reason: "Refund requested by the buyer").and_return(true)
+
+          post :refund, params: params.merge(force: "true")
+
+          expect(response).to have_http_status(:ok)
+          expect(response.parsed_body["success"]).to be(true)
+        end
+      end
+
+      context "when the recorded refund policy has expired" do
+        before do
+          allow(purchase).to receive(:within_refund_policy_timeframe?).and_call_original
+          allow(purchase).to receive(:purchase_refund_policy).and_call_original
+          create(:purchase_refund_policy, purchase:, max_refund_period_in_days: 30, fine_print: nil)
+          purchase.update_column(:created_at, 31.days.ago)
+        end
+
+        it "returns 422 with the outside-of-timeframe message and does not refund without force" do
+          expect(purchase).not_to receive(:refund!)
+
+          post :refund, params: params
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body).to eq({ success: false, message: "Purchase is outside of the refund policy timeframe" }.as_json)
+        end
+
+        it "reports the expired timeframe ahead of fine print review" do
+          purchase.purchase_refund_policy.update!(fine_print: "No refunds after 7 days")
+
+          post :refund, params: params
+
+          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response.parsed_body["message"]).to eq("Purchase is outside of the refund policy timeframe")
+        end
+
+        it "succeeds with force=true" do
+          expect(purchase).to receive(:refund!).with(refunding_user_id: admin_user.id, amount: nil, reason: "Refund requested by the buyer").and_return(true)
+
+          post :refund, params: params.merge(force: "true")
+
+          expect(response).to have_http_status(:ok)
+          expect(response.parsed_body["success"]).to be(true)
+        end
+      end
+
       context "when the refund policy has fine print" do
         before do
           allow(refund_policy).to receive(:fine_print).and_return("No refunds after 7 days")
@@ -1058,7 +1167,7 @@ describe Api::Internal::Admin::PurchasesController do
         success: true,
         message: "Successfully resent receipt for purchase number #{purchase.external_id_numeric} to #{purchase.email}"
       }.as_json)
-      expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(purchase.id).on("critical")
+      expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(purchase.id, true).on("critical")
     end
 
     it "records an audit log with the purchase target" do
@@ -1206,7 +1315,7 @@ describe Api::Internal::Admin::PurchasesController do
       end
 
       it "refunds taxes and returns the serialized purchase" do
-        expect(purchase).to receive(:refund_gumroad_taxes!).with(refunding_user_id: admin_user.id, note: "tax adjustment", business_vat_id: "VAT123").and_return(true)
+        expect(purchase).to receive(:refund_gumroad_taxes!).with(refunding_user_id: admin_user.id, note: "tax adjustment", business_vat_id: "VAT123", vat_exempt_territory: false).and_return(true)
 
         post :refund_taxes, params: params.merge(note: "tax adjustment", business_vat_id: "VAT123")
 
@@ -1216,6 +1325,14 @@ describe Api::Internal::Admin::PurchasesController do
           "message" => "Successfully refunded taxes for purchase number #{purchase.external_id_numeric}"
         )
         expect(response.parsed_body["purchase"]).to include("id" => purchase.external_id_numeric.to_s)
+      end
+
+      it "passes the exempt-territory marker through" do
+        expect(purchase).to receive(:refund_gumroad_taxes!).with(refunding_user_id: admin_user.id, note: nil, business_vat_id: nil, vat_exempt_territory: true).and_return(true)
+
+        post :refund_taxes, params: params.merge(vat_exempt_territory: "true")
+
+        expect(response).to have_http_status(:ok)
       end
 
       it "returns 422 with the purchase error when refund_gumroad_taxes! fails" do
@@ -1310,6 +1427,18 @@ describe Api::Internal::Admin::PurchasesController do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body).to eq({ success: false, message: "from and to emails are the same" }.as_json)
+    end
+
+    it "returns 422 when a subscription's original purchase cannot be matched to the requester" do
+      subscription = create(:subscription, user: nil)
+      create(:purchase, email: "old_original@example.com", purchaser: nil, is_original_subscription_purchase: true, subscription:, merchant_account:)
+      create(:purchase, email: from_email, purchaser: nil, subscription:, merchant_account:)
+
+      post :reassign, params: { from: from_email, to: to_email }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq({ success: false, message: "A subscription's original purchase could not be matched to this email and requires manual review" }.as_json)
+      expect(purchase1.reload.email).to eq(from_email)
     end
 
     it "threads confirmed_override through to the service" do
@@ -1654,6 +1783,158 @@ describe Api::Internal::Admin::PurchasesController do
         "status" => "not_blocked",
         "message" => "Buyer is not blocked"
       )
+    end
+
+    describe "account IPs checkout matches" do
+      # Paid: checkout skips the IP check on free purchases and recurring charges (covered below).
+      let(:purchase) { create(:purchase, email: "buyer@example.com", ip_address: "192.0.2.65") }
+      let(:account_ip) { "203.0.113.66" }
+      let!(:buyer) { create(:user, email: "buyer@example.com", current_sign_in_ip: nil, last_sign_in_ip: nil, account_created_ip: account_ip) }
+
+      before { allow_any_instance_of(Purchase).to receive(:processor_rule_refusal).and_return(nil) }
+
+      def block_ip(value, object_type: :ip_address)
+        PlatformBlock.add!(object_type: PlatformBlock::TYPES[object_type], object_value: value, expires_in: 6.months)
+      end
+
+      it "reports a buyer held only on an account IP instead of calling them not blocked, and clears nothing" do
+        ip_block = block_ip(account_ip)
+        expect(purchase.buyer_blocked?).to be(false)
+        expect_any_instance_of(Purchase).not_to receive(:unblock_buyer!)
+
+        expect { post :unblock_buyer, params: params }.not_to change { purchase.comments.count }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to include("success" => true, "status" => "held_by_ip_block")
+        expect(response.parsed_body["surviving_blocks"]).to eq([{ "object_type" => "ip_address", "object_value" => account_ip }])
+        expect(response.parsed_body["message"]).to include("1 IP block(s) still hold them at checkout: ip_address #{account_ip}")
+        expect(ip_block.reload.blocked_at).to be_present
+      end
+
+      it "reports an account IP stored under an unexpected object_type" do
+        block_ip(account_ip, object_type: :browser_guid)
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("held_by_ip_block")
+        expect(response.parsed_body["surviving_blocks"]).to eq([{ "object_type" => "browser_guid", "object_value" => account_ip }])
+      end
+
+      it "still reports not_blocked when the account IP block has expired" do
+        block_ip(account_ip).update!(expires_at: 1.minute.ago)
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("not_blocked")
+      end
+
+      it "does not report a block on the seller's own IP" do
+        purchase.seller.update!(current_sign_in_ip: "198.51.100.66")
+        block_ip("198.51.100.66")
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("not_blocked")
+      end
+
+      it "reports an address the buyer's account shares with the seller" do
+        purchase.seller.update!(current_sign_in_ip: account_ip)
+        block_ip(account_ip)
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("held_by_ip_block")
+      end
+
+      it "names the account IP among the survivors of a real unblock, which clears the request IP as before and leaves the account IP" do
+        purchase.update!(ip_address: "192.0.2.66")
+        purchase.block_buyer!(blocking_user_id: admin_user.id)
+        request_ip_block = PlatformBlock.active.find_by!(object_type: "ip_address", object_value: "192.0.2.66")
+        account_ip_block = block_ip(account_ip)
+        allow_any_instance_of(Purchase).to receive(:processor_rule_refusal).and_return(nil)
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("partially_unblocked")
+        expect(response.parsed_body["surviving_blocks"]).to eq([{ "object_type" => "ip_address", "object_value" => account_ip }])
+        expect(response.parsed_body["message"]).to include("1 block(s) still hold this buyer: ip_address #{account_ip}")
+        expect(request_ip_block.reload.blocked_at).to be_nil
+        expect(account_ip_block.reload.blocked_at).to be_present
+        expect(purchase.reload.buyer_blocked?).to be(false)
+      end
+
+      it "reports a typed gifter's account IP without clearing it" do
+        gifter = create(:user, email: "gifter-owner@example.net", current_sign_in_ip: "203.0.113.67", last_sign_in_ip: nil, account_created_ip: nil)
+        purchase.update!(is_gift_sender_purchase: true)
+        create(:gift, gifter_purchase: purchase, gifter_email: gifter.email)
+        gifter_ip_block = block_ip(gifter.current_sign_in_ip)
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["status"]).to eq("held_by_ip_block")
+        expect(response.parsed_body["surviving_blocks"]).to eq([{ "object_type" => "ip_address", "object_value" => gifter.current_sign_in_ip }])
+        expect(gifter_ip_block.reload.blocked_at).to be_present
+      end
+    end
+
+    describe "account IPs on a purchase checkout never IP-checks" do
+      let(:account_ip) { "203.0.113.68" }
+      let!(:buyer) { create(:user, email: "buyer@example.com", current_sign_in_ip: account_ip, last_sign_in_ip: nil, account_created_ip: nil) }
+      let!(:account_ip_block) do
+        PlatformBlock.add!(object_type: PlatformBlock::TYPES[:ip_address], object_value: account_ip, expires_in: 6.months)
+      end
+      let(:recurring_charge) do
+        original = create(:membership_purchase, email: "buyer@example.com")
+        create(:purchase, link: original.link, subscription: original.subscription, email: "buyer@example.com", ip_address: "192.0.2.68")
+      end
+      let(:recurring_params) { params.merge(id: recurring_charge.external_id_numeric.to_s) }
+
+      before { allow_any_instance_of(Purchase).to receive(:processor_rule_refusal).and_return(nil) }
+
+      it "calls a free purchase not blocked rather than held by an account IP" do
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body).to include("status" => "not_blocked")
+      end
+
+      it "calls a recurring charge not blocked rather than held by an account IP" do
+        expect(recurring_charge.is_recurring_subscription_charge).to be(true)
+
+        post :unblock_buyer, params: recurring_params
+
+        expect(response.parsed_body).to include("status" => "not_blocked")
+      end
+
+      it "leaves the account IP out of a free purchase's survivors, clearing its request-IP row as before" do
+        purchase.update!(ip_address: "192.0.2.69")
+        purchase.block_buyer!(blocking_user_id: admin_user.id)
+        request_ip_block = PlatformBlock.active.find_by!(object_type: "ip_address", object_value: "192.0.2.69")
+
+        post :unblock_buyer, params: params
+
+        expect(response.parsed_body["message"]).to eq("Successfully unblocked buyer for purchase number #{purchase.external_id_numeric}")
+        expect(request_ip_block.reload.blocked_at).to be_nil
+        expect(account_ip_block.reload.blocked_at).to be_present
+      end
+
+      it "leaves the account IP out of a recurring charge's survivors" do
+        recurring_charge.block_buyer!(blocking_user_id: admin_user.id)
+
+        post :unblock_buyer, params: recurring_params
+
+        expect(response.parsed_body["message"]).to eq("Successfully unblocked buyer for purchase number #{recurring_charge.external_id_numeric}")
+        expect(account_ip_block.reload.blocked_at).to be_present
+      end
+
+      it "still unblocks a free purchase carrying only the admin-blocked flag" do
+        purchase.update!(is_buyer_blocked_by_admin: true)
+
+        expect { post :unblock_buyer, params: params }
+          .to change { purchase.reload.is_buyer_blocked_by_admin? }.from(true).to(false)
+
+        expect(response.parsed_body["success"]).to be(true)
+        expect(response.parsed_body).not_to have_key("status")
+      end
     end
 
     it "clears the stale admin flag when PlatformBlock was cleared elsewhere" do

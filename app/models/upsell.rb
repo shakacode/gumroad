@@ -7,6 +7,7 @@ class Upsell < ApplicationRecord
 
   has_flags 1 => :replace_selected_products,
             2 => :is_content_upsell,
+            4 => :offer_matching_version,
             :column => "flags",
             :flag_query_mode => :bit_operator,
             check_for_column: false
@@ -49,6 +50,7 @@ class Upsell < ApplicationRecord
       name:,
       cross_sell:,
       replace_selected_products:,
+      offer_matching_version:,
       universal:,
       text:,
       description:,
@@ -85,7 +87,29 @@ class Upsell < ApplicationRecord
     }
   end
 
+  # With `offer_matching_version`, a cross-sell follows the version the buyer selected on the
+  # product it appears on: the offered product's version of the same name. Falls back to the
+  # fixed `variant` when the two products share no version name.
+  def offered_variant_for(selected_option_name)
+    return variant unless offer_matching_version? && selected_option_name.present?
+
+    offerable_versions.detect { |offered| displayed_version_name(offered) == selected_option_name } || variant
+  end
+
   private
+    # Mirrors `Link#options`: checkout only offers versions from the first variant category,
+    # under their displayed name.
+    def offerable_versions
+      return product.variants_or_skus if product.skus_enabled?
+
+      first_category = product.variant_categories_alive.to_a.first
+      product.variants_or_skus.select { |offered| offered.variant_category_id == first_category&.id }
+    end
+
+    def displayed_version_name(offered)
+      !product.skus_enabled? && offered.name == "Untitled" ? product.name : offered.name
+    end
+
     def selected_products_belong_to_seller
       if selected_products.any? { _1.user != seller }
         errors.add(:base, "All offered products must belong to the current seller.")

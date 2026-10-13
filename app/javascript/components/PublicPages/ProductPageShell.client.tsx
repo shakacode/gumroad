@@ -9,6 +9,10 @@ import type { MetaTag } from "$app/layouts/components/MetaTags";
 import { CurrentSellerProvider, parseCurrentSeller } from "$app/components/CurrentSeller";
 import { LoggedInUserProvider, parseLoggedInUser } from "$app/components/LoggedInUser";
 import { buildInertiaPage } from "$app/components/PublicPages/PageShell.client";
+import {
+  ProductHydrationProvider,
+  type ProductHydrationSnapshot,
+} from "$app/components/PublicPages/ProductHydration.client";
 import Alert, { type AlertPayload } from "$app/components/server-components/Alert";
 
 export type ProductGlobalProps = React.ComponentProps<typeof AppWrapper>["global"] & {
@@ -22,10 +26,12 @@ export default function ProductPageShell({
   children,
   global,
   inertiaMeta,
+  hydrationSnapshot,
 }: {
   children: React.ReactNode;
   global: ProductGlobalProps;
   inertiaMeta?: MetaTag[] | undefined;
+  hydrationSnapshot: ProductHydrationSnapshot;
 }) {
   const initialPage = buildInertiaPage("Products/Profile/Show", global, {}, inertiaMeta);
 
@@ -36,7 +42,7 @@ export default function ProductPageShell({
           <LoggedInUserProvider value={parseLoggedInUser(global.logged_in_user ?? null)}>
             <CurrentSellerProvider value={parseCurrentSeller(global.current_seller ?? null)}>
               <Alert initial={global.flash ?? null} />
-              {children}
+              <ProductHydrationProvider value={hydrationSnapshot}>{children}</ProductHydrationProvider>
             </CurrentSellerProvider>
           </LoggedInUserProvider>
         </AppWrapper>

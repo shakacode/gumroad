@@ -191,7 +191,7 @@ class Charge < ApplicationRecord
     transaction do
       refunded_all_purchases = true
       lock_successful_purchases_in_id_order!.each do |purchase|
-        refunded = purchase.refund_and_save!(refunding_user_id, reason:)
+        refunded = refund_sibling(purchase) { purchase.refund_and_save!(refunding_user_id, reason:) }
         unless refunded
           copy_refund_errors_from(purchase)
           refunded_all_purchases = false
@@ -205,7 +205,7 @@ class Charge < ApplicationRecord
     transaction do
       refunded_all_taxes = true
       lock_successful_purchases_in_id_order!.select { _1.gumroad_tax_cents > 0 }.each do |purchase|
-        refunded = purchase.refund_gumroad_taxes!(refunding_user_id:, note:, business_vat_id:)
+        refunded = refund_sibling(purchase) { purchase.refund_gumroad_taxes!(refunding_user_id:, note:, business_vat_id:) }
         unless refunded
           copy_refund_errors_from(purchase)
           refunded_all_taxes = false
@@ -217,7 +217,13 @@ class Charge < ApplicationRecord
 
   def refund_for_fraud_and_block_buyer!(refunding_user_id)
     with_lock do
-      return false unless lock_successful_purchases_in_id_order!.all? { _1.refund_for_fraud!(refunding_user_id) }
+      failed_purchase = lock_successful_purchases_in_id_order!.find do |purchase|
+        !refund_sibling(purchase) { purchase.refund_for_fraud!(refunding_user_id) }
+      end
+      if failed_purchase
+        copy_refund_errors_from(failed_purchase)
+        return false
+      end
 
       block_buyer!(blocking_user_id: refunding_user_id)
     end
@@ -236,11 +242,11 @@ class Charge < ApplicationRecord
   end
 
   def external_id_for_invoice
-    purchase_as_chargeable.external_id
+    purchase_for_invoice.external_id
   end
 
   def external_id_numeric_for_invoice
-    purchase_as_chargeable.external_id_numeric.to_s
+    purchase_for_invoice.external_id_numeric.to_s
   end
 
   def country_or_ip_country
@@ -351,6 +357,17 @@ class Charge < ApplicationRecord
       successful_purchases.sort_by(&:id).each { _1.reload.lock! }
     end
 
+    # Each sibling gets its own savepoint: an exception in one must not roll back the local
+    # rows of siblings whose Stripe refunds already succeeded, which the refund webhook would
+    # then book a second time.
+    def refund_sibling(purchase, &block)
+      transaction(requires_new: true, &block)
+    rescue StandardError => e
+      ErrorNotifier.notify(e, context: { charge_id: id, purchase_id: purchase.id })
+      purchase.errors.add(:base, "Refund failed for purchase #{purchase.external_id_numeric}: #{e.message}")
+      false
+    end
+
     def copy_refund_errors_from(purchase)
       purchase.errors.full_messages.each { errors.add(:base, _1) }
     end
@@ -387,6 +404,12 @@ class Charge < ApplicationRecord
     # To be used only when the data retrieved is present on ALL purchases
     def purchase_as_chargeable
       @_purchase_as_chargeable ||= successful_purchases.first
+    end
+
+    # A charge with no successful purchase has no buyer-facing purchase id, so fall back to the
+    # charge's own id rather than raising part-way through rendering an invoice or receipt.
+    def purchase_for_invoice
+      purchase_as_chargeable || self
     end
 
     def purchase_with_gumroad_tax_as_chargeable

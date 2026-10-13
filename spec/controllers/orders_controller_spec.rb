@@ -593,6 +593,87 @@ describe OrdersController, :vcr do
         end
       end
 
+      context "when the saved cart holds a line for a cancelled membership", vcr: { cassette_name: "OrdersController/POST_create/multiple_purchases/when_the_saved_cart_holds_a_line_for_a_cancelled_membership" } do
+        let(:buyer) { create(:user) }
+        let(:membership) { create(:membership_product, user: seller_1, price_cents: 20_00) }
+        let!(:subscription) do
+          sub = create(:subscription, link: membership, user: buyer)
+          create(:purchase, link: membership, purchaser: buyer, email: buyer.email, subscription: sub,
+                            is_original_subscription_purchase: true, price_cents: membership.price_cents,
+                            variant_attributes: membership.tiers.to_a)
+          sub.update!(cancelled_at: 1.day.ago, cancelled_by_buyer: true, deactivated_at: 1.day.ago)
+          sub
+        end
+        let(:membership_line) do
+          { uid: "membership-line", permalink: membership.unique_permalink, perceived_price_cents: membership.price_cents,
+            quantity: 1, price_id: membership.prices.alive.first.external_id }
+        end
+        let(:product_line) do
+          { uid: "product-line", permalink: product_2.unique_permalink, perceived_price_cents: product_2.price_cents, quantity: 1 }
+        end
+
+        before do
+          sign_in buyer
+          cart = create(:cart, user: buyer, browser_guid: cookies[:_gumroad_guid])
+          create(:cart_product, cart:, product: membership, created_at: 1.year.ago)
+          create(:cart_product, cart:, product: product_2)
+        end
+
+        it "charges only the unrelated product and leaves the cancelled membership alone" do
+          expect(Subscription::UpdaterService).not_to receive(:new)
+          membership_purchases = Purchase.where(link: membership).count
+
+          expect do
+            post :create, params: { line_items: [membership_line, product_line] }.merge(common_purchase_params)
+          end.to change(Charge, :count).by(1)
+
+          expect(response.parsed_body["line_items"]["product-line"]["success"]).to be(true)
+          expect(response.parsed_body["line_items"]["membership-line"]).to include(
+            "success" => false,
+            "error_message" => Purchase::CreateService.restart_not_requested_message(membership)
+          )
+          charge = Charge.last
+          expect(charge.purchases.map(&:link)).to eq([product_2])
+          expect(charge.amount_cents).to eq(product_2.price_cents)
+          expect(Purchase.where(link: membership).count).to eq(membership_purchases)
+          expect(Subscription.where(link: membership).count).to eq(1)
+          expect(subscription.reload).not_to be_alive
+          expect(subscription.deactivated_at).to be_present
+        end
+
+        it "charges only the unrelated product when the stale line is an ended membership" do
+          subscription.update!(ended_at: 1.day.ago)
+          expect(Subscription::UpdaterService).not_to receive(:new)
+          membership_purchases = Purchase.where(link: membership).count
+
+          expect do
+            post :create, params: { line_items: [membership_line, product_line] }.merge(common_purchase_params)
+          end.to change(Charge, :count).by(1)
+
+          expect(response.parsed_body["line_items"]["membership-line"]).to include("success" => false, "error_message" => Purchase::CreateService.restart_not_requested_message(membership))
+          expect(Charge.last.purchases.map(&:link)).to eq([product_2])
+          expect(Purchase.where(link: membership).count).to eq(membership_purchases)
+          expect(Subscription.where(link: membership).count).to eq(1)
+        end
+
+        it "restarts the membership when its line carries the intent signed on checkout arrival" do
+          updater_service = instance_double(Subscription::UpdaterService)
+          allow(Subscription::UpdaterService).to receive(:new).and_return(updater_service)
+          allow(updater_service).to receive(:perform) do
+            subscription.reload.resubscribe!
+            { success: true, success_message: "Membership restarted" }
+          end
+          intent = Checkout::RestartIntentToken.issue(product: membership, buyer:)
+
+          post :create, params: { line_items: [membership_line.merge(restart_intent: intent), product_line] }.merge(common_purchase_params)
+
+          expect(response.parsed_body["line_items"]["membership-line"]["success"]).to be(true)
+          expect(response.parsed_body["line_items"]["product-line"]["success"]).to be(true)
+          expect(subscription.reload).to be_alive
+          expect(Subscription.where(link: membership).count).to eq(1)
+        end
+      end
+
       it "saves the referrer" do
         multiple_purchase_params[:line_items][0][:referrer] = "https://facebook.com"
         multiple_purchase_params[:line_items][1][:referrer] = "https://google.com"
@@ -1097,6 +1178,104 @@ describe OrdersController, :vcr do
           post :create, params: multiple_purchase_params
           expect(response.parsed_body["success"]).to be(false)
         end.not_to change(Purchase, :count)
+      end
+
+      describe "free downloads held by the product and ip_address block" do
+        let(:free_product) { create(:product, user: seller_1, price_cents: 0) }
+        let(:free_download_params) do
+          {
+            line_items: [{ uid: "free-download", permalink: free_product.unique_permalink, perceived_price_cents: "0", quantity: 1 }],
+          }.merge(common_purchase_params_without_payment)
+        end
+
+        before do
+          allow_any_instance_of(Link).to receive(:require_captcha?).and_return(false)
+          PlatformBlock.add!(
+            object_type: PlatformBlock::TYPES[:product_ip_address],
+            object_value: "#{free_product.id}:#{request.remote_ip}",
+            expires_in: 24.hours,
+          )
+        end
+
+        it "tells a guest refused by the block that the seller's own sign-in lifts it, keeping the generic message" do
+          expect do
+            post :create, params: free_download_params
+          end.not_to change(Purchase.successful, :count)
+
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include(
+            "success" => false,
+            "error_message" => "The transaction could not complete.",
+            "error_code" => PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT,
+            "owner_sign_in_remedy" => true,
+          )
+        end
+
+        it "sends the same response to a guest who types the seller's email, which discloses nothing" do
+          post :create, params: free_download_params.merge(email: seller_1.email)
+
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include("error_code" => PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT, "owner_sign_in_remedy" => true)
+          expect(line_item["error_message"]).to eq("The transaction could not complete.")
+        end
+
+        it "sends the same response to a guest who types an existing non-seller account's email" do
+          other_user = create(:user)
+
+          post :create, params: free_download_params.merge(email: other_user.email)
+
+          expect(Purchase.last.purchaser).to eq other_user
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include(
+            "success" => false,
+            "error_message" => "The transaction could not complete.",
+            "error_code" => PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT,
+            "owner_sign_in_remedy" => true,
+          )
+        end
+
+        it "sends the same response to a guest who types a fresh email" do
+          post :create, params: free_download_params.merge(email: "fresh-guest@example.com")
+
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include("error_code" => PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT, "owner_sign_in_remedy" => true)
+          expect(line_item["error_message"]).to eq("The transaction could not complete.")
+        end
+
+        it "does not offer the remedy to a signed-in buyer who is not the seller" do
+          sign_in create(:user)
+
+          post :create, params: free_download_params
+
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include(
+            "success" => false,
+            "error_message" => "The transaction could not complete.",
+            "error_code" => PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT,
+          )
+          expect(line_item).not_to have_key("owner_sign_in_remedy")
+        end
+
+        it "lets the signed-in seller download their own product" do
+          sign_in seller_1
+
+          expect do
+            post :create, params: free_download_params
+          end.to change { free_product.sales.count }.by(1)
+
+          expect(response.parsed_body["line_items"]["free-download"]).to include("success" => true)
+          expect(free_product.sales.sole.purchaser).to eq seller_1
+        end
+
+        it "does not offer the remedy on a refusal unrelated to the block" do
+          PlatformBlock.add!(object_type: PlatformBlock::TYPES[:email_domain], object_value: "gumroad.com")
+
+          post :create, params: free_download_params.merge(email: "guest@gumroad.com")
+
+          line_item = response.parsed_body["line_items"]["free-download"]
+          expect(line_item).to include("success" => false, "error_code" => PurchaseErrorCode::BLOCKED_EMAIL_DOMAIN)
+          expect(line_item).not_to have_key("owner_sign_in_remedy")
+        end
       end
 
       describe "reCAPTCHA skipping behavior" do
@@ -2195,6 +2374,14 @@ describe OrdersController, :vcr do
           ).and_call_original
 
           post :create, params: multiple_purchase_params
+        end
+
+        it "hides the gifter from the recipient when hide_gifter is set" do
+          multiple_purchase_params.merge!(hide_gifter: true)
+
+          post :create, params: multiple_purchase_params
+
+          expect(Gift.successful.map(&:is_gifter_hidden).uniq).to eq([true])
         end
       end
 

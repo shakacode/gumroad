@@ -545,6 +545,55 @@ describe User, :vcr do
     end
   end
 
+  describe "#resend_confirmation_wait" do
+    let(:user) { create(:user) }
+
+    it "is zero when no confirmation was ever sent" do
+      user.update_column(:confirmation_sent_at, nil)
+
+      expect(user.resend_confirmation_wait).to eq(0)
+    end
+
+    it "counts the seconds left in the one-minute floor" do
+      user.update_column(:confirmation_sent_at, 20.seconds.ago)
+
+      expect(user.resend_confirmation_wait).to be_between(39, 40)
+    end
+
+    it "is zero once the floor has passed" do
+      user.update_column(:confirmation_sent_at, 61.seconds.ago)
+
+      expect(user.resend_confirmation_wait).to eq(0)
+    end
+  end
+
+  describe "#resend_confirmation_instructions" do
+    let(:user) { create(:user) }
+
+    before { user.update_column(:confirmed_at, nil) }
+
+    it "queues one email and returns true" do
+      expect(user.resend_confirmation_instructions).to eq(true)
+      expect(ResendConfirmationEmailJob).to have_enqueued_sidekiq_job(user.id)
+      expect(user.reload.confirmation_sent_at).to be_within(5.seconds).of(Time.current)
+    end
+
+    it "returns false and queues nothing inside the one-minute floor" do
+      user.update_column(:confirmation_sent_at, 10.seconds.ago)
+
+      expect { expect(user.resend_confirmation_instructions).to eq(false) }
+        .not_to change { ResendConfirmationEmailJob.jobs.size }
+    end
+
+    it "queues only one email when two stale copies of the user resend at once" do
+      first = User.find(user.id)
+      second = User.find(user.id)
+
+      expect { first.resend_confirmation_instructions; second.resend_confirmation_instructions }
+        .to change { ResendConfirmationEmailJob.jobs.size }.by(1)
+    end
+  end
+
   describe "#display_name" do
     context "when name is present" do
       before do
@@ -1042,6 +1091,130 @@ describe User, :vcr do
     end
   end
 
+  describe "staff privileges on account closure" do
+    let(:staff) { create(:user, is_team_member: true, announcement_notification_enabled: false) }
+    let(:gumroad) { create(:user, email: ApplicationMailer::ADMIN_EMAIL, is_team_member: true) }
+    let!(:membership) { create(:team_membership, seller: gumroad, user: staff) }
+
+    it "clears the closing user's staff flag and preserves memberships and other flags" do
+      other_membership = create(:team_membership, user: staff)
+      memberships = staff.user_memberships.reload.map(&:attributes)
+
+      expect(staff.deactivate!).to eq(true)
+
+      expect(staff.reload).not_to be_is_team_member
+      expect(staff.announcement_notification_enabled).to eq(false)
+      expect(staff.user_memberships.reload.map(&:attributes)).to eq(memberships)
+      expect(gumroad.reload).to be_is_team_member
+      expect(other_membership.reload).not_to be_deleted
+
+      staff.reactivate!
+      expect(staff.reload).to be_alive
+      expect(staff).not_to be_is_team_member
+      expect(staff.member_of?(gumroad)).to eq(true)
+    end
+
+    it "preserves flags changed after the member was loaded" do
+      allow_any_instance_of(TeamMembership).to receive(:user).and_wrap_original do |original, *args|
+        member = original.call(*args)
+        if member.id == staff.id
+          User.where(id: member.id).update_all(User.set_flag_sql(:announcement_notification_enabled, true))
+        end
+        member
+      end
+
+      expect(gumroad.deactivate!).to eq(true)
+      expect(staff.reload).not_to be_is_team_member
+      expect(staff.announcement_notification_enabled).to eq(true)
+    end
+
+    with_versioning do
+      it "rolls back staff removal when PaperTrail cannot persist the member audit" do
+        versions_count = PaperTrail::Version.count
+        allow_any_instance_of(PaperTrail::Version).to receive(:save!).and_wrap_original do |original, *args|
+          version = original.receiver
+          if version.item_type == "User" && version.item_id == staff.id
+            raise ActiveRecord::RecordInvalid, version
+          end
+          original.call(*args)
+        end
+
+        expect(gumroad.deactivate!).to eq(false)
+        expect(gumroad.reload).to be_alive
+        expect(staff.reload).to be_is_team_member
+        expect(PaperTrail::Version.count).to eq(versions_count)
+      end
+
+      it "audits staff removal when Gumroad closes without deleting memberships" do
+        other_member = create(:user, is_team_member: true)
+        create(:team_membership, seller: gumroad, user: other_member, role: TeamMembership::ROLE_SUPPORT)
+        unrelated_staff = create(:user, is_team_member: true)
+        create(:team_membership, seller: gumroad, user: unrelated_staff, deleted_at: 1.day.ago)
+        memberships = TeamMembership.order(:id).map(&:attributes)
+        old_flags = staff.flags
+
+        expect(gumroad.deactivate!).to eq(true)
+
+        expect(gumroad.reload).not_to be_is_team_member
+        expect(staff.reload).not_to be_is_team_member
+        expect(other_member.reload).not_to be_is_team_member
+        expect(unrelated_staff.reload).to be_is_team_member
+        expect(staff.flags).to eq(old_flags & ~User.flag_mapping["flags"][:is_team_member])
+        expect(staff.versions.last.changeset["flags"]).to eq([old_flags, staff.flags])
+        expect(TeamMembership.order(:id).map(&:attributes)).to eq(memberships)
+
+        gumroad.reactivate!
+        expect(staff.reload.member_of?(gumroad)).to eq(true)
+        expect(staff).not_to be_is_team_member
+      end
+
+      it "rolls back closure, staff changes, and their audit rows when cleanup before staff revocation fails" do
+        versions_count = PaperTrail::Version.count
+        allow(gumroad).to receive(:cancel_active_subscriptions!).and_raise("cleanup failed")
+
+        expect(gumroad.deactivate!).to eq(false)
+
+        expect(gumroad.reload).to be_alive
+        expect(gumroad).to be_is_team_member
+        expect(staff.reload).to be_is_team_member
+        expect(membership.reload).not_to be_deleted
+        expect(PaperTrail::Version.count).to eq(versions_count)
+      end
+
+      it "rolls back staff changes and audits when custom domain cleanup fails" do
+        domain = create(:custom_domain, user: gumroad)
+        versions_count = PaperTrail::Version.count
+        allow(gumroad).to receive(:custom_domain).and_return(domain)
+        allow(domain).to receive(:mark_deleted!).and_raise("domain cleanup failed")
+
+        expect(gumroad.deactivate!).to eq(false)
+        expect(gumroad.reload).to be_alive
+        expect(gumroad).to be_is_team_member
+        expect(staff.reload).to be_is_team_member
+        expect(domain.reload).not_to be_deleted
+        expect(PaperTrail::Version.count).to eq(versions_count)
+      end
+
+      it "rolls back earlier member changes if a staff update fails" do
+        failing_staff = create(:user, is_team_member: true)
+        create(:team_membership, seller: gumroad, user: failing_staff)
+        versions_count = PaperTrail::Version.count
+        allow(User).to receive(:_update_record).and_wrap_original do |original, *args|
+          raise ActiveRecord::StatementInvalid, "staff write failed" if args.last["id"] == failing_staff.id
+          original.call(*args)
+        end
+
+        expect(gumroad.deactivate!).to eq(false)
+
+        expect(gumroad.reload).to be_alive
+        expect(gumroad).to be_is_team_member
+        expect(staff.reload).to be_is_team_member
+        expect(failing_staff.reload).to be_is_team_member
+        expect(PaperTrail::Version.count).to eq(versions_count)
+      end
+    end
+  end
+
   describe "#deactivate!" do
     before do
       @user = create(:user)
@@ -1075,12 +1248,72 @@ describe User, :vcr do
         end
       end
 
+      it "closes the piracy reports that never went out and keeps every other report" do
+        waiting_to_sign = create(:piracy_report, :awaiting_signature, seller: @user)
+        signed_not_sent = create(:piracy_report, :signed, seller: @user)
+        screening = create(:piracy_report, :screening, seller: @user)
+        declined = create(:piracy_report, :screening, seller: @user).tap(&:fail_screening!)
+        another_seller = create(:piracy_report, :awaiting_signature)
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(waiting_to_sign.reload.state).to eq("cancelled")
+        expect(signed_not_sent.reload.state).to eq("cancelled")
+        expect(screening.reload.state).to eq("cancelled")
+        expect(declined.reload.state).to eq("declined")
+        expect(another_seller.reload.state).to eq("awaiting_signature")
+      end
+
+      it "does not overwrite a decision the agent made while the account was closing" do
+        report = create(:piracy_report, :screening, seller: @user)
+        # The agent declines the report after the closure pass has read it but before it saves.
+        allow_any_instance_of(PiracyReport).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+          PiracyReport.where(id: report.id).update_all(state: "declined")
+          original.call(*args, &block)
+        end
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(report.reload.state).to eq("declined")
+      end
+
+      it "removes a deleted product from invalid profile sections" do
+        products_section = create(:seller_profile_products_section, seller: @user, shown_products: [@product.id])
+        products_section.update_column(:json_data, products_section.json_data.merge("default_product_sort" => "obsolete"))
+        featured_section = create(:seller_profile_featured_product_section, seller: @user, featured_product_id: @product.id)
+        featured_section.update_column(:json_data, featured_section.json_data.merge("obsolete" => true))
+        expect(products_section.reload).not_to be_valid
+        expect(featured_section.reload).not_to be_valid
+
+        expect(@user.reload.deactivate!).to eq(true)
+        expect(products_section.reload.shown_products).not_to include(@product.id)
+        expect(featured_section.reload.featured_product_id).to be_nil
+      end
+
       it "invalidates all the active sessions" do
         travel_to(DateTime.current) do
           expect do
             @user.deactivate!
           end.to change { @user.reload.last_active_sessions_invalidated_at }.from(nil).to(DateTime.current)
         end
+      end
+
+      it "revokes the OAuth access of every application, not only the mobile one" do
+        oauth_application = create(:oauth_application)
+        access_token = create("doorkeeper/access_token", application: oauth_application, resource_owner_id: @user.id, scopes: "view_sales", use_refresh_token: true)
+        access_grant = Doorkeeper::AccessGrant.create!(application_id: oauth_application.id, resource_owner_id: @user.id, redirect_uri: oauth_application.redirect_uri,
+                                                       expires_in: 1.day.to_i, scopes: "view_sales")
+        device_authorization = create(:oauth_device_authorization, oauth_application:, resource_owner: @user, status: OauthDeviceAuthorization::STATUS_APPROVED)
+        resource_subscription = create(:resource_subscription, oauth_application:, user: @user)
+        other_user_access_token = create("doorkeeper/access_token", application: oauth_application, resource_owner_id: create(:user).id, scopes: "view_sales")
+
+        expect(@user.deactivate!).to eq(true)
+
+        expect(access_token.reload).to be_revoked
+        expect(access_grant.reload).to be_revoked
+        expect(device_authorization.reload.status).to eq(OauthDeviceAuthorization::STATUS_DENIED)
+        expect(resource_subscription.reload).to be_deleted
+        expect(other_user_access_token.reload).not_to be_revoked
       end
 
       it "deletes the account's public media files and purges their blobs from public storage" do
@@ -1170,6 +1403,102 @@ describe User, :vcr do
             expect(subscription.cancelled_by_buyer).to be_truthy
           end
         end
+      end
+
+      context "when the user is a Gumroad-team member" do
+        let(:gumroad_account) { create(:user, email: ApplicationMailer::ADMIN_EMAIL) }
+        let(:staff_user) { create(:admin_user) }
+
+        it "clears the flag when the member closes their own account" do
+          create(:team_membership, user: staff_user, seller: gumroad_account)
+
+          expect(staff_user.deactivate!).to eq(true)
+
+          expect(staff_user.reload).not_to be_is_team_member
+        end
+
+        it "clears the flag of the members when the Gumroad account itself is closed" do
+          create(:team_membership, user: staff_user, seller: gumroad_account)
+          gumroad_account.update!(is_team_member: true)
+
+          expect(gumroad_account.deactivate!).to eq(true)
+
+          expect(gumroad_account.reload).not_to be_is_team_member
+          expect(staff_user.reload).not_to be_is_team_member
+        end
+
+        it "leaves the flag set when the closed account is not the Gumroad account" do
+          create(:team_membership, user: staff_user, seller: @user)
+
+          expect(@user.deactivate!).to eq(true)
+
+          expect(staff_user.reload).to be_is_team_member
+        end
+
+        it "closes the account anyway when a member's after_update callback raises" do
+          create(:team_membership, user: staff_user, seller: gumroad_account)
+          # Any `flags` change fires clear_products_cache, which reaches for a cache/queue that can
+          # be down; a raise there must not roll back the closure transaction.
+          allow_any_instance_of(User).to receive(:clear_products_cache).and_wrap_original do |original, *args|
+            raise "cache backend down" if original.receiver.id == staff_user.id
+            original.call(*args)
+          end
+
+          expect(gumroad_account.deactivate!).to eq(true)
+
+          expect(staff_user.reload).not_to be_is_team_member
+        end
+      end
+    end
+
+    context "when a record the closure soft-deletes no longer validates" do
+      # A validation on a row the closure is deleting can only abort the closure.
+      it "closes the account when an alive draft installment's message is empty" do
+        @installment.update_columns(message: "<p><br></p>", published_at: nil)
+        expect(@installment.reload).to be_invalid
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(@user.reload).to be_deleted
+        expect(@installment.reload).to be_deleted
+      end
+
+      it "closes the account when an alive product no longer validates" do
+        @product.update_columns(name: nil)
+        expect(@product.reload).to be_invalid
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(@product.reload).to be_deleted
+      end
+
+      it "closes the account when an alive bank account no longer validates" do
+        @bank_account.update_columns(account_number_last_four: nil)
+        expect(@bank_account.reload).to be_invalid
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(@bank_account.reload).to be_deleted
+      end
+
+      it "still raises for an invalid product when Link#delete! is called without validate: false" do
+        @product.update_columns(name: nil)
+
+        expect { @product.reload.delete! }.to raise_error(ActiveRecord::RecordInvalid)
+      end
+    end
+
+    context "when the account owns a product that is purchase-disabled or banned" do
+      it "soft-deletes the product and runs its delete! cleanup" do
+        disabled = create(:product, user: @user, purchase_disabled_at: Time.current)
+        banned = create(:product, user: @user, banned_at: Time.current)
+        domain = create(:custom_domain, product: disabled, user: nil)
+
+        expect(@user.reload.deactivate!).to eq(true)
+
+        expect(disabled.reload).to be_deleted
+        expect(banned.reload).to be_deleted
+        expect(domain.reload).to be_deleted
       end
     end
 
@@ -2946,6 +3275,36 @@ describe User, :vcr do
     end
   end
 
+  describe "#after_confirmation" do
+    it "attaches guest purchases made with the confirmed email" do
+      user = create(:unconfirmed_user)
+      guest_purchase = create(:purchase, email: user.email)
+      other_buyer_purchase = create(:purchase, email: user.email, purchaser: create(:user))
+
+      user.confirm
+      expect(AttachPastPurchasesToUserWorker).to have_enqueued_sidekiq_job(user.id, user.email)
+      AttachPastPurchasesToUserWorker.drain
+
+      expect(guest_purchase.reload.purchaser).to eq(user)
+      expect(other_buyer_purchase.reload.purchaser).not_to eq(user)
+    end
+
+    it "attaches guest purchases made with the new address only when a changed email is reconfirmed" do
+      user = create(:user, email: "old@example.com")
+      guest_purchase = create(:purchase, email: "new@example.com", purchaser: nil)
+
+      user.update!(email: "new@example.com")
+      expect(user.reload.unconfirmed_email).to eq("new@example.com")
+      expect(AttachPastPurchasesToUserWorker).not_to have_enqueued_sidekiq_job(user.id, "new@example.com")
+
+      user.confirm
+      expect(AttachPastPurchasesToUserWorker).to have_enqueued_sidekiq_job(user.id, "new@example.com")
+      AttachPastPurchasesToUserWorker.drain
+
+      expect(guest_purchase.reload.purchaser).to eq(user)
+    end
+  end
+
   describe "#update_alive_cart_email" do
     it "syncs the cart email to the user's new email when user email is updated" do
       user = create(:user, email: "old@example.com")
@@ -3737,10 +4096,67 @@ describe User, :vcr do
       expect(user.reload.eligible_for_instant_payouts?).to eq(false)
     end
 
-    it "returns false for a Stripe Connect seller, whose account #stripe_account never returns" do
-      merchant_account.update!(json_data: { meta: { stripe_connect: "true" } })
+    context "when the seller only has a connected Stripe account" do
+      before do
+        # A migrated seller: Connect routing is what makes their connected account the payout
+        # destination, and #stripe_account never returns for them again.
+        Feature.activate_user(:merchant_migration, user)
+      end
+      after { Feature.deactivate_user(:merchant_migration, user) }
 
-      expect(user.reload.eligible_for_instant_payouts?).to eq(false)
+      let!(:merchant_account) do
+        create(:merchant_account_stripe_connect, user:, created_at: 90.days.ago)
+      end
+
+      it "returns true when the connected account is seasoned" do
+        expect(user.stripe_account).to be_nil
+        expect(StripePayoutProcessor.get_payout_details(user, []).first).to eq(merchant_account)
+        expect(user.eligible_for_instant_payouts?).to eq(true)
+      end
+
+      it "returns false while the connected account is younger than 60 days" do
+        merchant_account.update!(created_at: 59.days.ago)
+
+        expect(user.reload.eligible_for_instant_payouts?).to eq(false)
+      end
+
+      it "returns false when Connect routing is disabled" do
+        allow(user).to receive(:has_stripe_account_connected?).and_return(false)
+
+        expect(StripePayoutProcessor.get_payout_details(user, []).first).to be_nil
+        expect(user.eligible_for_instant_payouts?).to eq(false)
+      end
+
+      [:deleted_at, :charge_processor_deleted_at].each do |retirement_attribute|
+        it "returns false when a Stripe-held balance routes to an account with #{retirement_attribute}" do
+          retired_account = create(:merchant_account, user:, created_at: 90.days.ago, retirement_attribute => Time.current)
+          balance = create(:balance, user:, merchant_account: retired_account)
+
+          expect(user.stripe_account).to be_nil
+          expect(retired_account.holder_of_funds).to eq(HolderOfFunds::STRIPE)
+          expect(StripePayoutProcessor.is_balance_payable(balance)).to eq(true)
+          expect(StripePayoutProcessor.get_payout_details(user, [balance]).first).to eq(retired_account)
+          expect(user.eligible_for_instant_payouts?).to eq(false)
+        end
+      end
+
+      # Read through the processor's filter: a balance it drops never names a destination, so the
+      # claim keeps nothing and the payout is created on the seasoned connected account.
+      it "does not gate on a Stripe-held balance the processor cannot pay out" do
+        retired_account = create(:merchant_account, user:, created_at: 90.days.ago, deleted_at: Time.current)
+        balance = create(:balance, user:, merchant_account: retired_account, holding_currency: Currency::EUR)
+        allow(StripePayoutProcessor).to receive(:pay_out_currencies).and_return([])
+
+        expect(StripePayoutProcessor.is_balance_payable(balance)).to eq(false)
+        expect(user.eligible_for_instant_payouts?).to eq(true)
+      end
+
+      it "does not block on a retired account whose balance was already paid" do
+        retired_account = create(:merchant_account, user:, created_at: 90.days.ago, deleted_at: Time.current)
+        create(:balance, user:, merchant_account: retired_account, state: "paid")
+
+        expect(user.eligible_for_instant_payouts?).to eq(true)
+      end
     end
 
     it "returns false for a seller paid through PayPal, with no Stripe account to season" do
@@ -3750,33 +4166,42 @@ describe User, :vcr do
       expect(user.reload.eligible_for_instant_payouts?).to eq(false)
     end
 
-    # The payout is created on whichever account StripePayoutProcessor.get_payout_details picks,
-    # which can be the connected account, so seasoning the managed one alone is not enough.
+    # Only the accounts StripePayoutProcessor.destination_merchant_account can return for this
+    # seller have to season: a connected account Connect routing cannot select is not a destination,
+    # so gating on it rejected a seller whose payout is created on the managed account.
     context "when the seller also holds a connected Stripe account" do
-      it "returns false while the connected account is younger than 60 days" do
-        create(:merchant_account_stripe_connect, user:, created_at: 10.days.ago)
+      let!(:connected_account) { create(:merchant_account_stripe_connect, user:, created_at: 1.day.ago) }
 
-        expect(user.reload.eligible_for_instant_payouts?).to eq(false)
-      end
+      after { Feature.deactivate_user(:merchant_migration, user) }
 
-      it "returns true once both accounts are seasoned" do
-        create(:merchant_account_stripe_connect, user:, created_at: 90.days.ago)
+      it "does not gate on the connected account while Connect routing cannot select it" do
+        expect(user.has_stripe_account_connected?).to eq(false)
+        expect(StripePayoutProcessor.destination_merchant_account(user, [])).to eq(merchant_account)
 
         expect(user.reload.eligible_for_instant_payouts?).to eq(true)
       end
 
-      # The seasoned managed account must not lend its age to a different rail: a fresh
-      # connected account is a new destination, not a replacement for the managed one.
-      it "returns false for a fresh connected account even though the managed one is seasoned" do
-        create(:merchant_account_stripe_connect, user:, created_at: 1.day.ago)
+      it "gates on the connected account once Connect routing selects it" do
+        Feature.activate_user(:merchant_migration, user)
+
+        expect(user.has_stripe_account_connected?).to eq(true)
+        expect(StripePayoutProcessor.destination_merchant_account(user, [])).to eq(connected_account)
 
         expect(user.reload.eligible_for_instant_payouts?).to eq(false)
       end
 
+      it "returns true once the connected account Connect routing selects is seasoned" do
+        Feature.activate_user(:merchant_migration, user)
+        connected_account.update!(created_at: 90.days.ago)
+
+        expect(user.reload.eligible_for_instant_payouts?).to eq(true)
+      end
+
       it "returns true when a fresh connected account replaced an older retired connected one" do
-        create(:merchant_account_stripe_connect, user:, created_at: 90.days.ago)
-          .delete_charge_processor_account!
+        connected_account.update!(created_at: 90.days.ago)
+        connected_account.delete_charge_processor_account!
         create(:merchant_account_stripe_connect, user:, created_at: 1.day.ago)
+        Feature.activate_user(:merchant_migration, user)
 
         expect(user.reload.eligible_for_instant_payouts?).to eq(true)
       end

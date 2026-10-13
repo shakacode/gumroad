@@ -37,13 +37,14 @@ class Api::V2::LinksController < Api::V2::BaseController
 
   COMPS_EXAMPLES_COUNT = 5
   COMPS_PRICE_PERCENTS = [25, 50, 75].freeze
+  UPLOADED_FILE_CHECK_CONCURRENCY = 8
 
   before_action(only: [:show, :index, :custom_html, :comps]) { doorkeeper_authorize!(*Doorkeeper.configuration.public_api_read_scopes.concat([:view_public])) }
-  before_action(only: [:create, :update, :disable, :enable, :destroy, :preview_custom_html, :edit_custom_html]) { doorkeeper_authorize! :edit_products }
+  before_action(only: [:create, :update, :disable, :enable, :destroy, :preview_custom_html, :edit_custom_html, :update_sections]) { doorkeeper_authorize! :edit_products }
   before_action :reject_unsupported_upload_fields, only: [:update, :create]
   before_action :resolve_category_param, only: [:update, :create]
-  before_action :set_link_id_to_id, only: [:show, :update, :disable, :enable, :destroy, :preview_custom_html, :custom_html, :edit_custom_html]
-  before_action :fetch_product, only: [:show, :update, :disable, :enable, :destroy, :preview_custom_html, :custom_html, :edit_custom_html]
+  before_action :set_link_id_to_id, only: [:show, :update, :disable, :enable, :destroy, :preview_custom_html, :custom_html, :edit_custom_html, :update_sections]
+  before_action :fetch_product, only: [:show, :update, :disable, :enable, :destroy, :preview_custom_html, :custom_html, :edit_custom_html, :update_sections]
   before_action :ensure_custom_html_pages_enabled, only: [:custom_html, :edit_custom_html]
 
   def index
@@ -144,6 +145,8 @@ class Api::V2::LinksController < Api::V2::BaseController
       end
       error = validate_file_urls(params[:files])
       return render_response(false, message: error) if error
+      storage_status = uploaded_file_storage_status(params[:files])
+      return render_uploaded_file_error(storage_status) if storage_status
     end
 
     is_recurring_billing = native_type == Link::NATIVE_TYPE_MEMBERSHIP
@@ -199,7 +202,7 @@ class Api::V2::LinksController < Api::V2::BaseController
         end
         process_rich_content(@product, permitted_rich_content)
         Product::SavePostPurchaseCustomFieldsService.new(@product).perform
-        @product.is_licensed = @product.has_embedded_license_key?
+        @product.recompute_is_licensed!
         @product.is_multiseat_license = false if !@product.is_licensed
         @product.save!
       end
@@ -397,6 +400,8 @@ class Api::V2::LinksController < Api::V2::BaseController
       end
       error = validate_file_urls(new_files)
       return render_response(false, message: error) if error
+      storage_status = uploaded_file_storage_status(new_files)
+      return render_uploaded_file_error(storage_status) if storage_status
 
       # `create` permits files[] keys; update hands them to ProductFile#update!, where an unknown
       # key raises UnknownAttributeError — a NoMethodError, so the RecordInvalid rescue in
@@ -438,7 +443,11 @@ class Api::V2::LinksController < Api::V2::BaseController
         # A currency change is also a read-copy-write: it reads the current buy and
         # rental amounts and re-writes them under the new currency, so an overlapping
         # price PUT would otherwise be copied over by a stale read.
-        @product.lock! if params.key?(:custom_html) || params.key?(:price_currency_type)
+        # A permalink claim takes the seller row before the product row and before any file rows, so a claim
+        # locks here too.
+        if params.key?(:custom_html) || params.key?(:price_currency_type) || params.key?(:custom_permalink)
+          @product.lock_for_permalink_claim!(params[:custom_permalink])
+        end
 
         attrs = {}
         attrs[:name] = params[:name] if params.key?(:name)
@@ -546,7 +555,7 @@ class Api::V2::LinksController < Api::V2::BaseController
 
         if rich_content_or_flag_changed
           Product::SavePostPurchaseCustomFieldsService.new(@product).perform
-          @product.is_licensed = @product.has_embedded_license_key?
+          @product.recompute_is_licensed!
           @product.is_multiseat_license = false if !@product.is_licensed
           @product.save!
         end
@@ -566,6 +575,8 @@ class Api::V2::LinksController < Api::V2::BaseController
       end
     rescue ActiveModel::RangeError
       return render_response(false, message: "One or more numeric values are out of range.")
+    rescue Link::PermalinkChangedDuringLock
+      return render_response(false, message: "This product's custom_permalink changed while the update was waiting. Nothing was saved; retry the request.")
     end
 
     additional_info = params.key?(:custom_html) ? { previous_custom_html: previous_custom_html, sanitization_report: sanitization_report } : {}
@@ -603,6 +614,69 @@ class Api::V2::LinksController < Api::V2::BaseController
 
   def destroy
     success_with_product if @product.delete!
+  end
+
+  # Mirrors the dashboard's section editor: `sections` is the COMPLETE ordered list the product keeps,
+  # so a section left out is destroyed. Sections listed before main_section_index render above the product.
+  def update_sections
+    sections = raw_sections_param
+    unless sections.is_a?(Array) && sections.all? { |id| id.is_a?(String) }
+      return render_response(false, message: "sections must be an array of section ids.")
+    end
+
+    section_ids = sections.map { |id| ObfuscateIds.decrypt(id) }
+    if section_ids.any?(&:nil?)
+      return render_response(false, message: "One or more sections were not found.")
+    end
+    if section_ids.uniq.length != section_ids.length
+      return render_response(false, message: "sections must not list the same section twice.")
+    end
+
+    known_ids = nil
+    if params.key?(:known_section_ids)
+      known = params[:known_section_ids]
+      known_ids = known.map { |id| ObfuscateIds.decrypt(id) } if known.is_a?(Array) && known.all? { |id| id.is_a?(String) }
+      return render_response(false, message: "known_section_ids must be an array of section ids.") if known_ids.nil? || known_ids.any?(&:nil?)
+    end
+
+    main_section_index = nil
+    if params.key?(:main_section_index)
+      value = params[:main_section_index]
+      unless (value.is_a?(Integer) || value.is_a?(String)) && value.to_s.match?(/\A\d+\z/)
+        return render_response(false, message: "main_section_index must be a non-negative integer.")
+      end
+      main_section_index = [value.to_i, section_ids.length].min
+    end
+
+    error = nil
+    stale_known_sections = false
+    @product.with_lock do
+      # Checked under the product lock so a concurrent writer cannot add or remove a section between
+      # this check and the destroy below. A foreign id would otherwise be stored and render nothing.
+      current_ids = @product.seller_profile_sections.pluck(:id)
+      if (section_ids - current_ids).any?
+        error = "One or more sections do not belong to this product."
+        raise ActiveRecord::Rollback
+      end
+      # known_section_ids is what the seller reviewed; a newer section was never shown as deleted.
+      if known_ids && (current_ids - section_ids - known_ids).any?
+        error = "A section was added after this change was prepared. Read the product again and prepare a fresh sections list."
+        stale_known_sections = true
+        raise ActiveRecord::Rollback
+      end
+
+      @product.sections = section_ids
+      @product.main_section_index = main_section_index if main_section_index
+      @product.save!
+      @product.seller_profile_sections.where.not(id: section_ids).destroy_all
+    end
+    if error
+      return render_response(false, stale_known_sections ? { message: error, reason: "stale_known_sections" } : { message: error })
+    end
+
+    success_with_product(@product.reload)
+  rescue ActiveRecord::RecordInvalid
+    error_with_product(@product)
   end
 
   # Dry-run sanitize: returns what `custom_html` would look like after the
@@ -666,7 +740,9 @@ class Api::V2::LinksController < Api::V2::BaseController
     end
 
     begin
-      result = Pages::CustomHtmlWriter.edit!(@product, find:, replace:)
+      result = Pages::CustomHtmlWriter.edit!(@product, find:, replace:,
+                                                       expected_custom_html_sha256: params[:expected_custom_html_sha256],
+                                                       result_custom_html_sha256: params[:result_custom_html_sha256])
     rescue ActiveRecord::RecordInvalid => e
       object = e.record
       return (object == @product || object.nil?) ? error_with_product(@product) : render_response(false, message: object.errors.full_messages.to_sentence)
@@ -684,6 +760,17 @@ class Api::V2::LinksController < Api::V2::BaseController
   end
 
   private
+    # Rails deep-munge drops nils from JSON arrays, so `[null]` reaches `params` as `[]` and would
+    # clear every section. Read `sections` from the raw JSON body, where the nil is still visible.
+    def raw_sections_param
+      return params[:sections] unless request.media_type == "application/json"
+
+      body = JSON.parse(request.raw_post)
+      body.is_a?(Hash) ? body["sections"] : nil
+    rescue JSON::ParserError
+      nil
+    end
+
     def success_with_product(product = nil)
       success_with_object(:product, product)
     end
@@ -795,14 +882,13 @@ class Api::V2::LinksController < Api::V2::BaseController
       thumbnail thumbnail_signed_id
     ]).map(&:to_s).freeze
 
-    # Writable ProductFile attributes, asked of the model so a new column or
-    # flag needs no second edit here. epub_section_info is an
-    # attr_json_data_accessor, which the model does not list as an attribute.
-    WRITABLE_PRODUCT_FILE_ATTRIBUTES = (
-      ProductFile.attribute_names +
-      ProductFile.flag_mapping.values.flat_map(&:keys).map(&:to_s) +
-      %w[epub_section_info]
-    ).uniq.freeze
+    # Publicly writable ProductFile fields. Keep this explicit: attribute_names also contains
+    # ownership and lifecycle fields such as link_id, installment_id, deleted_at, and flags. Letting
+    # a new database column into the API automatically would turn this guard into mass assignment.
+    WRITABLE_PRODUCT_FILE_ATTRIBUTES = %w[
+      url display_name description folder_id size position isbn pagelength duration width height
+      stream_only pdf_stamp_enabled hide_kindle_and_read_buttons epub_section_info
+    ].freeze
 
     def product_file_param?(key)
       key = key.to_s
@@ -867,6 +953,46 @@ class Api::V2::LinksController < Api::V2::BaseController
         return "File URLs must reference your own uploaded files. Use the presigned upload endpoint to upload files first."
       end
       nil
+    end
+
+    # Resolve reloadable references on the request thread: joining executor-wrapped workers
+    # can deadlock a pending code reload. ProductFile#analyze re-points Unicode variants.
+    def uploaded_file_storage_status(files)
+      s3_keys = Queue.new
+      files.each { |f| s3_keys << f[:url].delete_prefix(S3_BASE_URL) }
+      s3_keys.close
+      bucket_name = S3_BUCKET
+      existing_variant = S3KeyUnicodeNormalization.method(:existing_variant)
+      failure = nil
+      failure_lock = Mutex.new
+      workers = Array.new([files.size, UPLOADED_FILE_CHECK_CONCURRENCY].min) do
+        Thread.new do
+          Thread.current.report_on_exception = false
+          bucket = Aws::S3::Resource.new.bucket(bucket_name)
+          while failure.nil? && (s3_key = s3_keys.pop)
+            next if bucket.object(s3_key).exists? || existing_variant.call(s3_key)
+            failure_lock.synchronize { failure ||= :missing }
+          end
+        rescue Aws::S3::Errors::ServiceError, Seahorse::Client::NetworkingError
+          failure_lock.synchronize { failure ||= :unavailable }
+        rescue => e
+          failure_lock.synchronize { failure ||= e }
+        end
+      end
+      workers.each(&:join)
+      raise failure if failure.is_a?(Exception)
+      failure
+    end
+
+    def render_uploaded_file_error(status)
+      if status == :unavailable
+        render json: { success: false, message: "File storage is temporarily unavailable. Retry attaching your uploaded files." }, status: :service_unavailable
+      else
+        render json: {
+          success: false,
+          message: "One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns."
+        }, status: :bad_request
+      end
     end
 
     def resolve_category_param

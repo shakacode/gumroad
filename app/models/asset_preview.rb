@@ -122,10 +122,10 @@ class AssetPreview < ApplicationRecord
     return unless file.attached? && should_post_process?
 
     variant = retina_variant
-    return storage_url_for(variant.processed) if variant_processed?(variant)
+    return variant.processed.url if variant_processed?(variant)
 
     url = Timeout.timeout(IMAGE_PROCESSING_TIMEOUT_SECONDS) do
-      storage_url_for(variant.processed)
+      variant.processed.url
     end
     Rails.cache.write("attachment_#{file.id}_retina_url", url)
     url
@@ -273,7 +273,7 @@ class AssetPreview < ApplicationRecord
     variant = blob.preview_image.variant(resize_to_limit: [retina_width || RETINA_DISPLAY_WIDTH, nil])
     return nil unless process || resized_poster_exists?(variant)
 
-    cdn_url_for(storage_url_for(variant.processed))
+    cdn_url_for(variant.processed.url)
   rescue StandardError => e
     Rails.logger.warn("AssetPreview#persisted_video_poster_url failed for asset_preview #{id}: #{e.message}")
     nil
@@ -301,7 +301,7 @@ class AssetPreview < ApplicationRecord
 
     url = Timeout.timeout(IMAGE_PROCESSING_TIMEOUT_SECONDS) do
       preview = file.preview(resize_to_limit: [retina_width || RETINA_DISPLAY_WIDTH, nil]).processed
-      cdn_url_for(storage_url_for(preview))
+      cdn_url_for(preview.url)
     end
     Rails.cache.write(video_poster_cache_key, url)
     url
@@ -353,7 +353,7 @@ class AssetPreview < ApplicationRecord
     if style == :retina
       variant = retina_variant
       if variant && variant_processed?(variant)
-        return Rails.cache.fetch("attachment_#{file.id}_retina_url") { storage_url_for(variant) }
+        return Rails.cache.fetch("attachment_#{file.id}_retina_url") { variant.url }
       end
 
       enqueue_retina_variant_process
@@ -363,15 +363,15 @@ class AssetPreview < ApplicationRecord
       file.blob.variant_records.reset
       variant = retina_variant
       if variant && variant_processed?(variant)
-        Rails.cache.fetch("attachment_#{file.id}_retina_url") { storage_url_for(variant) }
+        Rails.cache.fetch("attachment_#{file.id}_retina_url") { variant.url }
       else
-        Rails.cache.fetch("attachment_#{file.id}_original_url") { storage_url_for(file) }
+        Rails.cache.fetch("attachment_#{file.id}_original_url") { file.url }
       end
     else
-      Rails.cache.fetch("attachment_#{file.id}_#{style}_url") { storage_url_for(file) }
+      Rails.cache.fetch("attachment_#{file.id}_#{style}_url") { file.url }
     end
   rescue
-    storage_url_for(file)
+    file.url
   end
 
   def default_style
@@ -447,6 +447,13 @@ class AssetPreview < ApplicationRecord
       return unless file.attached? && should_post_process?
 
       ProcessAssetPreviewRetinaWorker.perform_async(id)
+    rescue *REDIS_TRANSPORT_ERRORS => e
+      # url_from_file serves the original and retries missing variants on later reads.
+      begin
+        ErrorNotifier.notify(e, source: "retina_variant_enqueue", asset_preview_id: id)
+      rescue StandardError => reporting_error
+        Rails.logger.warn("Retina variant enqueue reporting failed: #{reporting_error.class}")
+      end
     end
 
     def enqueue_oversized_image_resize

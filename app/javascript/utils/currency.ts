@@ -71,7 +71,11 @@ export const parseCurrencyUnitStringToCents = (code: CurrencyCode, unitAmount: s
 export const formatPriceCentsWithCurrencySymbol = (
   code: CurrencyCode,
   amountCents: number,
-  { symbolFormat, noCentsIfWhole }: { symbolFormat: "long" | "short"; noCentsIfWhole?: boolean },
+  {
+    symbolFormat,
+    noCentsIfWhole,
+    locale,
+  }: { symbolFormat: "long" | "short"; noCentsIfWhole?: boolean; locale?: string | undefined },
 ): string => {
   const currency = findCurrencyByCode(code);
   const currencySymbol = symbolFormat === "long" ? currency.longSymbol : currency.shortSymbol;
@@ -80,7 +84,7 @@ export const formatPriceCentsWithCurrencySymbol = (
     currencySymbol,
     priceCentsToUnit(amountCents, currency.isSingleUnit),
     currency.isSingleUnit ? 0 : 2,
-    { noCentsIfWhole: noCentsIfWhole !== undefined ? noCentsIfWhole : true },
+    { noCentsIfWhole: noCentsIfWhole !== undefined ? noCentsIfWhole : true, locale },
   );
 };
 
@@ -91,10 +95,15 @@ export const formatUSDCentsWithExpandedCurrencySymbol = (
   { noCentsIfWhole = true }: { noCentsIfWhole?: boolean } = {},
 ) => formatPrice("US$", priceCentsToUnit(amountCents, false), 2, { noCentsIfWhole });
 
-export const formatPriceCentsWithoutCurrencySymbol = (code: CurrencyCode, amountCents: number): string => {
+export const formatPriceCentsWithoutCurrencySymbol = (
+  code: CurrencyCode,
+  amountCents: number,
+  locale?: string,
+): string => {
   const currency = findCurrencyByCode(code);
   return formatPrice("", priceCentsToUnit(amountCents, currency.isSingleUnit), currency.isSingleUnit ? 0 : 2, {
     noCentsIfWhole: true,
+    locale,
   });
 };
 
@@ -145,6 +154,7 @@ export const formatMinorUnitPriceWithIntl = (
 };
 
 export type BuyerLocalCurrencyContext = {
+  locale?: string | undefined;
   currencyCode: CurrencyCode;
   buyerCurrency?: string | null | undefined;
   buyerLocalCurrencyRate?: number | null | undefined;
@@ -160,7 +170,13 @@ export type BuyerLocalCurrencyContext = {
 // whether to localize microdata (consistency) or keep set-currency (real charged price).
 export const formatBuyerLocalOrSetPrice = (
   amountCents: number,
-  { currencyCode, buyerCurrency, buyerLocalCurrencyRate, buyerLocalCurrencySubunitToUnit }: BuyerLocalCurrencyContext,
+  {
+    currencyCode,
+    buyerCurrency,
+    buyerLocalCurrencyRate,
+    buyerLocalCurrencySubunitToUnit,
+    locale,
+  }: BuyerLocalCurrencyContext,
   {
     symbolFormat = "long",
     fallbackLocalCents,
@@ -170,5 +186,5 @@ export const formatBuyerLocalOrSetPrice = (
     buyerLocalCurrencyRate != null ? Math.round(amountCents * buyerLocalCurrencyRate) : fallbackLocalCents;
   return buyerCurrency != null && localCents != null
     ? formatMinorUnitPriceWithIntl(buyerCurrency, localCents, buyerLocalCurrencySubunitToUnit ?? undefined)
-    : formatPriceCentsWithCurrencySymbol(currencyCode, amountCents, { symbolFormat });
+    : formatPriceCentsWithCurrencySymbol(currencyCode, amountCents, { symbolFormat, locale });
 };

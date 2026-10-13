@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# Anthropic Messages API client for StoreAgentService. OPENROUTER_API_KEY routes every request
-# through OpenRouter's Anthropic-compatible endpoint (provider failover + `fallbacks` to GPT);
-# without it, traffic is Anthropic-direct.
+# Anthropic Messages API client for StoreAgentService. Requests go through the Vercel AI Gateway
+# when the store agent's gateway key is configured, and through OpenRouter's Anthropic-compatible
+# endpoint otherwise. OpenRouter also replays the fallback model when a Vercel request fails.
 class Ai::AnthropicClient
   class Error < StandardError; end
 
@@ -22,10 +22,64 @@ class Ai::AnthropicClient
   # streaming — a buffered body cannot drop those fragments.
   class UnreadableToolCallError < TransientError; end
 
-  API_URL = "https://api.anthropic.com/v1/messages"
+  # Nothing reached the caller within the first-byte deadline. Retrying the model that stalled only
+  # spends the deadline again, so the caller fails over instead (see #stream_messages).
+  class TtftDeadlineError < TransientError; end
+
+  # Gateway reports a tool call cut by the token cap as an api_error, not stop_reason.
+  # Not a TransientError: a same-cap retry fails the same way.
+  class ToolCallTokenCutoffError < Error; end
+
+  # Shared with the caller so the deadline can be lifted mid-stream, where no callback would fire.
+  class FirstByteMarker
+    def arrived!
+      @arrived = true
+    end
+
+    def arrived?
+      @arrived == true
+    end
+  end
+  private_constant :FirstByteMarker
+
+  # Reads wait out the first-byte budget until a delta arrives, then fall back to the configured read
+  # timeout: bounding the wait for output must not bound silence between chunks after it.
+  class FirstByteTimeout < HTTP::Timeout::PerOperation
+    def initialize(*args)
+      super
+      @stream_read_timeout = @read_timeout
+      @first_byte_deadline = options.fetch(:first_byte_timeout)
+      @first_byte_marker = options.fetch(:first_byte_marker)
+      @started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    # The first-byte timeout is a budget for the whole wait, not a per-read allowance: pre-delta
+    # noise (message_start, pings, partial frames) must not hand the stream another full interval.
+    def readpartial(size, buffer = nil)
+      if @first_byte_marker.arrived?
+        @read_timeout = @stream_read_timeout
+        return super
+      end
+
+      @read_timeout = [@first_byte_deadline - elapsed, 0].max
+      begin
+        super
+      rescue HTTP::TimeoutError
+        # Only this wait is bounded by the deadline, so a timeout here is the deadline — a connect or
+        # write timeout comes out of #connect / #write and keeps the ordinary class.
+        raise TtftDeadlineError, "Anthropic produced no output within #{@first_byte_deadline}s"
+      end
+    end
+
+    private
+      def elapsed
+        Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started_at
+      end
+  end
+  private_constant :FirstByteTimeout
+
   OPENROUTER_API_URL = "https://openrouter.ai/api/v1/messages"
-  VERCEL_HOST = "ai-gateway.vercel.sh"
-  GATEWAYS = %i[anthropic openrouter vercel].freeze
+  VERCEL_API_URL = "https://ai-gateway.vercel.sh/v1/messages"
   API_VERSION = "2023-06-01"
   DEFAULT_MODEL = "claude-opus-4-7"
   DEFAULT_MAX_TOKENS = 1024
@@ -33,9 +87,20 @@ class Ai::AnthropicClient
   # OPENROUTER_FALLBACK_MODEL.
   DEFAULT_FALLBACK_MODEL = "~openai/gpt-latest"
 
-  # Public: OpenRouter can serve non-Claude models (store agent requests Grok); Anthropic-direct cannot.
+  # Public: the store agent only ramps non-Claude models (Grok, DeepSeek) when OpenRouter can serve them.
   def self.openrouter_configured?
-    GlobalConfig.get("OPENROUTER_API_KEY").present?
+    openrouter_api_key.present?
+  end
+
+  # The store agent's own key comes first so its spend is metered and capped apart from the
+  # refund-policy OpenRouter calls.
+  def self.openrouter_api_key
+    GlobalConfig.get("STORE_AGENT_OPENROUTER_API_KEY").presence || GlobalConfig.get("OPENROUTER_API_KEY").presence
+  end
+
+  # Without its own gateway key the store agent uses OpenRouter.
+  def self.vercel_api_key
+    GlobalConfig.get("STORE_AGENT_AI_GATEWAY_API_KEY").presence
   end
 
   # Short on purpose: fail fast and retry rather than sit on a dead socket.
@@ -55,6 +120,8 @@ class Ai::AnthropicClient
   # `error` objects with these types — arriving mid-stream or inside a buffered 200 body — are the
   # embedded equivalents of the retryable statuses above.
   RETRYABLE_STREAM_ERROR_TYPES = %w[overloaded_error api_error rate_limit_error timeout_error].freeze
+  # Substring the gateway puts in that api_error. A bare "max_tokens" also appears in unrelated 400s.
+  TOOL_CALL_TOKEN_CUTOFF = "Tool calls cutoff by max_tokens"
 
   Result = Struct.new(:text, :tool_uses, :stop_reason, keyword_init: true)
 
@@ -66,8 +133,8 @@ class Ai::AnthropicClient
   )
   private_constant :CallTrace
 
-  # Neither gateway documents a stable header naming the upstream that served a request, so try the
-  # known names in order and fall back to the body's `provider` field.
+  # Header names to try before the body paths in #provider_hint_from. Vercel's live responses carry
+  # none of them, so on that gateway the provider is only ever in the body.
   PROVIDER_HEADER_NAMES = %w[
     x-vercel-ai-gateway-provider
     x-vercel-ai-provider
@@ -97,14 +164,10 @@ class Ai::AnthropicClient
 
   # `timeout` is per-read silence, not total stream duration. Buffered calls wait this long for
   # the whole body (nothing is sent until generation finishes).
-  def initialize(timeout: 60, model: DEFAULT_MODEL, fallback_model: nil, gateway: nil)
+  def initialize(timeout: 60, model: DEFAULT_MODEL, fallback_model: nil)
     @timeout = timeout
     @model = model
     @fallback_model_override = fallback_model
-    @preferred_gateway = gateway&.to_sym
-    if @preferred_gateway && GATEWAYS.exclude?(@preferred_gateway)
-      raise ArgumentError, "Unknown gateway #{gateway.inspect} (expected #{GATEWAYS.join(", ")})"
-    end
     @retry_sleep_spent = 0.0
     @served_models = []
     @call_metrics = []
@@ -119,7 +182,7 @@ class Ai::AnthropicClient
     resolved_gateway.to_s
   end
 
-  def messages(system:, messages:, tools: nil, max_tokens: DEFAULT_MAX_TOKENS, thinking: nil)
+  def messages(system:, messages:, tools: nil, max_tokens: DEFAULT_MAX_TOKENS, thinking: nil, recover_token_cutoff: false)
     with_vercel_model_fallback do
       body = request_body(system:, messages:, tools:, max_tokens:, stream: false, thinking:)
       with_retries do |trace|
@@ -136,72 +199,89 @@ class Ai::AnthropicClient
       rescue HTTP::Error => e
         raise TransientError, "Anthropic network error: #{e.message}"
       end
+    rescue ToolCallTokenCutoffError
+      # Opt-in. Other callers still fail the turn; they do not all treat max_tokens as truncation.
+      raise unless recover_token_cutoff
+
+      Result.new(text: "", tool_uses: [], stop_reason: "max_tokens")
     end
   end
 
   # Retry only before the first yield — a later retry would replay on the seller's screen.
   # Corrupted tool-call JSON: one buffered replay. Already-yielded text (usual tool-use preamble)
   # must be erased via on_discard_streamed_text or the fallback cannot run.
-  def stream_messages(system:, messages:, tools: nil, max_tokens: DEFAULT_MAX_TOKENS, thinking: nil, on_discard_streamed_text: nil, &on_text)
+  def stream_messages(system:, messages:, tools: nil, max_tokens: DEFAULT_MAX_TOKENS, thinking: nil, ttft_deadline: nil, on_discard_streamed_text: nil, recover_token_cutoff: false, &on_text)
     yielded_any = false
 
-    begin
-      with_vercel_model_fallback(yielded: -> { yielded_any }) do
-        body = request_body(system:, messages:, tools:, max_tokens:, stream: true, thinking:)
-        with_retries(retryable: -> { !yielded_any }, streamed: true) do |trace|
-          text = +""
-          blocks = {}
-          stop_reason = nil
+    with_vercel_model_fallback(yielded: -> { yielded_any }) do
+      # The replay is the model we failed over TO; bounding its first output too would only move
+      # the deadline onto the path that exists to be fast.
+      deadline = @using_fallback_model ? nil : ttft_deadline
+      first_byte_marker = FirstByteMarker.new if deadline.present?
+      deadline_stalled = false
 
-          response = http.post(api_url, json: body)
-          trace.response = response
-          raise_for_status!(response, kind: "stream")
+      body = request_body(system:, messages:, tools:, max_tokens:, stream: true, thinking:)
+      with_retries(retryable: -> { !yielded_any && !deadline_stalled }, streamed: true) do |trace|
+        text = +""
+        blocks = {}
+        stop_reason = nil
 
-          each_sse_event(response.body) do |event, data|
-            case event
-            when "message_start"
-              # Only stream event that names the model actually serving — fallbacks are invisible otherwise.
-              trace.usage = usage_from(data.dig("message", "usage"))
-              trace.provider_hint = provider_hint_from(data["message"])
-              log_served_model(data.dig("message", "model"))
-            when "content_block_start"
-              index = data["index"]
-              block = data["content_block"] || {}
-              if block["type"] == "tool_use"
-                blocks[index] = { type: "tool_use", id: block["id"], name: block["name"], json: +"" }
-              else
-                blocks[index] = { type: "text" }
-              end
-            when "content_block_delta"
-              mark_first_byte!(trace)
-              delta = data["delta"] || {}
-              case delta["type"]
-              when "text_delta"
-                chunk = delta["text"].to_s
-                next if chunk.empty?
-                text << chunk
-                yielded_any = true
-                on_text&.call(chunk)
-              when "input_json_delta"
-                index = data["index"]
-                blocks[index][:json] << delta["partial_json"].to_s if blocks[index]
-              end
-            when "message_delta"
-              # Output tokens arrive here and are cumulative; keep the input/cache counts from message_start.
-              trace.usage.merge!(usage_from(data["usage"]))
-              stop_reason = data.dig("delta", "stop_reason") || stop_reason
-            when "error"
-              raise embedded_error(data, kind: "stream")
+        response = http(ttft_deadline: deadline, first_byte_marker:).post(api_url, json: body)
+        trace.response = response
+        raise_for_status!(response, kind: "stream")
+
+        each_sse_event(response.body) do |event, data|
+          case event
+          when "message_start"
+            # Only stream event that names the model actually serving — fallbacks are invisible otherwise.
+            trace.usage = usage_from(data.dig("message", "usage"))
+            trace.provider_hint = provider_hint_from(data["message"])
+            log_served_model(data.dig("message", "model"))
+          when "content_block_start"
+            index = data["index"]
+            block = data["content_block"] || {}
+            if block["type"] == "tool_use"
+              blocks[index] = { type: "tool_use", id: block["id"], name: block["name"], json: +"" }
+            else
+              blocks[index] = { type: "text" }
             end
+          when "content_block_delta"
+            first_byte_marker&.arrived!
+            mark_first_byte!(trace)
+            delta = data["delta"] || {}
+            case delta["type"]
+            when "text_delta"
+              chunk = delta["text"].to_s
+              next if chunk.empty?
+              text << chunk
+              yielded_any = true
+              on_text&.call(chunk)
+            when "input_json_delta"
+              index = data["index"]
+              blocks[index][:json] << delta["partial_json"].to_s if blocks[index]
+            end
+          when "message_delta"
+            # Output tokens arrive here and are cumulative; keep the input/cache counts from message_start.
+            trace.usage.merge!(usage_from(data["usage"]))
+            # Vercel's routing metadata rides only on this event, so message_start cannot set it.
+            trace.provider_hint ||= provider_hint_from(data)
+            stop_reason = data.dig("delta", "stop_reason") || stop_reason
+          when "error"
+            raise embedded_error(data, kind: "stream")
           end
-
-          Result.new(text:, tool_uses: assemble_tool_uses(blocks, stop_reason:), stop_reason:)
-        rescue HTTP::Error => e
-          raise TransientError, "Anthropic network error: #{e.message}"
         end
+
+        Result.new(text:, tool_uses: assemble_tool_uses(blocks, stop_reason:), stop_reason:)
+      rescue TtftDeadlineError
+        # The attempt produced nothing. Retrying the model that stalled spends the deadline again,
+        # so veto the retry and let #with_vercel_model_fallback re-issue on the fallback model.
+        deadline_stalled = true
+        raise
+      rescue HTTP::Error => e
+        raise TransientError, "Anthropic network error: #{e.message}"
       end
     rescue UnreadableToolCallError => e
-      # Streamed retries exhausted on a lossy channel; only a buffered replay can recover.
+      # Keep recovery inside the model fallback so its gateway and credentials remain selected.
       # Discard already-yielded text first or the replay doubles the reply on screen.
       raise if yielded_any && on_discard_streamed_text.nil?
 
@@ -210,7 +290,12 @@ class Ai::AnthropicClient
         yielded_any = false
       end
 
-      buffered_fallback(system:, messages:, tools:, max_tokens:, thinking:, original_error: e, &on_text)
+      buffered_fallback(system:, messages:, tools:, max_tokens:, thinking:, recover_token_cutoff:, original_error: e, &on_text)
+    rescue ToolCallTokenCutoffError
+      # Opt-in. The partial already streamed; the caller discards it and re-asks at a larger cap.
+      raise unless recover_token_cutoff
+
+      Result.new(text: "", tool_uses: [], stop_reason: "max_tokens")
     end
   end
 
@@ -220,7 +305,7 @@ class Ai::AnthropicClient
     # One non-streamed replay so the gateway cannot drop input_json_delta fragments. No extra retries.
     # Withhold truncated and tool-use preamble text (the caller would discard them after a flash).
     # If this fails too, re-raise original_error so the seller still sees the unreadable-tool-call message.
-    def buffered_fallback(system:, messages:, tools:, max_tokens:, thinking: nil, original_error:, &on_text)
+    def buffered_fallback(system:, messages:, tools:, max_tokens:, thinking: nil, recover_token_cutoff: false, original_error:, &on_text)
       Rails.logger.warn("Anthropic streamed tool call unreadable after retries; falling back to a non-streamed request. (#{original_error.message})")
 
       body = request_body(system:, messages:, tools:, max_tokens:, stream: false, thinking:)
@@ -242,6 +327,14 @@ class Ai::AnthropicClient
         trace.usage = usage_from_body(parsed)
         trace.provider_hint = provider_hint_from(parsed)
         parse_buffered_fallback(parsed)
+      rescue ToolCallTokenCutoffError => e
+        trace.error = e
+        # Raised from inside #stream_messages' UnreadableToolCallError rescue, so its
+        # ToolCallTokenCutoffError sibling never sees it — an opted-in caller would fail the turn with
+        # the error this replay exists to recover from.
+        raise original_error unless recover_token_cutoff
+
+        Result.new(text: "", tool_uses: [], stop_reason: "max_tokens")
       rescue Error, HTTP::Error, JSON::ParserError => e
         trace.error = e
         raise original_error
@@ -379,16 +472,18 @@ class Ai::AnthropicClient
       header.presence || trace.provider_hint.presence
     end
 
-    # OpenRouter names the serving upstream in the body; Vercel's Anthropic-compatible responses do
-    # not carry it today, which is why the headers above are the primary source.
+    # OpenRouter names the serving upstream in the body's `provider`; Vercel carries it in
+    # `provider_metadata.gateway.routing` (no header on either path today).
     def provider_hint_from(body)
       return unless body.is_a?(Hash)
 
       provider = body["provider"]
       case provider
-      when String then provider.presence
-      when Hash then (provider["name"] || provider["slug"] || provider["provider"]).presence
+      when String then return provider.presence
+      when Hash then return (provider["name"] || provider["slug"] || provider["provider"]).presence
       end
+
+      body.dig("provider_metadata", "gateway", "routing", "resolvedProvider").presence
     end
 
     # Buffered bodies carry `usage` one level down; the streamed path merges message_start and
@@ -425,6 +520,7 @@ class Ai::AnthropicClient
       return if response.status.success?
 
       message = "Anthropic #{kind} failed: #{response.status} — #{error_detail(response)}"
+      raise ToolCallTokenCutoffError, message if tool_call_token_cutoff?(message)
       if RETRYABLE_STATUS_CODES.include?(response.status.code)
         raise TransientError.new(message, retry_after: parse_retry_after(response))
       end
@@ -443,9 +539,14 @@ class Ai::AnthropicClient
     def embedded_error(data, kind:)
       error = data["error"] || {}
       message = "Anthropic #{kind} error: #{error["message"] || "unknown"}"
+      return ToolCallTokenCutoffError.new(message) if tool_call_token_cutoff?(message)
       return TransientError.new(message) if RETRYABLE_STREAM_ERROR_TYPES.include?(error["type"])
 
       Error.new(message)
+    end
+
+    def tool_call_token_cutoff?(message)
+      message.to_s.include?(TOOL_CALL_TOKEN_CUTOFF)
     end
 
     # Prefer error.message over dumping the body (large, may echo the request).
@@ -469,9 +570,9 @@ class Ai::AnthropicClient
         stream:,
       }
       body[:tools] = cacheable_tools(tools) if tools.present?
-      # OpenRouter's Anthropic-compatible endpoint accepts a `fallbacks` list. Anthropic rejects
-      # the unknown parameter; Vercel uses providerOptions.gateway.models instead.
-      body[:fallbacks] = [{ model: fallback_model }] if openrouter?
+      # OpenRouter's Anthropic-compatible endpoint accepts a `fallbacks` list; Vercel uses
+      # providerOptions.gateway.models instead.
+      body[:fallbacks] = [{ model: fallback_model }] if openrouter? && !@using_fallback_model
       if vercel? && !@using_fallback_model && fallback_model.present?
         body[:providerOptions] = { gateway: { models: [fallback_model] } }
       end
@@ -498,34 +599,46 @@ class Ai::AnthropicClient
 
     # Per-operation timeouts: a global deadline killed healthy streams that outlasted the budget
     # while tokens were still arriving. `read` bounds silence, not total duration.
-    def http
-      HTTP.timeout(
-        connect: CONNECT_TIMEOUT_IN_SECONDS,
-        write: WRITE_TIMEOUT_IN_SECONDS,
-        read: timeout,
-      ).headers(
+    def http(ttft_deadline: nil, first_byte_marker: nil)
+      client =
+        if ttft_deadline.present?
+          # An attempt is only free to abandon before it has produced anything, so the read timeout
+          # starts at the deadline and widens to `timeout` on the first delta.
+          HTTP::Client.new(
+            HTTP.default_options.merge(
+              timeout_class: FirstByteTimeout,
+              timeout_options: {
+                connect_timeout: CONNECT_TIMEOUT_IN_SECONDS,
+                write_timeout: WRITE_TIMEOUT_IN_SECONDS,
+                read_timeout: timeout,
+                first_byte_timeout: ttft_deadline,
+                first_byte_marker:,
+              },
+            ),
+          )
+        else
+          HTTP.timeout(
+            connect: CONNECT_TIMEOUT_IN_SECONDS,
+            write: WRITE_TIMEOUT_IN_SECONDS,
+            read: timeout,
+          )
+        end
+
+      client.headers(
         "x-api-key" => api_key,
         "anthropic-version" => API_VERSION,
         "content-type" => "application/json",
       )
     end
 
-    # Walks key if ANTHROPIC_API_KEY is unset (remove once the dedicated key is provisioned).
-    # Raise here rather than send a blank x-api-key (upstream 401 becomes a generic seller error).
-    # OpenRouter/Vercel keys go in the same header.
+    # Raise here rather than send a blank x-api-key.
     def api_key
-      case resolved_gateway
-      when :vercel
-        vercel_api_key
-      when :openrouter
-        openrouter_api_key
-      else
-        key = GlobalConfig.get("ANTHROPIC_API_KEY").presence ||
-              GlobalConfig.get("WALKS_ANTHROPIC_API_KEY").presence
-        raise Error, "Anthropic API key is not configured (set ANTHROPIC_API_KEY)." if key.blank?
+      return vercel_api_key if vercel?
 
-        key
-      end
+      key = openrouter_api_key
+      raise Error, "OpenRouter API key is not configured (set STORE_AGENT_OPENROUTER_API_KEY)." if key.blank?
+
+      key
     end
 
     def openrouter?
@@ -537,72 +650,50 @@ class Ai::AnthropicClient
     end
 
     def resolved_gateway
-      case @preferred_gateway
-      when :vercel
-        return :vercel if vercel_configured?
-        return :openrouter if self.class.openrouter_configured?
+      return :openrouter if @using_fallback_model && self.class.openrouter_configured?
 
-        :anthropic
-      when :openrouter, :anthropic
-        @preferred_gateway
-      else
-        self.class.openrouter_configured? ? :openrouter : :anthropic
-      end
+      vercel_configured? ? :vercel : :openrouter
     end
 
     def vercel_configured?
-      vercel_api_key.present? && vercel_messages_url.present?
+      vercel_api_key.present?
     end
 
     def vercel_api_key
-      GlobalConfig.get("GUMHEAD_UPSTREAM_API_KEY").presence
-    end
-
-    def vercel_messages_url
-      base = GlobalConfig.get("GUMHEAD_UPSTREAM_API_BASE").to_s.strip.chomp("/")
-      return if base.blank?
-
-      uri = URI.parse(base)
-      # Reject http:// — the Gumhead key would otherwise go over plaintext.
-      return unless uri.scheme == "https" && uri.host == VERCEL_HOST
-
-      base.end_with?("/v1") ? "#{base}/messages" : "#{base}/v1/messages"
-    rescue URI::InvalidURIError
-      nil
+      self.class.vercel_api_key
     end
 
     def openrouter_api_key
-      GlobalConfig.get("OPENROUTER_API_KEY").presence
+      self.class.openrouter_api_key
     end
 
     def api_url
-      case resolved_gateway
-      when :vercel then vercel_messages_url
-      when :openrouter then OPENROUTER_API_URL
-      else API_URL
-      end
+      vercel? ? VERCEL_API_URL : OPENROUTER_API_URL
     end
 
     def request_model
       @using_fallback_model ? fallback_model : model
     end
 
-    # Vercel failover is providerOptions.gateway.models; if that still errors, replay once on the
-    # fallback model. StoreAgentService memoizes this client — do not leave the replay flag set.
+    # Use OpenRouter for the replay when configured so a Vercel billing failure cannot block both models.
+    # StoreAgentService memoizes this client; restore the primary route after each call.
     def with_vercel_model_fallback(yielded: -> { false })
       yield
     rescue Error => e
       raise if e.is_a?(UnreadableToolCallError)
+      # A token-cap cutoff fails the same way on the fallback model. Replaying it there
+      # spends the cap again and can mask the truncation recovery with a different error.
+      raise if e.is_a?(ToolCallTokenCutoffError)
       raise if yielded.call
       raise unless vercel? && !@using_fallback_model && fallback_model.present? && fallback_model != model
 
-      Rails.logger.warn(
-        "Anthropic Vercel primary failed (#{e.class}: #{e.message}); " \
-        "replaying fallback requested=#{model} gateway=#{gateway_name}"
-      )
       previous = @using_fallback_model
       @using_fallback_model = true
       begin
+        Rails.logger.warn(
+          "Anthropic Vercel primary failed (#{e.class}: #{e.message}); " \
+          "replaying fallback requested=#{model} gateway=#{gateway_name}"
+        )
         yield
       ensure
         @using_fallback_model = previous

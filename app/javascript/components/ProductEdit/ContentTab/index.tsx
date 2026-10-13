@@ -21,6 +21,7 @@ import {
   Rename,
   Star,
   TwitterX,
+  X,
 } from "@boxicons/react";
 import { type Editor, findChildren, generateJSON, Node as TiptapNode } from "@tiptap/core";
 import { DOMSerializer } from "@tiptap/pm/model";
@@ -97,6 +98,7 @@ import { MoveNode } from "$app/components/TiptapExtensions/MoveNode";
 import { Posts, PostsProvider } from "$app/components/TiptapExtensions/Posts";
 import { ShortAnswer } from "$app/components/TiptapExtensions/ShortAnswer";
 import { UpsellCard } from "$app/components/TiptapExtensions/UpsellCard";
+import { Alert } from "$app/components/ui/Alert";
 import { Card, CardContent } from "$app/components/ui/Card";
 import { Checkbox } from "$app/components/ui/Checkbox";
 import { Details, DetailsToggle } from "$app/components/ui/Details";
@@ -112,6 +114,7 @@ import { useIsAboveBreakpoint } from "$app/components/useIsAboveBreakpoint";
 import { useRefToLatest } from "$app/components/useRefToLatest";
 import { WithTooltip } from "$app/components/WithTooltip";
 
+import { DisableDownloadsForAllFiles, type DisableDownloadsResult } from "./DisableDownloadsForAllFiles";
 import { FileEmbed, FileEmbedConfig } from "./FileEmbed";
 import { Page, PageTab, titleWithFallback } from "./PageTab";
 import { resolveCopiedFileEmbeds } from "./resolveCopiedFileEmbeds";
@@ -216,6 +219,7 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
   const uid = React.useId();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const isDesktop = useIsAboveBreakpoint("lg");
+  const PageListContainer = isDesktop ? React.Fragment : PageList;
   const imageSettings = useImageUploadSettings();
 
   const selectedVariant = product.has_same_rich_content_for_all_variants
@@ -346,7 +350,11 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
     fileInputHeldRef.current = held;
     setFileInputHeld(held);
   };
+  // A retry pick over the snapshot budget keeps its original handle, so its input is held here
+  // until the upload settles, after the row has already swapped in a fresh input.
+  const heldRetryInputsRef = React.useRef(new Map<string, HTMLInputElement>());
   const settleFileInputUpload = (fileId: string) => {
+    heldRetryInputsRef.current.delete(fileId);
     const pending = pendingFileInputResetRef.current;
     if (!pending?.uploadIds.delete(fileId) || pending.uploadIds.size > 0) return;
     pendingFileInputResetRef.current = null;
@@ -354,65 +362,111 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
     const input = fileInputRef.current;
     if (input && fileListMatchesPickedFiles(input.files, pending.picked)) input.value = "";
   };
+  const pickedFileFields = (file: File) => {
+    const extension = FileUtils.getFileExtension(file.name).toUpperCase();
+    return {
+      display_name: FileUtils.getFileNameWithoutExtension(file.name),
+      extension,
+      file_size: file.size,
+      is_pdf: extension === "PDF",
+      is_streamable: FileUtils.isFileExtensionStreamable(extension),
+    };
+  };
+  // Returns the new status and whether Evaporate accepted the file. A rejected file is marked
+  // failed right away so its row offers "Upload again" instead of sitting at 0%.
+  const startUpload = (id: string, file: File) => {
+    const { s3key, fileUrl } = s3UploadConfig.generateS3KeyForUpload(id, file.name);
+    const fileStatus: FileEntry["status"] = {
+      type: "unsaved",
+      uploadStatus: { type: "uploading", progress: { percent: 0, bitrate: 0 } },
+      url: URL.createObjectURL(file),
+    };
+    const status = uploader.scheduleUpload({
+      cancellationKey: `file_${id}`,
+      name: s3key,
+      file,
+      mimeType: getMimeType(file.name),
+      onComplete: () => {
+        fileStatus.uploadStatus = { type: "uploaded" };
+        updateProduct((product) => {
+          product.files = [...product.files];
+        });
+        settleFileInputUpload(id);
+      },
+      onError: () => {
+        uploader.cancelUpload(`file_${id}`);
+        fileStatus.uploadStatus = { type: "failed" };
+        updateProduct((product) => {
+          product.files = [...product.files];
+        });
+        showAlert(`Could not upload ${file.name}. Select "Upload again" on the file to retry.`, "error");
+        settleFileInputUpload(id);
+      },
+      onProgress: (progress) => {
+        fileStatus.uploadStatus = { type: "uploading", progress };
+        updateProduct((product) => {
+          product.files = [...product.files];
+        });
+      },
+    });
+    const scheduled = typeof status !== "string";
+    if (!scheduled) {
+      // status contains error string if any, otherwise index of file in array
+      showAlert(status, "error");
+      fileStatus.uploadStatus = { type: "failed" };
+    }
+    return { fileUrl, fileStatus, scheduled };
+  };
+  const newFileEntry = (id: string, file: File, upload: ReturnType<typeof startUpload>): FileEntry => ({
+    ...pickedFileFields(file),
+    description: null,
+    pdf_stamp_enabled: false,
+    hide_kindle_and_read_buttons: false,
+    stream_only: false,
+    is_transcoding_in_progress: false,
+    id,
+    subtitle_files: [],
+    url: upload.fileUrl,
+    status: upload.fileStatus,
+    thumbnail: null,
+  });
   const uploadFiles = (files: File[]) => {
     const scheduledIds: string[] = [];
     const fileEntries = files.map((file) => {
       const id = FileUtils.generateGuid();
-      const { s3key, fileUrl } = s3UploadConfig.generateS3KeyForUpload(id, file.name);
-      const mimeType = getMimeType(file.name);
-      const extension = FileUtils.getFileExtension(file.name).toUpperCase();
-      const fileStatus: FileEntry["status"] = {
-        type: "unsaved",
-        uploadStatus: { type: "uploading", progress: { percent: 0, bitrate: 0 } },
-        url: URL.createObjectURL(file),
-      };
-      const fileEntry: FileEntry = {
-        display_name: FileUtils.getFileNameWithoutExtension(file.name),
-        extension,
-        description: null,
-        file_size: file.size,
-        is_pdf: extension === "PDF",
-        pdf_stamp_enabled: false,
-        hide_kindle_and_read_buttons: false,
-        is_streamable: FileUtils.isFileExtensionStreamable(extension),
-        stream_only: false,
-        is_transcoding_in_progress: false,
-        id,
-        subtitle_files: [],
-        url: fileUrl,
-        status: fileStatus,
-        thumbnail: null,
-      };
-      const status = uploader.scheduleUpload({
-        cancellationKey: `file_${id}`,
-        name: s3key,
-        file,
-        mimeType,
-        onComplete: () => {
-          fileStatus.uploadStatus = { type: "uploaded" };
-          updateProduct((product) => {
-            product.files = [...product.files];
-          });
-          settleFileInputUpload(id);
-        },
-        onProgress: (progress) => {
-          fileStatus.uploadStatus = { type: "uploading", progress };
-          updateProduct((product) => {
-            product.files = [...product.files];
-          });
-        },
-      });
-      if (typeof status === "string") {
-        // status contains error string if any, otherwise index of file in array
-        showAlert(status, "error");
-      } else {
-        scheduledIds.push(id);
-      }
-      return fileEntry;
+      const upload = startUpload(id, file);
+      if (upload.scheduled) scheduledIds.push(id);
+      return newFileEntry(id, file, upload);
     });
     updateProduct({ files: [...product.files, ...fileEntries] });
     onSelectFiles(fileEntries.map((file) => file.id));
     return scheduledIds;
+  };
+  const productRef = useRefToLatest(product);
+  // Keeps the file id, so every embed of the failed file stays where the seller put it.
+  const retryUpload = (fileId: string, input: HTMLInputElement) => {
+    const picked = input.files?.[0];
+    if (!picked) return;
+    void snapshotPickedFiles([picked])
+      .then(([file = picked]) => {
+        const failed = productRef.current.files.find((existing) => existing.id === fileId);
+        // Removed while the pick was being copied.
+        if (failed?.status.type !== "unsaved" || failed.status.uploadStatus.type !== "failed") return;
+        URL.revokeObjectURL(failed.status.url);
+        const upload = startUpload(fileId, file);
+        if (upload.scheduled && file === picked) heldRetryInputsRef.current.set(fileId, input);
+        // A fresh entry: settings made for the old file, such as an ISBN, may not fit the new file type.
+        updateProduct((product) => {
+          product.files = product.files.map((existing) =>
+            existing.id === fileId
+              ? { ...newFileEntry(fileId, file, upload), description: existing.description }
+              : existing,
+          );
+        });
+      })
+      .catch((error: unknown) => {
+        showAlert(error instanceof Error ? error.message : "Could not read the selected file.", "error");
+      });
   };
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const openToolbarFileInput = () => {
@@ -451,7 +505,11 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
     prepareDownload: save,
     filesById,
   });
-  const fileEmbedConfig = useRefToLatest<FileEmbedConfig>({ filesById, onUploadCancelled: settleFileInputUpload });
+  const fileEmbedConfig = useRefToLatest<FileEmbedConfig>({
+    filesById,
+    onUploadCancelled: settleFileInputUpload,
+    onRetryUpload: retryUpload,
+  });
   const uploadFilesRef = useRefToLatest(uploadFiles);
   const contentEditorExtensions = extensions(id, [
     FileEmbedGroup.configure({ getConfig: () => fileEmbedGroupConfig.current }),
@@ -704,6 +762,7 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
   }, [editor]);
 
   const [showUpsellModal, setShowUpsellModal] = React.useState(false);
+  const [disableDownloadsResult, setDisableDownloadsResult] = React.useState<DisableDownloadsResult | null>(null);
   const [showReviewModal, setShowReviewModal] = React.useState(false);
   const [copyFromOpen, setCopyFromOpen] = React.useState(false);
 
@@ -793,6 +852,23 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
         onChange={(e) => uploadFileInput(e.target)}
       />
       <div className="h-screen sm:h-full md:flex md:flex-col">
+        {disableDownloadsResult ? (
+          <div className="p-4 pb-0 md:p-8 md:pb-0">
+            <Alert role="status" variant={disableDownloadsResult.status}>
+              <div className="flex flex-1 items-start gap-2">
+                <span className="flex-1">{disableDownloadsResult.message}</span>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  className="relative flex size-[1lh] shrink-0 cursor-pointer items-center justify-center text-muted all-unset before:absolute before:-inset-2 before:content-[''] hover:text-primary"
+                  onClick={() => setDisableDownloadsResult(null)}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </Alert>
+          </div>
+        ) : null}
         {editor ? (
           <RichTextEditorToolbar
             color="ghost"
@@ -814,6 +890,7 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
                     onUploadFromDropbox={uploadFromDropbox}
                   />
                 </PopoverMenuItem>
+                <DisableDownloadsForAllFiles onResult={setDisableDownloadsResult} />
                 {selectingExistingFiles ? (
                   <Modal
                     open
@@ -1071,26 +1148,28 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
             !isDesktop && !showPageList ? null : (
               <div className="flex flex-col gap-4">
                 {showPageList ? (
-                  <ReactSortable
-                    draggable="[role=tab]"
-                    handle="[aria-grabbed]"
-                    tag={PageList}
-                    list={pages.map((page) => ({ ...page, id: page.id }))}
-                    setList={reorderPages}
-                  >
-                    <>
-                      {isDesktop ? null : (
-                        <PageListItem asChild className="tailwind-override text-left">
-                          <button className="cursor-pointer all-unset" onClick={() => setPagesExpanded(!pagesExpanded)}>
-                            <span className="flex-1">
-                              <strong>Table of contents:</strong> {titleWithFallback(selectedPage?.title)}
-                            </span>
+                  <PageListContainer>
+                    {/* Keep the summary outside Sortable so its raw child indices match the pages. */}
+                    {isDesktop ? null : (
+                      <PageListItem asChild className="tailwind-override text-left">
+                        <button className="cursor-pointer all-unset" onClick={() => setPagesExpanded(!pagesExpanded)}>
+                          <span className="flex-1">
+                            <strong>Table of contents:</strong> {titleWithFallback(selectedPage?.title)}
+                          </span>
 
-                            {pagesExpanded ? <ChevronDown className="size-5" /> : <ChevronRight className="size-5" />}
-                          </button>
-                        </PageListItem>
-                      )}
-                      {isDesktop || pagesExpanded ? (
+                          {pagesExpanded ? <ChevronDown className="size-5" /> : <ChevronRight className="size-5" />}
+                        </button>
+                      </PageListItem>
+                    )}
+                    {isDesktop || pagesExpanded ? (
+                      <ReactSortable
+                        draggable="[role=tab]"
+                        handle="[aria-grabbed]"
+                        tag={isDesktop ? PageList : "div"}
+                        className={isDesktop ? undefined : "grid border-t [&>:first-child]:rounded-t-none"}
+                        list={pages.map((page) => ({ ...page, id: page.id }))}
+                        setList={reorderPages}
+                      >
                         <>
                           {pages.map((page) => (
                             <PageTab
@@ -1158,9 +1237,9 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
                             </button>
                           </PageListItem>
                         </>
-                      ) : null}
-                    </>
-                  </ReactSortable>
+                      </ReactSortable>
+                    ) : null}
+                  </PageListContainer>
                 ) : null}
                 {isDesktop ? (
                   <>
@@ -1356,7 +1435,7 @@ export const ContentTabContent = ({ selectedVariantId }: { selectedVariantId: st
 
 //TODO inline this once all the crazy providers are gone
 export const ContentTab = () => {
-  const { id, awsKey, s3Url, seller, product, updateProduct, uniquePermalink, variantIdMappings } =
+  const { id, awsKey, s3Url, currentSellerExternalId, product, updateProduct, uniquePermalink, variantIdMappings } =
     useProductEditContext();
   const [rawSelectedVariantId, setSelectedVariantId] = React.useState(product.variants[0]?.id ?? null);
   // A successful save swaps the client-generated ids of variants created this
@@ -1408,7 +1487,8 @@ export const ContentTab = () => {
   const { evaporateUploader, s3UploadConfig } = useConfigureEvaporate({
     aws_access_key_id: awsKey,
     s3_url: s3Url,
-    user_id: seller.id,
+    // Keyed by the editing account, not `seller` (the owner): the signature endpoint checks current_seller.
+    user_id: currentSellerExternalId,
   });
 
   const loadedPostsData = React.useRef(

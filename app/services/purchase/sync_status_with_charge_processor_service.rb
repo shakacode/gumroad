@@ -12,19 +12,20 @@ class Purchase::SyncStatusWithChargeProcessorService
   # nil until #perform has actually consulted the processor.
   attr_reader :charge_outcome
 
-  def initialize(purchase, mark_as_failed: false, require_final_charge_status: false)
+  def initialize(purchase, mark_as_failed: false, require_final_charge_status: false, enqueue_charge_receipt: true)
     @purchase = purchase
     @mark_as_failed = mark_as_failed
     @require_final_charge_status = require_final_charge_status
+    @enqueue_charge_receipt = enqueue_charge_receipt
   end
 
   def perform
     return false unless purchase.in_progress? || purchase.failed?
 
     # Client-confirmed recovery must use the PaymentIntent finalizer so recurring instruments are
-    # persisted before fulfillment. The delegated finalizer owns its own row lock.
+    # persisted before fulfillment. The delegated finalizer owns its own row lock, and a failed
+    # purchase stays failed here: only the finalizer's late-success guards may revive it.
     if client_confirmed_charge?
-      purchase.with_lock { restore_failed_purchase_to_in_progress! }
       # Scope to this purchase's charge: a multi-seller order can hold several
       # client-confirmed charges, and the order-wide finalizer would pick one arbitrarily.
       finalizer_args = { order: purchase.charge.order, charge: purchase.charge }
@@ -46,6 +47,8 @@ class Purchase::SyncStatusWithChargeProcessorService
       end
       return purchase.reload.successful?
     end
+
+    return sync_giftee_purchase_with_gifter if purchase.is_gift_receiver_purchase?
 
     # The generic path has no unique balance-transaction guard, so hold the row through fulfillment.
     purchase.with_lock do
@@ -112,6 +115,18 @@ class Purchase::SyncStatusWithChargeProcessorService
         # Any row that can defer on settlement data may be a preorder charge or commission
         # completion whose owner still needs to be marked done once the purchase succeeds.
         complete_later_charge_owner if purchase.processor_settlement_deferrable?
+        if @enqueue_charge_receipt && purchase.successful? && purchase.uses_charge_receipt?
+          # Sidekiq pushes immediately; the receipt must only see committed fulfillment.
+          AfterCommitEverywhere.after_commit do
+            receipt_charge = purchase.charge
+            next if receipt_charge.receipt_sent?
+
+            SendChargeReceiptJob.perform_async(receipt_charge.id)
+          rescue StandardError => e
+            # Receipt dispatch failed after commit; fulfillment must stay successful.
+            ErrorNotifier.notify(e) { |report| report.add_metadata(:purchase, { id: purchase.id }) }
+          end
+        end
         true
       elsif charge.nil? && purchase.free_purchase?
         Purchase::MarkSuccessfulService.new(purchase).perform
@@ -130,7 +145,8 @@ class Purchase::SyncStatusWithChargeProcessorService
     ErrorNotifier.notify(e) { |report| report.add_metadata(:purchase, { id: purchase.id }) }
     # An unavailable client-confirm finalizer cannot prove the PaymentIntent failed; it may already
     # have captured funds. Leave it recoverable rather than telling the buyer payment failed.
-    purchase.mark_failed! if mark_as_failed && !client_confirmed_charge?
+    # A giftee only mirrors its gifter, so a failed completion is retried rather than failed.
+    purchase.mark_failed! if mark_as_failed && !client_confirmed_charge? && !purchase.is_gift_receiver_purchase?
     false
   end
 
@@ -162,14 +178,36 @@ class Purchase::SyncStatusWithChargeProcessorService
       end
     end
 
+    # A giftee purchase is $0 and never charged, so the processor cannot vouch for it: it only
+    # ever mirrors its gifter purchase, and stays put while the gifter is undecided.
+    def sync_giftee_purchase_with_gifter
+      purchase.with_lock do
+        next false unless purchase.in_progress?
+
+        gifter_purchase = purchase.gift_received&.gifter_purchase
+        # Gift#mark_successful! requires a successful gifter, so other success states stay put.
+        if gifter_purchase&.successful?
+          Purchase::CompleteGiftLegsService.new(gifter_purchase).perform
+          purchase.reload.gift_receiver_purchase_successful?
+        else
+          purchase.mark_gift_receiver_purchase_failed! if gifter_purchase&.failed?
+          false
+        end
+      end
+    end
+
     def restore_failed_purchase_to_in_progress!
       return unless purchase.failed?
 
       purchase.update!(purchase_state: "in_progress")
-      if purchase.is_gift_sender_purchase
-        purchase.gift_given&.update!(state: "in_progress")
-        purchase.gift_given&.giftee_purchase&.update!(purchase_state: "in_progress")
-      end
+      return unless purchase.is_gift_sender_purchase
+
+      # Only undo what the gifter's failure did; a leg that already succeeded keeps its access.
+      # Older syncs failed giftees with the generic failed state, so both failed states restore.
+      gift = purchase.gift_given
+      gift.update!(state: "in_progress") if gift&.failed?
+      giftee_purchase = gift&.giftee_purchase
+      giftee_purchase.update!(purchase_state: "in_progress") if giftee_purchase&.purchase_state.in?(%w[failed gift_receiver_purchase_failed])
     end
 
     def complete_later_charge_owner

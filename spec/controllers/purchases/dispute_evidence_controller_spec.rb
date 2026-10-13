@@ -4,6 +4,8 @@ require "spec_helper"
 require "inertia_rails/rspec"
 
 describe Purchases::DisputeEvidenceController, type: :controller, inertia: true do
+  include_context "without the weekend window extension"
+
   let(:dispute_evidence) { create(:dispute_evidence) }
   let(:purchase) { dispute_evidence.disputable.purchase_for_dispute_evidence }
   # Minted the way the chargeback emails mint it, so the elapsed-window cases below exercise the
@@ -64,6 +66,40 @@ describe Purchases::DisputeEvidenceController, type: :controller, inertia: true 
 
         expect(response).to redirect_to(dashboard_url)
         expect(flash[:alert]).to eq("The deadline for submitting additional information for this dispute has passed.")
+      end
+    end
+
+    context "when the window touches a weekend" do
+      before do
+        stub_const("DisputeEvidence::WEEKEND_EXTENSION_STARTS_AT", Time.utc(2026, 10, 5))
+        dispute_evidence.update!(seller_contacted_at: Time.utc(2026, 10, 10, 16, 18))
+      end
+
+      it "still takes the form after the plain 72 hours" do
+        travel_to(Time.utc(2026, 10, 14, 16, 18)) do
+          get :show, params: { purchase_id: evidence_token }
+
+          expect(response).to be_successful
+          expect(flash[:alert]).to be_nil
+        end
+      end
+
+      it "closes the form at the extended deadline" do
+        travel_to(Time.utc(2026, 10, 15, 16, 19)) do
+          get :show, params: { purchase_id: evidence_token }
+
+          expect(response).to redirect_to(dashboard_url)
+          expect(flash[:alert]).to eq("The deadline for submitting additional information for this dispute has passed.")
+        end
+      end
+
+      it "saves a response after the plain 72 hours" do
+        travel_to(Time.utc(2026, 10, 14, 16, 18)) do
+          put :update, params: { purchase_id: evidence_token, dispute_evidence: { reason_for_winning: "Late but in time" } }
+
+          expect(dispute_evidence.reload.reason_for_winning).to eq("Late but in time")
+          expect(response).to redirect_to(success_purchase_dispute_evidence_path(evidence_token))
+        end
       end
     end
 
@@ -403,6 +439,75 @@ describe Purchases::DisputeEvidenceController, type: :controller, inertia: true 
         expect(FightDisputeJob.jobs.size).to eq(0)
         expect(response).to redirect_to(purchase_dispute_evidence_path(evidence_token))
         expect(flash[:alert]).to eq("We could not find your uploaded files. Please upload them again.")
+      end
+    end
+
+    context "when the customer communication is over the processor's page limit" do
+      def pdf_blob(pages, filename)
+        io = StringIO.new(Prawn::Document.new { |pdf| (pages - 1).times { pdf.start_new_page } }.render)
+        ActiveStorage::Blob.create_and_upload!(io:, filename:, content_type: "application/pdf")
+      end
+
+      let(:alert) do
+        "Your customer communication is 51 pages long, but our payment processor accepts at most 50 pages. " \
+          "Please remove pages or upload a shorter file."
+      end
+
+      before do
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:purge).and_return(nil)
+      end
+
+      it "refuses a single PDF without saving the submission" do
+        put :update, params: { purchase_id: evidence_token, dispute_evidence: { customer_communication_file_signed_blob_id: pdf_blob(51, "long.pdf").signed_id } }
+
+        dispute_evidence.reload
+        expect(dispute_evidence.customer_communication_file.attached?).to be(false)
+        expect(dispute_evidence.seller_submitted?).to be(false)
+        expect(response).to redirect_to(purchase_dispute_evidence_path(evidence_token))
+        expect(flash[:alert]).to eq(alert)
+      end
+
+      it "refuses files that only cross the limit once merged" do
+        blobs = [pdf_blob(26, "a.pdf"), pdf_blob(25, "b.pdf")]
+
+        put :update, params: { purchase_id: evidence_token, dispute_evidence: { customer_communication_file_signed_blob_ids: blobs.map(&:signed_id) } }
+
+        dispute_evidence.reload
+        expect(dispute_evidence.customer_communication_file.attached?).to be(false)
+        expect(dispute_evidence.seller_submitted?).to be(false)
+        expect(flash[:alert]).to eq(alert)
+      end
+
+      [NoMethodError.new("undefined method `[]' for nil"), SystemStackError.new("stack level too deep")].each do |error|
+        it "saves the submission and reports the error when the page counter raises #{error.class}" do
+          blob = pdf_blob(3, "unusual.pdf")
+          allow_any_instance_of(PDF::Reader).to receive(:page_count).and_raise(error)
+          expect(ErrorNotifier).to receive(:notify).with(error, context: { dispute_evidence_id: dispute_evidence.id, blob_id: blob.id })
+
+          put :update, params: { purchase_id: evidence_token, dispute_evidence: { customer_communication_file_signed_blob_id: blob.signed_id } }
+
+          dispute_evidence.reload
+          expect(dispute_evidence.customer_communication_file.attached?).to be(true)
+          expect(dispute_evidence.seller_submitted?).to be(true)
+          expect(response).to redirect_to(success_purchase_dispute_evidence_path(evidence_token))
+        end
+      end
+
+      it "does not hide a failed download of the PDF" do
+        blob = pdf_blob(3, "gone.pdf")
+        allow_any_instance_of(ActiveStorage::Blob).to receive(:open).and_raise(ActiveStorage::FileNotFoundError)
+        expect(ErrorNotifier).not_to receive(:notify)
+
+        expect do
+          put :update, params: { purchase_id: evidence_token, dispute_evidence: { customer_communication_file_signed_blob_id: blob.signed_id } }
+        end.to raise_error(ActiveStorage::FileNotFoundError)
+      end
+
+      it "accepts a PDF of exactly the limit" do
+        put :update, params: { purchase_id: evidence_token, dispute_evidence: { customer_communication_file_signed_blob_id: pdf_blob(50, "max.pdf").signed_id } }
+
+        expect(dispute_evidence.reload.customer_communication_file.attached?).to be(true)
+        expect(response).to redirect_to(success_purchase_dispute_evidence_path(evidence_token))
       end
     end
 

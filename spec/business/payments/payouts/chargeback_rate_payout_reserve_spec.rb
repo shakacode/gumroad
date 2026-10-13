@@ -87,6 +87,32 @@ describe "chargeback-rate payout reserve" do
 
       expect(seller.chargeback_rate_payout_reserve_active?).to eq(false)
     end
+
+    describe "#chargeback_rate_payout_reserve_available?" do
+      it "stays true when the seller paused payouts themselves, so turning that pause off restores the reserve" do
+        pause_for_chargeback_rate!(seller)
+        seller.update!(payouts_paused_by_user: true)
+
+        expect(seller.chargeback_rate_payout_reserve_available?).to eq(true)
+        expect(seller.chargeback_rate_payout_reserve_active?).to eq(false)
+
+        seller.update!(payouts_paused_by_user: false)
+        expect(seller.chargeback_rate_payout_reserve_active?).to eq(true)
+      end
+
+      it "is off for a deleted account, for another system pause, and when the kill switch is on" do
+        expect(seller.chargeback_rate_payout_reserve_available?).to eq(false)
+
+        pause_for_chargeback_rate!(seller)
+        allow(Feature).to receive(:active?).and_call_original
+        allow(Feature).to receive(:active?).with(:disable_chargeback_rate_payout_reserve).and_return(true)
+        expect(seller.chargeback_rate_payout_reserve_available?).to eq(false)
+
+        allow(Feature).to receive(:active?).with(:disable_chargeback_rate_payout_reserve).and_return(false)
+        seller.update!(deleted_at: Time.current)
+        expect(seller.chargeback_rate_payout_reserve_available?).to eq(false)
+      end
+    end
   end
 
   describe Payouts do
@@ -284,29 +310,21 @@ describe "chargeback-rate payout reserve" do
         expect(described_class.chargeback_rate_reserve_cents_for_run(seller, 400_00)).to eq(100_00)
       end
 
-      it "unwinds all claimed balances or none when the unwind itself fails partway" do
+      it "rolls back the claim without a separate unpaid transition when saving fails" do
         seller = payable_stripe_seller
         pause_for_chargeback_rate!(seller)
         date = Date.today - 1
         4.times { |i| unpaid_balance(seller, cents: 100_00, on: date - 5 + i) }
         allow(StripePayoutProcessor).to receive(:is_balance_payable).and_return(true)
         allow_any_instance_of(Payment).to receive(:save!).and_raise(ActiveRecord::RecordNotSaved.new("boom"))
-        # A non-atomic unwind interrupted here would leave rows 2..3 stranded as processing
-        # orphans; the transaction must roll the first row back to processing with them.
-        unwound = 0
-        allow_any_instance_of(Balance).to receive(:mark_unpaid!).and_wrap_original do |m, *args|
-          unwound += 1
-          raise ActiveRecord::StatementInvalid.new("connection lost") if unwound == 2
-
-          m.call(*args)
-        end
+        expect_any_instance_of(Balance).not_to receive(:mark_unpaid!)
 
         expect do
           described_class.create_payment(date.to_s, PayoutProcessorType::STRIPE, seller)
         end.to raise_error(ActiveRecord::RecordNotSaved)
 
-        expect(seller.balances.unpaid.count).to eq(1)
-        expect(seller.balances.processing.count).to eq(3)
+        expect(seller.balances.unpaid.count).to eq(4)
+        expect(seller.balances.processing.count).to eq(0)
       end
 
       it "counts in-flight processing balances before a Payment row exists" do

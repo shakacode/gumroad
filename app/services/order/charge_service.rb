@@ -286,7 +286,7 @@ class Order::ChargeService
   # payment_intent_mandate_invalid (gp#2437).
   def register_india_mandate_for_off_session_cart!(purchases, chargeable, merchant_account, mandate_options)
     if chargeable.stripe_setup_intent_id.present?
-      existing_si = ChargeProcessor.get_setup_intent(merchant_account, chargeable.stripe_setup_intent_id)
+      existing_si = reusable_setup_intent_for(chargeable, merchant_account)
       if existing_si.present? && (existing_si.succeeded? || existing_si.requires_action?) &&
          setup_intent_belongs_to_chargeable?(existing_si, chargeable, purchases, merchant_account) &&
          setup_intent_covers_mandate_options?(existing_si, mandate_options)
@@ -395,6 +395,16 @@ class Order::ChargeService
     false
   end
 
+  def reusable_setup_intent_for(chargeable, merchant_account)
+    ChargeProcessor.get_setup_intent(merchant_account, chargeable.stripe_setup_intent_id)
+  rescue ChargeProcessorInvalidRequestError => e
+    Rails.logger.info(
+      "Ignoring unusable checkout SetupIntent #{chargeable.stripe_setup_intent_id} " \
+      "for #{stripe_account_key_for_merchant(merchant_account)}: #{e.message}"
+    )
+    nil
+  end
+
   def bind_connect_payment_method!(chargeable, si, merchant_account)
     return unless merchant_account.is_a_stripe_connect_account? && si.payment_method_id.present?
     # prepare! attaches the SI's Connect PM to a connected Customer and includes that customer
@@ -470,6 +480,13 @@ class Order::ChargeService
   end
 
   def create_charge_for_seller_purchases(purchases, chargeable, off_session, setup_future_charges)
+    # Native PayPal builds and captures its order from every purchase attached to the charge,
+    # so a line rejected here would still be paid for. Fail the whole group instead.
+    if native_paypal?(chargeable) && purchases.any? { |purchase| purchase.in_progress? && purchase.errors.present? }
+      fail_native_paypal_group!(purchases)
+      return
+    end
+
     purchases_to_charge = purchases.reject do |purchase|
       purchase.is_free_trial_purchase? || purchase.is_preorder_authorization? || purchase.is_test_purchase? ||
         !purchase.errors.empty? || !purchase.in_progress?
@@ -514,7 +531,7 @@ class Order::ChargeService
           return if locked_quote == false
           setup_mandate_options = off_session_mandate_options_in_quote_currency(setup_mandate_options, locked_quote)
           if chargeable.stripe_setup_intent_id.present?
-            existing_si = ChargeProcessor.get_setup_intent(merchant_account, chargeable.stripe_setup_intent_id)
+            existing_si = reusable_setup_intent_for(chargeable, merchant_account)
             unless existing_si.present? && (existing_si.succeeded? || existing_si.requires_action?) &&
                    setup_intent_belongs_to_chargeable?(existing_si, chargeable, purchases_to_charge, merchant_account) &&
                    setup_intent_covers_mandate_options?(existing_si, setup_mandate_options)
@@ -615,6 +632,20 @@ class Order::ChargeService
           purchase.errors.add :base, "Sorry, something went wrong."
         end
       end
+    end
+  end
+
+  def native_paypal?(chargeable)
+    chargeable.respond_to?(:get_chargeable_for) &&
+      chargeable.get_chargeable_for(PaypalChargeProcessor.charge_processor_id).present?
+  end
+
+  def fail_native_paypal_group!(purchases)
+    rejected = purchases.find { |purchase| purchase.in_progress? && purchase.errors.present? }
+    purchases.each do |purchase|
+      next unless purchase.in_progress? && purchase.errors.empty?
+      purchase.errors.add :base, rejected.errors.first.message
+      purchase.error_code = rejected.error_code
     end
   end
 

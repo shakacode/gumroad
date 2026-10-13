@@ -20,6 +20,8 @@ class ApplicationController < ActionController::Base
   include PromotesDashboardNavItems
   include PageMeta::Base, PageMeta::Analytics
 
+  MINTED_GUMROAD_GUID_ENV_KEY = "gumroad.minted_gumroad_guid"
+
   before_action :set_default_page_title
   before_action :set_csrf_meta_tags
   before_action :set_default_meta_tags
@@ -152,6 +154,12 @@ class ApplicationController < ActionController::Base
     end
 
   private
+    # Tokens issued to dynamically registered MCP clients are bound to one resource; anywhere
+    # else they count as absent so Doorkeeper answers 401 as for any unknown token.
+    def doorkeeper_token
+      Muse::DynamicClientOauth.token_for_request(super, request)
+    end
+
     def redirect_to_custom_subdomain
       redirect_url = SubdomainRedirectorService.new.redirect_url_for(request)
       redirect_to(redirect_url, allow_other_host: true) if redirect_url.present?
@@ -282,12 +290,7 @@ class ApplicationController < ActionController::Base
 
     def invalidate_session_if_necessary
       return if self.class.name == "LoginsController"
-      return unless request.env["warden"].authenticated?
-      return if logged_in_user.nil?
-      return if logged_in_user.last_active_sessions_invalidated_at.nil?
-
-      last_sign_in_at = request.env["warden"].session["last_sign_in_at"]
-      return if last_sign_in_at && last_sign_in_at.to_i >= logged_in_user.last_active_sessions_invalidated_at.to_i
+      return unless active_session_invalidated?
 
       sign_out
 
@@ -299,6 +302,14 @@ class ApplicationController < ActionController::Base
 
       flash[:warning] = "We're sorry; you have been logged out. Please login again."
       redirect_to login_path
+    end
+
+    def active_session_invalidated?
+      return false unless request.env["warden"].authenticated?
+      return false if logged_in_user.nil? || logged_in_user.last_active_sessions_invalidated_at.nil?
+
+      last_sign_in_at = request.env["warden"].session["last_sign_in_at"]
+      !last_sign_in_at || last_sign_in_at.to_i < logged_in_user.last_active_sessions_invalidated_at.to_i
     end
 
     def check_suspended
@@ -340,6 +351,7 @@ class ApplicationController < ActionController::Base
     def set_gumroad_guid
       return unless cookies[:_gumroad_guid].nil?
 
+      request.env[MINTED_GUMROAD_GUID_ENV_KEY] = true
       cookies[:_gumroad_guid] = {
         value: SecureRandom.uuid,
         expires: 10.years.from_now,
@@ -362,7 +374,7 @@ class ApplicationController < ActionController::Base
 
     def check_payment_details
       return unless current_seller
-      return unless $redis.sismember(RedisKey.user_ids_with_payment_requirements_key, current_seller.id)
+      return unless seller_has_payment_requirements?
 
       merchant_account = current_seller.merchant_accounts.alive.stripe.last
 
@@ -378,6 +390,14 @@ class ApplicationController < ActionController::Base
       else
         redirect_to settings_payments_path, notice: "Urgent: We are required to collect more information from you to continue processing payments." and return
       end
+    end
+
+    # Fast-path gate in front of the compliance redirect. A stalled Redis read must not 500 the
+    # page for every seller, so degrade to "no requirements" and skip the informational redirect.
+    def seller_has_payment_requirements?
+      $redis.sismember(RedisKey.user_ids_with_payment_requirements_key, current_seller.id)
+    rescue Redis::BaseError, RedisClient::Error
+      false
     end
 
     def fetch_affiliate(product, product_params = nil)

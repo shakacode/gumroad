@@ -263,6 +263,29 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
       end.to change { user.reload.payouts_paused_by_user }.from(false).to(true)
     end
 
+    context "when the seller paused their own payouts under a chargeback-rate hold" do
+      before do
+        user.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM, payouts_paused_by_user: true)
+        user.comments.create!(
+          content: "Payouts automatically paused due to chargeback rate.",
+          comment_type: Comment::COMMENT_TYPE_ON_PROBATION,
+          author_name: User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:high_chargeback_rate]
+        )
+      end
+
+      it "lets them turn their own pause off, which restores the payout reserve and keeps the hold" do
+        expect(user.chargeback_rate_payout_reserve_active?).to eq(false)
+
+        put :update, params: { payouts_paused_by_user: false }
+
+        user.reload
+        expect(user.payouts_paused_by_user?).to eq(false)
+        expect(user.payouts_paused_internally?).to eq(true)
+        expect(user.payouts_paused_for_chargeback_rate?).to eq(true)
+        expect(user.chargeback_rate_payout_reserve_active?).to eq(true)
+      end
+    end
+
     describe "minimum payout threshold" do
       def create_current_compliance_info_matching_form_params
         create(
@@ -620,7 +643,8 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
 
             expect(response).to redirect_to(settings_payments_path)
             expect(response).to have_http_status :found
-            expect(session[:inertia_errors][:base]).to eq(["An unknown error occurred"])
+            expect(session[:inertia_errors][:base]).to eq([StripeMerchantAccountManager.no_verdict_seller_message(Stripe::APIError.new("An unknown error occurred"))])
+            expect(session[:inertia_errors][:base].first).to include("Nothing you entered was rejected")
           end
 
           it "handles MerchantRegistrationUserNotReadyError gracefully instead of raising a 500" do
@@ -683,6 +707,247 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
           expect(response).to redirect_to(settings_payments_path)
           expect(response).to have_http_status :found
           expect(session[:inertia_errors][:base]).to include("You entered a ZIP Code that doesn't exist within your country.")
+        end
+      end
+
+      describe "creator enters a military (APO/FPO/DPO) zip code" do
+        # 09330 is APO AE, 34001 is APO AA and 96349 is FPO AP.
+        { "09330" => "AE", "34001" => "AA", "96349" => "AP" }.each do |zip_code, state_code|
+          it "rejects the individual zip code #{zip_code} (#{state_code}) without saving it" do
+            individual_params = params.except(:is_business).merge(zip_code:)
+
+            expect do
+              put :update, params: { user: individual_params }
+            end.not_to change { user.reload.alive_user_compliance_info.id }
+
+            expect(response).to redirect_to(settings_payments_path)
+            expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes", "physical US street address")
+            expect(session[:inertia_errors][:field]).to eq("zip_code")
+            expect(user.alive_user_compliance_info.zip_code).not_to eq(zip_code)
+            expect(user.comments.with_type_payout_note.count).to eq(0)
+          end
+        end
+
+        it "rejects a military zip+4" do
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330-1234") }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "rejects a military business zip code and names the business field" do
+          put :update, params: { user: params.merge(is_business: true, business_country: "US", business_zip_code: "09330") }
+
+          expect(response).to redirect_to(settings_payments_path)
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("business_zip_code")
+        end
+
+        it "rejects a military representative zip code on a business account and names the personal field" do
+          put :update, params: { user: params.merge(is_business: true, business_country: "US", business_zip_code: "10001", zip_code: "96349") }
+
+          expect(response).to redirect_to(settings_payments_path)
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "does not treat a same-numbered postal code as military when the business is outside the US" do
+          put :update, params: { user: params.merge(is_business: true, business_country: "DE", business_zip_code: "09330", zip_code: "10001") }
+
+          expect(session[:inertia_errors]&.dig(:base)&.first.to_s).not_to include("military")
+        end
+
+        it "does not block unrelated saves when the seller's stored zip code is already military" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330"), payout_threshold_cents: 10_000 }
+
+          expect(session[:inertia_errors]&.dig(:base)&.first.to_s).not_to include("military")
+          expect(user.reload.payout_threshold_cents.to_i).to eq(10_000)
+        end
+
+        it "checks the individual zip code when a stored business account switches to individual" do
+          user.alive_user_compliance_info.dup_and_save! do |info|
+            info.is_business = true
+            info.business_country = "Germany"
+          end
+
+          put :update, params: { user: params.merge(is_business: false, zip_code: "34001") }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "rechecks an unchanged military personal zip code when the account switches to a business" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+
+          put :update, params: { user: params.merge(is_business: true, business_country: "US", business_zip_code: "10001", zip_code: "09330") }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "refuses to create the Stripe account while an unchanged military zip code is saved and a bank account is added" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          expect do
+            put :update, params: {
+              user: params.except(:is_business).merge(zip_code: "09330"),
+              bank_account: { type: AchAccount.name, account_number: "000123456789", account_number_confirmation: "000123456789", routing_number: "110000000", account_holder_full_name: "gumbot" },
+            }
+          end.not_to change { user.reload.alive_bank_accounts.count }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "refuses to create the Stripe account for a saved bank account while an unchanged military zip code is saved" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:ach_account, user:)
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330") }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+        end
+
+        it "keeps the existing bank account when a replacement is rejected because a military zip code is saved" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          existing = create(:ach_account, user:)
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: {
+            user: params.except(:is_business).merge(zip_code: "09330"),
+            bank_account: { type: AchAccount.name, account_number: "000123456789", account_number_confirmation: "000123456789", routing_number: "110000000", account_holder_full_name: "gumbot" },
+          }
+
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.active_bank_account.id).to eq(existing.id)
+        end
+
+        it "does not create a Stripe account when a PayPal address arrives with bank fields and a military zip code is saved" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:ach_account, user:, account_holder_full_name: "gumbot")
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: {
+            user: params.except(:is_business).merge(zip_code: "09330"),
+            payment_address: "seller@example.com",
+            bank_account: { type: AchAccount.name, account_holder_full_name: "gumbot two" },
+          }
+
+          expect(session[:inertia_errors][:base].first).to include("military (APO/FPO/DPO) ZIP codes")
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.active_bank_account.account_holder_full_name).to eq("gumbot")
+        end
+
+        it "rolls back the whole save when it would create a Stripe account from a saved military zip code" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:ach_account, user:)
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330"), payout_threshold_cents: 25_000 }
+
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.payout_threshold_cents.to_i).not_to eq(25_000)
+        end
+
+        it "rolls back a save without the form fields when it would create a Stripe account from a saved military zip code" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:ach_account, user:)
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: { payouts_paused_by_user: true }
+
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.payouts_paused_by_user?).to eq(false)
+        end
+
+        it "does not wrap the save in a transaction once the seller has a Stripe account, so a Stripe update is never rolled back" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:merchant_account, user:)
+          depth = nil
+          baseline = ActiveRecord::Base.connection.open_transactions
+          allow_any_instance_of(UpdateUserComplianceInfo).to receive(:process) do
+            depth = ActiveRecord::Base.connection.open_transactions
+            { success: true }
+          end
+
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330") }
+
+          expect(depth).to eq(baseline)
+        end
+
+        it "checks a saved military zip code on a first bank account even when the form sends a blank zip code" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: {
+            user: params.except(:is_business).merge(zip_code: ""),
+            bank_account: { type: AchAccount.name, account_number: "000123456789", account_number_confirmation: "000123456789", routing_number: "110000000", account_holder_full_name: "gumbot" },
+          }
+
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.alive_bank_accounts.count).to eq(0)
+        end
+
+        it "does not block unrelated saves for a saved military zip code when the account cannot get a Stripe account" do
+          user.alive_user_compliance_info.dup_and_save! do |info|
+            info.is_business = true
+            info.business_country = "Germany"
+            info.zip_code = "09330"
+          end
+          create(:ach_account, user:)
+          allow_any_instance_of(User).to receive(:native_payouts_supported?).and_return(false)
+
+          put :update, params: { user: params.merge(is_business: true, business_country: "DE", business_zip_code: "10115", zip_code: "09330"), payout_threshold_cents: 25_000 }
+
+          expect(session[:inertia_errors]&.dig(:base)&.first.to_s).not_to include("military")
+          expect(user.reload.payout_threshold_cents.to_i).to eq(25_000)
+        end
+
+        it "checks a saved military zip code when an individual switches to a UAE business and adds a bank account" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+
+          expect(StripeMerchantAccountManager).not_to receive(:create_account)
+          put :update, params: {
+            user: params.merge(is_business: true, business_country: "AE", business_zip_code: "", zip_code: ""),
+            bank_account: { type: AchAccount.name, account_number: "000123456789", account_number_confirmation: "000123456789", routing_number: "110000000", account_holder_full_name: "gumbot" },
+          }
+
+          expect(session[:inertia_errors][:field]).to eq("zip_code")
+          expect(user.reload.alive_bank_accounts.count).to eq(0)
+        end
+
+        it "lets a seller with a saved bank account switch to PayPal while an unchanged military zip code is stored" do
+          user.alive_user_compliance_info.dup_and_save! { |info| info.zip_code = "09330" }
+          create(:ach_account, user:)
+
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "09330"), payment_address: "seller@example.com" }
+
+          expect(session[:inertia_errors]&.dig(:base)&.first.to_s).not_to include("military")
+        end
+
+        it "does not block unrelated saves for a US business with a stored military business zip and no business country" do
+          user.alive_user_compliance_info.dup_and_save! do |info|
+            info.is_business = true
+            info.business_country = nil
+            info.business_zip_code = "09330"
+          end
+
+          put :update, params: { user: params.merge(is_business: true, business_country: "US", business_zip_code: "09330", zip_code: "10001"), payout_threshold_cents: 10_000 }
+
+          expect(session[:inertia_errors]&.dig(:base)&.first.to_s).not_to include("military")
+          expect(user.reload.payout_threshold_cents.to_i).to eq(10_000)
+        end
+
+        it "still accepts a physical US zip code" do
+          put :update, params: { user: params.except(:is_business).merge(zip_code: "10001") }
+
+          expect(session[:inertia_errors]).to be_blank
+          expect(user.reload.alive_user_compliance_info.zip_code).to eq("10001")
         end
       end
 
@@ -1155,6 +1420,36 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
         expect(response).to redirect_to(settings_payments_path)
         expect(response).to have_http_status :found
         expect(session[:inertia_errors][:base]).to include("We require a valid physical address in Ghana. We cannot accept a P.O. Box as a valid address.")
+      end
+    end
+
+    describe "egypt bank account whose code Stripe's directory cannot resolve" do
+      let(:user) { create(:user) }
+
+      before do
+        create(:user_compliance_info, user:, country: "Egypt")
+        sign_in user
+        allow(Stripe::Token).to receive(:create).and_raise(
+          Stripe::InvalidRequestError.new("We couldn't find the bank for that BIC", "bank_account[routing_number]", code: "routing_number_invalid")
+        )
+      end
+
+      it "does not save the account and tells the form which field to flag" do
+        expect do
+          put :update, params: {
+            bank_account: {
+              type: EgyptBankAccount.name,
+              bank_code: "QNBAEGCX027",
+              account_number: "EG800002000156789012345180002",
+              account_number_confirmation: "EG800002000156789012345180002",
+              account_holder_full_name: "gumbot",
+            }
+          }
+        end.not_to change(BankAccount, :count)
+
+        expect(response).to redirect_to(settings_payments_path)
+        expect(session[:inertia_errors][:base].first).to include("QNBAEGCX rather than QNBAEGCX027")
+        expect(session[:inertia_errors][:field]).to eq("bank_code")
       end
     end
 
@@ -2426,7 +2721,8 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
       expect(response).to redirect_to settings_payments_url
       expect(flash[:notice]).to be_nil
       expect(flash[:alert]).to include("Stripe has paused payouts")
-      expect(flash[:alert]).to include("contact support")
+      expect(flash[:alert]).to include("nothing for you to submit")
+      expect(flash[:alert]).not_to include("chase")
     end
 
     it "still says 'all set' when the pause came from us rather than Stripe" do
@@ -2489,6 +2785,129 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
       get :remediation
 
       expect(response.location).to match(Regexp.new("https://connect.stripe.com/setup/c/#{stripe_connect_account_id}/"))
+    end
+
+    context "when the only open requirement is a pending_verification Stripe cannot finish" do
+      def stub_unfinishable_review(stripe_connect_account_id, pending_verification: ["person_123.verification.document"],
+                                   charges_enabled: false, payouts_enabled: nil, errors: [], current_deadline: nil)
+        allow(Stripe::Account).to receive(:retrieve).with(stripe_connect_account_id).and_return(
+          Stripe::Account.construct_from(
+            id: stripe_connect_account_id,
+            object: "account",
+            charges_enabled:,
+            payouts_enabled:,
+            requirements: {
+              "currently_due" => [],
+              "past_due" => [],
+              "eventually_due" => [],
+              "pending_verification" => pending_verification,
+              "errors" => errors,
+              "current_deadline" => current_deadline,
+            },
+            future_requirements: { "currently_due" => [], "past_due" => [], "eventually_due" => [] }
+          )
+        )
+      end
+
+      it "opens a Stripe AccountLink when a blocked review has nothing due, no errors and no deadline" do
+        # All six "due" lists empty with charges off: the redirect here is the dead end.
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stripe_connect_account_id = merchant_account.charge_processor_merchant_id
+        stub_unfinishable_review(stripe_connect_account_id)
+        expect(Stripe::AccountLink).to receive(:create).with(
+          {
+            account: stripe_connect_account_id,
+            refresh_url: remediation_settings_payments_url,
+            return_url: verify_stripe_remediation_settings_payments_url,
+            type: "account_update",
+          }
+        ).and_call_original
+
+        get :remediation
+
+        expect(response.location).to match(Regexp.new("https://connect.stripe.com/setup/c/#{stripe_connect_account_id}/"))
+      end
+
+      it "keeps the reassuring redirect while the account can still take payments" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stub_unfinishable_review(merchant_account.charge_processor_merchant_id, charges_enabled: true, payouts_enabled: true)
+        expect(Stripe::AccountLink).not_to receive(:create)
+
+        get :remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:notice]).to eq "Thanks! You're all set."
+      end
+
+      it "keeps the reassuring redirect when Stripe reported an error on the pending requirement" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stub_unfinishable_review(merchant_account.charge_processor_merchant_id,
+                                 errors: [{ "code" => "verification_document_failed", "requirement" => "person_123.verification.document" }])
+        expect(Stripe::AccountLink).not_to receive(:create)
+
+        get :remediation
+
+        expect(response).to redirect_to settings_payments_url
+      end
+
+      it "keeps the reassuring redirect when Stripe set a deadline that has not passed" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stub_unfinishable_review(merchant_account.charge_processor_merchant_id, current_deadline: 7.days.from_now.to_i)
+        expect(Stripe::AccountLink).not_to receive(:create)
+
+        get :remediation
+
+        expect(response).to redirect_to settings_payments_url
+      end
+
+      it "opens a Stripe AccountLink when payouts are disabled behind a review whose deadline has passed" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stripe_connect_account_id = merchant_account.charge_processor_merchant_id
+        stub_unfinishable_review(stripe_connect_account_id, charges_enabled: true, payouts_enabled: false,
+                                                            pending_verification: ["individual.first_name", "individual.address.line1"],
+                                                            current_deadline: 1.week.ago.to_i)
+        expect(Stripe::AccountLink).to receive(:create).and_call_original
+
+        get :remediation
+
+        expect(response.location).to match(Regexp.new("https://connect.stripe.com/setup/c/#{stripe_connect_account_id}/"))
+      end
+
+      it "keeps the reassuring redirect when payouts are disabled but the review deadline is still ahead" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        stub_unfinishable_review(merchant_account.charge_processor_merchant_id, charges_enabled: true, payouts_enabled: false,
+                                                                                current_deadline: 7.days.from_now.to_i)
+        expect(Stripe::AccountLink).not_to receive(:create)
+
+        get :remediation
+
+        expect(response).to redirect_to settings_payments_url
+      end
+
+      it "still opens a Stripe AccountLink while Stripe lists a due requirement" do
+        merchant_account = StripeMerchantAccountManager.create_account(user, passphrase: "1234")
+        allow(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id).and_return(
+          Stripe::Account.construct_from(
+            id: merchant_account.charge_processor_merchant_id,
+            object: "account",
+            charges_enabled: false,
+            requirements: {
+              "currently_due" => ["person_123.verification.document"],
+              "past_due" => [],
+              "eventually_due" => [],
+              "pending_verification" => [],
+              "errors" => [],
+              "current_deadline" => nil,
+            },
+            future_requirements: { "currently_due" => [], "past_due" => [], "eventually_due" => [] }
+          )
+        )
+        expect(Stripe::AccountLink).to receive(:create).and_call_original
+
+        get :remediation
+
+        expect(response.location).to match(Regexp.new("https://connect.stripe.com/setup/c/#{merchant_account.charge_processor_merchant_id}/"))
+      end
     end
 
     it "falls back to the 'Thanks' redirect when Stripe::Account.retrieve raises and local has no pending requests" do
@@ -2627,11 +3046,15 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
       sign_in user
     end
 
-    it "redirects to the payments settings page" do
+    it "redirects to the payments settings page without saying 'all set' while Stripe is still verifying the new account" do
+      # The recorded account is fresh: charges off, every due list empty, only pending_verification
+      # populated. That is the state the remediation link is offered for, so the return leg must not reassure.
       get :verify_stripe_remediation
 
       expect(response).to redirect_to settings_payments_url
-      expect(flash[:notice]).to eq("Thanks! You're all set.")
+      expect(flash[:notice]).to be_nil
+      expect(flash[:alert]).to be_nil
+      expect(flash[:info]).to include("Stripe is still reviewing your account")
     end
 
     it "does not show the 'Thanks' notice when Stripe still lists eventually_due requirements" do
@@ -2686,6 +3109,86 @@ describe Settings::PaymentsController, :vcr, type: :controller, inertia: true do
       expect(response).to redirect_to settings_payments_url
       expect(flash[:notice]).to be_nil
       expect(flash[:alert]).to include("Stripe has paused payouts")
+    end
+
+    context "when Stripe still shows the pending-only review that opened the remediation link" do
+      # The review state is stubbed, so a factory account is enough and no Stripe call is recorded.
+      let!(:stripe_connect_account_id) { create(:merchant_account, user:).charge_processor_merchant_id }
+
+      def stub_pending_only_review(charges_enabled:, payouts_enabled: nil, pending_verification: ["person_123.verification.document"],
+                                   current_deadline: nil)
+        allow(Stripe::Account).to receive(:retrieve).with(stripe_connect_account_id).and_return(
+          Stripe::Account.construct_from(
+            id: stripe_connect_account_id,
+            object: "account",
+            charges_enabled:,
+            payouts_enabled:,
+            requirements: {
+              "currently_due" => [],
+              "past_due" => [],
+              "eventually_due" => [],
+              "pending_verification" => pending_verification,
+              "errors" => [],
+              "current_deadline" => current_deadline,
+            },
+            future_requirements: { "currently_due" => [], "past_due" => [], "eventually_due" => [] }
+          )
+        )
+      end
+
+      it "does not say 'all set' while charges stay disabled with nothing due" do
+        stub_pending_only_review(charges_enabled: false)
+
+        get :verify_stripe_remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:notice]).to be_nil
+        expect(flash[:alert]).to be_nil
+        expect(flash[:info]).to include("Stripe is still reviewing your account")
+      end
+
+      it "still says 'all set' once the account can take payments" do
+        stub_pending_only_review(charges_enabled: true)
+
+        get :verify_stripe_remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:alert]).to be_nil
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "still says 'all set' when nothing is pending even though charges are off" do
+        stub_pending_only_review(charges_enabled: false, pending_verification: [])
+
+        get :verify_stripe_remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:alert]).to be_nil
+        expect(flash[:notice]).to eq("Thanks! You're all set.")
+      end
+
+      it "does not say 'all set' while payouts stay disabled behind a review whose deadline has passed" do
+        stub_pending_only_review(charges_enabled: true, payouts_enabled: false, current_deadline: 1.week.ago.to_i)
+
+        get :verify_stripe_remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:notice]).to be_nil
+        expect(flash[:alert]).to be_nil
+        expect(flash[:info]).to include("Stripe is still reviewing your account")
+      end
+
+      it "warns about the Stripe payout pause instead of the review when both apply" do
+        user.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_STRIPE)
+        stub_pending_only_review(charges_enabled: true, payouts_enabled: false, current_deadline: 1.week.ago.to_i)
+
+        get :verify_stripe_remediation
+
+        expect(response).to redirect_to settings_payments_url
+        expect(flash[:notice]).to be_nil
+        expect(flash[:info]).to be_nil
+        expect(flash[:alert]).to include("Stripe has paused payouts")
+      end
     end
   end
 end

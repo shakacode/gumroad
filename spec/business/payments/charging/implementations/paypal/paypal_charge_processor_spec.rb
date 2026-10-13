@@ -2222,8 +2222,78 @@ describe PaypalChargeProcessor, :vcr do
 
     context "when invalid order_id is passed" do
       it "raises ChargeProcessorError error" do
-        expect { PaypalChargeProcessor.fetch_order(order_id: "invalid_order_id") }.to raise_error(ChargeProcessorError)
+        expect { PaypalChargeProcessor.fetch_order(order_id: "invalid_order_id") }
+          .to raise_error(ChargeProcessorError, /\A404\|.*RESOURCE_NOT_FOUND/m)
       end
+    end
+  end
+
+  describe "billing agreement error messages" do
+    let(:paypal_rest_api) { instance_double(PaypalRestApi) }
+    let(:api_response) { OpenStruct.new(status_code: 401, result: OpenStruct.new(name: "AUTHENTICATION_FAILURE")) }
+
+    before do
+      allow(PaypalRestApi).to receive(:new).and_return(paypal_rest_api)
+      allow(paypal_rest_api).to receive(:successful_response?).with(api_response).and_return(false)
+    end
+
+    it "reports PayPal's status code and response body for a failed agreement token" do
+      allow(paypal_rest_api).to receive(:generate_billing_agreement_token).with(shipping: false).and_return(api_response)
+
+      expect { described_class.generate_billing_agreement_token }
+        .to raise_error(ChargeProcessorError, /\A401\|.*AUTHENTICATION_FAILURE/m)
+    end
+
+    it "reports PayPal's status code and response body for a failed agreement" do
+      allow(paypal_rest_api).to receive(:create_billing_agreement).with(billing_agreement_token_id: "token-id").and_return(api_response)
+
+      expect { described_class.create_billing_agreement(billing_agreement_token_id: "token-id") }
+        .to raise_error(ChargeProcessorError, /\A401\|.*AUTHENTICATION_FAILURE/m)
+    end
+  end
+
+  describe ".fetch_refund_status" do
+    let(:merchant_account) { create(:merchant_account_paypal, charge_processor_merchant_id: "MN7CSWD6RCNJ8") }
+    let(:api_response) { OpenStruct.new(status_code: 200, result: OpenStruct.new(status: "FAILED")) }
+    let(:paypal_rest_api) { instance_double(PaypalRestApi) }
+
+    before do
+      allow(PaypalRestApi).to receive(:new).and_return(paypal_rest_api)
+      allow(paypal_rest_api).to receive(:fetch_refund)
+        .with(refund_id: "8SL48586NM399494P", merchant_account:)
+        .and_return(api_response)
+      allow(paypal_rest_api).to receive(:successful_response?).with(api_response).and_return(true)
+    end
+
+    it "returns the status PayPal reports for the refund" do
+      expect(described_class.fetch_refund_status(processor_refund_id: "8SL48586NM399494P", merchant_account:)).to eq("FAILED")
+    end
+
+    [
+      { name: "NOT_AUTHORIZED", details: [{ issue: "closed_user" }], expected: "closed_user" },
+      { name: "PERMISSION_DENIED", expected: "PERMISSION_DENIED" },
+      { error: "locked_user", expected: "locked_user" },
+      { name: "OTHER", message: "closed_user", expected: "OTHER" }
+    ].each do |body|
+      it "preserves the structured refund read issue #{body[:expected]}" do
+        expected = body[:expected]
+        result = JSON.parse(body.except(:expected).to_json, object_class: OpenStruct)
+        api_response.result = result
+        api_response.status_code = 403
+        allow(paypal_rest_api).to receive(:successful_response?).with(api_response).and_return(false)
+
+        expect do
+          described_class.fetch_refund_status(processor_refund_id: "8SL48586NM399494P", merchant_account:)
+        end.to raise_error(ChargeProcessorInvalidRequestError) { |error| expect(error.processor_error_code).to eq(expected) }
+      end
+    end
+
+    it "raises rather than reporting a status when PayPal does not return the refund" do
+      allow(paypal_rest_api).to receive(:successful_response?).with(api_response).and_return(false)
+
+      expect do
+        described_class.fetch_refund_status(processor_refund_id: "8SL48586NM399494P", merchant_account:)
+      end.to raise_error(ChargeProcessorError)
     end
   end
 

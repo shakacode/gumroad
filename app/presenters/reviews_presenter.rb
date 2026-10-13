@@ -15,15 +15,17 @@ class ReviewsPresenter
           id: review.external_id,
           purchase_id: ObfuscateIds.encrypt(review.purchase_id),
           purchase_email_digest: review.purchase.email_digest,
+          account_name: review.rater_account_name,
           product: product_props(product),
         )
       end,
-      purchases: user.purchases.allowing_reviews_to_be_counted.where.missing(:product_review).joins(:link).merge(Link.visible).preload(:seller, link: [:user, :thumbnail_alive]).order(created_at: :desc).filter_map do |purchase|
+      purchases: user.purchases.not_is_deleted_by_buyer.allowing_reviews_to_be_counted.where.missing(:product_review).joins(:link).merge(Link.visible).preload(:seller, link: [:user, :thumbnail_alive]).order(created_at: :desc).filter_map do |purchase|
         if !purchase.seller.disable_reviews_after_year? || purchase.created_at > 1.year.ago
           product = purchase.link
           {
             id: purchase.external_id,
             email_digest: purchase.email_digest,
+            account_name: purchase.rater_account_name,
             product: product_props(product),
           }
         end

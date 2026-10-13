@@ -7,8 +7,8 @@ import AutoImport from "unplugin-auto-import/vite";
 import { defineConfig, type ResolvedConfig } from "vite";
 import RubyPlugin from "vite-plugin-ruby";
 
-import { manualChunks } from "./config/vite/manual-chunks";
-import { staleModuleGuard } from "./config/vite/stale-module-guard";
+import { manualChunks } from "./config/vite/manual-chunks.ts";
+import { staleModuleGuard } from "./config/vite/stale-module-guard.ts";
 
 const rootPath = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,10 +27,10 @@ function excludePublicRscEntrypoints() {
   return {
     name: "exclude-public-rsc-entrypoints",
     configResolved(config: ResolvedConfig) {
-      const { input } = config.build.rollupOptions;
+      const { input } = config.build.rolldownOptions;
       if (!input || typeof input !== "object" || Array.isArray(input)) return;
 
-      config.build.rollupOptions.input = Object.fromEntries(
+      config.build.rolldownOptions.input = Object.fromEntries(
         Object.entries(input).filter(([, filename]) => !/[\\/]entrypoints[\\/]public_rsc[\\/]/u.test(filename)),
       );
     },
@@ -62,13 +62,9 @@ function sanitizeChunkName(name: string) {
   return BLOCKABLE_NAME_PATTERNS.some((pattern) => pattern.test(name)) ? "third_party_tracking" : name;
 }
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   plugins: [
     RubyPlugin(),
-    // Keep lazy imports and preload URLs relative to the shared entry URL in portable benchmark images.
-    ...(process.env.RAILS_ENV === "benchmark"
-      ? [{ name: "benchmark-relative-assets", config: () => ({ base: "./" }) }]
-      : []),
     excludePublicRscEntrypoints(),
     react(),
     staleModuleGuard(),
@@ -85,9 +81,9 @@ export default defineConfig(({ mode }) => ({
       ],
     }),
     stripCjsExportsPlugin(),
-    // Bundle visualizer — only emitted during production builds.
-    // Run `npx vite build` then open tmp/bundle-stats.html to audit chunk sizes.
-    ...(mode === "production"
+    // Bundle visualizer, opt-in: it adds about a quarter to a production build.
+    // Run `BUNDLE_STATS=1 npx vite build` then open tmp/bundle-stats.html to audit chunk sizes.
+    ...(process.env.BUNDLE_STATS === "1"
       ? [
           visualizer({
             filename: "tmp/bundle-stats.html",

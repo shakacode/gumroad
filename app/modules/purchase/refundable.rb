@@ -145,7 +145,9 @@ class Purchase
                                                 reverse_transfer: !chargedback? || !chargeback_reversed,
                                                 paypal_order_purchase_unit_refund:,
                                                 is_for_fraud:,
-                                                purchase: self)
+                                                purchase: self,
+                                                # Presentment refunds book a pinned canonical amount, so only USD ones may be resized.
+                                                cap_to_unrefunded_amount: is_part_of_combined_charge? && presentment_refund.nil?)
         logger.info("Refunding purchase: #{id} completed with ID: #{charge_refund.id}, Flow of Funds: #{charge_refund.flow_of_funds.to_h}")
         purchase_event = Event.where(purchase_id: id, event_name: "purchase").last
         unless purchase_event.nil?
@@ -164,6 +166,10 @@ class Purchase
                                     canonical_gross_refund_cents: (presentment_refund ? (gross_amount_cents.presence || gross_amount_refundable_cents) : nil),
                                     presentment_refund:,
                                     note: reason)
+        unless refunded
+          ErrorNotifier.notify("Processor refund succeeded but no local refund was recorded",
+                               context: { purchase_id: id, processor_refund_id: charge_refund.id })
+        end
         # When a Gumroad team member (support/admin) refunds a sale on the creator's
         # behalf, tell the creator by email — otherwise they only discover the refund by
         # stumbling on the refunded row in their dashboard. Creator-initiated refunds stay
@@ -193,6 +199,14 @@ class Purchase
         logger.error "Charge processor unavailable in purchase: #{external_id}. Response: #{e.message}"
         errors.add :base, "There is a temporary problem. Try to refund later."
         false
+      rescue StandardError => e
+        # The caller's rollback will discard this purchase's Refund row while the processor refund
+        # stands, so this report is the only record tying the money back to the purchase.
+        if charge_refund
+          ErrorNotifier.notify(e, context: { purchase_id: id, charge_id: stripe_transaction_id, processor_refund_id: charge_refund.id,
+                                             **reported_processor_refund_amount(charge_refund) })
+        end
+        raise
       end
     end
 
@@ -231,8 +245,7 @@ class Purchase
     end
 
     def build_partial_refund(gross_refund_amount: nil, refunding_user_id:)
-      return nil if gross_refund_amount <= 0
-      return nil if gross_refund_amount > gross_amount_refundable_cents
+      return nil unless partial_refund_amount_acceptable?(gross_refund_amount)
 
       creator_tax_cents_refunded = 0
       gumroad_tax_cents_refunded = 0
@@ -273,7 +286,8 @@ class Purchase
   # consistent derivation is possible the refund fails closed rather than booking buyer-currency
   # cents as canonical USD.
   def refund_purchase!(flow_of_funds, refunding_user_id, stripe_refund = nil, is_for_fraud = false,
-                       canonical_gross_refund_cents: nil, presentment_refund: nil, note: nil)
+                       canonical_gross_refund_cents: nil, presentment_refund: nil, note: nil, gumroad_funded: false,
+                       balance_reconciliation_needed: false)
     if buyer_presentment? && canonical_gross_refund_cents.nil?
       derived = derive_presentment_refund_from_flow_of_funds(flow_of_funds)
       return false if derived.blank?
@@ -329,6 +343,9 @@ class Purchase
         end
       end
       refund.is_for_fraud = is_for_fraud
+      refund.gumroad_funded = true if gumroad_funded
+      refund.balance_reconciliation_needed = true if balance_reconciliation_needed
+      skip_seller_balance = gumroad_funded || balance_reconciliation_needed
       # Free-text explanation of why the refund happened (e.g. "Buyer was charged twice").
       # Shown to the creator in the notification email when a team member issued the refund.
       refund.note = note if note.present?
@@ -336,13 +353,15 @@ class Purchase
       self.is_refund_chargeback_fee_waived = !charged_using_gumroad_merchant_account? || is_for_fraud
       mark_giftee_purchase_as_refunded(is_partially_refunded: self.stripe_partially_refunded?) if is_gift_sender_purchase
       subscription.cancel_immediately_if_pending_cancellation! if subscription.present?
-      decrement_balance_for_refund_or_chargeback!(flow_of_funds, refund:) unless chargedback_not_reversed?
+      decrement_balance_for_refund_or_chargeback!(flow_of_funds, refund:) unless chargedback_not_reversed? || skip_seller_balance
       mark_product_purchases_as_refunded!(is_partially_refunded: self.stripe_partially_refunded?)
       save!
-      reverse_the_transfer_made_for_dispute_win! if chargedback? && chargeback_reversed
-      reverse_excess_amount_from_stripe_transfer(refund:) if stripe_partially_refunded && vat_already_refunded
-      debit_processor_fee_from_merchant_account!(refund) unless is_refund_chargeback_fee_waived || chargedback_not_reversed?
-      Credit.create_for_vat_exclusive_refund!(refund:) if (paypal_order_id.present? || merchant_account&.is_a_stripe_connect_account?) && !chargedback_not_reversed?
+      # skip_seller_balance means this refund must not move the seller's money. The dispute-win
+      # transfer is a seller debit, so it stays with the paths that already debit the seller.
+      reverse_the_transfer_made_for_dispute_win!(refund:) if chargedback? && chargeback_reversed && !skip_seller_balance
+      reverse_excess_amount_from_stripe_transfer(refund:) if stripe_partially_refunded && vat_already_refunded && !skip_seller_balance
+      debit_processor_fee_from_merchant_account!(refund) unless is_refund_chargeback_fee_waived || chargedback_not_reversed? || skip_seller_balance
+      Credit.create_for_vat_exclusive_refund!(refund:) if (paypal_order_id.present? || merchant_account&.is_a_stripe_connect_account?) && !chargedback_not_reversed? && !skip_seller_balance
       subscription.original_purchase.update!(should_exclude_product_review: true) if subscription&.should_exclude_product_review_on_charge_reversal?
       send_refunded_notification_webhook
       if partially_refunded_previously || self.stripe_partially_refunded
@@ -418,7 +437,7 @@ class Purchase
     end
   end
 
-  def refund_gumroad_taxes!(refunding_user_id:, note: nil, business_vat_id: nil)
+  def refund_gumroad_taxes!(refunding_user_id:, note: nil, business_vat_id: nil, vat_exempt_territory: false)
     gumroad_tax_refundable_cents = self.gumroad_tax_refundable_cents
     if stripe_refunded || gumroad_tax_refundable_cents <= 0
       # Populate a user-facing message so callers that render errors.full_messages
@@ -498,6 +517,7 @@ class Purchase
         # Store VAT ID on subscription so future recurring charges are automatically VAT-exempt.
         # Use the pre-reload instance: callers may hold it and read business_vat_id in memory.
         subscription_to_update&.update_business_vat_id!(business_vat_id) if business_vat_id.present?
+        subscription_to_update&.mark_vat_exempt_territory! if vat_exempt_territory
       end
       true
     rescue ChargeProcessorAlreadyRefundedError => e
@@ -605,16 +625,33 @@ class Purchase
     true
   end
 
+  # Stricter than refund_purchase! for a full refund: build_refund's full-refund branches skip the amount check.
+  def refund_recordable_from?(flow_of_funds)
+    issued_amount = flow_of_funds&.issued_amount
+    return false if issued_amount.nil?
+
+    gross_cents = buyer_presentment? ? presentment_refund_from_flow_of_funds(flow_of_funds)&.canonical_gross_refund_cents : issued_amount.cents.abs
+    gross_cents.present? && partial_refund_amount_acceptable?(gross_cents)
+  end
+
+  def partial_refund_amount_acceptable?(gross_refund_cents)
+    gross_refund_cents.positive? && gross_refund_cents <= gross_amount_refundable_cents
+  end
+
+  def presentment_refund_from_flow_of_funds(flow_of_funds)
+    issued_amount = flow_of_funds&.issued_amount
+    return unless issued_amount&.currency.to_s.downcase == purchase_presentment.presentment_currency.to_s.downcase
+
+    Purchase::PresentmentRefund.from_presentment_amount(purchase: self, presentment_amount_cents: issued_amount.cents.abs)
+  end
+
   # Derives the canonical refund amount + presentment snapshot for a refund that arrived with
   # only a buyer-currency flow of funds (refund webhooks, settlement declines). Returns nil —
   # and notifies — when the flow of funds is not in the presentment currency or no consistent
   # derivation is possible, so the caller fails closed.
   def derive_presentment_refund_from_flow_of_funds(flow_of_funds)
     issued_amount = flow_of_funds&.issued_amount
-    derived = if issued_amount&.currency.to_s.downcase == purchase_presentment.presentment_currency.to_s.downcase
-      Purchase::PresentmentRefund.from_presentment_amount(purchase: self,
-                                                          presentment_amount_cents: issued_amount.cents.abs)
-    end
+    derived = presentment_refund_from_flow_of_funds(flow_of_funds)
     return derived if derived.present?
 
     errors.add :base, BUYER_PRESENTMENT_REFUND_ERROR_MESSAGE
@@ -652,6 +689,21 @@ class Purchase
   end
 
   private
+    # Stripe reports the refunded amount in minor units; a PayPal order refund returns a money
+    # object instead (`value` is a decimal string), so scale it and report the currency it was
+    # refunded in rather than passing the object off as cents.
+    def reported_processor_refund_amount(charge_refund)
+      reported_amount = charge_refund.refund.try(:amount)
+      if reported_amount.respond_to?(:value) && reported_amount.value.present?
+        { processor_refund_amount_cents: (BigDecimal(reported_amount.value.to_s) * unit_scaling_factor(reported_amount.currency_code)).to_i,
+          processor_refund_currency: reported_amount.currency_code.to_s.downcase }
+      else
+        # Accounting amounts can be synthetic USD, so leave missing processor details unknown.
+        { processor_refund_amount_cents: reported_amount,
+          processor_refund_currency: charge_refund.refund.try(:currency)&.to_s&.downcase }
+      end
+    end
+
     def refundable_amounts
       amounts_query = "COALESCE(SUM(total_transaction_cents), 0) AS tt_cents, COALESCE(SUM(amount_cents), 0) AS p_cents, " \
                         "COALESCE(SUM(creator_tax_cents), 0) AS ct_cents, COALESCE(SUM(gumroad_tax_cents), 0) as gt_cents," \
@@ -668,13 +720,33 @@ class Purchase
         gumroad_tax_cents: (gumroad_tax_cents - existing_refunds.gt_cents) }
     end
 
-    def reverse_the_transfer_made_for_dispute_win!
+    def reverse_the_transfer_made_for_dispute_win!(refund:)
       return unless merchant_account&.holder_of_funds == HolderOfFunds::STRIPE
       return unless dispute&.won_at.present?
 
       transfers = Stripe::Transfer.list({ destination: merchant_account.charge_processor_merchant_id, created: { gte: dispute.won_at.to_i - 60000 },  limit: 100 })
       transfer = transfers.select { |tr| tr["description"]&.include?("Dispute #{dispute.charge_processor_dispute_id} won") }.first
-      Stripe::Transfer.create_reversal(transfer.id, { amount: amount_refundable_cents }) if transfer.present?
+      return if transfer.blank?
+
+      # The dispute-win transfer holds the seller's share of the whole charge. Reverse the share of
+      # every refund that debited the seller, less what is already reversed: tax-only refunds and
+      # refunds that did not debit the seller then add nothing, and each refund corrects rounding.
+      purchases = charge ? charge.successful_purchases.to_a : [self]
+      refunds = Refund.where(purchase_id: purchases.map(&:id)).select(&:effective?)
+      exempt, debited = refunds.partition { _1.gumroad_funded || _1.balance_reconciliation_needed }
+      debited_cents = debited.sum { _1.total_transaction_cents - _1.gumroad_tax_cents.to_i }
+      base_cents = purchases.sum { _1.total_transaction_cents - _1.gumroad_tax_cents.to_i }
+      return unless base_cents.positive?
+
+      target = if exempt.empty? && purchases.all?(&:stripe_refunded?)
+        transfer.amount
+      else
+        [(transfer.amount * debited_cents / base_cents.to_r).round, transfer.amount].min
+      end
+      amount = target - transfer.amount_reversed.to_i
+      return unless amount.positive?
+
+      Stripe::Transfer.create_reversal(transfer.id, { amount: }, { idempotency_key: "dispute_win_reversal_#{refund.processor_refund_id || refund.id}" })
     end
 
     # Stripe collection waits for the OUTERMOST commit: Charge#refund_and_save! wraps several
@@ -753,12 +825,22 @@ class Purchase
       end
       return unless amount_to_reverse_cents.positive?
 
-      existing_reversal = transfer.reversals.data.find { |reversal| reversal.source_refund == refund.processor_refund_id }
+      # A retry can find its earlier reversal beyond the ten embedded results, so search every page.
+      existing_reversal = StripeChargeProcessor.each_refund_fee_reversal(transfer.reversals).find do |reversal|
+        reversal.source_refund == refund.processor_refund_id ||
+          StripeChargeProcessor.external_refund_reversal_for?(reversal, refund.processor_refund_id)
+      end
       amount_already_reversed_cents = existing_reversal&.amount&.abs || 0
 
       return unless amount_already_reversed_cents < amount_to_reverse_cents
 
-      reversal_amount_cents = amount_to_reverse_cents - amount_already_reversed_cents
+      # Reversals not tied to this refund — a dispute withdrawal, an earlier refund on the same
+      # charge — still consume the transfer's reversibility, so the request has to fit in what
+      # Stripe has left.
+      transfer_cents_available_to_reverse = transfer.amount.to_i - transfer.amount_reversed.to_i
+      reversal_amount_cents = [amount_to_reverse_cents - amount_already_reversed_cents,
+                               transfer_cents_available_to_reverse].min
+      return unless reversal_amount_cents.positive?
 
       # Gumroad's ledger stays in USD regardless of the transfer's currency, so the credit's
       # canonical leg comes from the USD figure rather than by converting the reversal amount
@@ -773,7 +855,16 @@ class Purchase
           (canonical_amount_cents * reversal_amount_cents.to_d / amount_to_reverse_cents).round
         end
 
-      transfer_reversal = Stripe::Transfer.create_reversal(transfer.id, { amount: reversal_amount_cents })
+      transfer_reversal = begin
+        Stripe::Transfer.create_reversal(transfer.id, { amount: reversal_amount_cents })
+      rescue Stripe::InvalidRequestError => e
+        # Stripe has already taken the refund, so letting this out rolls the refund bookkeeping
+        # back; nothing is owed once the transfer is fully reversed.
+        raise unless e.message.match?(/already fully reversed/i)
+
+        ErrorNotifier.notify(e, context: { purchase_id: id, refund_id: refund.id, transfer_id: transfer.id })
+        return
+      end
 
       destination_refund = Stripe::Refund.retrieve(transfer_reversal.destination_payment_refund,
                                                    stripe_account: refund.purchase.merchant_account.charge_processor_merchant_id)

@@ -36,6 +36,35 @@ describe UrlRedirectsController, inertia: true do
       expect(inertia.props).to include(expected_props)
     end
 
+    describe "expired stamped PDFs" do
+      let(:stampable_file) { create(:pdf_product_file, link: @product, pdf_stamp_enabled: true) }
+
+      # Expiry is deliberate (ExpireStampedPdfsJob bounds the per-purchase duplicate copies), but
+      # a stream_only file has no Download click to restamp one, so the page has to recover it.
+      it "restamps an expired stamped PDF so the row keeps its actions" do
+        stamped_pdf = create(:stamped_pdf, url_redirect: @url_redirect, product_file: stampable_file)
+        stamped_pdf.mark_deleted!
+
+        get :download_page, params: { id: @token }
+
+        expect(StampPdfForPurchaseJob).to have_enqueued_sidekiq_job(@url_redirect.purchase_id)
+      end
+
+      it "does not restamp while the stamped PDF is alive" do
+        create(:stamped_pdf, url_redirect: @url_redirect, product_file: stampable_file)
+
+        get :download_page, params: { id: @token }
+
+        expect(StampPdfForPurchaseJob).not_to have_enqueued_sidekiq_job
+      end
+
+      it "does not restamp a file whose stamped PDF was never created" do
+        get :download_page, params: { id: @token }
+
+        expect(StampPdfForPurchaseJob).not_to have_enqueued_sidekiq_job
+      end
+    end
+
     context "with access revoked for purchase" do
       before do
         @url_redirect.purchase.update!(is_access_revoked: true)
@@ -430,21 +459,68 @@ describe UrlRedirectsController, inertia: true do
           end
         end
 
-        context "when the purchaser claimed the parent but not the members" do
-          # add-to-library attaches only the purchase it is given, so claiming a bundle parent
-          # leaves the members unclaimed and out of the claiming account's library. Counting them
-          # as the claimer's (`purchaser_id: [id, nil]`) would redirect here, to nothing.
+        context "when the purchaser claims the bundle parent" do
+          # Claiming the parent also claims same-email members, so the library has the rows
+          # this redirect points at. A parent attached without that callback is the context below.
+          let(:purchase) { create(:purchase, link: create(:product, :bundle), is_bundle_purchase: true) }
+
           before do
             buyer = create(:user, email: purchase.email)
             purchase.update!(purchaser: buyer)
             sign_in buyer
           end
 
-          it "renders the download page instead of redirecting to an empty filtered library" do
+          it "attaches the members and redirects to the filtered library" do
+            expect(purchase.product_purchases.reload.map(&:purchaser_id).uniq).to eq([purchase.purchaser_id])
+
+            get :download_page, params: { id: purchase.url_redirect.token }
+
+            expect(response).to redirect_to(library_url({ bundles: purchase.link.external_id, host: DOMAIN, protocol: PROTOCOL }))
+          end
+        end
+
+        context "when only the bundle parent was attached" do
+          let(:purchase) { create(:purchase, link: create(:product, :bundle), is_bundle_purchase: true) }
+
+          before do
+            buyer = create(:user, email: purchase.email)
+            # Bypass the claim callback so this stays the historical row: parent attached, members not.
+            purchase.update_columns(purchaser_id: buyer.id)
+            sign_in buyer
+          end
+
+          it "lists each unclaimed member instead of an empty download page" do
             get :download_page, params: { id: purchase.url_redirect.token }
 
             expect(response).to have_http_status(:ok)
             expect(response).to_not be_redirect
+            bundle_products = inertia.props.dig(:content, :bundle_products)
+            expect(bundle_products.map { _1[:url] })
+              .to match_array(purchase.product_purchases.map { _1.url_redirect.download_page_url })
+          end
+
+          it "does not list a member that already belongs to another account" do
+            taken = purchase.product_purchases.first
+            taken.update_columns(purchaser_id: create(:user).id)
+
+            get :download_page, params: { id: purchase.url_redirect.token }
+
+            urls = inertia.props.dig(:content, :bundle_products).map { _1[:url] }
+            expect(urls).not_to include(taken.url_redirect.download_page_url)
+            expect(urls).to match_array(purchase.product_purchases.where(purchaser_id: nil).map { _1.url_redirect.download_page_url })
+          end
+
+          it "does not list an unclaimed member whose email does not match" do
+            mismatched = purchase.product_purchases.first
+            mismatched.update_columns(email: "other@example.com")
+
+            get :download_page, params: { id: purchase.url_redirect.token }
+
+            urls = inertia.props.dig(:content, :bundle_products).map { _1[:url] }
+            expect(urls).not_to include(mismatched.url_redirect.download_page_url)
+            expect(urls).to match_array(
+              purchase.product_purchases.where.not(id: mismatched.id).map { _1.url_redirect.download_page_url }
+            )
           end
         end
       end
@@ -460,6 +536,12 @@ describe UrlRedirectsController, inertia: true do
         it "renders add to library" do
           get :download_page, params: { id: @token }
           expect(inertia.props[:add_to_library_option]).to eq "add_to_library_button"
+        end
+
+        it "does not offer add to library to the seller of a customer's purchase" do
+          sign_in @product.user
+          get :download_page, params: { id: @token }
+          expect(inertia.props[:add_to_library_option]).to eq "none"
         end
       end
 
@@ -1005,6 +1087,81 @@ describe UrlRedirectsController, inertia: true do
       it "redirects to confirm page with correct parameters" do
         get :download_page, params: { id: @url_redirect.token, display: "mobile_app" }
         expect(response).to redirect_to(confirm_page_path(id: @url_redirect.token, destination: "download_page", display: "mobile_app"))
+      end
+    end
+
+    describe "seller's own test purchase" do
+      let(:seller) { @product.user }
+
+      before do
+        @url_redirect.purchase.update!(purchaser: seller, email: seller.email, purchase_state: "test_successful")
+        @url_redirect.update!(has_been_seen: true)
+        @request.remote_ip = @url_redirect.purchase.ip_address
+        cookies.encrypted[:confirmed_redirect] = @token
+      end
+
+      it "sends a visitor to app-domain login even with the confirmation cookie and the purchase IP" do
+        get :download_page, params: { id: @token }
+        expect(response).to redirect_to(login_url(next: request.fullpath, host: DOMAIN, protocol: PROTOCOL))
+      end
+
+      it "404s for another signed-in user instead of offering the purchase claim" do
+        sign_in create(:user)
+        expect { get :download_page, params: { id: @token } }.to raise_error(ActionController::RoutingError)
+      end
+
+      it "404s for a mobile API token belonging to another user" do
+        other = create(:user)
+        token = create("doorkeeper/access_token", application: create(:oauth_application, owner: other), resource_owner_id: other.id, scopes: "mobile_api")
+        expect do
+          get :download_page, params: { id: @token, access_token: token.token, mobile_token: Api::Mobile::BaseController::MOBILE_TOKEN }
+        end.to raise_error(ActionController::RoutingError)
+      end
+
+      it "lets a team member in" do
+        sign_in create(:admin_user)
+        get :download_page, params: { id: @token }
+        expect(response).to be_successful
+      end
+
+      it "does not let another user claim the purchase with the seller's email" do
+        sign_in create(:user)
+        expect do
+          post :change_purchaser, params: { id: @token, email: seller.email }
+        end.to raise_error(ActionController::RoutingError)
+        expect(@url_redirect.purchase.reload.purchaser).to eq(seller)
+      end
+
+      it "does not return media URLs to a visitor" do
+        get :media_urls, params: { id: @token, file_ids: [@product.product_files.first.external_id] }, format: :json
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "does not start a rental when a visitor requests the stream manifest" do
+        @url_redirect.update!(is_rental: true)
+
+        expect do
+          get :smil, params: { id: @token, product_file_id: @product.product_files.first.external_id }
+        end.to raise_error(ActionController::RoutingError)
+
+        expect(@url_redirect.reload.rental_first_viewed_at).to be_nil
+      end
+
+      it "starts a rental when the signed-in seller requests the stream manifest" do
+        @url_redirect.update!(is_rental: true)
+        sign_in seller
+        allow_any_instance_of(UrlRedirect).to receive(:smil_xml_for_product_file).and_return("<smil/>")
+
+        get :smil, params: { id: @token, product_file_id: @product.product_files.first.external_id }
+
+        expect(response).to be_successful
+        expect(@url_redirect.reload.rental_first_viewed_at).to be_present
+      end
+
+      it "lets the signed-in seller in" do
+        sign_in seller
+        get :download_page, params: { id: @token }
+        expect(response).to be_successful
       end
     end
 
@@ -1762,6 +1919,18 @@ describe UrlRedirectsController, inertia: true do
         expect(response).to redirect_to(url_redirect.download_page_url)
         expect(flash[:warning]).to eq("We are preparing the file for download. You will receive an email when it is ready.")
         expect(StampPdfForPurchaseJob).to have_enqueued_sidekiq_job(url_redirect.purchase_id, true).on("critical")
+        expect(PdfStampingService.buyer_notification_requested?(url_redirect.purchase_id)).to be(true)
+      end
+
+      it "does not return a signed original URL for a JSON download" do
+        product_file = create(:readable_document, link: @product, pdf_stamp_enabled: true)
+        allow_any_instance_of(UrlRedirect).to receive(:signed_location_for_file).and_return("https://example.com/unstamped.pdf")
+
+        get :download_product_files, format: :json, params: { id: @token, product_file_ids: [product_file.external_id] }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error"]).to eq("We are preparing the file for download. You will receive an email when it is ready.")
+        expect(response.body).not_to include("unstamped.pdf")
       end
 
       context "when accessed via custom domain", type: :request do
@@ -2445,6 +2614,20 @@ describe UrlRedirectsController, inertia: true do
       expect { post :confirm, params: { id: @token, email: nil } }.not_to raise_error
       expect(response).to redirect_to confirm_page_path(id: @url_redirect.token)
     end
+
+    it "does not accept the purchase email for the seller's own test purchase" do
+      seller = @product.user
+      @url_redirect.purchase.update!(purchaser: seller, email: seller.email, purchase_state: "test_successful")
+
+      post :confirm, params: { id: @token, email: seller.email, destination: "download_page" }
+
+      expect(response).to redirect_to(login_url(next: confirm_page_path(id: @token, destination: "download_page"), host: DOMAIN, protocol: PROTOCOL))
+      expect(cookies.encrypted[:confirmed_redirect]).to be_nil
+
+      sign_in seller
+      post :confirm, params: { id: @token, email: seller.email, destination: "download_page" }
+      expect(response).to redirect_to(url_redirect_download_page_path(@token))
+    end
   end
 
   describe "GET send_to_kindle" do
@@ -2452,6 +2635,18 @@ describe UrlRedirectsController, inertia: true do
     let(:purchase) { create(:purchase, link: product) }
     let!(:url_redirect) { create(:url_redirect, link: product, purchase:) }
     let(:product_file) { product.product_files.alive.last }
+
+    it "refuses the seller's own test purchase unless the seller is signed in" do
+      purchase.update!(purchaser: product.user, email: product.user.email, purchase_state: "test_successful")
+      params = { id: url_redirect.token, file_external_id: product_file.external_id, email: "dude@kindle.com" }
+
+      post(:send_to_kindle, params:)
+      expect(response).to have_http_status(:not_found)
+
+      sign_in product.user
+      post(:send_to_kindle, params:)
+      expect(response.parsed_body["success"]).to eq(true)
+    end
 
     it "queues send_to_kindle for a valid kindle email and creates consumption event" do
       expect do
@@ -2765,6 +2960,33 @@ describe UrlRedirectsController, inertia: true do
           expect(inertia.props[:latest_media_location]).to be_nil
         end
 
+        it "does not sign the original PDF while the stamp is missing" do
+          product_file = create(:readable_document, link: @product, pdf_stamp_enabled: true)
+
+          get :read, params: { id: @token, product_file_id: product_file.external_id }
+
+          expect(response).to redirect_to(@url_redirect.download_page_url)
+          expect(flash[:warning]).to eq("We are preparing the file for download. You will receive an email when it is ready.")
+          expect(StampPdfForPurchaseJob).to have_enqueued_sidekiq_job(@purchase.id, true).on("critical")
+          expect(PdfStampingService.buyer_notification_requested?(@purchase.id)).to be(true)
+          expect(response.body).not_to include("billion-dollar-company-chapter-0.pdf")
+        end
+
+        it "signs the stamped copy instead of the original upload" do
+          product_file = create(:readable_document, link: @product, pdf_stamp_enabled: true)
+          stamped = create(:stamped_pdf, url_redirect: @url_redirect, product_file:)
+          allow_any_instance_of(UrlRedirectsController).to receive(:signed_download_url_for_s3_key_and_filename) do |_controller, key, _filename, **|
+            "https://signed.example/#{key}"
+          end
+
+          get :read, params: { id: @token, product_file_id: product_file.external_id }
+
+          expect(response).to be_successful
+          expect(inertia.props[:url]).to include("manual_stamped.pdf")
+          expect(inertia.props[:url]).not_to include("billion-dollar-company-chapter-0.pdf")
+          expect(inertia.props[:url]).to include(stamped.s3_key)
+        end
+
         it "creates the proper consumption event" do
           get :read, params: { id: @token, product_file_id: @product.product_files.first.external_id }
           expect(ConsumptionEvent.count).to eq 1
@@ -2921,6 +3143,40 @@ describe UrlRedirectsController, inertia: true do
 
       expect(response).to redirect_to(url_redirect_check_purchaser_path(@token, next: "/r/#{@token}"))
       expect(flash[:alert]).to eq("This purchase is under review and cannot be moved to another account. Please contact support for help.")
+    end
+
+    it "does not move a customer's purchase into the seller's account" do
+      buyer = create(:user, email: @url_redirect.purchase.email)
+      @url_redirect.purchase.update!(purchaser: buyer)
+
+      expect do
+        sign_in @product.user
+        post :change_purchaser, params: { id: @token, next: "/r/#{@token}", email: @url_redirect.purchase.email }
+      end.not_to change { @url_redirect.purchase.reload.purchaser }
+
+      expect(response).to redirect_to(url_redirect_check_purchaser_path(@token, next: "/r/#{@token}"))
+      expect(flash[:alert]).to eq("This is your customer's purchase, so it can't be moved into your account.")
+    end
+
+    it "does not let the seller take a buyer's purchase that was made with the seller's email" do
+      buyer = create(:user)
+      @url_redirect.purchase.update!(email: @product.user.email, purchaser: buyer)
+
+      expect do
+        sign_in @product.user
+        post :change_purchaser, params: { id: @token, next: "/r/#{@token}", email: @product.user.email }
+      end.not_to change { @url_redirect.purchase.reload.purchaser }
+
+      expect(flash[:alert]).to eq("This is your customer's purchase, so it can't be moved into your account.")
+    end
+
+    it "lets the seller claim a signed-out checkout made with their own email" do
+      @url_redirect.purchase.update!(email: @product.user.email)
+
+      expect do
+        sign_in @product.user
+        post :change_purchaser, params: { id: @token, next: "/r/#{@token}", email: @product.user.email }
+      end.to change { @url_redirect.purchase.reload.purchaser }.to(@product.user)
     end
   end
 

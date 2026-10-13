@@ -59,7 +59,7 @@ const sortTitles = {
 
 const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title: string }) => {
   const [active, setActive] = React.useState(0);
-  const { itemsRef, handleScroll } = useScrollableCarousel(active, setActive);
+  const { itemsRef, handleScroll, getPreviousIndex } = useScrollableCarousel(active, setActive);
   const [dragStart, setDragStart] = React.useState<number | null>(null);
 
   return (
@@ -67,10 +67,7 @@ const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title:
       <header className="flex items-center justify-between">
         <h2>{title}</h2>
         <div className="flex items-center gap-2">
-          <button
-            className="cursor-pointer all-unset"
-            onClick={() => setActive((active + products.length - 1) % products.length)}
-          >
+          <button className="cursor-pointer all-unset" onClick={() => setActive(getPreviousIndex(products.length))}>
             <ArrowLeft className="size-6" />
           </button>
           {active + 1} / {products.length}
@@ -84,7 +81,7 @@ const ProductsCarousel = ({ products, title }: { products: CardProduct[]; title:
       </header>
       <div className="relative">
         <div
-          className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden"
+          className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[44rem] [&::-webkit-scrollbar]:hidden"
           ref={itemsRef}
           style={{ scrollSnapType: dragStart != null ? "none" : undefined }}
           onScroll={handleScroll}
@@ -114,7 +111,7 @@ const ProductsCarouselSkeleton = () => (
     <header>
       <h2>Featured products</h2>
     </header>
-    <div className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[40rem] [&::-webkit-scrollbar]:hidden">
+    <div className="override grid min-h-96 auto-cols-[min(20rem,60vw)] grid-flow-col gap-6 overflow-x-auto pb-1 [scrollbar-width:none] lg:auto-cols-[44rem] [&::-webkit-scrollbar]:hidden">
       {Array.from({ length: 3 }, (_, index) => (
         <Skeleton key={index} className="h-96" />
       ))}
@@ -122,12 +119,11 @@ const ProductsCarouselSkeleton = () => (
   </section>
 );
 
-const BlackFridayBanner = ({
+// Exported for tests.
+export const BlackFridayBanner = ({
   stats,
-  currencyCode,
 }: {
   stats: { active_deals_count: number; revenue_cents: number; average_discount_percentage: number };
-  currencyCode: CurrencyCode;
 }) => (
   <div className="flex h-full shrink-0 items-center gap-x-4 [&>*]:flex-shrink-0">
     <span className="mx-2 inline-block text-lg text-black">✦</span>
@@ -147,7 +143,7 @@ const BlackFridayBanner = ({
         <span className="mx-2 inline-block text-lg text-black">✦</span>
         <span className="flex items-center text-xl font-medium text-black">
           <span className="mr-1.5 font-bold">
-            {formatPriceCentsWithCurrencySymbol(currencyCode, stats.revenue_cents, { symbolFormat: "short" })}
+            {formatPriceCentsWithCurrencySymbol("usd", stats.revenue_cents, { symbolFormat: "short" })}
           </span>
           IN SALES SO FAR
         </span>
@@ -424,9 +420,7 @@ function DiscoverIndex() {
                   <>
                     {(() => {
                       const stats = props.black_friday_stats;
-                      return Array.from({ length: 5 }, (_, i) => (
-                        <BlackFridayBanner key={i} stats={stats} currencyCode={props.currency_code} />
-                      ));
+                      return Array.from({ length: 5 }, (_, i) => <BlackFridayBanner key={i} stats={stats} />);
                     })()}
                   </>
                 ) : null}

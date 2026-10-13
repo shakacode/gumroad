@@ -6,6 +6,13 @@ class Purchase::CreateService < Purchase::BaseService
   RESERVED_URL_PARAMETERS = %w[code wanted referrer email as_modal as_embed debug affiliate_id].freeze
   INVENTORY_LOCK_ACQUISITION_TIMEOUT = 50.seconds
 
+  # The checkout receipt renders line errors as HTML, so the link is built with an escaping helper.
+  # Opens in a new tab so the receipt for the rest of the order stays on screen.
+  def self.restart_not_requested_message(product)
+    link = ActionController::Base.helpers.link_to("product page", product.long_url, target: "_blank", rel: "noopener noreferrer")
+    "You weren't charged for this membership. To rejoin, visit its #{link}.".html_safe
+  end
+
   attr_reader :product, :params, :purchase_params, :gift_params, :buyer
   attr_accessor :purchase, :gift
 
@@ -16,6 +23,7 @@ class Purchase::CreateService < Purchase::BaseService
     @gift_params = params[:gift].presence
     @buyer = buyer
     @force_new_subscription = !!params[:force_new_subscription]
+    @restart_intent = params[:restart_intent]
   end
 
   def perform
@@ -101,7 +109,10 @@ class Purchase::CreateService < Purchase::BaseService
           excluded_permalinks = purchase.offer_code.excluded_products.pluck(:unique_permalink)
           valid_items.reject { excluded_permalinks.include?(_1[:permalink]) }
         else
-          valid_items.filter { purchase.offer_code.products.find_by(unique_permalink: _1[:permalink]).present? }
+          valid_items = valid_items.filter do |item|
+            link = purchase.offer_code.products.find_by(unique_permalink: item[:permalink])
+            link.present? && purchase.offer_code.applicable_to_variants?(link, item[:variants])
+          end
         end
         if valid_items.map { _1[:price_cents].to_i }.sum < purchase.offer_code.minimum_amount_cents
           raise Purchase::PurchaseInvalid, "Sorry, you have not met the offer code's minimum amount."
@@ -142,18 +153,21 @@ class Purchase::CreateService < Purchase::BaseService
 
       locked_listed_rate = listed_currency_rate_hint(purchase)
 
-      if params[:tip_cents].present? && params[:tip_cents] > 0
+      # Some clients submit cents as strings ("100"); normalize before the numeric comparisons below.
+      submitted_tip_cents = params[:tip_cents].to_i
+
+      if submitted_tip_cents > 0
         raise Purchase::PurchaseInvalid, "Tip is not allowed for this product" unless purchase.seller.tipping_enabled? && product.not_is_tiered_membership?
 
-        raise Purchase::PurchaseInvalid, "Tip is too large for this purchase" if (purchase_params[:perceived_price_cents].ceil - params[:tip_cents].floor) < purchase.minimum_paid_price_cents
+        raise Purchase::PurchaseInvalid, "Tip is too large for this purchase" if (purchase_params[:perceived_price_cents].ceil - submitted_tip_cents) < purchase.minimum_paid_price_cents
 
         # Listed-currency tip_cents must convert at the quote's locked rate, the same
         # rate prepare_for_charge! uses. A live-rate read here makes the submitted USD
         # tip miss the signed split by more than rounding slack and fail-closes as
         # buyer_currency_quote_invalid.
         purchase.build_tip(
-          value_cents: params[:tip_cents],
-          value_usd_cents: get_usd_cents(product.price_currency_type, params[:tip_cents], rate: locked_listed_rate)
+          value_cents: submitted_tip_cents,
+          value_usd_cents: get_usd_cents(product.price_currency_type, submitted_tip_cents, rate: locked_listed_rate)
         )
       end
       purchase.buyer_currency_quote_canonical_components = buyer_currency_quote_canonical_components_hint(purchase)
@@ -360,7 +374,25 @@ class Purchase::CreateService < Purchase::BaseService
         end
       end
 
-      # Then check for restartable subscriptions
+      # Then check for lapsed subscriptions. Every deactivated one counts, not only restartable
+      # ones: an ended or admin-cancelled membership would otherwise fall through and charge a
+      # brand-new subscription from a stale cart line.
+      lapsed_subscription = (
+        buyer.present? ?
+          Subscription.lapsed_for_product_and_buyer(product:, buyer:) :
+          Subscription.lapsed_for_product_and_email(product:, email: purchase_params[:email])
+      ).order(:deactivated_at, :id).last
+      return nil unless lapsed_subscription.present?
+
+      # Skipping the restart is not enough: the line would fall through and buy a second
+      # subscription at today's price, so the line is refused before anything is charged.
+      unless Checkout::RestartIntentToken.restart_intended?(@restart_intent, product:, buyer:, lapsed_at: lapsed_subscription.deactivated_at)
+        Rails.logger.info(
+          "Refused cart checkout of lapsed membership: subscription_id=#{lapsed_subscription.id} product_id=#{product.id}"
+        )
+        return nil, self.class.restart_not_requested_message(product)
+      end
+
       restartable_subscription = buyer.present? ?
         Subscription.restartable_for_product_and_buyer(product:, buyer:) :
         Subscription.restartable_for_product_and_email(product:, email: purchase_params[:email])
@@ -399,7 +431,13 @@ class Purchase::CreateService < Purchase::BaseService
       raise Purchase::PurchaseInvalid, "Gift purchases cannot be on installment plans." if params[:pay_in_installments]
 
       if product.can_gift?
-        gift = product.gifts.build(giftee_email:, gift_note: gift_params[:gift_note], gifter_email: params[:purchase][:email], is_recipient_hidden: gift_params[:giftee_email].blank?)
+        gift = product.gifts.build(
+          giftee_email:,
+          gift_note: gift_params[:gift_note],
+          gifter_email: params[:purchase][:email],
+          is_recipient_hidden: gift_params[:giftee_email].blank?,
+          is_gifter_hidden: ActiveRecord::Type::Boolean.new.cast(gift_params[:hide_gifter]),
+        )
         error_message = gift.save ? nil : gift.errors.full_messages[0]
         raise Purchase::PurchaseInvalid, error_message if error_message.present?
 
@@ -453,8 +491,12 @@ class Purchase::CreateService < Purchase::BaseService
     def validate_bundle_products
       return unless product.is_bundle?
 
+      # Not every client echoes the bundle contents back (the checkout page always does), so an
+      # absent key is a contents mismatch, not a reason to raise.
+      submitted_bundle_products = params[:bundle_products] || []
+
       product.bundle_products.alive.each do |bundle_product|
-        if params[:bundle_products].none? { _1[:product_id] == bundle_product.product.external_id && _1[:variant_id] == bundle_product.variant&.external_id && _1[:quantity].to_i == bundle_product.quantity }
+        if submitted_bundle_products.none? { _1[:product_id] == bundle_product.product.external_id && _1[:variant_id] == bundle_product.variant&.external_id && _1[:quantity].to_i == bundle_product.quantity }
           raise Purchase::PurchaseInvalid, "The bundle's contents have changed. Please refresh the page!"
         end
 
@@ -577,7 +619,13 @@ class Purchase::CreateService < Purchase::BaseService
     end
 
     def giftee_purchaser
-      @_giftee_purchaser ||= gift_params[:giftee_id].present? ? User.alive.find_by_external_id(gift_params[:giftee_id]) : User.alive.by_email(gift_params[:giftee_email]).last
+      @_giftee_purchaser ||= if gift_params[:giftee_id].present?
+        User.alive.find_by_external_id(gift_params[:giftee_id])
+      else
+        # Same rule as set_purchaser_for: an unconfirmed account may not own the address.
+        user = User.alive.by_email(gift_params[:giftee_email]).last
+        user if user&.confirmed?
+      end
     end
 
     def giftee_email
@@ -612,6 +660,9 @@ class Purchase::CreateService < Purchase::BaseService
         purchase.purchaser = buyer unless purchase.is_gift_receiver_purchase
       else
         user_from_email = User.find_by(email: purchase_email)
+        # Anyone can sign up with an address they do not own. Confirmation attaches these
+        # purchases later through AttachPastPurchasesToUserWorker.
+        user_from_email = nil unless user_from_email&.confirmed?
         # This limits test purchase to be done in logged out mode
         if purchase.link.user != user_from_email
           purchase.purchaser = user_from_email

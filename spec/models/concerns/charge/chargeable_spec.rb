@@ -62,6 +62,47 @@ describe Charge::Chargeable do
         expect(Charge::Chargeable.find_by_stripe_event(event)).to eq(charge)
       end
     end
+
+    describe "database role" do
+      # Workers read the replica, and Stripe delivers seconds after the write. A replica
+      # read here resolves a live charge to nil, which both call sites drop as "not ours".
+      def roles_used_while_resolving(event)
+        roles = []
+        subscriber = lambda do |*, payload|
+          next if payload[:name] == "SCHEMA" || payload[:cached] || !payload[:sql].match?(/\ASELECT/i)
+          pin = ApplicationRecord.connected_to_stack.reverse.find { |entry| entry[:klasses]&.include?(ApplicationRecord) }
+          roles << [payload[:sql], pin&.fetch(:role)]
+        end
+
+        ApplicationRecord.uncached do
+          ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+            Charge::Chargeable.find_by_stripe_event(event)
+          end
+        end
+        roles
+      end
+
+      it "resolves a combined charge on the primary" do
+        create(:charge, id: 22345)
+        event = build(:charge_event_dispute_formalized, charge_reference: "CH-22345")
+
+        reads = roles_used_while_resolving(event)
+
+        expect(reads.map(&:first).join("\n")).to include("FROM `charges`")
+        expect(reads.map(&:last)).to all(eq(:writing))
+      end
+
+      it "resolves a purchase on the primary" do
+        purchase = create(:purchase, stripe_transaction_id: "ch_22345")
+        event = build(:charge_event_dispute_formalized, charge_reference: nil, charge_id: "ch_22345")
+
+        reads = roles_used_while_resolving(event)
+
+        expect(reads.map(&:first).join("\n")).to include("FROM `purchases`")
+        expect(reads.map(&:last)).to all(eq(:writing))
+        expect(Charge::Chargeable.find_by_stripe_event(event)).to eq(purchase)
+      end
+    end
   end
 
   describe ".find_by_processor_transaction_id!" do
@@ -420,18 +461,6 @@ describe Charge::Chargeable do
   end
 
   describe "#taxable?" do
-    context "when is a Charge" do
-      let(:charge) { create(:charge) }
-
-      before do
-        allow(charge).to receive(:taxable?).and_return("super")
-      end
-
-      it "calls super" do
-        expect(charge.taxable?).to eq("super")
-      end
-    end
-
     context "when is a Purchase" do
       let(:purchase) { create(:purchase) }
 
@@ -439,7 +468,7 @@ describe Charge::Chargeable do
         allow_any_instance_of(Purchase).to receive(:was_purchase_taxable?).and_return("super")
       end
 
-      it "calls super" do
+      it "delegates to was_purchase_taxable?" do
         expect(purchase.taxable?).to eq("super")
       end
     end
@@ -474,18 +503,6 @@ describe Charge::Chargeable do
   end
 
   describe "#taxed_by_gumroad?" do
-    context "when is a Charge" do
-      let!(:charge) { create(:charge) }
-
-      before do
-        allow(charge).to receive(:taxed_by_gumroad?).and_return("super")
-      end
-
-      it "calls super" do
-        expect(charge.taxed_by_gumroad?).to eq("super")
-      end
-    end
-
     context "when is a Purchase" do
       let(:purchase) { create(:purchase) }
 
@@ -512,18 +529,6 @@ describe Charge::Chargeable do
   end
 
   describe "#external_id_for_invoice" do
-    context "when is a Charge" do
-      let!(:charge) { create(:charge) }
-
-      before do
-        allow(charge).to receive(:external_id_for_invoice).and_return("super")
-      end
-
-      it "calls super" do
-        expect(charge.external_id_for_invoice).to eq("super")
-      end
-    end
-
     context "when is a Purchase" do
       let(:purchase) { create(:purchase) }
 
@@ -531,25 +536,13 @@ describe Charge::Chargeable do
         allow_any_instance_of(Purchase).to receive(:external_id).and_return("super")
       end
 
-      it "calls super" do
+      it "returns the purchase external id" do
         expect(purchase.external_id_for_invoice).to eq("super")
       end
     end
   end
 
   describe "#external_id_numeric_for_invoice" do
-    context "when is a Charge" do
-      let!(:charge) { create(:charge) }
-
-      before do
-        allow(charge).to receive(:external_id_numeric_for_invoice).and_return("super")
-      end
-
-      it "calls super" do
-        expect(charge.external_id_numeric_for_invoice).to eq("super")
-      end
-    end
-
     context "when is a Purchase" do
       let(:purchase) { create(:purchase) }
 
@@ -557,7 +550,7 @@ describe Charge::Chargeable do
         allow_any_instance_of(Purchase).to receive(:external_id_numeric).and_return("super")
       end
 
-      it "calls super" do
+      it "returns the purchase numeric external id" do
         expect(purchase.external_id_numeric_for_invoice).to eq("super")
       end
     end

@@ -174,6 +174,7 @@ export const Layout = (
         discountCode={discountCode ?? null}
         ctaLabel={ctaLabel}
         selection={selection}
+        setSelection={setSelection}
         ctaButtonRef={ctaButtonRef}
         configurationSelectorRef={configurationSelectorRef}
         hasHero={!!hasHero}

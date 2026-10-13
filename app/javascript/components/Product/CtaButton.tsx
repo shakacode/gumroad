@@ -17,6 +17,8 @@ import {
 } from "$app/components/Product/ConfigurationSelector";
 import type { ProductData, ProductDiscount, Purchase } from "$app/components/Product/Interactive";
 import { getNotForSaleMessage } from "$app/components/Product/productAvailability";
+import { INCOMPLETE_PURCHASE_CTA_LABEL, needsOptionChoice } from "$app/components/Product/purchaseReadiness";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 import { useRunOnce } from "$app/components/useRunOnce";
 
@@ -98,6 +100,7 @@ const PARAMETERS_NOT_INHERITED_FROM_URL = new Set([
 
 export const CtaButton = React.forwardRef<HTMLAnchorElement, Props>(
   ({ product, purchase, discountCode, selection, label, onClick, showInstallmentPlanNotes = false }, ref) => {
+    const snapshot = useProductHydration();
     const compactOnMobile = "max-lg:text-sm max-lg:px-2 max-lg:py-3 whitespace-nowrap shrink-0";
     const { searchParams } = new URL(useOriginalLocation());
 
@@ -173,16 +176,18 @@ export const CtaButton = React.forwardRef<HTMLAnchorElement, Props>(
           className={compactOnMobile}
           {...buttonCommonProps}
         >
-          {label ??
-            (purchase && (purchase.was_paid || product.recurrences)
-              ? "Purchase again"
-              : product.recurrences
-                ? "Subscribe"
-                : selection.rent
-                  ? "Rent"
-                  : product.custom_button_text_option
-                    ? getCtaName(product.custom_button_text_option)
-                    : "I want this!")}
+          {needsOptionChoice(product, selection)
+            ? INCOMPLETE_PURCHASE_CTA_LABEL
+            : (label ??
+              (purchase && (purchase.was_paid || product.recurrences)
+                ? "Purchase again"
+                : product.recurrences
+                  ? "Subscribe"
+                  : selection.rent
+                    ? "Rent"
+                    : product.custom_button_text_option
+                      ? getCtaName(product.custom_button_text_option)
+                      : "I want this!"))}
         </NavigationButton>
 
         {product.installment_plan && product.installment_plan.number_of_installments > 1 && discountedPriceCents > 0 ? (
@@ -199,7 +204,7 @@ export const CtaButton = React.forwardRef<HTMLAnchorElement, Props>(
               <small className="block text-center">
                 {formatInstallmentPaymentSchedule(
                   discountedPriceCents,
-                  buyerLocalContextFor(product),
+                  { ...buyerLocalContextFor(product), locale: snapshot?.locale },
                   product.installment_plan.number_of_installments,
                 )}
               </small>

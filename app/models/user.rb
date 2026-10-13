@@ -59,6 +59,10 @@ class User < ApplicationRecord
 
   DELETED_ACCOUNT_LOGIN_ERROR = "You cannot log in because your account was deleted. Email support@gumroad.com if you'd like to use this email address for a new account."
 
+  # Support frees a closed account's address by parking it on this reserved domain, which is what
+  # lets the address move to another account while the row keeps its other identifiers.
+  DELETED_ACCOUNT_EMAIL_DOMAIN = "deleted.invalid"
+
   MIN_AU_BACKTAX_OWED_CENTS_FOR_CONTACT = 100_00
 
   MIN_AGE_FOR_SERVICE_PRODUCTS = 30.days
@@ -97,6 +101,7 @@ class User < ApplicationRecord
            class_name: "OauthApplication",
            as: :owner
   has_many :resource_subscriptions
+  has_many :ping_deliveries
   has_many :devices
 
   belongs_to :credit_card, optional: true
@@ -430,9 +435,11 @@ class User < ApplicationRecord
             56 => :gifting_disabled, # Seller opt-out (checkout settings page): removes the "Give as a gift" option at checkout for all of this seller's products (gumroad-private#1191).
             57 => :content_moderation_disabled, # Admin-only: exempts every product this seller creates from automated content moderation, including ones that don't exist yet. Link#content_moderation_disabled only covers products that already exist when support grants it (gumroad-private#1742).
             58 => :product_page_storefront_enabled, # Product pages render inside the creator's storefront (profile header above, catalog below). Defaulted on for new accounts only, so lift can be measured against existing creators before enabling for all (gumroad-private#2196). Sellers can turn it off in profile settings.
-            59 => :has_dismissed_gumhead_promo,
+            59 => :DEPRECATED_has_dismissed_gumhead_promo,
             60 => :hide_follow_form, # Seller setting: hides the subscribe box in the public profile header. Custom HTML pages omit it by not including the form.
-            61 => :gumhead_enabled, # Gumhead beta membership; gates :gumhead via the :gumhead_beta group so the cohort can exceed Flipper's 100-actor cap.
+            61 => :DEPRECATED_gumhead_enabled,
+            62 => :link_disabled, # Seller opt-out (checkout settings page): checkout stops offering Stripe Link, which also removes the "save my information" block it renders under the card fields.
+            63 => :paypal_card_funding_disabled, # Seller opt-out (checkout settings page): hides PayPal's own debit-or-credit-card funding button, leaving only the PayPal sign-in button.
             :column => "flags",
             :flag_query_mode => :bit_operator,
             check_for_column: false
@@ -464,6 +471,7 @@ class User < ApplicationRecord
     # a stale in-memory `suspended?`; this guard re-checks the row at write time.
     before_transition any => %i[compliant on_probation not_reviewed],
                       :do => :refuse_unauthorized_suspension_clear
+    before_transition any => :compliant, :do => :rebase_flags_onto_locked_row
     after_transition any => %i[suspended_for_fraud suspended_for_tos_violation], :do => :invalidate_active_sessions!
     after_transition any => %i[suspended_for_fraud suspended_for_tos_violation], :do => :disable_links_and_tell_chat
     after_transition any => %i[on_probation compliant not_reviewed flagged_for_tos_violation flagged_for_fraud suspended_for_tos_violation suspended_for_fraud],
@@ -479,6 +487,7 @@ class User < ApplicationRecord
 
     after_transition any => :compliant, :do => :enable_refunds!
     after_transition any => :compliant, :do => :record_social_connect_hold_released
+    after_transition any => :compliant, :do => :enqueue_platform_stripe_pause_lift
 
     after_transition %i[suspended_for_fraud suspended_for_tos_violation] => %i[compliant on_probation],
                      :do => :enable_links_and_tell_chat
@@ -566,7 +575,7 @@ class User < ApplicationRecord
 
   def resized_avatar_url(size:)
     return ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png") unless avatar.attached?
-    cdn_url_for(storage_url_for(stored_avatar_variant(resize_to_limit: [size, size])))
+    cdn_url_for(stored_avatar_variant(resize_to_limit: [size, size]).url)
   rescue ActiveStorage::FileNotFoundError, Errno::ENOENT, ActiveRecord::InvalidForeignKey => e
     Rails.logger.warn("User#resized_avatar_url error (#{id}): #{e.class} => #{e.message}")
     ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png")
@@ -579,12 +588,12 @@ class User < ApplicationRecord
 
     # Falling back to the original upload, which is the size the seller
     # uploaded but is otherwise correct, beats showing no avatar at all.
-    return storage_url_for(avatar) if variant_url.blank?
+    return avatar.url if variant_url.blank?
 
     cdn_url_for(variant_url)
   rescue => e
     Rails.logger.warn("User#avatar_url error (#{id}): #{e.class} => #{e.message}")
-    storage_url_for(avatar)
+    avatar.url
   end
 
   def avatar_variant(verify_storage: false)
@@ -818,36 +827,80 @@ class User < ApplicationRecord
   def deactivate!
     validate_account_closure_balances!
 
-    ActiveRecord::Base.transaction do
-      update!(
-        deleted_at: Time.current,
-        username: nil,
-        credit_card_id: nil,
-        payouts_paused_internally: true,
-      )
+    begin
+      ActiveRecord::Base.transaction(requires_new: true) do
+        update!(
+          deleted_at: Time.current,
+          username: nil,
+          credit_card_id: nil,
+          payouts_paused_internally: true,
+        )
 
-      links.each(&:delete!)
-      installments.alive.each(&:mark_deleted!)
-      user_compliance_infos.alive.each(&:mark_deleted!)
-      bank_accounts.alive.each(&:mark_deleted!)
-      # Account-level public media (see Api::V2::MediaController) is purged from storage, not
-      # just soft-deleted, so the CDN stops serving it. Rescue per file so one bad blob doesn't
-      # roll back the whole account closure.
-      PublicFile.alive.where(seller: self, resource: self).find_each do |file|
-        file.mark_deleted_and_purge_file!
-      rescue => e
-        Rails.logger.warn("deactivate!: Failed to purge media file #{file.id} for user #{id}: #{e.message}")
+        soft_delete_owned_records!
+        # Account-level public media (see Api::V2::MediaController) is purged from storage, not
+        # just soft-deleted, so the CDN stops serving it. Rescue per file so one bad blob doesn't
+        # roll back the whole account closure.
+        PublicFile.alive.where(seller: self, resource: self).find_each do |file|
+          file.mark_deleted_and_purge_file!
+        rescue => e
+          Rails.logger.warn("deactivate!: Failed to purge media file #{file.id} for user #{id}: #{e.message}")
+        end
+        cancel_active_subscriptions!
+        invalidate_active_sessions!
+        revoke_all_oauth_access!
+        clear_team_member_flags!
+
+        true
       end
-      cancel_active_subscriptions!
-      invalidate_active_sessions!
-
-      if custom_domain&.persisted? && !custom_domain.deleted?
-        custom_domain.mark_deleted!
-      end
-
-      true
     rescue
       false
+    end
+  end
+
+  # One list for both closure paths (self-serve and GDPR erasure), which had drifted. `visible`, not
+  # `alive`, so a purchase-disabled or banned product still gets its `Link#delete!` cleanup;
+  # validations are skipped because these rows are being deleted anyway.
+  def soft_delete_owned_records!
+    links.visible.each { |link| link.delete!(validate: false) }
+    installments.alive.each { |installment| installment.mark_deleted!(validate: false) }
+    user_compliance_infos.alive.each { |info| info.mark_deleted!(validate: false) }
+    bank_accounts.alive.each { |account| account.mark_deleted!(validate: false) }
+
+    # Piracy reports are kept: a sent notice's record must outlive the account. Only reports that
+    # never went out are cancelled, under a lock so a concurrent screening decision is not overwritten.
+    PiracyReport.cancellable.where(seller_id: id).find_each do |report|
+      report.with_lock { report.cancel! if report.can_cancel? }
+    end
+
+    if custom_domain&.persisted? && !custom_domain.deleted?
+      custom_domain.mark_deleted!(validate: false)
+    end
+  end
+
+  # The flag survives `reactivate!`, so closure must clear it or a reopened account regains staff
+  # access. Mirrors Settings::Team::MembersController#destroy, including clearing it for the
+  # members when the Gumroad account itself closes.
+  def clear_team_member_flags!
+    staff_users = gumroad_account? ? seller_memberships.not_deleted.includes(:user).map(&:user) : []
+    staff_users << self
+
+    transaction do
+      staff_users.compact.uniq.each do |staff_user|
+        # Reload under a lock so revocation preserves other concurrently changed flags.
+        staff_user.with_lock do
+          next unless staff_user.is_team_member?
+
+          flags = staff_user.flags & ~User.flag_mapping["flags"][:is_team_member]
+          # Member validations and cache/job callbacks must not block account closure.
+          version = staff_user.paper_trail.update_columns(flags:)
+          if PaperTrail.enabled? && PaperTrail.request.enabled? && PaperTrail.request.enabled_for_model?(User)
+            # PaperTrail can swallow audit failures under its default error policy.
+            unless version.respond_to?(:persisted?) && version.persisted?
+              raise ActiveRecord::RecordNotSaved, "Staff revocation audit could not be saved"
+            end
+          end
+        end
+      end
     end
   end
 
@@ -911,16 +964,57 @@ class User < ApplicationRecord
     end
   end
 
-  # Serializes profile-section writes on the seller_profile row. Several paths read-modify-write a
-  # section's shown_products/shown_posts (the profile editor, product create/edit, post save), so
-  # they take this lock and re-read the sections inside it to avoid clobbering each other. The
-  # profile editor holds the same row via #with_locked_seller_profile, so all writers serialize on it.
-  # Looked up directly (not via #seller_profile, which builds a record) so callers like product
-  # creation don't leave an unsaved seller_profile behind to be autosaved later. A seller without a
-  # saved profile has nothing to serialize against, so it just runs the block.
-  def with_profile_sections_lock(&block)
+  # Raised only when the bounded wait for the seller_profiles row itself runs out, so a caller can
+  # tell a dropped acquisition from a write behind the lock that timed out and still raises.
+  ProfileSectionsLockTimeout = Class.new(StandardError)
+
+  # Serializes profile-section writes on the seller_profile row: the profile editor, product
+  # create/edit and post save all read-modify-write a section's shown_products/shown_posts and
+  # re-read inside this lock, and the editor holds the same row via #with_locked_seller_profile.
+  # A seller with no saved profile has nothing to serialize against, so it just runs the block, and
+  # the row is looked up directly so product creation leaves no unsaved seller_profile behind.
+  # `lock_wait_timeout_seconds` bounds only the wait for that row, for callers inside someone else's
+  # transaction; writes behind the lock keep the session's timeout, like `LinksController`'s bound.
+  def with_profile_sections_lock(lock_wait_timeout_seconds: nil, &block)
     profile = SellerProfile.find_by(seller_id: id)
-    profile ? profile.with_lock(&block) : yield
+    return yield if profile.nil?
+    return lock_profile_row(profile, &block) if lock_wait_timeout_seconds.nil?
+
+    SellerProfile.transaction do
+      acquire_profile_row_lock(profile, lock_wait_timeout_seconds)
+      block.call
+    end
+  end
+
+  # Locked by id rather than on the instance: `lock!`/`with_lock` refuse a record carrying
+  # unpersisted changes, and `after_initialize` applies the column defaults to every row where
+  # they are still NULL, so a loaded profile counts as changed and the lock never acquires.
+  private def lock_profile_row(profile, &block)
+    SellerProfile.transaction do
+      lock_profile_row!(profile)
+      block.call
+    end
+  end
+
+  private def acquire_profile_row_lock(profile, seconds)
+    with_bounded_lock_wait(seconds) { lock_profile_row!(profile) }
+  rescue ActiveRecord::LockWaitTimeout
+    raise ProfileSectionsLockTimeout
+  end
+
+  private def lock_profile_row!(profile)
+    SellerProfile.lock.find_by!(seller_id: profile.seller_id)
+  end
+
+  # `innodb_lock_wait_timeout` is a session setting on the connection the lock will run on,
+  # restored as soon as the lock resolves so no later write in the caller inherits the bound.
+  private def with_bounded_lock_wait(seconds)
+    connection = SellerProfile.connection
+    previous = connection.select_value("SELECT @@SESSION.innodb_lock_wait_timeout")
+    connection.execute("SET SESSION innodb_lock_wait_timeout = #{seconds.to_i}")
+    yield
+  ensure
+    connection.execute("SET SESSION innodb_lock_wait_timeout = #{previous.to_i}") if connection && previous.present?
   end
 
   def time_fields
@@ -1079,6 +1173,20 @@ class User < ApplicationRecord
     end
   end
 
+  # `invalidate_active_sessions!` revokes only the mobile app's tokens. Closure must also revoke
+  # third-party apps (MCP connectors, API clients), whose tokens never expire. Subscriptions go with
+  # the tokens, as in `OauthApplication#revoke_access_for`: an alive, token-less one emails the seller.
+  def revoke_all_oauth_access!
+    revoked_at = Time.current
+
+    OauthDeviceAuthorization
+      .where(resource_owner_id: id, status: OauthDeviceAuthorization::STATUS_APPROVED)
+      .update_all(status: OauthDeviceAuthorization::STATUS_DENIED, denied_at: revoked_at, updated_at: revoked_at)
+    Doorkeeper::AccessGrant.where(resource_owner_id: id, revoked_at: nil).update_all(revoked_at:)
+    Doorkeeper::AccessToken.where(resource_owner_id: id, revoked_at: nil).update_all(revoked_at:)
+    resource_subscriptions.alive.update_all(deleted_at: revoked_at)
+  end
+
   def invalidate_browser_sessions!
     update!(last_active_sessions_invalidated_at: DateTime.current)
   end
@@ -1187,22 +1295,42 @@ class User < ApplicationRecord
       alive_user_compliance_info&.legal_entity_country_code == "US"
   end
 
-  # Anchored on the payout account's age, not signup date — a seller can hold an
-  # account for years before connecting one. Every account a payout could land on
-  # must season, since destination is picked at payout time; seasoning only the
-  # managed account would leave a fresh connected account as a hole. An account
-  # inherits seasoning from any earlier account of the same kind (alive or retired),
-  # since a country/payout-method change retires one row and creates another —
-  # reading only the live row would restart the clock on a longtime seller.
+  # Anchored on the payout account's age, not signup date. An account inherits seasoning from
+  # any earlier account of the same kind (alive or retired): a country/payout-method change
+  # retires one row and creates another, so reading only the live row restarts the clock.
   def stripe_accounts_seasoned_for_instant_payouts?
-    managed_account = stripe_account
-    return false if managed_account.nil?
+    destinations = instant_payout_destination_accounts
+    return false if destinations.empty?
 
-    [managed_account, stripe_connect_account].compact.all? do |account|
-      seasoned_for_instant_payouts?(account)
+    destinations.all? do |account|
+      # A held-balance destination can be an account that was retired after the funds landed on it,
+      # and paying into it fails rather than seasoning into a working destination.
+      account.active? && seasoned_for_instant_payouts?(account)
     end
   end
   private :stripe_accounts_seasoned_for_instant_payouts?
+
+  # Every account StripePayoutProcessor.destination_merchant_account could resolve to: it branches on
+  # whether Stripe still holds any of the seller's payable balances, so both branches are candidates.
+  def instant_payout_destination_accounts
+    [
+      StripePayoutProcessor.destination_merchant_account(self, []),
+      StripePayoutProcessor.destination_merchant_account(self, stripe_held_unpaid_balances),
+    ].compact.uniq
+  end
+  private :instant_payout_destination_accounts
+
+  # Read through the processor's own filter, as a payout claim does: a balance the claim drops
+  # cannot name a destination, or destination_merchant_account would hand back the retired
+  # account the balance is stranded on while the payout is created elsewhere.
+  def stripe_held_unpaid_balances
+    unpaid_balances_up_to_date(Date.today).includes(:merchant_account).select do |balance|
+      balance.merchant_account.present? &&
+        balance.merchant_account.holder_of_funds == HolderOfFunds::STRIPE &&
+        StripePayoutProcessor.is_balance_payable(balance)
+    end
+  end
+  private :stripe_held_unpaid_balances
 
   def seasoned_for_instant_payouts?(account)
     cutoff = MIN_ACCOUNT_AGE_FOR_INSTANT_PAYOUTS.ago
@@ -1422,11 +1550,22 @@ class User < ApplicationRecord
   # hits SendGrid's suppression API).
   RESEND_CONFIRMATION_ENQUEUE_FLOOR = 1.minute
 
+  def resend_confirmation_wait
+    return 0 if confirmation_sent_at.blank?
+
+    [(confirmation_sent_at + RESEND_CONFIRMATION_ENQUEUE_FLOOR - Time.current).ceil, 0].max
+  end
+
   def resend_confirmation_instructions
     pending_any_confirmation do
-      return if confirmation_sent_at.present? && confirmation_sent_at > RESEND_CONFIRMATION_ENQUEUE_FLOOR.ago
-      update_column(:confirmation_sent_at, Time.current)
+      sent_at = Time.current
+      claimed = User.where(id:).where("confirmation_sent_at IS NULL OR confirmation_sent_at <= ?", RESEND_CONFIRMATION_ENQUEUE_FLOOR.ago).update_all(confirmation_sent_at: sent_at)
+      return false if claimed.zero?
+
+      self.confirmation_sent_at = sent_at
+      clear_attribute_changes([:confirmation_sent_at])
       ResendConfirmationEmailJob.perform_async(id)
+      true
     end
   end
 
@@ -1437,6 +1576,9 @@ class User < ApplicationRecord
       # be able to reset the password of the victim's account after a new email
       # is confirmed.
       update!(reset_password_token: nil, reset_password_sent_at: nil)
+
+      # Guest purchases follow the address only once its owner has proven it.
+      AttachPastPurchasesToUserWorker.perform_async(id, email)
     end
 
   private
@@ -1460,7 +1602,7 @@ class User < ApplicationRecord
       # is about to be remembered for a day, so it has to be true at the moment
       # we write it.
       variant = avatar_variant(verify_storage: true)
-      url = storage_url_for(variant).presence if variant
+      url = variant&.url.presence
       # Never cache a blank URL — that would hide the avatar until expiry.
       if url && variant.key.present?
         Rails.cache.write(cache_key, { url:, key: variant.key }, expires_in: AVATAR_VARIANT_URL_CACHE_TTL)

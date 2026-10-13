@@ -2023,6 +2023,57 @@ describe Order::ChargeService, :vcr do
       expect(captured_mandate.dig(:payment_method_options, :card, :mandate_options, :currency)).to eq(Currency::INR)
     end
 
+    it "re-registers a fresh setup intent when the submitted one is scoped to another Stripe account" do
+      order = create(:order)
+      merchant_account = create(:merchant_account_stripe_connect, user: seller_1)
+      purchase = create(:purchase,
+                        link: product_1,
+                        seller: seller_1,
+                        merchant_account:,
+                        purchase_state: "in_progress",
+                        is_multi_buy: true,
+                        total_transaction_cents: 10_00)
+      submitted_si_id = "seti_platform_checkout"
+      chargeable = instance_double(Chargeable, requires_mandate?: true)
+      allow(chargeable).to receive(:stripe_setup_intent_id) { submitted_si_id }
+      allow(chargeable).to receive(:stripe_setup_intent_id=) { |value| submitted_si_id = value }
+      allow(chargeable).to receive(:use_connected_account_payment_method!)
+      allow(chargeable).to receive(:respond_to?) do |method_name, *_|
+        %i[use_connected_account_payment_method! stripe_setup_intent_id= payment_method_id].include?(method_name.to_sym)
+      end
+      allow(ChargeProcessor).to receive(:get_setup_intent)
+        .with(merchant_account, "seti_platform_checkout")
+        .and_raise(ChargeProcessorInvalidRequestError.new("No such setupintent: 'seti_platform_checkout'"))
+      fresh_si = instance_double(
+        StripeSetupIntent,
+        id: "seti_connect_fresh",
+        payment_method_id: "pm_connect_fresh",
+        customer_id: nil,
+        mandate: "mandate_connect_fresh",
+        card_mandate_options: { amount: 10_00, currency: "usd" },
+        succeeded?: true,
+        requires_action?: false
+      )
+      allow(ChargeProcessor).to receive(:setup_future_charges!).and_return(fresh_si)
+      charge = instance_double(Charge, charge_intent: nil, credit_card: nil)
+      create_service = instance_double(Charge::CreateService, perform: charge)
+      allow(Charge::CreateService).to receive(:new).and_return(create_service)
+      service = described_class.new(order:, params: {})
+      allow(service).to receive(:mandate_options_for_stripe).and_return(
+        { payment_method_options: { card: { mandate_options: { amount: 10_00, currency: Currency::USD } } } }
+      )
+
+      service.send(:create_charge_for_seller_purchases, [purchase], chargeable, true, false)
+
+      expect(chargeable).to have_received(:stripe_setup_intent_id=).with(nil)
+      expect(ChargeProcessor).to have_received(:setup_future_charges!).with(
+        merchant_account,
+        chargeable,
+        mandate_options: { payment_method_options: { card: { mandate_options: { amount: 10_00, currency: Currency::USD } } } }
+      )
+      expect(purchase.reload.processor_setup_intent_id).to eq("seti_connect_fresh")
+    end
+
     it "binds the Connect payment method when reusing a shared setup intent" do
       seller_1.update!(check_merchant_account_is_linked: true)
       seller_2.update!(check_merchant_account_is_linked: true)
@@ -3661,6 +3712,69 @@ describe Order::ChargeService, :vcr do
 
       expect(chargeable_purchase.reload).to be_successful
       expect(failed_purchase.reload).to be_failed
+    end
+  end
+
+  describe "#perform with a native PayPal cart where one line item fails validation at charge time" do
+    let(:seller) { create(:user) }
+    let(:valid_product) { create(:product, user: seller, price_cents: 10_00) }
+    let(:rejected_product) { create(:product, user: seller, price_cents: 10_00) }
+    let(:ppp_message) { "In order to apply a purchasing power parity discount, you must use a card issued in the country you are in." }
+
+    before do
+      allow_any_instance_of(User).to receive(:native_paypal_payment_enabled?).and_return(true)
+      create(:merchant_account_paypal, user: seller, charge_processor_merchant_id: "B66YJBBNCRW6L")
+      rejected_link_id = rejected_product.id
+      message = ppp_message
+      allow_any_instance_of(Purchase).to receive(:validate_purchasing_power_parity) do |purchase|
+        next unless purchase.link_id == rejected_link_id
+        purchase.errors.add :base, message
+        purchase.error_code = PurchaseErrorCode::PPP_CARD_COUNTRY_NOT_MATCHING
+      end
+    end
+
+    def order_params(payment_params)
+      {
+        email: "buyer@gumroad.com",
+        purchase: { full_name: "Edgar Gumstein", country: "US", zip_code: "94117" },
+        browser_guid: SecureRandom.uuid,
+        ip_address: "0.0.0.0",
+        session_id: "a107d0b7ab5ab3c1eeb7d3aaf9792977",
+        is_mobile: false,
+        line_items: [
+          { uid: "uid-ok", permalink: valid_product.unique_permalink, perceived_price_cents: valid_product.price_cents, quantity: 1 },
+          { uid: "uid-rejected", permalink: rejected_product.unique_permalink, perceived_price_cents: rejected_product.price_cents, quantity: 1 },
+        ]
+      }.merge(payment_params)
+    end
+
+    shared_examples "fails the whole seller group without calling PayPal" do
+      it "does not capture and fails every line with the rejection message" do
+        order, _ = Order::CreateService.new(params:).perform
+        expect(order.purchases.in_progress.count).to eq(2)
+        expect(ChargeProcessor).not_to receive(:create_payment_intent_or_charge!)
+
+        charge_responses = Order::ChargeService.new(order:, params:).perform
+
+        expect(order.purchases.reload.map(&:purchase_state).uniq).to eq(["failed"])
+        expect(order.purchases.find_by(link: valid_product).error_code).to eq(PurchaseErrorCode::PPP_CARD_COUNTRY_NOT_MATCHING)
+        expect(order.charges.pluck(:processor_transaction_id).compact).to be_empty
+        expect(charge_responses.keys).to contain_exactly("uid-ok", "uid-rejected")
+        expect(charge_responses.values.map { _1[:success] }.uniq).to eq([false])
+        expect(charge_responses["uid-ok"][:error_message]).to include(ppp_message)
+      end
+    end
+
+    context "with a buyer-approved PayPal order" do
+      let(:params) { order_params(paypal_order_id: "9XX680320L106570A", visual: "buyer@example.com", card_country: "RS") }
+
+      include_examples "fails the whole seller group without calling PayPal"
+    end
+
+    context "with a PayPal billing agreement" do
+      let(:params) { order_params(billing_agreement_id: "B-12345678910", visual: "buyer@example.com", card_country: "RS") }
+
+      include_examples "fails the whole seller group without calling PayPal"
     end
   end
 end

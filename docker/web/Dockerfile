@@ -1,5 +1,6 @@
 # BASE
 ARG WEB_DOCKERFILE_FROM
+
 FROM ${WEB_DOCKERFILE_FROM}
 
 
@@ -15,7 +16,8 @@ RUN useradd -ms /bin/bash app \
   && mkdir -p $BUNDLE_PATH \
   && mkdir -p $APP_DIR/log \
   && mkdir -p $APP_DIR/tmp \
-  && chown -R app:app $APP_DIR
+  && chmod 770 $APP_DIR/tmp $APP_DIR/log \
+  && chown app:app $APP_DIR $APP_DIR/tmp $APP_DIR/log
 
 # Update ImageMagick configuration
 # Set memory limit to 1GiB
@@ -25,18 +27,13 @@ RUN sed -r 's/(name="memory" value=")[^"]+"/\11GiB"/' -i /etc/ImageMagick-6/poli
   # Change width limit from 10KP to 50KP
   && sed -r 's/(name="width" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml \
   # Change height limit from 10KP to 50KP
-  && sed -r 's/(name="height" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml
-
-# Dowload latest GeoIP DB
-# Staged outside $APP_DIR so this layer stays cached across source changes;
-# moved into place after the full-tree COPY below.
-RUN cd /tmp \
-  && curl -J -L -o GeoIP2-City.tar.gz https://download.maxmind.com/app/geoip_download\?edition_id\=GeoIP2-City\&license_key\=fxN7iBPUYfTS76V5\&suffix\=tar.gz \
-  && tar xzf GeoIP2-City.tar.gz \
-  && mv GeoIP2-City_* GeoIP2-City \
-  && mkdir -p /usr/local/share/geoip \
-  && mv GeoIP2-City/GeoIP2-City.mmdb /usr/local/share/geoip/GeoIP2-City.mmdb \
-  && rm -rf /tmp/*
+  && sed -r 's/(name="height" value=")[^"]+"/\150KP"/' -i /etc/ImageMagick-6/policy.xml \
+  # Restrict the coders to the formats the app handles (see FILE_REGEX, web_image_content_types).
+  # Every alias needs listing: IM6 matches on the alias, so dropping JPG blocks `.jpg` writes
+  # while `identify` still works. The grep pins the whole line, not a prefix: Debian's file
+  # mentions a read|write policy in a comment, so a prefix match passes even when the splice misses.
+  && sed -i 's@</policymap>@  <policy domain="coder" rights="none" pattern="*" />\n  <policy domain="coder" rights="read|write" pattern="{GIF,JPEG,JPG,PNG,PNG8,PNG24,PNG32,WEBP,TIFF,TIF,BMP,BMP2,BMP3,PSD}" />\n</policymap>@' /etc/ImageMagick-6/policy.xml \
+  && grep -Fq '<policy domain="coder" rights="read|write" pattern="{GIF,JPEG,JPG,PNG,PNG8,PNG24,PNG32,WEBP,TIFF,TIF,BMP,BMP2,BMP3,PSD}" />' /etc/ImageMagick-6/policy.xml
 
 # Install gems using only the dependency manifests so this (slow) layer is
 # cached unless the Gemfile/lockfile changes.
@@ -46,12 +43,20 @@ RUN cd $APP_DIR \
   && bundle config set without 'development test' \
   && BUNDLE_GEMS__CONTRIBSYS__COM=$BUNDLE_GEMS__CONTRIBSYS__COM bundle install
 
-COPY --chown=app:app package.json package-lock.json .npmrc $APP_DIR/
-COPY --chown=app:app patches $APP_DIR/patches
-RUN cd $APP_DIR && gosu app npm ci
-
 # Full source tree last: changes here only invalidate the layers below.
-COPY --chown=app:app . $APP_DIR/
+# --chown/--chmod set ownership and modes in this layer; a chmod -R/chown -R
+# afterwards would store every file (and the gems) a second time. Some
+# entrypoints Nomad runs directly, like docker/web/sidekiq_worker.sh, are not
+# executable in git, so the 755 matters. lib/GeoIP2-City.mmdb arrives with the
+# context: copy_secrets.sh puts the credentials repo's copy there.
+COPY --chown=app:app --chmod=755 . $APP_DIR/
+
+# Only a build that ran copy_secrets.sh has this file. Missing: GEOIP is nil and
+# every GeoIp.lookup returns nothing. Empty: the initializer still opens it and
+# boot fails. Warn, not fail: builds with no credentials repo must still succeed.
+RUN f="$APP_DIR/lib/GeoIP2-City.mmdb"; \
+  if [ ! -e "$f" ]; then echo "WARNING: lib/GeoIP2-City.mmdb missing from the build context; GEOIP will be nil in this image"; \
+  elif [ ! -s "$f" ]; then echo "WARNING: lib/GeoIP2-City.mmdb is empty; the geoip initializer will fail to open it at boot"; fi
 
 ENV DATABASE_HOST="db" \
   DATABASE_NAME="gumroad_development" \
@@ -68,18 +73,6 @@ ENV DATABASE_HOST="db" \
   ELASTICSEARCH_HOST=http://elasticsearch:9200 \
   MEMCACHE_SERVERS=memcached \
   IN_DOCKER="true"
-
-RUN mv /usr/local/share/geoip/GeoIP2-City.mmdb $APP_DIR/lib/GeoIP2-City.mmdb \
-  && rmdir /usr/local/share/geoip \
-  && chown app:app $APP_DIR/lib/GeoIP2-City.mmdb \
-  && cd $APP_DIR \
-  && gosu app env DEVISE_SECRET_KEY=asset-build-only RENDERER_PASSWORD=asset-build-only REVISION=asset-build-only SECRET_KEY_BASE_DUMMY=1 RAILS_ENV=production NODE_ENV=production npm run build:public-rsc
-
-# TODO: look into solutions that prevent image bloating and/or avoids --squash
-RUN chmod -R 755 $BUNDLE_PATH \
-  && chmod -R 770 $APP_DIR/tmp \
-  && chmod -R 770 $APP_DIR/log \
-  && chown -R root:app $BUNDLE_PATH
 
 WORKDIR $APP_DIR
 

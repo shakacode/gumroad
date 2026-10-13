@@ -16,6 +16,9 @@ class ContactingCreatorMailer < ApplicationMailer
 
   default from: ApplicationMailer::SUPPORT_EMAIL_WITH_NAME
 
+  # Registered above `after_action :deliver_email` on purpose: the template renders inside that
+  # callback, and an around filter only encloses the callbacks declared after it.
+  around_action :read_notify_from_primary, only: :notify
   after_action :deliver_email
   after_action :send_push_notification!, only: :notify
   # `around` rather than `after`, because the notice claimed at render has to be given back on every
@@ -469,6 +472,14 @@ class ContactingCreatorMailer < ApplicationMailer
     @subject = "A dispute has been lost"
   end
 
+  def chargeback_evidence_file_omitted(dispute_id)
+    dispute = Dispute.find(dispute_id)
+    @disputable = dispute.disputable
+    @seller = @disputable.seller
+    @max_pages = DisputeEvidence::STRIPE_MAX_FILE_PAGES
+    @subject = "Your dispute response was sent without your attached file"
+  end
+
   def chargeback_won(dispute_id)
     dispute = Dispute.find(dispute_id)
     @disputable = dispute.disputable
@@ -506,7 +517,12 @@ class ContactingCreatorMailer < ApplicationMailer
   end
 
   def purchase_refunded_for_fraud(purchase_id)
-    @purchase = Purchase.find_by(id: purchase_id)
+    # A worker's SELECTs read a replica (USE_DB_WORKER_REPLICAS), and a refund can be issued
+    # seconds after the purchase, so the purchase and its seller have to come from the primary —
+    # otherwise both loads can come back empty and the render dereferences nil.
+    @purchase = ApplicationRecord.connected_to(role: :writing) do
+      Purchase.includes(:seller).find_by(id: purchase_id)
+    end
     @seller = @purchase.seller
     @subject = "Fraud was detected on your Gumroad account."
   end
@@ -515,9 +531,14 @@ class ContactingCreatorMailer < ApplicationMailer
   # entered when refunding on the creator's behalf), the email shows it so the creator
   # knows why the sale was refunded without having to write in to support.
   def purchase_refunded(purchase_id, refund_id = nil)
-    @purchase = Purchase.find_by(id: purchase_id)
+    # Same primary read as #purchase_refunded_for_fraud: this mailer is delivered by MailDeliveryJob.
+    # The refund is the newest row in the render, so its note is read here too — a replica that has
+    # not caught up would otherwise drop the "Reason:" line without anyone noticing.
+    ApplicationRecord.connected_to(role: :writing) do
+      @purchase = Purchase.includes(:seller).find_by(id: purchase_id)
+      @refund_reason = Refund.find_by(id: refund_id)&.note
+    end
     @seller = @purchase.seller
-    @refund_reason = Refund.find_by(id: refund_id)&.note
     @subject = "A sale has been refunded"
   end
 
@@ -706,7 +727,12 @@ class ContactingCreatorMailer < ApplicationMailer
   #
   # The claim is taken last, so an ordinary rejection does not have to give one back.
   def review_submitted(review_id)
-    @review = ProductReview.includes(:purchase, link: :user).find(review_id)
+    # A worker's SELECTs read a replica (USE_DB_WORKER_REPLICAS), and the purchase can be seconds
+    # old when this delayed render runs, so the preload can come back empty and the render would
+    # then dereference a nil purchase. TeamMailer#invite pins the same way.
+    @review = ApplicationRecord.connected_to(role: :writing) do
+      ProductReview.includes(:purchase, link: :user).find(review_id)
+    end
     return do_not_send if @review.deleted?
     return do_not_send if @review.seller_notified?
 
@@ -804,6 +830,12 @@ class ContactingCreatorMailer < ApplicationMailer
       return if sentence.blank? || sentence.length > MAX_FORMAT_HINT_LENGTH
 
       sentence
+    end
+
+    # Delivered by a worker 3 seconds after the sale commits, so a replica read can miss rows the
+    # template walks lazily — the tip, the affiliate credit — and drop their line without raising.
+    def read_notify_from_primary(&block)
+      ApplicationRecord.connected_to(role: :writing, &block)
     end
 
     def do_not_send

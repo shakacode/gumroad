@@ -12,6 +12,30 @@ logger() {
 source .buildkite/scripts/deploy_relevance.sh
 skip_if_production_noop "deploy_production.sh"
 
+# The skip is deliberate and the exit code stays 0 (a red build here is noise a human has to
+# clear), so this annotation and log line are the only signal that a commit did not ship.
+announce_skip() {
+  local label="$1" reason="$2"
+  logger "$label $reason — skipping deployment (commit ${BUILDKITE_COMMIT:-unknown} was NOT published)"
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    if ! buildkite-agent annotate --style warning --context "deploy-skip-${label// /-}" \
+      "$label: **deployment skipped** — $reason. Commit \`${BUILDKITE_COMMIT:-unknown}\` was not shipped; it goes out with the next push or via require-approval." \
+      2>/dev/null; then
+      logger "WARNING: could not annotate the build — this skip is only in the log above"
+    fi
+  fi
+  exit 0
+}
+
+# bin/deploy exits 0 when the deploy spacing gate skips a superseded deploy, so the gate's
+# marker is the only sign that nothing shipped. Same path and content check as the wizard's
+# deploy_skipped_by_spacing_gate?, so the release and production-release always agree. The
+# wizard sets DEPLOY_TAG only for its own subprocess; it equals PRODUCTION_TAG.
+deploy_skipped_by_spacing_gate() {
+  local marker="${DEPLOY_SPACING_SKIP_MARKER:-nomad/production/.deploy_spacing_skipped}"
+  [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$PRODUCTION_TAG ${BUILDKITE_BUILD_NUMBER:-}" ]
+}
+
 # Deploys wait while work a deploy would destroy is ACTUALLY running, by asking the app
 # rather than guessing from the clock. Jobs a deploy must not interrupt register a token in
 # Redis while they run (see DeployBlockingJobTracking) and the matching healthcheck answers
@@ -50,15 +74,13 @@ wait_for_healthcheck() {
       sleep 180
     elif [ "$hc_status" = "404" ]; then
       if eval "$failsafe_window_test"; then
-        logger "$label healthcheck absent (HTTP 404) inside the fail-safe window — skipping deployment"
-        exit 0
+        announce_skip "$label" "healthcheck absent (HTTP 404)"
       fi
       logger "$label healthcheck absent (HTTP 404) outside the fail-safe window — proceeding"
       return 0
     else
       if eval "$failsafe_window_test"; then
-        logger "$label healthcheck unreachable (HTTP $hc_status) inside the fail-safe window — skipping deployment"
-        exit 0
+        announce_skip "$label" "healthcheck unreachable (HTTP $hc_status)"
       fi
       logger "$label healthcheck unreachable (HTTP $hc_status) outside the fail-safe window — proceeding"
       return 0
@@ -66,8 +88,7 @@ wait_for_healthcheck() {
   done
 
   if [ "$on_timeout" = "skip" ]; then
-    logger "$label still in flight after $((max_attempts * 3)) minutes — skipping deployment (the change ships with the next push, or click require-approval to force it)"
-    exit 0
+    announce_skip "$label" "still in flight after $((max_attempts * 3)) minutes"
   fi
   logger "WARNING: $label still in flight after $((max_attempts * 3)) minutes — proceeding with deploy anyway (this means it is unusually slow and worth a look)"
   return 0
@@ -143,6 +164,12 @@ gem install dotenv
 # Deploy to production
 logger "Starting production deployment"
 DEPLOYMENT_FROM_CI=true bin/deploy
+
+# A release tag marks what production runs (deploy_relevance.sh diffs against it), so a
+# skipped deploy must not create one.
+if deploy_skipped_by_spacing_gate; then
+  announce_skip "Deploy spacing" "superseded by a newer build inside the spacing window"
+fi
 
 logger "Successfully deployed $WEB_REPO:$PRODUCTION_TAG to production"
 

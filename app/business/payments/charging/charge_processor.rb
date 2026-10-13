@@ -201,14 +201,16 @@ module ChargeProcessor
                    paypal_order_purchase_unit_refund: nil,
                    reverse_transfer: true,
                    is_for_fraud: nil,
-                   purchase: nil)
+                   purchase: nil,
+                   cap_to_unrefunded_amount: false)
     get_charge_processor(charge_processor_id).refund!(charge_id,
                                                       amount_cents:,
                                                       merchant_account:,
                                                       paypal_order_purchase_unit_refund:,
                                                       reverse_transfer:,
                                                       is_for_fraud:,
-                                                      purchase:)
+                                                      purchase:,
+                                                      cap_to_unrefunded_amount:)
   end
 
   # Public: Handles a charge event.
@@ -236,12 +238,6 @@ module ChargeProcessor
 
   def self.transaction_url_for_seller(charge_processor_id, charge_id, charged_using_gumroad_account)
     return if charge_processor_id.blank? || charge_id.blank? || charged_using_gumroad_account
-
-    transaction_url(charge_processor_id, charge_id)
-  end
-
-  def self.transaction_url_for_admin(charge_processor_id, charge_id, charged_using_gumroad_account)
-    return if charge_processor_id.blank? || charge_id.blank? || !charged_using_gumroad_account
 
     transaction_url(charge_processor_id, charge_id)
   end

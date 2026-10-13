@@ -31,6 +31,7 @@ describe CheckoutController, type: :controller, inertia: true do
         payment_element_wallets: false,
         flat_payment_methods: false,
         india_card_mandate_reliability: false,
+        stripe_link_enabled: true,
         elements_options: nil,
       )
       expect(inertia.props[:checkout]).to eq({
@@ -117,7 +118,17 @@ describe CheckoutController, type: :controller, inertia: true do
                                                text_color: "#000000",
                                                danger_color: "#9b1c12",
                                                font_family: %("Roboto Mono", "ABC Favorit", monospace),
+                                               border_radius: "0.25rem",
                                              })
+      end
+
+      it "sends the seller's radius as a literal length for Stripe's appearance variables" do
+        seller = create(:user).tap { _1.seller_profile.update!(border_radius: "large") }
+        cart_with(create(:product, user: seller))
+
+        get :show
+
+        expect(inertia.props.dig(:checkout_style, :theme, :border_radius)).to eq("1rem")
       end
 
       it "floors the indicator colour when the seller's accent is invisible on their background" do
@@ -781,6 +792,64 @@ describe CheckoutController, type: :controller, inertia: true do
         expect(response).to redirect_to(checkout_path)
         expect(flash[:alert]).to be_nil
         expect(CartProduct.last).to have_attributes(product:, url_parameters: {}, referrer: "direct")
+      end
+
+      # Regression: a client that serializes its absent URL params as empty strings sends `rent: ""`.
+      # A boolean attribute casts that to nil, which the NOT NULL column rejects, and the raise rolls
+      # back the whole cart save.
+      it "saves a cart product when the item sends a blank rent" do
+        product = create(:product)
+
+        expect do
+          patch :update, params: {
+            cart: {
+              items: [
+                {
+                  product: { id: product.external_id },
+                  option_id: nil,
+                  recurrence: nil,
+                  price: 100,
+                  quantity: 1,
+                  rent: "",
+                  referrer: "direct",
+                  url_parameters: {}
+                }
+              ],
+              discountCodes: []
+            }
+          }, as: :json
+        end.to change(CartProduct, :count).by(1)
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to be_nil
+        expect(CartProduct.last.rent).to be(false)
+      end
+
+      it "saves a stringified rent as a rental" do
+        product = create(:product)
+
+        expect do
+          patch :update, params: {
+            cart: {
+              items: [
+                {
+                  product: { id: product.external_id },
+                  option_id: nil,
+                  recurrence: nil,
+                  price: 100,
+                  quantity: 1,
+                  rent: "true",
+                  referrer: "direct",
+                  url_parameters: {}
+                }
+              ],
+              discountCodes: []
+            }
+          }, as: :json
+        end.to change(CartProduct, :count).by(1)
+
+        expect(response).to have_http_status(:see_other)
+        expect(CartProduct.last.rent).to be(true)
       end
 
       it "keeps the stored url_parameters and referrer when the item omits them" do

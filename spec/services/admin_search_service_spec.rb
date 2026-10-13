@@ -107,6 +107,26 @@ describe AdminSearchService do
       expect(purchases.size).to eq(0)
     end
 
+    describe "combining a creator filter with card filters" do
+      let(:seller) { create(:user, email: "seller@example.com") }
+
+      it "filters a creator's purchases by price" do
+        purchase = create(:purchase, link: create(:product, user: seller), price_cents: 9869)
+        create(:purchase, link: create(:product, user: seller), price_cents: 100)
+
+        purchases = AdminSearchService.new.search_purchases(creator_email: seller.email, price: "98.69")
+        expect(purchases).to eq([purchase])
+      end
+
+      it "filters a creator's purchases by transaction date" do
+        purchase = create(:purchase, link: create(:product, user: seller), created_at: Time.zone.local(2026, 9, 22, 12))
+        create(:purchase, link: create(:product, user: seller), created_at: Time.zone.local(2026, 9, 1, 12))
+
+        purchases = AdminSearchService.new.search_purchases(creator_email: seller.email, transaction_date: "2026-09-22")
+        expect(purchases).to eq([purchase])
+      end
+    end
+
     it "returns purchase associated with a license key" do
       purchase = create(:purchase)
       license = create(:license, purchase:)
@@ -157,8 +177,14 @@ describe AdminSearchService do
       end
 
       it "supports filtering by card_visual" do
-        purchases = AdminSearchService.new.search_purchases(last_4: "7531")
+        purchases = AdminSearchService.new.search_purchases(last_4: "7531", card_type: "amex")
         expect(purchases).to eq [purchase_amex]
+      end
+
+      it "raises when card_visual is the only filter the query could seek on" do
+        expect do
+          AdminSearchService.new.search_purchases(last_4: "7531", price: "7", expiry_date: "7/21")
+        end.to raise_error(AdminSearchService::InsufficientSearchCriteriaError)
       end
 
       it "supports filtering by expiry date" do

@@ -46,6 +46,8 @@ type Product = {
 
 type Review = {
   id: string;
+  anonymous: boolean;
+  account_name: string | null;
   rating: number;
   message: string | null;
   purchase_id: string;
@@ -59,7 +61,7 @@ type Review = {
 
 interface Props {
   reviews: Review[];
-  purchases: { id: string; email_digest: string; product: Product }[];
+  purchases: { id: string; email_digest: string; account_name: string | null; product: Product }[];
 }
 
 let newReviewId = 0;
@@ -121,14 +123,26 @@ const Row = ({ review, onChange }: { review: Review; onChange: (review: Review) 
                   </Button>
                 </PopoverTrigger>
               </PopoverAnchor>
-              <PopoverContent sideOffset={4} className="border-0 p-0 shadow-none" usePortal>
+              <PopoverContent
+                sideOffset={4}
+                align="end"
+                // A definite width: the default `w-max` sizes this to the whole quote on one line.
+                className="w-[min(28rem,calc(100vw-2rem))] border-0 p-0 shadow-none"
+                usePortal
+              >
                 <Card>
                   <ReviewForm
                     permalink={review.product.permalink}
                     purchaseId={review.purchase_id}
                     purchaseEmailDigest={review.purchase_email_digest}
                     review={review}
-                    onChange={(newReview) => onChange({ ...review, ...newReview })}
+                    accountName={review.account_name}
+                    onChange={(newReview) => {
+                      onChange({ ...review, ...newReview });
+                      // The form hands the saved review back instead of closing itself, and the
+                      // open state lives here.
+                      setIsEditing(false);
+                    }}
                     className="flex flex-wrap items-center justify-between gap-4 p-4"
                   />
                 </Card>
@@ -175,6 +189,7 @@ export default function ReviewsIndex({ reviews: initialReviews, purchases: initi
                       purchaseId={purchase.id}
                       purchaseEmailDigest={purchase.email_digest}
                       review={null}
+                      accountName={purchase.account_name}
                       onChange={(newReview) => {
                         setReviews((prevReviews) => [
                           ...prevReviews,

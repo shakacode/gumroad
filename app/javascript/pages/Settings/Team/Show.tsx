@@ -126,7 +126,7 @@ const AddTeamMembersSection = ({
       showAlert("Invitation sent!", "success");
       updateTeamInvitation({ email: "", role: null });
     } else {
-      showAlert(result.error_message, "error");
+      showAlert(result.error_message, "error", { position: "bottom" });
       errors.set("error", result.error_message);
     }
     setErrors(errors);
@@ -138,7 +138,7 @@ const AddTeamMembersSection = ({
       header={
         <>
           <h2>Add team members</h2>
-          <div>Invite as many team members as you need to help run this account.</div>
+          <div>Invite team members to help run this account.</div>
           <a href="/help/article/326-teams-and-roles" target="_blank" rel="noreferrer">
             Learn more
           </a>
@@ -239,7 +239,11 @@ const TeamMembersSection = ({
           break;
         }
         case "resend_invitation": {
-          await resendInvitation(memberInfo);
+          const result = await resendInvitation(memberInfo);
+          if (!result.success) {
+            showAlert(result.error_message, "error", { position: "bottom" });
+            break;
+          }
           refreshMemberInfos();
           showAlert("Invitation sent!", "success");
           break;
@@ -259,7 +263,7 @@ const TeamMembersSection = ({
       }
     } catch (e) {
       assertResponseError(e);
-      showAlert(e.message, "error");
+      showAlert(e.message, "error", { position: selectedOption === "resend_invitation" ? "bottom" : "top" });
     }
     setLoading(false);
   };

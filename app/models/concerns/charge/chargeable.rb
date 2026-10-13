@@ -2,28 +2,32 @@
 
 module Charge::Chargeable
   class << self
+    # Provider events can arrive before replication catches up; keep every fallback
+    # on the primary. Each lookup still needs its own index.
     def find_by_stripe_event(event)
-      chargeable = nil
+      ApplicationRecord.connected_to(role: :writing) do
+        chargeable = nil
 
-      if event.charge_reference.to_s.starts_with?(Charge::COMBINED_CHARGE_PREFIX)
-        chargeable ||= Charge.where(id: event.charge_reference.sub(Charge::COMBINED_CHARGE_PREFIX, "")).last
-        chargeable ||= Charge.where(processor_transaction_id: event.charge_id).last if event.charge_id
-        chargeable ||= Charge.where(stripe_payment_intent_id: event.processor_payment_intent_id).last if event.processor_payment_intent_id.present?
-      else
-        chargeable = Purchase.find_by_external_id(event.charge_reference) if event.charge_reference
-        # Refund events (refund.updated / refund.failed) carry no charge_reference — Stripe's
-        # Refund object has no metadata and we don't retrieve the underlying charge for them —
-        # so a refund on a combined charge lands in this branch instead of the CH- branch above.
-        # Check Charge before Purchase: every purchase in a combined charge stores the shared
-        # ch_ id in stripe_transaction_id (see Purchase#save_charge_data), so a purchase lookup
-        # would match one arbitrary purchase and the event would miss the canonical Charge.
-        # Same precedence as find_by_processor_transaction_id! below.
-        chargeable ||= Charge.where(processor_transaction_id: event.charge_id).last if event.charge_id
-        chargeable ||= Purchase.where(stripe_transaction_id: event.charge_id).last if event.charge_id
-        chargeable ||= ProcessorPaymentIntent.where(intent_id: event.processor_payment_intent_id).last&.purchase if event.processor_payment_intent_id.present?
+        if event.charge_reference.to_s.starts_with?(Charge::COMBINED_CHARGE_PREFIX)
+          chargeable ||= Charge.where(id: event.charge_reference.sub(Charge::COMBINED_CHARGE_PREFIX, "")).last
+          chargeable ||= Charge.where(processor_transaction_id: event.charge_id).last if event.charge_id
+          chargeable ||= Charge.where(stripe_payment_intent_id: event.processor_payment_intent_id).last if event.processor_payment_intent_id.present?
+        else
+          chargeable = Purchase.find_by_external_id(event.charge_reference) if event.charge_reference
+          # Refund events (refund.updated / refund.failed) carry no charge_reference — Stripe's
+          # Refund object has no metadata and we don't retrieve the underlying charge for them —
+          # so a refund on a combined charge lands in this branch instead of the CH- branch above.
+          # Check Charge before Purchase: every purchase in a combined charge stores the shared
+          # ch_ id in stripe_transaction_id (see Purchase#save_charge_data), so a purchase lookup
+          # would match one arbitrary purchase and the event would miss the canonical Charge.
+          # Same precedence as find_by_processor_transaction_id! below.
+          chargeable ||= Charge.where(processor_transaction_id: event.charge_id).last if event.charge_id
+          chargeable ||= Purchase.where(stripe_transaction_id: event.charge_id).last if event.charge_id
+          chargeable ||= ProcessorPaymentIntent.where(intent_id: event.processor_payment_intent_id).last&.purchase if event.processor_payment_intent_id.present?
+        end
+
+        chargeable
       end
-
-      chargeable
     end
 
     def find_by_processor_transaction_id!(processor_transaction_id)
@@ -50,12 +54,14 @@ module Charge::Chargeable
     is_a?(Charge) ? purchases.non_free.to_a.reject { _1.is_free_trial_purchase? || _1.is_preorder_authorization? } : [self]
   end
 
+  # Charge defines its own successful_purchases, update_processor_fee_cents!, taxable?,
+  # multi_item_charge?, taxed_by_gumroad? and *_for_invoice, so those bodies here only run on a Purchase.
   def successful_purchases
-    is_a?(Charge) ? super : Purchase.where(id:)
+    Purchase.where(id:)
   end
 
   def update_processor_fee_cents!(processor_fee_cents:)
-    is_a?(Charge) ? super : update!(processor_fee_cents:)
+    update!(processor_fee_cents:)
   end
 
   def charged_amount_cents
@@ -114,6 +120,11 @@ module Charge::Chargeable
     is_a?(Charge) ? order : self
   end
 
+  # Purchases render from themselves. The mailer checks this before the send claim.
+  def receipt_renderable?
+    is_a?(Charge) ? purchase_as_chargeable.present? : true
+  end
+
   def support_email
     unique_support_emails = successful_purchases.joins(:link).pluck("links.support_email").uniq
 
@@ -146,23 +157,23 @@ module Charge::Chargeable
   end
 
   def taxable?
-    is_a?(Charge) ? super : was_purchase_taxable?
+    was_purchase_taxable?
   end
 
   def multi_item_charge?
-    is_a?(Charge) ? super : false
+    false
   end
 
   def taxed_by_gumroad?
-    is_a?(Charge) ? super : gumroad_tax_cents > 0
+    gumroad_tax_cents > 0
   end
 
   def external_id_for_invoice
-    is_a?(Charge) ? super : external_id
+    external_id
   end
 
   def external_id_numeric_for_invoice
-    is_a?(Charge) ? super : external_id_numeric.to_s
+    external_id_numeric.to_s
   end
 
   def subscription

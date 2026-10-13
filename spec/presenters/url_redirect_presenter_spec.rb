@@ -98,6 +98,19 @@ describe UrlRedirectPresenter do
       expect(file_item[:download_url]).to be_present
     end
 
+    it "keeps the reader and drops the download link for a document with downloads disabled" do
+      product = create(:product)
+      file = create(:readable_document, link: product, display_name: "Readable PDF", stream_only: true, hide_kindle_and_read_buttons: true)
+      purchase = create(:purchase, link: product)
+      url_redirect = create(:url_redirect, purchase:)
+      instance = described_class.new(url_redirect:, logged_in_user: create(:user))
+
+      file_item = instance.download_attributes[:content_items].sole
+      expect(file_item[:download_url]).to be_nil
+      expect(file_item[:kindle_data]).to be_nil
+      expect(file_item[:read_url]).to eq(url_redirect_read_for_product_file_path(url_redirect.token, file.external_id))
+    end
+
     it "omits empty folders" do
       product = create(:product)
 
@@ -217,6 +230,7 @@ describe UrlRedirectPresenter do
           product_available: true,
           disable_reviews_after_year: false,
           review: nil,
+          review_account_name: nil,
           membership: nil,
           purchase_custom_fields: [],
           call: nil,
@@ -880,6 +894,7 @@ describe UrlRedirectPresenter do
           product_available: true,
           disable_reviews_after_year: true,
           review: nil,
+          review_account_name: nil,
           membership: {
             has_active_subscription: true,
             subscription_id: @subscription.external_id,

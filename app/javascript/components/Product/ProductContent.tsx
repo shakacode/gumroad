@@ -87,26 +87,7 @@ export const ProductCoverImage = ({ cover, productName }: { cover: AssetPreview;
 export const ProductQuantityRemaining = ({ quantityRemaining }: { quantityRemaining: number | null }) =>
   quantityRemaining !== null ? <Ribbon>{quantityRemaining} left</Ribbon> : null;
 
-export const ProductSalesNotice = ({
-  salesCount,
-  isMembership,
-  isPreorder,
-  hasPaidPrice,
-  locale,
-}: {
-  salesCount: number | null;
-  isMembership: boolean;
-  isPreorder: boolean;
-  hasPaidPrice: boolean;
-  locale?: string | undefined;
-}) =>
-  salesCount !== null ? (
-    <Alert role="status" variant="info">
-      <strong>{salesCount.toLocaleString(locale)}</strong>{" "}
-      {isMembership ? "member" : isPreorder ? "pre-order" : hasPaidPrice ? "sale" : "download"}
-      {salesCount === 1 ? "" : "s"}
-    </Alert>
-  ) : null;
+export { ProductSalesNotice } from "$app/components/Product/ProductSalesNotice.client";
 
 export const ProductBundleItemContent = ({ product }: { product: BundleProduct }) => (
   <>
@@ -204,6 +185,7 @@ export const ProductReceiptContent = ({
             permalink={permalink}
             purchaseId={purchase.id}
             review={purchase.review}
+            accountName={purchase.review_account_name}
             purchaseEmailDigest={purchase.email_digest}
             className="flex flex-wrap items-center justify-between gap-4 p-4"
           />
@@ -213,8 +195,23 @@ export const ProductReceiptContent = ({
   );
 };
 
-export const ProductTitle = ({ content }: { content: ProductContentProps }) => (
-  <h1 itemProp="name" dir="auto" className="wrap-break-word">
+export const LONG_TITLE_LENGTH = 60;
+
+export const ProductTitle = ({
+  content,
+  scaleLongTitle = true,
+}: {
+  content: Pick<ProductContentProps, "name">;
+  scaleLongTitle?: boolean | undefined;
+}) => (
+  <h1
+    itemProp="name"
+    dir="auto"
+    className={classNames(
+      "wrap-break-word",
+      scaleLongTitle && content.name.trim().length > LONG_TITLE_LENGTH && "text-[2rem] max-sm:text-[1.5rem]",
+    )}
+  >
     {content.name}
   </h1>
 );
@@ -277,20 +274,6 @@ export const ProductReviewsContent = ({ ratings }: { ratings: RatingsWithPercent
   </>
 );
 
-export const productDescriptionNeedsClientEnhancement = (descriptionHtml: string | null) => {
-  const html = descriptionHtml ?? "";
-
-  if (/<(?:pre|public-file-embed|review-card|upsell-card)(?=[\s/>])/iu.test(html)) return true;
-
-  return [...html.matchAll(/<a(?=[\s>])(?:(?:"[^"]*"|'[^']*'|[^'">])*)>/giu)].some(([tag]) => {
-    if (!/\btarget\s*=\s*(["'])_blank\1/iu.test(tag)) return true;
-
-    const rel = /\brel\s*=\s*(["'])([^"']*)\1/iu.exec(tag)?.[2];
-    const relValues = new Set(rel?.toLowerCase().split(/\s+/u));
-    return !["noopener", "noreferrer", "nofollow"].every((value) => relValues.has(value));
-  });
-};
-
 export const ProductMembershipNotices = ({ content }: { content: ProductContentProps }) => (
   <>
     {content.free_trial ? (
@@ -310,7 +293,7 @@ export const ProductMembershipNotices = ({ content }: { content: ProductContentP
 export const ProductStreamingNotice = ({ content }: { content: ProductContentProps }) =>
   content.streamable ? (
     <Alert role="status" variant="info">
-      Watch link provided after purchase
+      Video link provided after purchase
     </Alert>
   ) : null;
 

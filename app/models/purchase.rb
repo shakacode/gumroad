@@ -37,6 +37,7 @@ class Purchase < ApplicationRecord
 
   MAX_PRICE_RANGE = (-2_147_483_647..2_147_483_647)
   BUYER_CURRENCY_QUOTE_ROUNDING_SLACK_CENTS = 5
+  UNFINISHED_PURCHASE_RETRY_BLOCK = 15.minutes
 
   CHARGED_SUCCESS_STATES = %w[preorder_authorization_successful successful]
   NON_GIFT_SUCCESS_STATES = CHARGED_SUCCESS_STATES.dup.push("not_charged")
@@ -121,6 +122,7 @@ class Purchase < ApplicationRecord
   belongs_to :price, optional: true
   has_many :events
   has_many :refunds
+  has_many :ping_deliveries
   # Only refunds whose money actually left our account (see Refund.effective). Every
   # financial, tax, and reporting query that sums "how much of this purchase was
   # refunded" must go through this association, so a refund that failed after
@@ -273,6 +275,9 @@ class Purchase < ApplicationRecord
     after_transition any => :failed, :do => :ban_buyer_on_fraud_related_error_code!
     after_transition any => :failed, :do => :suspend_buyer_on_fraudulent_card_decline!
     after_transition any => :failed, :do => :send_failure_email
+    # Several failure paths (client-confirm webhooks, the stuck-purchase sync) call mark_failed!
+    # directly instead of going through Purchase::MarkFailedService.
+    after_transition any => :failed, :do => :fail_gift_legs!, if: :is_gift_sender_purchase?
 
     after_transition any => %i[preorder_authorization_successful successful not_charged preorder_concluded_unsuccessfully], :do => :queue_product_cache_invalidation
     after_transition any => %i[successful preorder_authorization_successful], :do => :touch_variants_if_limited_quantity, unless: lambda { |purchase|
@@ -400,6 +405,9 @@ class Purchase < ApplicationRecord
 
   before_save :assign_default_rental_expired
   before_save :truncate_referrer
+  # A single-row claim writes purchaser on this row only. Member rows are what the library
+  # and the app list, and they still have the nil purchaser copied at creation.
+  after_save :attach_unclaimed_bundle_product_purchases, if: :saved_change_to_purchaser_id?
 
   after_commit :enqueue_update_sales_related_products_infos_job, if: -> (purchase) {
     purchase.purchase_state_previously_changed? && purchase.purchase_state == "successful"
@@ -1438,7 +1446,7 @@ class Purchase < ApplicationRecord
       has_files: link.has_files?,
       product_id: link.external_id,
       is_gift_receiver_purchase: purchase.present? && purchase.is_gift_receiver_purchase,
-      gift_receiver_text: "#{purchase.try(:gifter_email)} bought this for you.",
+      gift_receiver_text: purchase.try(:gifter_hidden_from_recipient?) ? "Someone bought this for you." : "#{purchase.try(:gifter_email)} bought this for you.",
       is_gift_sender_purchase: purchase.present? && purchase.is_gift_sender_purchase,
       gift_sender_text: "You bought this for #{purchase&.giftee_name_or_email}.",
       content_url: purchase.has_content? ? url_redirect.try(:download_page_url) : nil,
@@ -1467,6 +1475,9 @@ class Purchase < ApplicationRecord
       review = purchase.original_product_review
       json[:product_rating] = review.rating if review.present?
       json[:review] = ProductReviewPresenter.new(review).review_form_props if review.present?
+      # nil hides the identity choice in the review form: a guest purchase has nothing to offer
+      # besides Anonymous.
+      json[:review_account_name] = purchase.rater_account_name
       json[:has_shipping_to_show] = purchase.shipping_cents > 0
       json[:shipping_amount] = purchase.buyer_presentment? ? purchase.formatted_buyer_presentment_shipping : purchase.formatted_shipping_amount
       json[:has_sales_tax_to_show] = purchase.was_purchase_taxable && purchase.price_cents > 0
@@ -1846,7 +1857,7 @@ class Purchase < ApplicationRecord
   end
 
   def formatted_total_display_price_per_unit
-    format_price_in_cents(displayed_price_per_unit_cents + (commission&.completion_price_cents || 0) - (tip&.value_cents || 0))
+    format_price_in_cents(displayed_price_per_unit_cents + (commission&.completion_display_price_cents || 0) - (tip&.value_cents || 0))
   end
 
   def total_in_purchase_currency
@@ -1922,7 +1933,9 @@ class Purchase < ApplicationRecord
   def minimum_paid_price_cents
     return 0 if is_gift_receiver_purchase
     return perceived_price_cents if perceived_price_cents.present? && is_applying_plan_change
-    if perceived_price_cents.present? && is_commission_completion_purchase? && once_per_cart_fixed_offer_code?
+    # The balance is fixed by the deposit the buyer already paid, so a later change to the
+    # live version price must not raise the floor and strand the completion.
+    if perceived_price_cents.present? && is_commission_completion_purchase?
       return [perceived_price_cents.to_i - tip&.value_cents.to_i, 0].max
     end
 
@@ -1944,6 +1957,8 @@ class Purchase < ApplicationRecord
       minimum_price_cents = currency_minimum_or_zero(minimum_price_cents) if once_per_cart_fixed_offer_code?
 
       minimum_price_cents *= purchasing_power_parity_factor if is_purchasing_power_parity_discounted? && link.purchasing_power_parity_enabled? && offer_code_for_pricing.blank?
+      # The client rounds the discounted total before splitting it; float residue would otherwise double in the split.
+      minimum_price_cents = minimum_price_cents.round if is_installment_payment
 
       minimum_price = minimum_price_cents
 
@@ -2007,17 +2022,8 @@ class Purchase < ApplicationRecord
   end
 
   def create_affiliate_balances!
-    affiliate_issued_amount = BalanceTransaction::Amount.create_issued_amount_for_affiliate(
-      flow_of_funds:,
-      issued_affiliate_cents: affiliate_credit_cents,
-      canonical_issued_amount: presentment_canonical_issued_amount
-    )
-
-    affiliate_holding_amount = BalanceTransaction::Amount.create_holding_amount_for_affiliate(
-      flow_of_funds:,
-      issued_affiliate_cents: affiliate_credit_cents,
-      canonical_issued_amount: presentment_canonical_issued_amount
-    )
+    affiliate_issued_amount = BalanceTransaction::Amount.create_issued_amount_for_affiliate(issued_affiliate_cents: affiliate_credit_cents)
+    affiliate_holding_amount = BalanceTransaction::Amount.create_holding_amount_for_affiliate(issued_affiliate_cents: affiliate_credit_cents)
 
     affiliate_balance_transaction = BalanceTransaction.create!(
       user: affiliate.affiliate_user,
@@ -2327,6 +2333,20 @@ class Purchase < ApplicationRecord
     giftee_purchase.save!
   end
 
+  def fail_gift_legs!
+    gift = gift_given
+    return if gift.nil?
+
+    # A gift leg that no longer validates must not roll back the gifter's own failure.
+    if gift.in_progress? && !gift.mark_failed
+      ErrorNotifier.notify("Could not mark gift as failed", gift_id: gift.id, errors: gift.errors.full_messages)
+    end
+    giftee_purchase = gift.giftee_purchase
+    if giftee_purchase&.in_progress? && !giftee_purchase.mark_gift_receiver_purchase_failed
+      ErrorNotifier.notify("Could not mark giftee purchase as failed", purchase_id: giftee_purchase.id, errors: giftee_purchase.errors.full_messages)
+    end
+  end
+
   def mark_giftee_purchase_as_chargeback_reversed
     giftee_purchase = gift_given.present? ? gift_given.giftee_purchase : nil
     return if giftee_purchase.nil?
@@ -2590,19 +2610,9 @@ class Purchase < ApplicationRecord
   def process_refund_or_chargeback_for_affiliate_credit_balance(flow_of_funds, refund: nil, dispute: nil, refund_cents: 0, fee_cents: 0)
     return if affiliate_credit_cents == 0 || refund_cents == 0
 
-    canonical_issued_amount = presentment_canonical_refund_or_chargeback_issued_amount(refund:, dispute:)
-
-    affiliate_issued_amount = BalanceTransaction::Amount.create_issued_amount_for_affiliate(
-      flow_of_funds:,
-      issued_affiliate_cents: -1 * refund_cents,
-      canonical_issued_amount:
-    )
-
-    affiliate_holding_amount = BalanceTransaction::Amount.create_holding_amount_for_affiliate(
-      flow_of_funds:,
-      issued_affiliate_cents: -1 * refund_cents,
-      canonical_issued_amount:
-    )
+    issued_currency, holding_currency = affiliate_reversal_currencies
+    affiliate_issued_amount = BalanceTransaction::Amount.create_issued_amount_for_affiliate(issued_affiliate_cents: -1 * refund_cents, currency: issued_currency)
+    affiliate_holding_amount = BalanceTransaction::Amount.create_holding_amount_for_affiliate(issued_affiliate_cents: -1 * refund_cents, currency: holding_currency)
 
     affiliate_balance_transaction = BalanceTransaction.create!(
       user: affiliate_credit.affiliate_user,
@@ -2858,6 +2868,10 @@ class Purchase < ApplicationRecord
     gift&.gifter_email
   end
 
+  def gifter_hidden_from_recipient?
+    gift&.is_gifter_hidden? || false
+  end
+
   def giftee_email
     gift&.giftee_email
   end
@@ -2892,6 +2906,15 @@ class Purchase < ApplicationRecord
   # Public: Determine if this purchase is a test purchase by the links owner.
   def is_test_purchase?
     link.user == purchaser
+  end
+
+  # Moving a customer's purchase into the seller's account turns it into a test purchase,
+  # which only the seller can open, so the customer loses their links and library entry.
+  # An unclaimed checkout under the seller's own email is theirs to claim.
+  def claim_by_seller?(user)
+    return false unless user.present? && link.user == user && !is_test_purchase?
+
+    purchaser_id.present? || !email.to_s.casecmp?(user.email.to_s)
   end
 
   # Public: Return json information about this purchase for the mobile api.
@@ -3120,6 +3143,15 @@ class Purchase < ApplicationRecord
     return [] if purchase_ids.blank?
 
     purchases = Purchase.includes(:link).where(id: purchase_ids)
+
+    # The buyer filter (WithFiltering#purchase_passes_filters) reads each purchase's
+    # `variant_attributes` and license chain, and neither is shared between a batch's
+    # rows — preload them for the batch instead of per purchase.
+    ActiveRecord::Associations::Preloader.new(
+      records: purchases.to_a,
+      associations: [:variant_attributes, :license, { subscription: { original_purchase: :license } }]
+    ).call
+
     product_ids = purchases.pluck(:link_id).uniq
     variant_ids = BaseVariant.joins(:purchases).where("purchases.id IN (?)", purchase_ids).select("base_variants.id")
     seller_ids = purchases.map(&:seller_id)
@@ -3297,6 +3329,13 @@ class Purchase < ApplicationRecord
       return false
     end
 
+    # Signup can pass the purchase id from the confirm page with no email check.
+    # A seller's own purchase must stay with the seller, or the delivery guard stops applying.
+    if is_test_purchase? || claim_by_seller?(user)
+      logger.info("Attaching user to purchase #{id}: skipped because the purchase or the user is its seller")
+      return false
+    end
+
     self.purchaser = user
 
     if chargeable.present? && successful? && chargeable.fingerprint == stripe_fingerprint
@@ -3322,6 +3361,29 @@ class Purchase < ApplicationRecord
     # save! re-runs financial_transaction_validation and the attach no-ops. Skip
     # validators only; keep callbacks and updated_at.
     save!(validate: false)
+  end
+
+  # Only this bundle's unclaimed members whose email still matches. A different email is
+  # a different buyer. An existing purchaser or a reassignment lock is not ours to move.
+  # find_each's snapshot is not the check: lock and reload each member first, or a claim
+  # that lands after the select is overwritten.
+  def attach_unclaimed_bundle_product_purchases
+    return unless is_bundle_purchase?
+    return if purchaser_id.nil?
+
+    product_purchases.all_success_states.where(purchaser_id: nil).find_each do |member|
+      member.with_lock do
+        next if member.purchaser_id.present?
+        next unless email.present? && member.email.to_s.casecmp?(email)
+        next if member.is_reassignment_locked?
+
+        member.purchaser = purchaser
+        member.save!(validate: false)
+      end
+    rescue => e
+      ErrorNotifier.notify(e, context: { purchase_id: member.id, bundle_purchase_id: id, user_id: purchaser_id })
+      Rails.logger.error("Purchase#attach_unclaimed_bundle_product_purchases: member #{member.id} failed for bundle purchase #{id}: #{e.class}: #{e.message}")
+    end
   end
 
   def seller_balance_update_eligible?
@@ -3681,13 +3743,17 @@ class Purchase < ApplicationRecord
 
   def enqueue_high_volume_fee_eligibility_refresh
     return if seller_id.blank?
+    # Flag-off sellers skip the per-sale refresh: it locks the seller's users row and sums
+    # the month's sales, one job per sale. The nightly job still pre-warms them; when ramping,
+    # run RefreshHighVolumeSellerFeeEligibilityJob for the ramped sellers to cover same-day crossers.
+    return unless seller && Feature.active?(:high_volume_seller_fee, seller)
 
     # A sale that crosses $20k must lower the very next sale's fee, so refresh
     # synchronously while the seller is below the cached threshold. Already-eligible
-    # sellers can't change state on a sale; flag-off keeps the async pre-warm.
+    # sellers can't lose eligibility on a sale, so they take the cheaper async path.
     # Reload before branching: a concurrent refund can clear the cached eligibility
     # this in-memory seller still shows, which would wrongly skip the sync refresh.
-    if seller && Feature.active?(:high_volume_seller_fee, seller) && !seller.reload.high_volume_fee_eligible?
+    if !seller.reload.high_volume_fee_eligible?
       refresh_high_volume_fee_eligibility
     else
       RefreshHighVolumeSellerFeeEligibilityJob.perform_async(seller_id)
@@ -3920,11 +3986,18 @@ class Purchase < ApplicationRecord
     mandate_options = intent.card_mandate_options
     return false if card.nil? || expected_terms.blank? || mandate_options.blank?
 
+    # A restart can need a larger cap because its billing address has higher tax.
+    amount_matches = if is_installment_payment && !is_original_subscription_purchase? && subscription.is_installment_plan?
+      mandate_options.amount.to_i >= expected_terms[:amount]
+    else
+      mandate_options.amount.to_i == expected_terms[:amount]
+    end
+
     intent.payment_method_id == card.processor_payment_method_id &&
       intent.customer_id == card.stripe_customer_id &&
       intent.setup_future_usage == "off_session" &&
       intent.currency.to_s.downcase == expected_terms[:currency] &&
-      mandate_options.amount.to_i == expected_terms[:amount] &&
+      amount_matches &&
       mandate_options.amount_type == "maximum" &&
       mandate_options.interval == expected_terms[:interval] &&
       mandate_options.interval_count&.to_i == expected_terms[:interval_count]&.to_i &&
@@ -4018,6 +4091,10 @@ class Purchase < ApplicationRecord
     # the original/upgrade flags. Passing nil recurrence here registers a sporadic
     # mandate, which RBI issuers then refuse for the same monthly membership.
     recurrence = subscription_duration if is_original_subscription_purchase? || is_upgrade_purchase? || setup_future_charges
+    # An installment plan's price carries no recurrence, the plan does. A new checkout's
+    # subscription is only created after this charge succeeds, so fall back to the plan itself.
+    recurrence = subscription.recurrence if recurrence.blank? && subscription&.is_installment_plan?
+    recurrence = installment_plan.recurrence if recurrence.blank? && is_installment_payment && installment_plan
     interval, interval_count = StripeChargeProcessor.indian_card_mandate_interval(recurrence)
 
     mandate_options = {
@@ -4066,6 +4143,12 @@ class Purchase < ApplicationRecord
     get_usd_cents(displayed_currency, displayed_price_cents, rate: fixed_rate)
   end
 
+  # Read from the subscription, not an in-memory attribute, so reloaded purchases (receipt
+  # previews, mandate caps) see the same exemption the renewal charge will.
+  def vat_exempt_territory?
+    subscription&.vat_exempt_territory? == true
+  end
+
   def indian_card_mandate_amount_for_billing_info(billing_info, price_cents, buyer_vat_id: business_vat_id)
     info = billing_info.to_h.symbolize_keys
     country = Compliance::Countries.find_by_name(info[:country])&.alpha2 || info[:country]
@@ -4081,6 +4164,7 @@ class Purchase < ApplicationRecord
         country:,
         state: info[:state],
         ip_address:,
+        **vat_exempt_territory_location,
       },
       buyer_vat_id:,
       from_discover: was_discover_fee_charged?
@@ -4100,9 +4184,17 @@ class Purchase < ApplicationRecord
     # original purchase's total with the upgrade's small prorated price (wildly
     # inflating the cap) or miss a temporary discount that only exists on the original
     # purchase (undersizing the cap so renewals fail).
-    reference_purchase = is_upgrade_purchase? ? subscription.original_purchase : self
+    #
+    # An installment restart must use that same original purchase. The subscription's
+    # mandate terms and the post-auth amount check already do; the restart's own total
+    # is often a later, smaller installment and would register a cap that cannot match.
+    reference_purchase = if use_subscription_original_for_mandate_cap?(fixed_rate:)
+      subscription.original_purchase
+    else
+      self
+    end
     base_cents = reference_purchase.total_transaction_cents
-    if reference_purchase.is_free_trial_purchase?
+    if reference_purchase.is_free_trial_purchase? || reference_purchase.installment_plan_relisted_in_another_currency?
       renewal_price_cents = if reference_purchase.subscription.present?
         reference_purchase.subscription.current_subscription_price_cents
       else
@@ -4135,6 +4227,33 @@ class Purchase < ApplicationRecord
     pre_discount_cents = discount.pre_discount_displayed_price_cents ||
       discount.pre_discount_minimum_price_cents * reference_purchase.quantity
     [(Rational(base_cents * pre_discount_cents, reference_purchase.displayed_price_cents)).ceil, base_cents].max
+  end
+
+  # Remaining installments bill the product's current listed price, so after a relisting the
+  # signup total is a stale conversion and must not size the mandate.
+  def installment_plan_relisted_in_another_currency?
+    return false unless is_installment_payment && subscription&.is_installment_plan?
+
+    displayed_currency = self[:displayed_price_currency_type].presence
+    displayed_currency.present? && displayed_currency.to_s.downcase != link.price_currency_type.to_s.downcase
+  end
+
+  # Stripe rejects a mandate maximum below this charge, so when the original cap is
+  # smaller, the cap stays on the charge. Compare that US-cent cap, not a rupee terms amount.
+  private def use_subscription_original_for_mandate_cap?(fixed_rate: nil)
+    original = subscription&.original_purchase
+    return false if original.nil?
+    return true if is_upgrade_purchase?
+    return false unless installment_plan_restart_mandate?
+
+    original.mandate_maximum_amount_cents(fixed_rate:) >= total_transaction_cents.to_i
+  end
+
+  private def installment_plan_restart_mandate?
+    setup_future_charges &&
+      is_installment_payment &&
+      !is_original_subscription_purchase? &&
+      subscription&.is_installment_plan?
   end
 
   def name_or_email
@@ -4314,6 +4433,20 @@ class Purchase < ApplicationRecord
       FlowOfFunds::Amount.new(currency: Currency::USD, cents: total_transaction_cents)
     end
 
+    # [issued, holding] labels of the ledger a reversal offsets — the recorded chargeback debit for a
+    # re-credit, else the credit itself — so legacy foreign-labelled legs keep netting in one currency
+    # whatever the source's payout state (same cents, no FX). Read fresh: the associations can predate a repair.
+    def affiliate_reversal_currencies(dispute_won: false)
+      return [Currency::USD, Currency::USD] if affiliate_credit.nil?
+
+      ApplicationRecord.connected_to(role: :writing) do
+        success_id, chargeback_id = AffiliateCredit.where(id: affiliate_credit.id).pick(:affiliate_credit_success_balance_id, :affiliate_credit_chargeback_balance_id)
+        source_id = dispute_won ? chargeback_id || success_id : success_id
+        merchant_account_id, *labels = Balance.where(id: source_id).pick(:merchant_account_id, :currency, :holding_currency)
+        merchant_account_id.present? && merchant_account_id == affiliate_merchant_account&.id ? labels : [Currency::USD, Currency::USD]
+      end
+    end
+
     # This purchase's refunds that actually moved money, as an in-memory array.
     #
     # Presentment refund amounts live as snapshots in refunds.json_data rather than
@@ -4482,7 +4615,19 @@ class Purchase < ApplicationRecord
     end
 
     def offer_amount_off(purchase_min_price)
+      return 0 unless offer_code_applies_to_selected_variant?
+
       offer_code_for_pricing&.amount_off(purchase_min_price) || 0
+    end
+
+    # The price floor stays at the undiscounted price when the buyer picked an option the seller
+    # limited the code away from, so a tampered checkout cannot buy an ineligible option for free.
+    # A cached discount is a pricing stub carrying no scope of its own, so read the persisted code.
+    def offer_code_applies_to_selected_variant?
+      offer_code = purchase_offer_code_discount&.offer_code || offer_code_for_pricing
+      return true if offer_code.nil?
+
+      offer_code.applicable_to_variants?(link, variant_attributes)
     end
 
     def currency_minimum_or_zero(price_cents)
@@ -5362,6 +5507,10 @@ class Purchase < ApplicationRecord
       GUMROAD_FLAT_FEE_PER_THOUSAND
     end
 
+    def vat_exempt_territory_location
+      vat_exempt_territory? ? { vat_exempt_territory: true } : {}
+    end
+
     def calculate_taxes
       return unless self.price_cents
       return if price_cents == 0
@@ -5386,7 +5535,7 @@ class Purchase < ApplicationRecord
                                           price_cents:,
                                           shipping_cents: shipping_cents.to_i,
                                           quantity:,
-                                          buyer_location: { postal_code:, country: country_code, state:, ip_address: },
+                                          buyer_location: { postal_code:, country: country_code, state:, ip_address:, **vat_exempt_territory_location },
                                           buyer_vat_id: business_vat_id,
                                           from_discover: was_product_recommended)
 
@@ -5528,6 +5677,12 @@ class Purchase < ApplicationRecord
         return
       end
 
+      unless offer_code.applicable_to_variants?(link, variant_attributes)
+        self.error_code = PurchaseErrorCode::OFFER_CODE_INVALID
+        errors.add :base, "This code does not apply to the selected option."
+        return
+      end
+
       return if offer_code_usage_available?(offer_code)
 
       add_offer_code_usage_error(offer_code)
@@ -5658,6 +5813,8 @@ class Purchase < ApplicationRecord
     end
 
     def variants_available
+      closed_variants = closed_new_variants
+      return reject_closed_variants(closed_variants) if closed_variants.any?
       return if does_not_count_towards_max_purchases
       return if link.variant_categories_alive.empty?
       new_variants_available = new_variants.empty? || new_variants.map(&:available?).reduce { |a, e| a && e }
@@ -5671,6 +5828,28 @@ class Purchase < ApplicationRecord
         self.error_code = PurchaseErrorCode::EXCEEDING_VARIANT_QUANTITY
         errors.add :base, "You have chosen a quantity that exceeds what is available."
       end
+    end
+
+    # Unlike the inventory checks, a plan change onto a closed tier is rejected, so
+    # is_updated_original_subscription_purchase is not exempt. new_variants leaves out
+    # a stored current tier. Older memberships stored none and are on the default tier
+    # (Purchase#tiers). A scheduled plan change being applied was accepted before the close.
+    def closed_new_variants
+      return [] if is_recurring_subscription_charge || is_additional_contribution || is_preorder_charge? ||
+                   is_gift_receiver_purchase || is_commission_completion_purchase || is_applying_plan_change ||
+                   (is_installment_payment && !is_original_subscription_purchase)
+
+      candidates = new_variants
+      if is_updated_original_subscription_purchase && link.is_tiered_membership? && original_variant_attributes.blank?
+        candidates -= [link.default_tier]
+      end
+      candidates.select(&:closed_to_new_buyers?)
+    end
+
+    def reject_closed_variants(variants)
+      Rails.logger.info("[Purchase] new purchase rejected reason=tier_closed_to_new_purchases product_id=#{link.external_id} variant_ids=#{variants.map(&:external_id).join(",")}")
+      self.error_code = PurchaseErrorCode::VARIANT_SOLD_OUT
+      errors.add :base, "Sold out, please go back and pick another option."
     end
 
     def variants_available_for_quantity?
@@ -5744,17 +5923,25 @@ class Purchase < ApplicationRecord
         "in_progress"
       ]
 
-      # Physical first except upgrades: a physical membership upgrade is a
-      # same-link charge the updater fires on purpose, not an accidental retry.
+      # Upgrades keep the short window: the subscription updater fires that same-link charge on
+      # purpose. Everything else gets the confirmation window, because resubmitting after a
+      # checkout error means reading the banner first — minutes, not seconds.
       last_allowed_purchase_at = if is_upgrade_purchase?
         10.seconds.ago
-      elsif link.is_physical
+      elsif link.is_physical || link.quantity_enabled || link.is_licensed
         2.hours.ago
-      elsif link.quantity_enabled || link.is_licensed
-        10.seconds.ago
       else
         3.minutes.ago
       end
+
+      # An unfinished prior gets a longer window: when its processor status is still nil the
+      # settling check below cannot see it, and finalization can lag well past 3 minutes.
+      last_allowed_in_progress_at = if is_upgrade_purchase?
+        last_allowed_purchase_at
+      else
+        [last_allowed_purchase_at, UNFINISHED_PURCHASE_RETRY_BLOCK.ago].min
+      end
+      outside_window = ->(purchase) { !purchase.in_progress? && purchase.created_at <= last_allowed_purchase_at }
 
       recipient_email = is_gift_sender_purchase ? giftee_email : email
       already = self.class.where(
@@ -5762,7 +5949,7 @@ class Purchase < ApplicationRecord
         ip_address:,
         link_id: link.id,
         purchase_state: limiting_purchase_states
-      ).where("purchases.created_at > ?", last_allowed_purchase_at)
+      ).where("purchases.created_at > ?", last_allowed_in_progress_at)
 
       already = already.where("purchases.id != ?", id) if id
       already = already.not_is_gift_sender_purchase unless is_gift_sender_purchase
@@ -5778,10 +5965,12 @@ class Purchase < ApplicationRecord
           gifts: { giftee_email: recipient_email },
           link:,
           purchase_state: limiting_purchase_states
-        ).where("purchases.created_at > ?", last_allowed_purchase_at)
+        ).where("purchases.created_at > ?", last_allowed_in_progress_at)
         already_gifted = already_gifted.where("purchases.id != ?", id) if id
         already += already_gifted
       end
+
+      already = already.reject(&outside_window)
 
       if variant_attributes.present?
         already = already.select do |purchase|
@@ -6026,7 +6215,6 @@ class Purchase < ApplicationRecord
       return true if country.nil?
       return true if link.is_physical || link.require_shipping
       return true if card_country.nil? && country == ip_country
-      return true if ip_country == link.user.compliance_country_code
 
       country_code = Compliance::Countries.find_by_name(country)&.alpha2
       ip_country_code = Compliance::Countries.find_by_name(ip_country)&.alpha2
@@ -6055,7 +6243,7 @@ class Purchase < ApplicationRecord
       return true if country_code.in?(ip_and_card_locations)
 
       self.error_code = PurchaseErrorCode::TAX_VALIDATION_FAILED
-      errors.add :base, "We could not validate the location you selected. Please review."
+      errors.add :base, "We couldn't confirm the country you selected. It needs to match where you're connecting from or where your card was issued. If you're using a VPN, turn it off and try again."
       false
     end
 

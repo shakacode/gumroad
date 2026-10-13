@@ -27,6 +27,16 @@ RSpec.describe ContentModeration::Strategies::PromptStrategy, :vcr do
     expect(OpenAI::Client).to have_received(:new).with(access_token: "test-key", request_timeout: 10)
   end
 
+  it "doesn't ask a preset that has no text and no images to grade" do
+    allow(client).to receive(:chat).and_return(json_chat_response(flagged: false, reasoning: ""))
+
+    result = described_class.new(text: "", image_urls: ["https://cdn.example.com/1.png"]).perform
+
+    expect(result.status).to eq("compliant")
+    # adult_content graded the image; the text-only spam preset had nothing to read.
+    expect(client).to have_received(:chat).once
+  end
+
   it "returns compliant when the API key is blank" do
     allow(GlobalConfig).to receive(:get).with("OPENAI_ACCESS_TOKEN").and_return(nil)
 
@@ -642,10 +652,18 @@ RSpec.describe ContentModeration::Strategies::PromptStrategy, :vcr do
   # watch here" style emails through — those were being flagged as
   # aggressive-CTA spam despite being normal creator marketing.
   describe "SPAM_RULES (announcement email carveout)" do
-    it "tells the model that short CTA announcement emails are legitimate" do
-      expect(described_class::SPAM_RULES).to include("Announcement emails promoting the creator's own new release")
+    it "tells the model that short CTA announcement emails and posts are legitimate" do
+      expect(described_class::SPAM_RULES).to include("Announcement emails and posts promoting the creator's own new release")
       expect(described_class::SPAM_RULES).to include("Watch HERE")
       expect(described_class::SPAM_RULES).to include("SAME call-to-action repeated many")
+    end
+
+    # Pin the wording that stops the model grading a post as a listing
+    # (gumroad-private#2755).
+    it "tells the model a post is not a listing and own-community links are part of an announcement" do
+      expect(described_class::SPAM_RULES).to include("A post or email is NOT a product listing")
+      expect(described_class::SPAM_RULES).to match(/Never flag one for lacking a\s+product description/)
+      expect(described_class::SPAM_RULES).to match(/Discord, Facebook group, or other\s+community are part of that announcement/)
     end
   end
 

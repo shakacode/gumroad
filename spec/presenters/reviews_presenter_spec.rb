@@ -34,6 +34,7 @@ describe ReviewsPresenter do
               id: reviews.first.external_id,
               purchase_id: reviews.first.purchase.external_id,
               purchase_email_digest: reviews.first.purchase.email_digest,
+              account_name: reviews.first.rater_account_name,
               product: {
                 name: reviews.first.link.name,
                 url: reviews.first.link.long_url(recommended_by: "library"),
@@ -52,6 +53,7 @@ describe ReviewsPresenter do
               id: reviews.second.external_id,
               purchase_id: reviews.second.purchase.external_id,
               purchase_email_digest: reviews.second.purchase.email_digest,
+              account_name: reviews.second.rater_account_name,
               product: {
                 name: reviews.second.link.name,
                 url: reviews.second.link.long_url(recommended_by: "library"),
@@ -70,6 +72,7 @@ describe ReviewsPresenter do
               id: reviews.third.external_id,
               purchase_id: reviews.third.purchase.external_id,
               purchase_email_digest: reviews.third.purchase.email_digest,
+              account_name: reviews.third.rater_account_name,
               product: {
                 name: reviews.third.link.name,
                 url: reviews.third.link.long_url(recommended_by: "library"),
@@ -89,6 +92,7 @@ describe ReviewsPresenter do
             {
               id: purchase2.external_id,
               email_digest: purchase2.email_digest,
+              account_name: purchase2.rater_account_name,
               product: {
                 name: product2.name,
                 url: product2.long_url(recommended_by: "library"),
@@ -106,6 +110,7 @@ describe ReviewsPresenter do
             {
               id: purchase1.external_id,
               email_digest: purchase1.email_digest,
+              account_name: purchase1.rater_account_name,
               product: {
                 name: product1.name,
                 url: product1.long_url(recommended_by: "library"),
@@ -146,6 +151,29 @@ describe ReviewsPresenter do
 
       it "omits it from the reviews list" do
         expect(presenter.reviews_props[:reviews].map { |r| r[:id] }).not_to include(deleted_review.external_id)
+      end
+    end
+
+    context "when a purchase awaiting review has been removed from the library" do
+      before { purchase2.update!(is_deleted_by_buyer: true) }
+
+      it "omits the removed purchase and keeps other eligible purchases" do
+        expect(presenter.reviews_props[:purchases].map { |purchase| purchase[:id] }).to eq([purchase1.external_id])
+      end
+
+      it "includes the purchase again after it is restored" do
+        purchase2.update!(is_deleted_by_buyer: false)
+
+        expect(presenter.reviews_props[:purchases].map { |purchase| purchase[:id] }).to eq([purchase2.external_id, purchase1.external_id])
+      end
+    end
+
+    context "when a reviewed purchase has been removed from the library" do
+      let!(:removed_purchase) { create(:purchase, purchaser: user, is_deleted_by_buyer: true) }
+      let!(:existing_review) { create(:product_review, purchase: removed_purchase, link: removed_purchase.link) }
+
+      it "keeps the existing review available to manage" do
+        expect(presenter.reviews_props[:reviews].map { |review| review[:id] }).to include(existing_review.external_id)
       end
     end
 

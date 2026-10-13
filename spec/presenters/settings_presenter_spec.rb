@@ -259,6 +259,7 @@ describe SettingsPresenter do
                                                  applications: [],
                                                  allow_deactivation: true,
                                                  formatted_balance_to_forfeit_on_account_deletion: nil,
+                                                 recent_ping_deliveries: [],
                                                })
       end
     end
@@ -281,6 +282,7 @@ describe SettingsPresenter do
                                                  applications: [],
                                                  allow_deactivation: true,
                                                  formatted_balance_to_forfeit_on_account_deletion: nil,
+                                                 recent_ping_deliveries: [],
                                                })
       end
     end
@@ -301,7 +303,31 @@ describe SettingsPresenter do
                                                  applications: [],
                                                  allow_deactivation: true,
                                                  formatted_balance_to_forfeit_on_account_deletion: Money.new(2500, :usd).format(no_cents_if_whole: true),
+                                                 recent_ping_deliveries: [],
                                                })
+      end
+    end
+
+    context "when the seller has ping deliveries" do
+      let!(:ping_delivery) do
+        purchase = create(:free_purchase, seller:, link: create(:product, user: seller))
+        create(:ping_delivery, user: seller, purchase:)
+      end
+
+      it "returns the most recent deliveries for that seller" do
+        expect(presenter.advanced_props[:recent_ping_deliveries]).to eq([
+                                                                          {
+                                                                            id: ping_delivery.id,
+                                                                            resource_name: "sale",
+                                                                            sale_id: ping_delivery.purchase.external_id_numeric.to_s,
+                                                                            subscription_id: nil,
+                                                                            post_url: "https://example.com/hook",
+                                                                            attempt: 1,
+                                                                            outcome: "HTTP 200",
+                                                                            succeeded: true,
+                                                                            created_at: ping_delivery.created_at.as_json,
+                                                                          },
+                                                                        ])
       end
     end
   end
@@ -403,6 +429,24 @@ describe SettingsPresenter do
 
       seller.update!(twitter_user_id: "example-social-id")
       expect(presenter.social_connections_props[:twitter_connected]).to eq(true)
+    end
+
+    # A read-only token reads as connected, so the row would show a healthy connection with no
+    # reason for the Reconnect it offers.
+    it "reports a missing X write permission while an action is still blocked on it" do
+      expect(presenter.social_connections_props[:twitter_write_permission_missing]).to eq(false)
+
+      create(:marketing_action, user: seller, link: create(:product, user: seller),
+                                error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
+
+      expect(described_class.new(pundit_user:).social_connections_props[:twitter_write_permission_missing]).to eq(true)
+    end
+
+    it "stops reporting a missing X write permission once the action closes" do
+      create(:marketing_action, user: seller, link: create(:product, user: seller), status: "posted",
+                                error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
+
+      expect(presenter.social_connections_props[:twitter_write_permission_missing]).to eq(false)
     end
 
     it "includes the YouTube handle only when connected" do
@@ -702,6 +746,7 @@ describe SettingsPresenter do
           individual_tax_id_last_four: nil,
           individual_tax_id_is_last_four: false,
           has_outstanding_full_ssn_requirement: false,
+          has_outstanding_nationality_requirement: false,
           business_tax_id_entered: false,
           business_tax_id_last_four: nil,
           requires_credit_card: false,
@@ -749,6 +794,7 @@ describe SettingsPresenter do
           dob_year: 0,
         },
         min_dob_year: Date.today.year - UserComplianceInfo::MINIMUM_DATE_OF_BIRTH_AGE,
+        us_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_US.map { |code, name| { code:, name: } },
         uae_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_UAE.map { |code, name| { code:, name: } },
         india_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_INDIA.map { |code, name| { code:, name: } },
         canada_business_types: UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_CANADA.map { |code, name| { code:, name: } },
@@ -765,6 +811,7 @@ describe SettingsPresenter do
         saved_card: nil,
         formatted_balance_to_forfeit_on_country_change: nil,
         formatted_balance_to_forfeit_on_payout_method_change: nil,
+        paypal_switch_loses_bank_rail: false,
         account_status: {
           show_section: false,
           is_suspended: false,
@@ -779,6 +826,7 @@ describe SettingsPresenter do
           stripe_rejected_payout_date: nil,
         },
         payouts_paused_internally: false,
+        payout_reserve_available: false,
         payouts_paused_by: nil,
         payout_reserve_percent: nil,
         payouts_paused_by_user: false,
@@ -1577,6 +1625,31 @@ describe SettingsPresenter do
       end
     end
 
+    describe "has_outstanding_nationality_requirement" do
+      it "is true when Stripe's individual.nationality requirement is open" do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::NATIONALITY)
+
+        expect(presenter.payments_props[:user][:has_outstanding_nationality_requirement]).to be(true)
+      end
+
+      it "is true for an existing raw Stripe nationality request" do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_NATIONALITY)
+
+        expect(presenter.payments_props[:user][:has_outstanding_nationality_requirement]).to be(true)
+      end
+
+      it "is false when the nationality request was already provided" do
+        request = create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::NATIONALITY)
+        request.mark_provided!
+
+        expect(presenter.payments_props[:user][:has_outstanding_nationality_requirement]).to be(false)
+      end
+
+      it "is false when no nationality request exists" do
+        expect(presenter.payments_props[:user][:has_outstanding_nationality_requirement]).to be(false)
+      end
+    end
+
     context "when the seller is from Brazil" do
       before do
         @user_compliance_info = create(:user_compliance_info, user: seller, country: "Brazil")
@@ -1606,6 +1679,42 @@ describe SettingsPresenter do
 
       it "returns true for payouts_paused_internally" do
         expect(presenter.payments_props[:payouts_paused_internally]).to eq(true)
+      end
+    end
+
+    context "when payouts are paused by the chargeback-rate check" do
+      def pause_for_chargeback_rate!
+        seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM)
+        seller.comments.create!(
+          content: "Payouts automatically paused due to chargeback rate.",
+          comment_type: Comment::COMMENT_TYPE_ON_PROBATION,
+          author_name: User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:high_chargeback_rate]
+        )
+      end
+
+      it "flags the reserve as available, also when the seller has paused their own payouts" do
+        pause_for_chargeback_rate!
+        expect(presenter.payments_props[:payout_reserve_available]).to eq(true)
+
+        seller.update!(payouts_paused_by_user: true)
+        expect(presenter.payments_props[:payout_reserve_available]).to eq(true)
+        expect(presenter.payments_props[:payouts_paused_by_user]).to eq(true)
+      end
+
+      it "does not flag the hold while the reserve is switched off" do
+        pause_for_chargeback_rate!
+        allow(Feature).to receive(:active?).and_call_original
+        allow(Feature).to receive(:active?).with(:disable_chargeback_rate_payout_reserve).and_return(true)
+
+        expect(presenter.payments_props[:payout_reserve_available]).to eq(false)
+      end
+
+      it "does not flag other internal pauses" do
+        seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_SYSTEM)
+        expect(presenter.payments_props[:payout_reserve_available]).to eq(false)
+
+        seller.update!(payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_ADMIN)
+        expect(presenter.payments_props[:payout_reserve_available]).to eq(false)
       end
     end
 

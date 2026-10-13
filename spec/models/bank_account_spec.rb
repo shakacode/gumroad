@@ -11,6 +11,19 @@ describe BankAccount do
     end
   end
 
+  describe "#stripe_external_account_routing_number" do
+    it "leaves a numeric routing code unchanged" do
+      expect(build(:indonesia_bank_account, bank_code: "008").stripe_external_account_routing_number).to eq("008")
+    end
+
+    it "upcases a lowercase code without changing the stored bank number" do
+      ba = build(:morocco_bank_account, bank_code: "cihmmamc")
+
+      expect(ba.stripe_external_account_routing_number).to eq("CIHMMAMC")
+      expect(ba.bank_number).to eq("cihmmamc")
+    end
+  end
+
   describe "#supports_instant_payouts?" do
     let(:bank_account) { create(:ach_account) }
 
@@ -74,6 +87,22 @@ describe BankAccount do
         before do
           allow(Stripe::Account).to receive(:retrieve_external_account)
             .and_raise(Stripe::InvalidRequestError.new("The bank account ba_xxx has been deleted and can no longer be used.", "external_account"))
+        end
+
+        it "returns false" do
+          expect(bank_account.supports_instant_payouts?).to be false
+        end
+
+        it "does not notify the error tracker" do
+          expect(ErrorNotifier).not_to receive(:notify)
+          bank_account.supports_instant_payouts?
+        end
+      end
+
+      context "when stripe says the external account does not exist" do
+        before do
+          allow(Stripe::Account).to receive(:retrieve_external_account)
+            .and_raise(Stripe::InvalidRequestError.new("No such external account: 'ba_456'", "external_account"))
         end
 
         it "returns false" do

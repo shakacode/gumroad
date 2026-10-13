@@ -1169,6 +1169,45 @@ class LinksControllerUpdateTest < ActionController::TestCase
     assert_nil @product.reload.custom_permalink
   end
 
+  test "PUT update does not clear a description when the snapshot sends a blank one" do
+    kept = "<p>Keep this</p>"
+    @product.update!(description: kept)
+
+    put :update, params: @params.merge(description: ""), as: :json
+
+    assert_response :success
+    assert_equal kept, @product.reload.description
+  end
+
+  test "PUT update still writes a new description when the snapshot sends one" do
+    @product.update!(description: "<p>Old</p>")
+
+    put :update, params: @params.merge(description: "<p>New copy</p>"), as: :json
+
+    assert_response :success
+    assert_equal "<p>New copy</p>", @product.reload.description
+  end
+
+  test "PUT update clears a description when the current editor marks the blank value as changed" do
+    @product.update!(description: "<p>Old</p>")
+
+    put :update, params: @params.merge(description: "", description_changed: true), as: :json
+
+    assert_response :success
+    assert_equal "", @product.reload.description
+  end
+
+  test "PUT update clears a description when the editor sends a null value it marked as changed" do
+    # `scalarSettingsForSave` sends `description: null` for a deliberate clear,
+    # so the guard must keep a nil the marker claims and persist the clear.
+    @product.update!(description: "<p>Old</p>")
+
+    put :update, params: @params.merge(description: nil, description_changed: true), as: :json
+
+    assert_response :success
+    assert_equal "", @product.reload.description
+  end
+
   test "PUT update returns the existing validation error when suggested price is set but the default price record is missing" do
     @product.prices.destroy_all
     @product.update_column(:customizable_price, true)
@@ -3417,7 +3456,7 @@ class LinksControllerUpdateTest < ActionController::TestCase
 
     files_params = [{ "id" => public_file1.public_id, "status" => { "type" => "saved" } }]
 
-    post :update, params: { id: @product.unique_permalink, description: "", public_files: files_params }, format: :json
+    post :update, params: { id: @product.unique_permalink, description: "", description_changed: true, public_files: files_params }, format: :json
 
     assert_response :success
     assert_equal "", @product.reload.description
@@ -5027,7 +5066,7 @@ class LinksControllerUpdateTest < ActionController::TestCase
     create_installment_plan_purchase(link: product)
 
     assert_changes -> { existing_plan.reload.deleted_at }, from: nil do
-      post :update, params: { id: product.unique_permalink, price_cents: 0, installment_plan: nil }, as: :json
+      post :update, params: { id: product.unique_permalink, price_cents: 0, installment_plan: nil, installment_plan_changed: true }, as: :json
     end
 
     assert_nil product.reload.installment_plan
@@ -5038,7 +5077,7 @@ class LinksControllerUpdateTest < ActionController::TestCase
     existing_plan = create_product_installment_plan(link: product, number_of_installments: 2, recurrence: "monthly")
 
     assert_difference -> { ProductInstallmentPlan.count }, -1 do
-      post :update, params: { id: product.unique_permalink, installment_plan: nil }, as: :json
+      post :update, params: { id: product.unique_permalink, installment_plan: nil, installment_plan_changed: true }, as: :json
     end
 
     assert_raises(ActiveRecord::RecordNotFound) { existing_plan.reload }
@@ -5127,6 +5166,8 @@ class LinksControllerShowTest < ActionController::TestCase
   end
 
   def use_product_rsc_controller
+    ReactOnRailsPro.configuration.stubs(:server_renderer).returns("NodeRenderer")
+    ReactOnRailsPro.configuration.stubs(:renderer_password).returns("test-only-stub")
     @controller = ProductRscLinksController.new
     @controller.define_singleton_method(:stream_view_containing_react_components) do |**|
       self.response_body = "server-rendered product"
@@ -5160,12 +5201,12 @@ class LinksControllerShowTest < ActionController::TestCase
     assert_nil response.headers["X-Accel-Buffering"]
   end
 
-  test "GET show prepares full HTML product documents for streaming" do
+  test "GET show leaves ordinary HTML product documents without streaming headers" do
     get :show, params: { id: product.to_param }
 
     assert_response :success
-    assert response.headers["Last-Modified"].present?
-    assert_equal "no", response.headers["X-Accel-Buffering"]
+    assert_nil response.headers["Last-Modified"]
+    assert_nil response.headers["X-Accel-Buffering"]
   end
 
   test "GET show renders Products/Profile/Show with creator_profile for profile layout" do

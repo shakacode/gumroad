@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CurrentSellerProvider, type CurrentSeller } from "$app/components/CurrentSeller";
 import { DomainSettingsProvider } from "$app/components/DomainSettings";
 import { Layout } from "$app/components/ProductEdit/Layout";
-import { ProductEditContext, type Product } from "$app/components/ProductEdit/state";
+import { type FileEntry, ProductEditContext, type Product } from "$app/components/ProductEdit/state";
+import { showAlert } from "$app/components/server-components/Alert";
 
 vi.mock("react-router-dom", () => ({
   Link: ({ to, children }: { to: string; children?: React.ReactNode }) => <a href={to}>{children}</a>,
@@ -25,7 +26,8 @@ vi.mock("$app/components/SubtitleList/Row", () => ({ SubtitleFile: () => null })
 vi.mock("$app/components/WithTooltip", () => ({
   WithTooltip: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));
-vi.mock("$app/data/publish_product", () => ({ setProductPublished: vi.fn() }));
+const setProductPublished = vi.hoisted(() => vi.fn());
+vi.mock("$app/data/publish_product", () => ({ setProductPublished }));
 vi.mock("$app/components/server-components/Alert", () => ({ showAlert: vi.fn() }));
 
 beforeAll(() => {
@@ -41,7 +43,12 @@ beforeAll(() => {
   });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  product.files = [];
+  product.is_published = false;
+  vi.unstubAllGlobals();
+});
 
 const minor: CurrentSeller = {
   id: "1",
@@ -133,7 +140,7 @@ const product: Product = {
   community_chat_enabled: false,
 };
 
-const renderLayout = (currentSeller: CurrentSeller) =>
+const renderLayout = (currentSeller: CurrentSeller, { saveBlocked = false }: { saveBlocked?: boolean } = {}) =>
   render(
     <DomainSettingsProvider
       value={{
@@ -158,6 +165,7 @@ const renderLayout = (currentSeller: CurrentSeller) =>
             currencyType: "usd",
             setCurrencyType: vi.fn(),
             isListedOnDiscover: false,
+            canCloseMembershipTiers: false,
             isPhysical: false,
             profileSections: [],
             taxonomies: [],
@@ -168,12 +176,14 @@ const renderLayout = (currentSeller: CurrentSeller) =>
             successfulSalesCount: 0,
             ratings: { count: 0, average: 0, percentages: [0, 0, 0, 0, 0] },
             seller: { id: "seller-id", name: "Seller", avatar_url: "", profile_url: "", is_verified: false },
+            currentSellerExternalId: "seller-external-id",
             existingFiles: [],
             setExistingFiles: vi.fn(),
             awsKey: "",
             s3Url: "",
             availableCountries: [],
             saving: false,
+            saveBlocked,
             save: () => Promise.resolve(true),
             variantIdMappings: {},
             richContentIdMappings: {},
@@ -186,6 +196,7 @@ const renderLayout = (currentSeller: CurrentSeller) =>
             receiptEmailFrom: "seller@example.com",
             priceCheckerEnabled: false,
             customHtmlPagesEnabled: false,
+            autoMarketingEnabled: false,
             customHtmlStoreHostnames: [],
             customHtmlGlobalNavHosts: [],
             customHtmlGlobalNavPaths: [],
@@ -200,6 +211,75 @@ const renderLayout = (currentSeller: CurrentSeller) =>
       </CurrentSellerProvider>
     </DomainSettingsProvider>,
   );
+
+describe("ProductEdit Layout save gating", () => {
+  const unsavedFile = (uploadStatus: "uploading" | "failed"): FileEntry => ({
+    id: "unsaved-file",
+    display_name: "huge",
+    description: null,
+    extension: "ZIP",
+    file_size: 1024,
+    is_pdf: false,
+    pdf_stamp_enabled: false,
+    hide_kindle_and_read_buttons: false,
+    is_streamable: false,
+    stream_only: false,
+    is_transcoding_in_progress: false,
+    url: null,
+    subtitle_files: [],
+    thumbnail: null,
+    status:
+      uploadStatus === "uploading"
+        ? {
+            type: "unsaved",
+            uploadStatus: { type: "uploading", progress: { percent: 0.1, bitrate: 0 } },
+            url: "blob:huge",
+          }
+        : { type: "unsaved", uploadStatus: { type: "failed" }, url: "blob:huge" },
+  });
+
+  it("keeps Save disabled while a file is still uploading", () => {
+    product.files = [unsavedFile("uploading")];
+    renderLayout(minor);
+
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save and continue" }).disabled).toBe(true);
+  });
+
+  it("re-enables Save when the only unsaved file failed to upload", () => {
+    product.files = [unsavedFile("failed")];
+    renderLayout(minor);
+
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save and continue" }).disabled).toBe(false);
+  });
+});
+
+describe("ProductEdit Layout publish and unpublish", () => {
+  it("re-enables the buttons when unpublishing fails with an unexpected error", async () => {
+    const reportErrorSpy = vi.fn();
+    vi.stubGlobal("reportError", reportErrorSpy);
+    setProductPublished.mockRejectedValueOnce(new TypeError("Unexpected token < in JSON"));
+    product.files = [];
+    product.is_published = true;
+    renderLayout(minor);
+
+    fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
+
+    await waitFor(() => expect(reportErrorSpy).toHaveBeenCalledTimes(1));
+    expect(showAlert).toHaveBeenCalledWith("Something went wrong. Please try again.", "error");
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Unpublish" }).disabled).toBe(false);
+  });
+});
+
+describe("ProductEdit Layout when saving is blocked until a reload", () => {
+  it("disables Save without claiming a save is in progress", () => {
+    product.files = [];
+    renderLayout(minor, { saveBlocked: true });
+
+    const button = screen.getByRole<HTMLButtonElement>("button", { name: "Save and continue" });
+    expect(button.disabled).toBe(true);
+    expect(screen.queryByText("Saving changes...")).toBeNull();
+  });
+});
 
 describe("ProductEdit Layout under-18 banner", () => {
   it("points a minor outside the guardian countries at payouts starting at 18", () => {

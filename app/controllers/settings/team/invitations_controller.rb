@@ -3,6 +3,12 @@
 class Settings::Team::InvitationsController < Sellers::BaseController
   skip_before_action :require_account_email, only: :accept
   before_action :set_team_invitation, only: %i[update destroy restore resend_invitation]
+  # Suspension does not log the seller out, so sending mail needs its own check.
+  before_action :refuse_inactive_sender, only: %i[create resend_invitation]
+
+  INVITATION_BURST_REPORT_TTL = 24.hours
+  UNREVIEWED_LIMIT_MESSAGE = "New accounts can have up to #{TeamInvitationThrottle::UNREVIEWED_TOTAL_LIMIT} team " \
+                             "invitations while the account is being reviewed. Please contact support if you need more."
 
   def create
     authorize [:settings, :team, TeamInvitation]
@@ -10,11 +16,27 @@ class Settings::Team::InvitationsController < Sellers::BaseController
     team_invitation = current_seller.team_invitations.new(create_params)
     team_invitation.expires_at = TeamInvitation::ACTIVE_INTERVAL_IN_DAYS.days.from_now.at_end_of_day
 
-    if team_invitation.save
-      TeamMailer.invite(team_invitation).deliver_later
-      render json: { success: true }
-    else
-      render json: { success: false, error_message: team_invitation.errors.full_messages.to_sentence }
+    unless team_invitation.valid?
+      return render json: { success: false, error_message: team_invitation.errors.full_messages.to_sentence }
+    end
+    # The unreviewed cap counts existing invitations and then inserts one, so both run under the
+    # seller's row lock: concurrent requests otherwise each read a count below the limit and all get
+    # through. Suspension is re-read here because it does not roll back a request already in flight.
+    current_seller.with_lock do
+      return refuse_inactive_sender unless current_seller.account_active?
+      if TeamInvitationThrottle.unreviewed_limit_reached?(current_seller)
+        report_invitation_burst(window: "account", limit: TeamInvitationThrottle::UNREVIEWED_TOTAL_LIMIT)
+        # Same shape as a validation failure so the settings page shows the message instead of its generic error.
+        return render json: { success: false, error_message: UNREVIEWED_LIMIT_MESSAGE }
+      end
+      return unless throttle_invitation_sends
+
+      if team_invitation.save
+        TeamMailer.invite(team_invitation).deliver_later
+        render json: { success: true }
+      else
+        render json: { success: false, error_message: team_invitation.errors.full_messages.to_sentence }
+      end
     end
   end
 
@@ -62,7 +84,7 @@ class Settings::Team::InvitationsController < Sellers::BaseController
       alert_message = "Invitation link has expired. Please contact the account owner."
     elsif team_invitation.accepted?
       alert_message = "Invitation has already been accepted."
-    elsif team_invitation.deleted?
+    elsif team_invitation.deleted? || !team_invitation.seller&.account_active?
       alert_message = "Invitation link is invalid. Please contact the account owner."
     elsif team_invitation.matches_owner_email?
       # It can happen if the owner sends an invitation, and then changes their email address to the same email used
@@ -76,16 +98,26 @@ class Settings::Team::InvitationsController < Sellers::BaseController
       flash[:alert] = alert_message
     else
       team_membership = nil
-      logged_in_user.with_lock do
+      User.transaction do
+        # Reciprocal invitations must acquire both user locks in the same order.
+        users = User.where(id: [logged_in_user.id, team_invitation.seller_id]).order(:id).lock.index_by(&:id)
+        logged_in_user.lock!
+        seller = users[team_invitation.seller_id]
+        next unless seller&.account_active?
+
         team_invitation.update_as_accepted!(deleted_at: Time.current)
         logged_in_user.create_owner_membership_if_needed!
         logged_in_user.update!(is_team_member: true) if team_invitation.from_gumroad_account?
-        team_membership = team_invitation.seller.seller_memberships.create!(user: logged_in_user, role: team_invitation.role)
+        team_membership = seller.seller_memberships.create!(user: logged_in_user, role: team_invitation.role)
         TeamMailer.invitation_accepted(team_membership).deliver_later
       end
 
-      switch_seller_account(team_membership)
-      flash[:notice] = "Welcome to the team at #{team_membership.seller.username}!"
+      if team_membership
+        switch_seller_account(team_membership)
+        flash[:notice] = "Welcome to the team at #{team_membership.seller.username}!"
+      else
+        flash[:alert] = "Invitation link is invalid. Please contact the account owner."
+      end
     end
 
     redirect_to dashboard_url
@@ -93,13 +125,19 @@ class Settings::Team::InvitationsController < Sellers::BaseController
 
   def resend_invitation
     authorize [:settings, :team, @team_invitation]
+    unless @team_invitation.single_mailbox_email?
+      return render json: { success: false, error_message: "Email is invalid" }, status: :unprocessable_entity
+    end
+    return unless throttle_invitation_sends
 
-    @team_invitation.update!(
+    if @team_invitation.update(
       expires_at: TeamInvitation::ACTIVE_INTERVAL_IN_DAYS.days.from_now.at_end_of_day
     )
-
-    TeamMailer.invite(@team_invitation).deliver_later
-    render json: { success: true }
+      TeamMailer.invite(@team_invitation).deliver_later
+      render json: { success: true }
+    else
+      render json: { success: false, error_message: @team_invitation.errors.full_messages.to_sentence }
+    end
   end
 
   private
@@ -117,5 +155,52 @@ class Settings::Team::InvitationsController < Sellers::BaseController
 
     def external_team_invitation_id
       params.require(:id)
+    end
+
+    def refuse_inactive_sender
+      return if current_seller.account_active?
+
+      render json: { success: false, error_message: "Your account can't send team invitations right now." }, status: :forbidden
+    end
+
+    def throttle_invitation_sends
+      restriction = TeamInvitationThrottle.check(current_seller.id)
+      return true unless restriction
+
+      response.set_header("Retry-After", restriction[:retry_after])
+      render json: {
+        error: invitation_limit_message(restriction[:window], restriction[:limit], restriction[:retry_after]),
+        retry_after: restriction[:retry_after]
+      }, status: :too_many_requests
+      report_invitation_burst(restriction)
+      false
+    end
+
+    def invitation_limit_message(name, limit, retry_after)
+      return "You can invite again now." if retry_after <= 0
+
+      unit, seconds = name == "day" ? ["hour", 1.hour] : ["minute", 1.minute]
+      remaining = [(retry_after.to_f / seconds).ceil, 1].max
+      "You've reached the limit of #{limit} team invitations per #{name}. " \
+        "You can invite again in #{remaining} #{unit.pluralize(remaining)}."
+    end
+
+    # Notification failures must preserve the refusal response.
+    def report_invitation_burst(restriction)
+      return unless $redis.set(
+        RedisKey.team_invitation_burst_reported(current_seller.id),
+        1,
+        nx: true,
+        ex: INVITATION_BURST_REPORT_TTL.to_i
+      )
+
+      InternalNotificationWorker.perform_async(
+        "risk",
+        "Team invitations rate limited",
+        "Seller #{current_seller.username || current_seller.external_id} (#{current_seller.email}) was " \
+          "refused team invitations past #{restriction[:limit]}/#{restriction[:window]}. Admin: #{current_seller.external_id}"
+      )
+    rescue => e
+      ErrorNotifier.notify(e)
     end
 end

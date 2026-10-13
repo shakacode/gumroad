@@ -10,6 +10,7 @@ import { applySelection, type PriceSelection } from "$app/components/Product/Con
 import { getBundleComparisonPriceCents } from "$app/components/Product/pricing";
 import { useProductState } from "$app/components/Product/ProductStateProvider.client";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
 
 type BundleItems = Record<string, React.ReactNode>;
 
@@ -24,6 +25,7 @@ export const ProductBundle = ({
   discountCode?: ProductDiscount | null | undefined;
   bundleItems: BundleItems;
 }) => {
+  const snapshot = useProductHydration();
   if (product.bundle_products.length === 0) return null;
 
   const { discountedPriceCents, selectedOption } = applySelection(
@@ -41,12 +43,14 @@ export const ProductBundle = ({
           const price =
             bundleProduct.currency_code === product.currency_code
               ? formatBuyerLocalOrSetPrice(bundleProduct.price, {
+                  locale: snapshot?.locale,
                   currencyCode: product.currency_code,
                   buyerCurrency: product.buyer_currency,
                   buyerLocalCurrencyRate: product.buyer_local_currency_rate,
                   buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
                 })
               : formatPriceCentsWithCurrencySymbol(bundleProduct.currency_code, bundleProduct.price, {
+                  locale: snapshot?.locale,
                   symbolFormat: "long",
                 });
 

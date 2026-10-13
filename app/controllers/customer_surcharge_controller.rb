@@ -169,6 +169,10 @@ class CustomerSurchargeController < ApplicationController
       detected_buyer_currency:,
       available_buyer_currencies: available
     }
+  rescue CurrencyHelper::RateUnavailable
+    # Surcharges are priced off this rate. With no rate this process can trust, withholding the
+    # quote ("try again") is the only answer that cannot misprice the buyer's cart.
+    head :service_unavailable
   end
 
   private
@@ -364,6 +368,10 @@ class CustomerSurchargeController < ApplicationController
     end
 
     def calculate_surcharges(product, quantity, price, subscription_id: nil, recommended_by: nil, rate: :unset)
+      # Clients that serialize numbers as strings send quantity as "3"; the shipping and tax math
+      # below compares and multiplies it, so normalize it the same way item[:price] is.
+      quantity = quantity.to_i if quantity.is_a?(String)
+
       if subscription_id.present?
         subscription = Subscription.find_by_external_id(subscription_id)
         return nil unless subscription&.original_purchase.present?

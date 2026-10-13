@@ -30,7 +30,7 @@ session_cookie_name =
 
 Rails.application.config.session_store :cookie_store,
                                        key: session_cookie_name,
-                                       secure: ENV.fetch("SESSION_COOKIE_SECURE", Rails.env.production?.to_s) == "true",
+                                       secure: Rails.env.benchmark? ? ENV.fetch("SESSION_COOKIE_SECURE", "false") == "true" : Rails.env.production?,
                                        domain:,
                                        expire_after:,
                                        tld_length:

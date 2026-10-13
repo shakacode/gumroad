@@ -23,6 +23,11 @@ update_purchase_healthcheck_threshold:
   cron: "* * * * *" # Every minute — the threshold carries a 1h TTL, so the healthcheck fails closed if this stalls
   class: UpdatePurchaseHealthcheckThresholdJob
   description: Recomputes the /healthcheck/purchases threshold from the prior 7 days' purchase rate
+reconcile_pending_paypal_refunds:
+  cron: "45 * * * *" # Every hour at :45, off the :00 payout and reporting runs
+  class: ReconcilePendingPaypalRefundsJob
+  queue: low
+  description: Re-reads PayPal refunds we recorded as PENDING; terminal failures go to the failed-refund exception queue
 flush_delivered_email_infos:
   cron: "* * * * *" # Every minute
   class: FlushDeliveredEmailInfosJob
@@ -265,6 +270,16 @@ alert_sellers_of_undelivered_receipts:
   class: AlertSellersOfUndeliveredReceiptsJob
   queue: low
   description: Tells sellers about buyers whose receipt has no evidence of being delivered
+alert_on_stuck_piracy_reports:
+  cron: "45 11 * * *" # UTC 11:45
+  class: AlertOnStuckPiracyReportsJob
+  queue: low
+  description: Reports piracy reports that wait for a person, either in screening or after a notice did not reach the host
+send_signed_piracy_notices:
+  cron: "*/15 * * * *"
+  class: SendSignedPiracyNoticesJob
+  queue: low
+  description: Sends signed piracy takedown notices while the piracy_reports_sending flag is on
 
 # Weekly (Payouts)
 payouts_cross_border_stripe:
@@ -526,6 +541,10 @@ delete_old_processed_stripe_events:
   cron: "30 1 * * *" # UTC 01:30
   class: DeleteOldProcessedStripeEventsJob
   description: Deletes processed_stripe_events rows older than Stripe's webhook redelivery window
+delete_old_ping_deliveries:
+  cron: "45 1 * * *" # UTC 01:45
+  class: DeleteOldPingDeliveriesJob
+  description: Deletes ping_deliveries rows past the support lookup window
 australia_backtax_transfer:
   cron: "0 10 7 * *" # UTC 10:00 on 7th of every month
   class: RecoverAusBacktaxesFromStripeAccountsJob

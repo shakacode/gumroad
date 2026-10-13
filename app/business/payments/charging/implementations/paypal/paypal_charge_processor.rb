@@ -384,7 +384,7 @@ class PaypalChargeProcessor
     if paypal_rest_api.successful_response?(api_response) && api_response.result.token_id.present?
       api_response.result.token_id
     else
-      raise ChargeProcessorError, build_error_message(api_response.code, api_response.response)
+      raise ChargeProcessorError, build_error_message(api_response.status_code, api_response.result)
     end
 
   rescue => e
@@ -399,7 +399,7 @@ class PaypalChargeProcessor
     if paypal_rest_api.successful_response?(api_response) && api_response.result.id.present?
       open_struct_to_hash(api_response.result).as_json
     else
-      raise ChargeProcessorError, build_error_message(api_response.code, api_response.response)
+      raise ChargeProcessorError, build_error_message(api_response.status_code, api_response.result)
     end
 
   rescue => e
@@ -414,7 +414,26 @@ class PaypalChargeProcessor
     if paypal_rest_api.successful_response?(api_response)
       open_struct_to_hash(api_response.result).as_json
     else
-      raise ChargeProcessorError, build_error_message(api_response.code, api_response.response)
+      raise ChargeProcessorError, build_error_message(api_response.status_code, api_response.result)
+    end
+  end
+
+  # PayPal's refund status is the only place a refund we accepted can turn out to have
+  # failed after the fact. Non-2xx raises, so callers must treat a raise as "unknown" —
+  # never as a failure — and leave the refund alone.
+  def self.fetch_refund_status(processor_refund_id:, merchant_account:)
+    paypal_rest_api = PaypalRestApi.new
+    api_response = paypal_rest_api.fetch_refund(refund_id: processor_refund_id, merchant_account:)
+
+    log_paypal_api_response("Fetch Refund", processor_refund_id, api_response)
+    if paypal_rest_api.successful_response?(api_response)
+      api_response.result.status
+    else
+      issue = paypal_rejection_issue(api_response)
+      issue ||= api_response.result.error if api_response.result.respond_to?(:error)
+      raise ChargeProcessorInvalidRequestError.new(
+        build_error_message(api_response.status_code, api_response.result), processor_error_code: issue
+      )
     end
   end
 

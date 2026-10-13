@@ -58,6 +58,7 @@ import {
   isProcessing,
   isSubmitDisabled,
   PaymentMethodType,
+  Product as CheckoutProduct,
   paypalBillingAddressChangesTaxLocation,
   paymentElementCollectsFullBillingDetails,
   requiresPaymentElementReusablePaymentMethod,
@@ -426,7 +427,7 @@ const SharedInputs = () => {
           }}
         >
           <CountryInput />
-          {state.country === "US" ? <ZipCodeInput /> : null}
+          {state.country === "US" || state.country === "ES" ? <ZipCodeInput /> : null}
           {state.country === "CA" ? <StateInput /> : null}
         </div>
       ) : null}
@@ -710,6 +711,13 @@ const CreditCardContent = ({
   const useStripePaymentElementClientConfirm = canUseStripePaymentElementClientConfirm(state);
   const usesPaymentElement = useStripePaymentElement || useStripePaymentElementClientConfirm;
   const stripePaymentElementConfig = usesPaymentElement ? state.checkoutPayment.elements_options : null;
+  // CardElement renders Link's inline "save my information" signup under the card fields; a seller
+  // can switch that off in checkout settings. Lanes with no card_element config (the element lane
+  // when the buyer picks their saved card) keep Link on, as they always have.
+  const cardElementLinkEnabled =
+    state.checkoutPayment.integration === "card_element"
+      ? state.checkoutPayment.stripe_link_enabled
+      : state.checkoutPayment.elements_options.stripe_link_enabled;
   const suppressClientConfirmWallets = shouldSuppressClientConfirmWallets(state);
   const paymentElementWalletsEnabled =
     state.checkoutPayment.payment_element_wallets &&
@@ -890,6 +898,10 @@ const CreditCardContent = ({
         });
         if (tokenResult.status === "error") {
           setCardError(true);
+          // Stripe handles inline validation and wallet-dismissal errors itself.
+          if (tokenResult.stripe_error.type !== "validation_error" && tokenResult.stripe_error.message) {
+            showAlert(tokenResult.stripe_error.message, "error");
+          }
           return dispatch({ type: "cancel" });
         }
         // A wallet paid through the Payment Element: adopt the wallet sheet's billing address as
@@ -1185,7 +1197,7 @@ const CreditCardContent = ({
           useSavedCard={useSavedCard}
           setUseSavedCard={setUseSavedCard}
           onChange={(evt) => setCardError(!!evt.error)}
-          enableLink
+          enableLink={cardElementLinkEnabled}
         />
       )}
       {paymentMethodsAppendix}
@@ -1411,12 +1423,32 @@ const NativePayPal = ({ implementation }: { implementation: PayPalNamespace }) =
 const usePayPalImplementation = () => {
   const [state] = useState();
   const [nativePaypal, setNativePaypal] = React.useState<PayPalNamespace | null>(null);
-  useRunOnce(
+  // Bumped on every successful load. The buttons are built once per namespace, so the lane that
+  // renders them keys on this to rebuild against the namespace the current options produced.
+  const [paypalGeneration, setPaypalGeneration] = React.useState(0);
+  // The funding set is fixed when the SDK script loads, so a cart change has to load again to drop
+  // PayPal's card button: loadScript inserts a fresh tag whenever the options differ, and the cart's
+  // opt-out aggregate is the only thing that moves here without a remount.
+  const cardFundingDisabled =
+    state.products.length > 0 && state.products.every((product: CheckoutProduct) => product.paypalCardFundingDisabled);
+  React.useEffect(() => {
+    const clientId = state.paypalClientId;
+    if (!clientId) return;
+    let cancelled = false;
     asyncVoid(async () => {
-      if (!state.paypalClientId) return;
-      setNativePaypal(await loadPaypal({ clientId: state.paypalClientId, vault: true }));
-    }),
-  );
+      const paypal = await loadPaypal({
+        clientId,
+        vault: true,
+        ...(cardFundingDisabled ? { disableFunding: "card" } : {}),
+      });
+      if (cancelled) return;
+      setNativePaypal(paypal);
+      setPaypalGeneration((generation) => generation + 1);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.paypalClientId, cardFundingDisabled]);
   const braintreeToken = useBraintreeToken(true);
   const implementation = state.products.reduce<Product["supports_paypal"]>((impl, item) => {
     if (impl === "native" && item.supportsPaypal === "native" && nativePaypal) return "native";
@@ -1424,12 +1456,12 @@ const usePayPalImplementation = () => {
     return null;
   }, "native");
 
-  return { implementation, nativePaypal, braintreeToken };
+  return { implementation, nativePaypal, braintreeToken, paypalGeneration };
 };
 
 const PayPalContent = () => {
   const [state, dispatch] = useState();
-  const { implementation, nativePaypal, braintreeToken } = usePayPalImplementation();
+  const { implementation, nativePaypal, braintreeToken, paypalGeneration } = usePayPalImplementation();
 
   React.useEffect(() => {
     if (!implementation) return;
@@ -1463,7 +1495,7 @@ const PayPalContent = () => {
   return (
     <div className="flex flex-col items-center gap-4">
       {nativePaypal && implementation === "native" ? (
-        <NativePayPal implementation={nativePaypal} />
+        <NativePayPal key={paypalGeneration} implementation={nativePaypal} />
       ) : braintreeToken.type === "available" ? (
         <BraintreePayPal token={braintreeToken.token} />
       ) : null}
@@ -1952,8 +1984,9 @@ export const PaymentForm = ({
             // strands them with no way to complete checkout (see gumroad-private#927).
             if (e instanceof RecaptchaUnavailableError) {
               showAlert(RECAPTCHA_UNAVAILABLE_MESSAGE, "error");
-            } else {
-              assert(e instanceof RecaptchaCancelledError);
+            } else if (!(e instanceof RecaptchaCancelledError)) {
+              // A provider exception must not strand checkout after the wallet sheet closes.
+              showAlert("We couldn't complete the security check. Please try again to finish your purchase.", "error");
             }
             dispatch({ type: "cancel" });
           });

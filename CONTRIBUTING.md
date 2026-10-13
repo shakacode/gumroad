@@ -20,7 +20,7 @@ The rest of the guidelines below apply too, with the obvious substitutions for w
 
 A fork PR that skips the evidence gets the same answer as one of ours that skips it: it isn't ready. If your change is good and documented well, the fork is not a barrier — it's just where the work lives until we pull it in.
 
-**Issues and bug reports are still welcome here.** This is about pull requests only — [file issues](https://github.com/antiwork/gumroad/issues) and bug reports on this repo as normal.
+**Bug reports and questions are still welcome** — [email support@gumroad.com](mailto:support@gumroad.com). The fork route above is for pull requests.
 
 Merged fork commits keep your authorship, so contributions show up under your name in the history. Emailing us a link to your fork PR counts as contributing under the [license terms](#license) at the bottom of this guide.
 
@@ -46,7 +46,7 @@ Explain the reasoning behind your changes, not just the change itself. Describe 
 - Break up big 1k+ line PRs into smaller PRs (100 loc)
 - **Must**: Include a video for every PR. For user-facing changes, show before/after with light/dark mode and mobile/desktop. For non-user-facing changes, record a short walkthrough of the relevant existing functionality to demonstrate understanding and confirm nothing broke. Exception: PRs that only touch documentation or agent skill files need no video — the diff is the reviewable artifact.
 - Include updates to any tests, especially end-to-end tests!
-- Deploy the app to a preview URL and include QA steps
+- Boot the branch locally and include QA steps with local-app evidence; preview deploys are optional. Exception: PRs that only touch documentation or agent skill files have nothing to boot — the diff is the QA evidence.
 
 ### PR description structure
 
@@ -159,8 +159,8 @@ Do not push code with failing tests. CI is not a substitute for local verificati
 
 - When creating financial records (receipts, sales), copy the specific values (amount, currency, percentage) at the time of purchase instead of referencing mutable data like a `DiscountCode` ID. This ensures historical records remain accurate if the original object is edited or deleted.
 - Do not use database-level foreign key constraints (`add_foreign_key`). Avoiding hard constraints simplifies data migration and sharding operations at scale.
-- **Number migrations with a real UTC timestamp** (`rails g migration` does this; `date -u +%Y%m%d%H%M%S` if you are writing the file by hand). Hand-picked `...000015`-style sequence numbers collide: two open PRs pick the same next number, git sees no conflict because the filenames differ, both merge, and `rake db:prepare` then aborts on `main` for everyone with `Duplicate migration <version>` (PR #6716). `bin/check-migration-versions` runs in CI and catches this; run it locally with no arguments before pushing.
-- **A migration whose version has already been deployed cannot be renumbered freely.** Rails keys completion on the version number alone, so a database that recorded the old version treats the renumbered migration as already applied. Make both directions safe: guard `up` on `table_exists?`/`column_exists?`, and have `down` leave the schema in place while the superseded version is still present in `schema_migrations`.
+- **Generate migrations with `rails g migration`, after rebasing onto `origin/main`.** Never hand-write the filename. The generator numbers a migration `max(now, highest existing version + 1)`, and in this repo the second term is the one that wins: our versions run months ahead of the wall clock (see `db/schema.rb`'s `define(version:)` line), so a hand-typed `date -u +%Y%m%d%H%M%S` lands *below* that ceiling. A fresh database loading `schema.rb` records every version at or below it as applied, so a migration numbered down there would silently never run on one, and `bin/check-migration-versions` rejects it in CI. The generator reads your local `db/migrate`, so a stale branch generates a number that has already been spent — rebase first, then generate. Hand-picked `...000015`-style numbers collide the same way: two open PRs pick the same next number, git sees no conflict because the filenames differ, both merge, and `rake db:prepare` then aborts on `main` for everyone with `Duplicate migration <version>` (PR #6716). Run `bin/check-migration-versions` locally with no arguments before pushing; it diffs the committed tree against `origin/main`, so commit first or it passes without ever seeing your migration.
+- **A migration whose version has already run somewhere cannot be renumbered freely.** Rails keys completion on the version number alone: the database still has a row for the old number and none for the new one, so the same DDL runs a second time against a schema that already has it. Preview-branch databases are where this bites, because they persist across every redeploy of the branch — renumbering mid-branch is what makes a preview deploy die on `Duplicate column name` (gumroad-private#2789). Rebasing before you generate is what avoids needing a renumber at all. If you are stuck renumbering one anyway, make both directions safe: guard `up` on `table_exists?`/`column_exists?`, and have `down` leave the schema in place while the superseded version is still present in `schema_migrations`.
 - **Do not add, remove, or rename columns on the `users` or `purchases` tables.** These tables are too large for schema changes. Migrations that alter their schema will block deployments. If you need new data associated with users or purchases, create a new table and reference it. This also applies to adding or removing indexes on these tables.
 - Do not use dynamic string interpolation for Tailwind class names (e.g., `` `text-${color}` ``). Tailwind scanners cannot detect these during build. Use full class names or a lookup map.
 - Prefer re-using deprecated boolean flags (https://github.com/pboling/flag_shih_tzu) instead of creating new ones. Deprecated flags are named `DEPRECATED_<something>`. To re-use this flag you'll first need to reset the values for it on staging and production and then rename the flag to the new name. You can reset the flag like this:
@@ -219,10 +219,6 @@ A great bug report includes:
 - What you expected would happen
 - What actually happens
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
-
-## Help
-
-- Any issue with label `help wanted` is one we'd welcome a fix for - [view open issues](https://github.com/antiwork/gumroad/issues?q=state%3Aopen%20label%3A%22help%20wanted%22). Work it on your fork and email [support@gumroad.com](mailto:support@gumroad.com) with the link, per [the route at the top of this guide](#contributing-from-a-fork).
 
 ## When you're corrected, fix the docs
 

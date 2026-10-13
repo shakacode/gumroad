@@ -246,7 +246,7 @@ class OrdersController < ApplicationController
         end
         products = retry_line_items.filter_map do |line_item|
           next unless permalinks.include?(line_item[:permalink])
-          [line_item[:uid], line_item.slice(:permalink, :quantity, :price_cents, :tip_cents)]
+          [line_item[:uid], line_item.slice(:permalink, :quantity, :price_cents, :tip_cents).merge(variant_external_id: line_item[:variants]&.first)]
         end.to_h
         next if products.empty?
 
@@ -479,7 +479,7 @@ class OrdersController < ApplicationController
         :save_shipping_address, :card_expiry_month, :card_expiry_year, :stripe_status, :visual,
         :billing_agreement_id, :paypal_order_id, :stripe_payment_method_id, :stripe_customer_id, :stripe_setup_intent_id,
         :braintree_transient_customer_store_key, :braintree_device_data, :use_existing_card, :paymentToken,
-        :url_parameters, :is_gift, :giftee_email, :giftee_id, :gift_note, :referrer, :buyer_currency_quote,
+        :url_parameters, :is_gift, :giftee_email, :giftee_id, :gift_note, :hide_gifter, :referrer, :buyer_currency_quote,
         # The browser reports a client-side tokenization/setup failure (e.g. a failed 3DS on the
         # setup-intent lane) as a hash; permitting it as a scalar silently dropped it and every
         # such failure surfaced as the generic CREDIT_CARD_NOT_PROVIDED decline copy.
@@ -489,7 +489,7 @@ class OrdersController < ApplicationController
         line_items: [:uid, :permalink, :perceived_price_cents, :price_range, :discount_code, :is_preorder, :quantity, :call_start_time,
                      :was_product_recommended, :recommended_by, :referrer, :is_rental, :is_multi_buy,
                      :was_discover_fee_charged, :price_cents, :tax_cents, :gumroad_tax_cents, :shipping_cents, :price_id, :affiliate_id, :url_parameters, :is_purchasing_power_parity_discounted, :accepts_purchasing_power_parity_discount,
-                     :recommender_model_name, :tip_cents, :pay_in_installments, :force_new_subscription, :confirmed_duplicate_purchase,
+                     :recommender_model_name, :tip_cents, :pay_in_installments, :force_new_subscription, :restart_intent, :confirmed_duplicate_purchase,
                      custom_fields: [:id, :value], variants: [], perceived_free_trial_duration: [:unit, :amount], accepted_offer: [:id, :original_variant_id, :original_product_id],
                      bundle_products: [:product_id, :variant_id, :quantity, custom_fields: [:id, :value]]])
     end

@@ -26,6 +26,8 @@ spec:
           value: "1"
         - name: RENDERER_PASSWORD
           value: "cpln://secret/{{APP_SECRETS}}.RENDERER_PASSWORD"
+        - name: REACT_ON_RAILS_PRO_LICENSE
+          value: "cpln://secret/{{APP_SECRETS}}.REACT_ON_RAILS_PRO_LICENSE"
       ports:
         - number: 3800
           protocol: http2
@@ -50,7 +52,7 @@ spec:
       metric: disabled
       minScale: 1
       maxScale: 1
-    capacityAI: false
+    capacityAI: true
     timeoutSeconds: 120
   firewallConfig:
     external:

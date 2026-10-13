@@ -15,6 +15,14 @@ class CustomerMailer < ApplicationMailer
   # another copy. Newest receipts are the ones a "resend my receipts" caller is after.
   GROUPED_RECEIPT_MAX_CHARGEABLES = 20
 
+  # A caller's match can be its whole history (one buyer email matches 31,964 purchases), and
+  # materialising an IN list that long dies at the session's 300s ceiling. Read it a window at a time.
+  GROUPED_RECEIPT_LOOKBACK = 10 * GROUPED_RECEIPT_MAX_CHARGEABLES
+
+  # A combined charge collapses its purchases into a single chargeable, so one window can resolve
+  # to one receipt; read on until the template's fill is reachable, but stop after ten windows.
+  GROUPED_RECEIPT_READ_WINDOWS = 10
+
   # One send per recipient + receipt set within this window. The claim is taken at render,
   # so a retry of a send that failed before SMTP handoff is also suppressed — acceptable,
   # because every caller of this mailer is a self-serve flow the buyer can re-trigger.
@@ -22,27 +30,27 @@ class CustomerMailer < ApplicationMailer
 
   def grouped_receipt(purchase_ids, recommendations: true)
     @recommendations = recommendations
-    # Callers can pass ids of purchases in any state (e.g. the email-reassignment flow
-    # moves failed purchases too). A failed purchase that belongs to a Charge resolves
-    # to a Charge with no successful purchases, and the receipt template crashes with
-    # "undefined method 'external_id' for nil" when it can't find a purchase to render.
-    # Only successful purchases get receipts, so filter here.
-    @chargeables = Purchase.where(id: purchase_ids)
-      .all_success_states_including_test
-      .order(id: :desc)
-      .includes(charge: [:order, :seller])
-      .map { Charge::Chargeable.find_by_purchase_or_charge!(purchase: _1) }
-      .uniq
-      .first(GROUPED_RECEIPT_MAX_CHARGEABLES)
-      .reverse
+    # Callers pass ids in any state; the email-reassignment flow includes failed purchases.
+    @chargeables = read_renderable_chargeables(purchase_ids).first(GROUPED_RECEIPT_MAX_CHARGEABLES).reverse
+    return if @chargeables.empty?
+
+    # Re-check before the claim so a set that cannot be sent does not consume the 24h window.
+    @chargeables = @chargeables.select(&:receipt_renderable?)
     return if @chargeables.empty?
 
     last_chargeable = @chargeables.last
     return unless claim_grouped_receipt_send(last_chargeable.orderable.email)
 
+    # CUSTOMERS_MAIL_DOMAIN is send-only, so a missing Reply-To hard-bounces the buyer's reply.
+    # One Reply-To serves the whole group, so a group spanning several support addresses goes to
+    # support instead of to whichever seller happens to be newest.
+    reply_targets = @chargeables.map(&:support_email).uniq
+    @shared_reply_target = reply_targets.one?
+
     mail(
       to: last_chargeable.orderable.email,
       from: from_email_address_with_name(last_chargeable.seller.name, "noreply@#{CUSTOMERS_MAIL_DOMAIN}"),
+      reply_to: @shared_reply_target ? reply_targets.first : SUPPORT_EMAIL,
       subject: "Receipts for Purchases",
       delivery_method_options: MailerInfo.random_delivery_method_options(domain: :customers, to: last_chargeable.orderable.email)
     )
@@ -59,6 +67,9 @@ class CustomerMailer < ApplicationMailer
       )
     end
     @email_name = __method__
+
+    # MailSubject calls link_name on the first successful purchase and raises when that set is empty.
+    return if @chargeable.successful_purchases.none?
 
     @receipt_presenter = ReceiptPresenter.new(@chargeable, for_email:)
 
@@ -399,6 +410,41 @@ class CustomerMailer < ApplicationMailer
   end
 
   private
+    # Newest receipts are the ones a "resend my receipts" caller is after, so page newest-first;
+    # the state filter stays in the window query so failed ids cannot eat the read budget.
+    def read_renderable_chargeables(purchase_ids)
+      scope = Purchase.where(id: purchase_ids).all_success_states_including_test
+      chargeables = []
+
+      GROUPED_RECEIPT_READ_WINDOWS.times do
+        window = scope.order(id: :desc).limit(GROUPED_RECEIPT_LOOKBACK).includes(charge: [:order, :seller]).to_a
+        break if window.empty?
+
+        scope = scope.where("purchases.id < ?", window.last.id)
+        chargeables = renderable_chargeables((chargeables + window.map { Charge::Chargeable.find_by_purchase_or_charge!(purchase: _1) }).uniq)
+        break if chargeables.size >= GROUPED_RECEIPT_MAX_CHARGEABLES
+      end
+
+      chargeables
+    end
+
+    # Batched: a per-chargeable exists? is an N+1 on up to GROUPED_RECEIPT_MAX_CHARGEABLES entries.
+    def renderable_chargeables(chargeables)
+      purchases, charges = chargeables.partition { _1.is_a?(Purchase) }
+      renderable_purchase_ids = Purchase.where(id: purchases.map(&:id))
+        .all_success_states_including_test
+        .pluck(:id).to_set
+      renderable_charge_ids = ChargePurchase.where(charge_id: charges.map(&:id))
+        .joins(:purchase)
+        .where(purchases: { purchase_state: Purchase::ALL_SUCCESS_STATES_INCLUDING_TEST })
+        .distinct
+        .pluck(:charge_id).to_set
+
+      chargeables.select do |chargeable|
+        chargeable.is_a?(Purchase) ? renderable_purchase_ids.include?(chargeable.id) : renderable_charge_ids.include?(chargeable.id)
+      end
+    end
+
     # True when this render owns the send for this recipient + receipt set. NX so a
     # MailDeliveryJob retry that re-renders after a successful SMTP handoff (the
     # gumroad-private#1869 loop: the relay accepted the message but the final response

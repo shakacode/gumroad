@@ -49,37 +49,48 @@ export const NodeActionsMenu = ({
   editor,
   getPos,
   actions,
+  className,
 }: {
   editor: Editor;
   getPos: () => number | undefined;
   actions?: { item: () => React.ReactNode; menu: (close: () => void) => React.ReactNode }[];
+  className?: string;
 }) => {
   const [open, setOpen] = React.useState(false);
   const [selectedActionIndex, setSelectedActionIndex] = React.useState<number | null>(null);
   const selected = React.useContext(SelectedContext);
+  const selectTargetNode = () => {
+    const pos = getPos();
+    return pos !== undefined && editor.commands.setNodeSelection(pos);
+  };
 
   return (
     <Popover
       open={open}
       onOpenChange={(open) => {
-        if (open) {
-          const pos = getPos();
-          if (pos === undefined) return;
-          // Button events in node views do not update ProseMirror's selection.
-          editor.commands.setNodeSelection(pos);
-        }
+        if (open && !selectTargetNode()) return;
         setOpen(open);
       }}
     >
       <div
         data-actions-menu
         className={classNames(
-          "absolute bottom-4 left-0 z-1 text-base lg:top-6 lg:bottom-auto lg:-left-2 lg:-translate-x-full",
+          "absolute bottom-4 left-4 z-1 text-base lg:top-6 lg:bottom-auto lg:-left-2 lg:-translate-x-full",
           !selected && !open && "lg:hidden",
+          className,
         )}
       >
         <PopoverAnchor>
-          <PopoverTrigger aria-label="Actions" data-drag-handle draggable asChild>
+          <PopoverTrigger
+            aria-label="Actions"
+            data-drag-handle
+            draggable
+            onMouseDown={(event) => {
+              // Select before mouseup so ProseMirror's selection update cannot swallow the menu click.
+              if (event.button === 0) selectTargetNode();
+            }}
+            asChild
+          >
             <Button size="sm" color="filled" className="cursor-move">
               <DotsVerticalRounded pack="filled" className="size-5" />
             </Button>

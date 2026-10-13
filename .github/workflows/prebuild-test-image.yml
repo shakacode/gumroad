@@ -1,0 +1,33 @@
+name: Prebuild test image
+
+# Builds the test image for a branch after its Tests run passes, so main's build
+# finds it ready when the merged tree matches the branch's (the tag hashes the
+# tree), which skips about four minutes of the deploy path. A workflow_run run
+# belongs to the default branch, so it does not show among the PR's checks.
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  # Branch pushes in this repository only: a fork's code must not run next to the
+  # secrets this build uses. A run-all-specs branch already built the image in
+  # Tests, so the build finds the tag and stops.
+  build:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch != 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    # On the job, so a skipped completion (a failed or fork run) cannot cancel an
+    # eligible build.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/build-test-image.yml
+    with:
+      ref: ${{ github.event.workflow_run.head_sha }}
+    secrets: inherit

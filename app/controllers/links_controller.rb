@@ -61,10 +61,8 @@ class LinksController < ApplicationController
   before_action :ensure_domain_belongs_to_seller, only: %i[show landing_iframe_content landing_version]
   before_action :render_custom_html_if_present, only: [:show]
   before_action :prepare_product_page, only: %i[show]
-  before_action :prepare_live_streaming_response, only: :show, if: :product_rsc_document_request?
-  prepend_around_action :clear_live_active_record_connections, only: :show, if: :product_rsc_route_request?
   before_action :fetch_product_and_enforce_ownership, only: %i[destroy]
-  before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections]
+  before_action :fetch_product_and_enforce_access, only: %i[update publish unpublish release_preorder update_sections disable_downloads_for_all_files]
 
   # Declared after #show's other before_actions on purpose: this keeps the boundary the old
   # in-action pin drew, leaving the product and seller lookups above on the replica.
@@ -247,7 +245,7 @@ class LinksController < ApplicationController
         else
           if params[:embed] || params[:overlay]
             render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
-          elsif @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
+          elsif product_storefront_profile?
             # Storefront-wrapped product page (gumroad-private#2196): profile header above the
             # product, catalog below (injected in ProductPresenter#product_page_props). Same
             # component the `layout=profile` branch above renders. The seller's own view keeps
@@ -275,9 +273,13 @@ class LinksController < ApplicationController
 
   def cart_items_count
     cart = Cart.fetch_by(user: logged_in_user, browser_guid: cookies[:_gumroad_guid])
-    render inertia: "Products/CartItemsCount", props: {
-      cart_items_count: cart&.cart_products&.alive&.count || 0
-    }
+    cart_items_count = cart&.cart_products&.alive&.count || 0
+    # A storefront host fetches the count with the page's own request, which carries the cart cookie;
+    # only a custom domain, which cannot read that cookie, still needs the frame.
+    respond_to do |format|
+      format.json { render json: { cart_items_count: } }
+      format.any { render inertia: "Products/CartItemsCount", props: { cart_items_count: } }
+    end
   end
 
   def landing_iframe_content
@@ -363,8 +365,6 @@ class LinksController < ApplicationController
   end
 
   def check_if_needs_redirect
-    return if GumroadDomainConstraint.control_plane_branch_host?(request.host)
-
     # If the request is for the product's custom domain, don't redirect
     return if product_by_custom_domain.present?
 
@@ -488,7 +488,20 @@ class LinksController < ApplicationController
         # (dropping stale association caches) so the freshness check below
         # reads committed state. Without it, two saves echoing the same
         # timestamps both pass and the last writer silently wins.
-        with_editor_save_lock_wait_bound { @product.lock! }
+        # Seller row first, as every other permalink claim takes it, so a save that locks nothing earlier cannot
+        # hold the seller row while waiting on this product row.
+        with_editor_save_lock_wait_bound { @product.lock_for_permalink_claim!(product_permitted_params[:custom_permalink]) }
+
+        # An old editor also sends null when the seller switches installments off.
+        # Without an intent marker, refuse the whole save rather than silently
+        # keeping an existing plan or clearing one added by another tab.
+        if params.key?(:installment_plan) && params[:installment_plan].nil? && !installment_plan_clear_requested? && @product.installment_plan.present?
+          log_editor_save_conflict("unmarked_installment_plan_clear_conflict")
+          return render json: {
+            error_message: "This page is out of date. Your changes weren't saved. Copy your edits before refreshing. Refreshing will erase them.",
+            error_code: "unmarked_installment_plan_clear_conflict",
+          }, status: :conflict
+        end
 
         # Capture the deletion-guard diagnostics (alive counts, persisted
         # shared-content flag) NOW, after the lock/reload but before
@@ -566,7 +579,9 @@ class LinksController < ApplicationController
           :preserved_rich_content_ids,
           :rich_content_provenance_version
         ))
-        @product.description = SaveContentUpsellsService.new(seller: @product.user, content: product_permitted_params[:description], old_content: @product.description_was).from_html
+        if product_permitted_params.key?(:description)
+          @product.description = SaveContentUpsellsService.new(seller: @product.user, content: product_permitted_params[:description], old_content: @product.description_was).from_html
+        end
         @product.skus_enabled = false
         @product.save_custom_button_text_option(product_permitted_params[:custom_button_text_option]) unless product_permitted_params[:custom_button_text_option].nil?
         @product.save_custom_summary(product_permitted_params[:custom_summary]) unless product_permitted_params[:custom_summary].nil?
@@ -669,7 +684,7 @@ class LinksController < ApplicationController
 
         Product::SavePostPurchaseCustomFieldsService.new(@product).perform
 
-        @product.is_licensed = @product.has_embedded_license_key?
+        @product.recompute_is_licensed!
         unless @product.is_licensed
           @product.is_multiseat_license = false
         end
@@ -742,12 +757,11 @@ class LinksController < ApplicationController
       # catch-all below tells the client to refresh, which is the one thing that
       # cannot work here — the reload queues behind the same lock.
       report_editor_save_lock_contention(e)
-      response.set_header("Retry-After", EDITOR_SAVE_LOCK_RETRY_AFTER_SECONDS.to_s)
-      return render json: {
-        error_message: "Another save for this product is still in progress. Please wait a few seconds, then try again.",
-        error_code: "product_save_busy",
-        retry_after: EDITOR_SAVE_LOCK_RETRY_AFTER_SECONDS,
-      }, status: :conflict
+      return render_product_save_busy
+    rescue Link::PermalinkChangedDuringLock
+      # Another save changed this product's permalink while ours waited; nothing was written. No lock was
+      # contended, so it is not counted as contention.
+      return render_product_save_busy
     rescue => e
       # Catch-all so an unanticipated failure never leaves the editor's save
       # request with no JSON body (gumroad-private#1784) — mirrors `publish`
@@ -828,6 +842,24 @@ class LinksController < ApplicationController
     render json: { success: true }
   end
 
+  # Its own action because the editor save carries only the files embedded in the version
+  # being edited, so a bulk flip riding on it would cover a subset of the product.
+  def disable_downloads_for_all_files
+    authorize @product
+
+    result = Product::DisableDownloadsForAllFiles.new(@product).perform
+
+    render json: {
+      success: true,
+      disabled_count: result.disabled_count,
+      # The editor flips these in its own file state so a later save cannot send the
+      # old stream_only: false back and silently re-enable downloads.
+      disabled_file_ids: result.disabled_file_ids,
+      already_disabled_count: result.already_disabled_count,
+      ineligible_count: result.ineligible_count,
+    }
+  end
+
   def update_sections
     authorize @product
     ActiveRecord::Base.transaction do
@@ -875,18 +907,37 @@ class LinksController < ApplicationController
   end
 
   private
-    def product_rsc_document_request?
-      product_rsc_route_request? && product_react_on_rails_enabled? &&
-        (params[:layout] == Product::Layout::PROFILE ||
-         (@product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user))
+    def ensure_product_renderer_available
+      return if ReactOnRailsPro.configuration.server_renderer == "NodeRenderer" && ReactOnRailsPro.configuration.renderer_password.present?
+
+      response.headers["Cache-Control"] = "no-store"
+      render plain: "Product rendering is temporarily unavailable.", status: :service_unavailable
     end
 
     def product_rsc_route_request?
-      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.matches?(request)
+      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request)
     end
 
     def product_react_on_rails_enabled?
-      is_a?(ProductRscLinksController) && Feature.active?(:product_page_react_on_rails, @product.user)
+      (is_a?(ProductRscLinksController) || (request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request))) &&
+        Feature.active?(:product_page_react_on_rails, @product.user)
+    end
+
+    def product_rsc_document_eligible?
+      fetch_product_for_show
+      request.env["gumroad.product_rsc_lookup"] = { product: @product, custom_domain_product: @_product_by_custom_domain }
+      return false unless Feature.active?(:product_page_react_on_rails, @product.user)
+      return false if @product.banned? || @product.user.deleted? || active_session_invalidated? || custom_html_visible?
+      return true if params[:layout] == Product::Layout::PROFILE
+      product_storefront_profile?
+    end
+
+    def product_storefront_profile?
+      return false unless @product.user.product_page_storefront_enabled?
+
+      seller = find_seller_from_cookie(cookies.encrypted[:current_seller_id]) if user_signed_in?
+      seller = logged_in_user unless valid_seller?(seller)
+      seller != @product.user
     end
 
     def product_rsc_document_props(product_props)
@@ -902,6 +953,10 @@ class LinksController < ApplicationController
     end
 
     def render_product_rsc_document(product_props)
+      ensure_product_renderer_available
+      return if performed?
+
+      prepare_live_streaming_response
       # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
       meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
         remove_meta_tag(tag[:head_key])
@@ -914,11 +969,24 @@ class LinksController < ApplicationController
       @rendering_product_rsc_document = true
       release_live_active_record_connections
 
-      stream_view_containing_react_components(
-        template: "links/rsc_show",
-        layout: "inertia",
-        rsc_stream_observability: true
-      )
+      begin
+        stream_view_containing_react_components(
+          template: "links/rsc_show",
+          layout: "inertia",
+          rsc_stream_observability: true
+        )
+      rescue StandardError => error
+        transport_error = error
+        until transport_error.nil? || transport_error.is_a?(ReactOnRailsPro::RendererHttpClient::ConnectionError) || transport_error.is_a?(ReactOnRailsPro::RendererHttpClient::TimeoutError)
+          transport_error = transport_error.cause
+        end
+        raise if response.committed? || transport_error.nil?
+
+        @rendering_product_rsc_document = false
+        response.headers.delete("Last-Modified")
+        response.headers["Cache-Control"] = "no-store"
+        render plain: "Product rendering is temporarily unavailable.", status: :service_unavailable
+      end
     end
 
     def external_analytics_view_id(analytics_view_payload:)
@@ -974,6 +1042,11 @@ class LinksController < ApplicationController
     end
 
     def fetch_product_for_show
+      if (lookup = request.env["gumroad.product_rsc_lookup"])
+        @_product_by_custom_domain = lookup[:custom_domain_product]
+        return @product = lookup.fetch(:product)
+      end
+
       fetch_product_by_custom_domain || fetch_product_by_general_permalink
     end
 
@@ -1021,17 +1094,26 @@ class LinksController < ApplicationController
       end
     end
 
-    # Blank custom_permalink is "not specified" unless the current editor marks
-    # it as a deliberate clear. Older tabs send the whole snapshot without that
-    # marker, so their stale blank must not wipe a slug another tab set.
+    # Blank custom_permalink / description is unspecified unless marked a
+    # deliberate clear, so a content-tab snapshot cannot wipe another tab's copy.
     def omit_unspecified_product_scalars!
       permitted = product_permitted_params
       permitted.delete(:custom_permalink) if permitted[:custom_permalink].blank? && !custom_permalink_clear_requested?
+      permitted.delete(:description) if permitted[:description].blank? && !description_clear_requested?
       permitted.delete(:customizable_price) if permitted[:customizable_price].nil?
+      permitted.delete(:installment_plan) if permitted[:installment_plan].blank? && !installment_plan_clear_requested?
     end
 
     def custom_permalink_clear_requested?
       ActiveModel::Type::Boolean.new.cast(params[:custom_permalink_changed])
+    end
+
+    def description_clear_requested?
+      ActiveModel::Type::Boolean.new.cast(params[:description_changed])
+    end
+
+    def installment_plan_clear_requested?
+      ActiveModel::Type::Boolean.new.cast(params[:installment_plan_changed])
     end
 
     # Built from PERMITTED params so submitted? sees collections as strong
@@ -1209,6 +1291,15 @@ class LinksController < ApplicationController
       connection.execute("SET SESSION innodb_lock_wait_timeout = #{previous.to_i}") if previous.present?
     end
 
+    def render_product_save_busy
+      response.set_header("Retry-After", EDITOR_SAVE_LOCK_RETRY_AFTER_SECONDS.to_s)
+      render json: {
+        error_message: "Another save for this product is still in progress. Please wait a few seconds, then try again.",
+        error_code: "product_save_busy",
+        retry_after: EDITOR_SAVE_LOCK_RETRY_AFTER_SECONDS,
+      }, status: :conflict
+    end
+
     # Post-commit: a raise here must not reach update's catch-all and report a saved product
     # as failed. A nil jid may be a stale lock, not a queued rebuild; UrlRedirect#folder_archive recovers.
     def enqueue_product_files_archives_generation
@@ -1222,8 +1313,8 @@ class LinksController < ApplicationController
     def report_editor_save_lock_contention(exception)
       key = "editor_save_lock_contention:#{@product.id}"
       occurrences = $redis.incr(key)
-      # Same ttl == -1 repair as the Gumhead gateway throttle: a counter that
-      # outlives its window would suppress this product's reports forever.
+      # Repair ttl == -1 too: a counter that outlives its window would
+      # suppress this product's reports forever.
       $redis.expire(key, EDITOR_SAVE_LOCK_REPORT_WINDOW.to_i) if occurrences == 1 || $redis.ttl(key) == -1
 
       Rails.logger.info(
@@ -2137,6 +2228,8 @@ class LinksController < ApplicationController
 
     def update_installment_plan
       return unless @product.eligible_for_installment_plans?
+      # Absent means unspecified, not "remove": only a marked clear may delete the plan.
+      return unless product_permitted_params[:installment_plan].present? || installment_plan_clear_requested?
 
       if @product.installment_plan && product_permitted_params[:installment_plan].present?
         @product.installment_plan.assign_attributes(product_permitted_params[:installment_plan])
@@ -2277,6 +2370,13 @@ class LinksController < ApplicationController
       # Buyer clicked Buy — fall through to the show action's checkout-bearing
       # product page so the existing ?wanted=true flow handles the redirect.
       return if params[:wanted] == "true"
+      # ?native=true opens the standard page while custom HTML is live, for example to
+      # reach the review replies the custom page does not render.
+      return if params[:native] == "true"
+      # A review-reminder email links bundle buyers here with the purchase's external id
+      # and email digest; the custom page has no review form, so a verified review link
+      # falls through to the standard product page instead of failing silently.
+      return if use_primary_database { @product.review_link_purchase?(params[:purchase_id], params[:purchase_email_digest]) }
 
       nonce = SecureHeaders.content_security_policy_script_nonce(request)
       render html: custom_html_wrapper_document(@product, nonce:, offer_code: params[:offer_code].presence || params[:code].presence).html_safe, layout: false
@@ -2368,12 +2468,10 @@ class LinksController < ApplicationController
       # descriptions like "<p><br></p>" — present as raw HTML but empty once
       # stripped to text — still fall back instead of emitting empty tags.
       description = product.plaintext_description.presence || "Available on Gumroad"
-      # plaintext_description comes back from the Rails sanitizer, which strips
-      # tags and entity-encodes &/</> for text context but does NOT escape
-      # double quotes — and ERB::Util.h passes html_safe strings through
-      # untouched. Escape quotes explicitly so a description containing `"`
-      # can't break out of the meta tag's attribute value.
-      description_attr = description.gsub('"', "&quot;")
+      # plaintext_description returns decoded text with no HTML escaping, and this wrapper
+      # interpolates it into an attribute and into the document body below, so escape it here
+      # (ERB::Util.h covers quotes as well as &/</>).
+      escaped_description = ERB::Util.h(description)
       structured_data = product.structured_data(host: custom_domain_host_for_meta(product))
       # json_escape keeps the JSON valid while escaping <, >, & so a
       # description containing "</script>" can't break out of the script tag.
@@ -2403,9 +2501,9 @@ class LinksController < ApplicationController
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>#{title}</title>
             <link rel="canonical" href="#{canonical}">
-            <meta name="description" content="#{description_attr}">
+            <meta name="description" content="#{escaped_description}">
             <meta property="og:title" content="#{title}">
-            <meta property="og:description" content="#{description_attr}">
+            <meta property="og:description" content="#{escaped_description}">
             <meta property="og:type" content="product">
             <meta property="og:url" content="#{canonical}">
             #{share_image_tags}
@@ -2417,7 +2515,7 @@ class LinksController < ApplicationController
           <body>
             <div class="seo-summary">
               <h1>#{title}</h1>
-              <p>#{description}</p>
+              <p>#{escaped_description}</p>
             </div>
             <iframe
               id="gumroad-landing-frame"

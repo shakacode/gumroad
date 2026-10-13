@@ -7,7 +7,7 @@ require "action_cable/engine"
 
 require "socket"
 require_relative "../lib/catch_bad_request_errors"
-require_relative "../lib/gumhead_body_params_guard"
+require_relative "../lib/product_rsc_streaming_headers"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -83,7 +83,6 @@ module Gumroad
     config.yjit = false
     config.active_support.cache_format_version = 7.1
     config.active_storage.variant_processor = :mini_magick
-    config.active_storage.web_image_content_types += ["image/webp"]
 
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
@@ -111,7 +110,13 @@ module Gumroad
     config.eager_load_paths += %w[./lib/errors]
     config.eager_load_paths += Dir[Rails.root.join("app", "business", "**/")]
 
-    config.middleware.insert_before(ActionDispatch::Cookies, Rack::SSL, exclude: ->(env) { env["HTTP_HOST"] != DOMAIN || Rails.env.test? || Rails.env.development? || Rails.env.benchmark? })
+    config.middleware.insert_before(ActionDispatch::Cookies, Rack::SSL, exclude: ->(env) {
+      if Rails.env.benchmark?
+        ENV["CONTROL_PLANE_BENCHMARK"] != "true"
+      else
+        env["HTTP_HOST"] != DOMAIN || Rails.env.test? || Rails.env.development?
+      end
+    })
 
     config.action_view.sanitized_allowed_tags = ["div", "p", "a", "u", "strong", "b", "em", "i", "br"]
     config.action_view.sanitized_allowed_attributes = ["href", "class", "target"]
@@ -130,13 +135,10 @@ module Gumroad
     config.logger = ActiveSupport::TaggedLogging.new(logger)
 
     config.middleware.insert 0, Rack::UTF8Sanitizer
+    config.middleware.insert_after Rack::ConditionalGet, ProductRscStreamingHeaders
 
     initializer "catch_bad_request_errors.middleware" do
       config.middleware.insert_after Rack::Attack, ::CatchBadRequestErrors
-    end
-
-    initializer "gumhead_body_params_guard.middleware" do
-      config.middleware.use ::GumheadBodyParamsGuard
     end
 
     config.generators do |g|

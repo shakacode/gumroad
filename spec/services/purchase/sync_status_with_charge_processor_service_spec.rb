@@ -142,7 +142,6 @@ describe Purchase::SyncStatusWithChargeProcessorService, :vcr do
     expect(Order::FinalizeConfirmedChargeService).to receive(:new).with(order:, charge:).and_return(finalizer)
     expect(finalizer).to receive(:perform) { purchase.update!(purchase_state: "successful") }
     expect(ChargeProcessor).not_to receive(:get_or_search_charge)
-    expect(purchase).to receive(:with_lock).and_call_original
 
     expect(described_class.new(purchase, mark_as_failed: true).perform).to be(true)
     expect(purchase.reload).to be_successful
@@ -485,6 +484,352 @@ describe Purchase::SyncStatusWithChargeProcessorService, :vcr do
     expect(purchase_given.gift.successful?).to be(true)
   end
 
+  describe "giftee purchases" do
+    let(:gift) { create(:gift) }
+    let!(:gifter_purchase) { create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: gifter_state) }
+    let!(:giftee_purchase) { create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress") }
+
+    context "when the gifter purchase failed" do
+      let(:gifter_state) { "failed" }
+
+      it "fails the giftee purchase instead of granting access" do
+        expect(ChargeProcessor).not_to receive(:get_or_search_charge)
+
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_failed
+      end
+    end
+
+    context "when the gifter purchase is still in progress" do
+      let(:gifter_state) { "in_progress" }
+
+      it "leaves the giftee purchase in progress" do
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+
+        expect(giftee_purchase.reload).to be_in_progress
+      end
+    end
+
+    %w[test_successful not_charged preorder_authorization_successful].each do |state|
+      context "when the gifter purchase is #{state}" do
+        let(:gifter_state) { state }
+
+        it "leaves the giftee purchase and the gift in progress without granting access" do
+          allow(ErrorNotifier).to receive(:notify)
+
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+
+          expect(ErrorNotifier).not_to have_received(:notify)
+          expect(giftee_purchase.reload).to be_in_progress
+          expect(giftee_purchase.url_redirect).to be_nil
+          expect(gift.reload).to be_in_progress
+        end
+      end
+    end
+
+    context "when the gifter purchase succeeded" do
+      let(:gifter_state) { "successful" }
+
+      before { SendPurchaseReceiptJob.clear }
+
+      it "completes the giftee purchase and the gift once, without a subscription" do
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(gift.reload).to be_successful
+        expect(giftee_purchase.subscription).to be_nil
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(gift.reload).to be_successful
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+      end
+    end
+
+    context "when the gifter purchase succeeded for a recurring product" do
+      let(:product) { create(:product, :is_subscription, user: @seller) }
+      let(:gift) { create(:gift, link: product) }
+      let(:giftee) { create(:user) }
+      let!(:gifter_purchase) { create(:purchase, link: product, price: product.default_price, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "successful") }
+      let!(:giftee_purchase) { create(:free_purchase, link: product, purchaser: giftee, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress") }
+
+      before do
+        SendPurchaseReceiptJob.clear
+        RecurringChargeWorker.clear
+      end
+
+      it "rebuilds a missing recipient subscription and completes the gift once" do
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+        end.to change { Subscription.count }.by(1)
+
+        subscription = giftee_purchase.reload.subscription
+        expect(giftee_purchase).to be_gift_receiver_purchase_successful
+        expect(gift.reload).to be_successful
+        expect(subscription.user).to eq(giftee)
+        expect(subscription.credit_card).to be_nil
+        expect(subscription.purchases).to contain_exactly(gifter_purchase, giftee_purchase)
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.first["args"]).to eq([subscription.id])
+        expect(RecurringChargeWorker.jobs.first["at"]).to be_within(1).of((gifter_purchase.reload.succeeded_at + subscription.period).to_f)
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+        end.not_to change { Subscription.count }
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.size).to eq(1)
+      end
+
+      it "reuses a recipient subscription that already exists" do
+        subscription = create(:subscription, link: product, user: giftee)
+        subscription.purchases << [gifter_purchase, giftee_purchase]
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+        end.not_to change { Subscription.count }
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(giftee_purchase.subscription).to eq(subscription)
+        expect(subscription.reload.purchases).to contain_exactly(gifter_purchase, giftee_purchase)
+        expect(gift.reload).to be_successful
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.size).to eq(0)
+
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.size).to eq(0)
+      end
+
+      it "attaches the giftee purchase to the recipient subscription already linked to the gifter" do
+        subscription = create(:subscription, link: product, user: giftee)
+        subscription.purchases << gifter_purchase
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+        end.not_to change { Subscription.count }
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(giftee_purchase.subscription).to eq(subscription)
+        expect(gifter_purchase.reload.subscription).to eq(subscription)
+        expect(subscription.reload.purchases).to contain_exactly(gifter_purchase, giftee_purchase)
+        expect(gift.reload).to be_successful
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+        end.not_to change { Subscription.count }
+        expect(subscription.reload.purchases).to contain_exactly(gifter_purchase, giftee_purchase)
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.size).to eq(0)
+      end
+
+      it "rolls back the giftee purchase and recipient subscription when the gift cannot be finalized, then completes them once on retry" do
+        giftee_email = gift.giftee_email
+        # An invalid Gift row makes Gift#mark_successful! raise after the subscription is built.
+        gift.update_column(:giftee_email, "not-an-email")
+        allow(Subscription).to receive(:new).and_call_original
+        allow(ErrorNotifier).to receive(:notify)
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+        end.not_to change { Subscription.count }
+
+        expect(Subscription).to have_received(:new).once
+        expect(ErrorNotifier).to have_received(:notify).with(an_instance_of(StateMachines::InvalidTransition)).once
+        expect(giftee_purchase.reload).to be_in_progress
+        expect(giftee_purchase.url_redirect).to be_nil
+        expect(giftee_purchase.subscription).to be_nil
+        expect(gifter_purchase.reload).to be_successful
+        expect(gifter_purchase.subscription).to be_nil
+        expect(gift.reload).to be_in_progress
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+        expect(RecurringChargeWorker.jobs.size).to eq(0)
+
+        gift.update_column(:giftee_email, giftee_email)
+
+        expect do
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(Purchase.find(giftee_purchase.id), mark_as_failed: true).perform).to be(true)
+          expect(Purchase::SyncStatusWithChargeProcessorService.new(Purchase.find(giftee_purchase.id), mark_as_failed: true).perform).to be(false)
+        end.to change { Subscription.count }.by(1)
+
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(gift.reload).to be_successful
+        expect(giftee_purchase.subscription.purchases).to contain_exactly(gifter_purchase, giftee_purchase)
+        expect(UrlRedirect.where(purchase: giftee_purchase).count).to eq(1)
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+        expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(giftee_purchase.id)
+        expect(RecurringChargeWorker.jobs.size).to eq(1)
+        expect(RecurringChargeWorker.jobs.first["args"]).to eq([giftee_purchase.subscription.id])
+      end
+    end
+  end
+
+  describe "restoring a failed gifter purchase whose gift already succeeded" do
+    let(:gift) { create(:gift) }
+    let!(:gifter_purchase) { create(gifter_factory, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "failed") }
+    let!(:giftee_purchase) { create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress") }
+
+    before do
+      giftee_purchase.mark_gift_receiver_purchase_successful!
+      gift.update_column(:state, "successful")
+      allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+      SendPurchaseReceiptJob.clear
+    end
+
+    context "when the charge is still missing" do
+      let(:gifter_factory) { :purchase }
+
+      it "keeps the gift and giftee purchase successful through the restore and refail" do
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase).perform).to be(false)
+        expect(gifter_purchase.reload).to be_in_progress
+        expect(gift.reload).to be_successful
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+        expect(gifter_purchase.reload).to be_failed
+        expect(gift.reload).to be_successful
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(UrlRedirect.where(purchase: giftee_purchase).count).to eq(1)
+        expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+      end
+    end
+
+    context "when the gifter purchase is free" do
+      let(:gifter_factory) { :free_purchase }
+
+      it "completes the gifter purchase without resending the giftee receipt" do
+        expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase).perform).to be(true)
+
+        expect(gifter_purchase.reload).to be_successful
+        expect(gift.reload).to be_successful
+        expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+        expect(SendPurchaseReceiptJob.jobs.map { _1["args"].first }).not_to include(giftee_purchase.id)
+      end
+    end
+  end
+
+  it "keeps the gift legs failed through a restore and refail, and completes them once the gifter succeeds" do
+    gift = create(:gift)
+    gifter_purchase = create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "in_progress")
+    giftee_purchase = create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress")
+    allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+    SendPurchaseReceiptJob.clear
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+
+    expect(gifter_purchase.reload).to be_failed
+    expect(gift.reload).to be_failed
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_failed
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_failed
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+
+    # Without mark_as_failed the gifter is restored and left waiting on the processor.
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase).perform).to be(false)
+    expect(gift.reload).to be_in_progress
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+    expect(giftee_purchase.reload).to be_in_progress
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+
+    gifter_purchase.reload.update!(purchase_state: "successful")
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+    expect(gift.reload).to be_successful
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(giftee_purchase.id)
+  end
+
+  it "fails the gifter and giftee purchases even when the gift row no longer validates" do
+    gift = create(:gift)
+    gifter_purchase = create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "in_progress")
+    giftee_purchase = create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress")
+    gift.update_column(:giftee_email, "not-an-email")
+    allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+    allow(ErrorNotifier).to receive(:notify)
+    SendPurchaseReceiptJob.clear
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+
+    expect(gifter_purchase.reload).to be_failed
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_failed
+    expect(gift.reload).to be_in_progress
+    expect(ErrorNotifier).to have_received(:notify).with("Could not mark gift as failed", gift_id: gift.id, errors: ["Giftee email is invalid"]).once
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+  end
+
+  it "fails the gifter purchase and the gift even when the giftee purchase no longer validates" do
+    gift = create(:gift, is_recipient_hidden: true)
+    gifter_purchase = create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "in_progress")
+    giftee_purchase = create(:free_purchase, link: gift.link, purchaser: create(:user), gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress")
+    # A hidden-recipient giftee purchase must keep its purchaser.
+    giftee_purchase.update_column(:purchaser_id, nil)
+    allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+    allow(ErrorNotifier).to receive(:notify)
+    SendPurchaseReceiptJob.clear
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+
+    expect(gifter_purchase.reload).to be_failed
+    expect(gift.reload).to be_failed
+    expect(giftee_purchase.reload).to be_in_progress
+    expect(UrlRedirect.where(purchase: giftee_purchase).count).to eq(0)
+    expect(ErrorNotifier).to have_received(:notify).with("Could not mark giftee purchase as failed", purchase_id: giftee_purchase.id, errors: ["Purchaser can't be blank"]).once
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+  end
+
+  it "restores a giftee purchase an older sync left generically failed, and completes it once the gifter succeeds" do
+    gift = create(:gift)
+    gifter_purchase = create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "failed")
+    giftee_purchase = create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "failed")
+    gift.update_column(:state, "failed")
+    allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+    SendPurchaseReceiptJob.clear
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase).perform).to be(false)
+    expect(gifter_purchase.reload).to be_in_progress
+    expect(gift.reload).to be_in_progress
+    expect(giftee_purchase.reload).to be_in_progress
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase, mark_as_failed: true).perform).to be(false)
+    expect(gifter_purchase.reload).to be_failed
+    expect(gift.reload).to be_failed
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_failed
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(gifter_purchase).perform).to be(false)
+    expect(giftee_purchase.reload).to be_in_progress
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+
+    gifter_purchase.reload.update!(purchase_state: "successful")
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(true)
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(giftee_purchase, mark_as_failed: true).perform).to be(false)
+    expect(giftee_purchase.reload).to be_gift_receiver_purchase_successful
+    expect(gift.reload).to be_successful
+    expect(UrlRedirect.where(purchase: giftee_purchase).count).to eq(1)
+    expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(giftee_purchase.id)
+  end
+
+  it "fails the gift and giftee purchase when a gifter purchase is marked failed" do
+    gift = create(:gift)
+    purchase_given = create(:purchase, link: gift.link, gift_given: gift, is_gift_sender_purchase: true, purchase_state: "in_progress")
+    purchase_received = create(:free_purchase, link: gift.link, gift_received: gift, is_gift_receiver_purchase: true, purchase_state: "in_progress")
+    allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(nil)
+
+    expect(Purchase::SyncStatusWithChargeProcessorService.new(purchase_given, mark_as_failed: true).perform).to be(false)
+
+    expect(purchase_given.reload).to be_failed
+    expect(gift.reload).to be_failed
+    expect(purchase_received.reload).to be_gift_receiver_purchase_failed
+  end
+
   it "creates a subscription in case of a successful subscription purchase" do
     product = create(:product, :is_subscription, user: @seller)
     purchase = create(:purchase, link: product, purchase_state: "in_progress", chargeable: create(:chargeable), price: product.default_price)
@@ -701,6 +1046,213 @@ describe Purchase::SyncStatusWithChargeProcessorService, :vcr do
       expect(purchase.stripe_transaction_id).to be(nil)
       expect(purchase.balance_transactions).to be_empty
       expect(@seller.reload.unpaid_balance_cents).to eq(@initial_balance)
+    end
+  end
+
+  describe "charge receipts", vcr: false do
+    let(:purchase) { create(:purchase_in_progress, link: @product, email: "buyer@example.com") }
+    let!(:charge) { create(:charge, seller: @seller, merchant_account: purchase.merchant_account, purchases: [purchase]) }
+    let(:processor_charge) do
+      BaseProcessorCharge.new.tap do |result|
+        result.id = purchase.stripe_transaction_id
+        result.status = "succeeded"
+        result.charge_processor_id = StripeChargeProcessor.charge_processor_id
+        result.flow_of_funds = FlowOfFunds.build_simple_flow_of_funds(Currency::USD, charge.amount_cents)
+      end
+    end
+
+    before do
+      charge.order.purchases << purchase
+      allow(ChargeProcessor).to receive(:get_or_search_charge).and_return(processor_charge)
+      SendChargeReceiptJob.clear
+      SendPurchaseReceiptJob.clear
+    end
+
+    it "enqueues the missing charge receipt after successful sync and does not replay it on another sync" do
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(purchase.reload).to be_successful
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+      expect(SendChargeReceiptJob.jobs.size).to eq(1)
+      expect(SendChargeReceiptJob).to have_enqueued_sidekiq_job(charge.id).on("critical")
+
+      expect(described_class.new(purchase).perform).to be(false)
+      expect(SendChargeReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "queues the receipt on the critical queue when a PDF still needs stamping" do
+      @product.product_files << create(:readable_document, pdf_stamp_enabled: true)
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(purchase.reload.url_redirect).to be_present
+      expect(SendChargeReceiptJob).to have_enqueued_sidekiq_job(charge.id).on("critical")
+    end
+
+    context "when receipt enqueue fails" do
+      let(:enqueue_error) { RedisClient::CannotConnectError.new("receipt Redis unavailable") }
+
+      before do
+        allow(SendChargeReceiptJob).to receive(:client_push).and_raise(enqueue_error)
+        allow(ErrorNotifier).to receive(:notify)
+      end
+
+      [false, true].each do |mark_as_failed|
+        it "preserves successful fulfillment and returns true with mark_as_failed: #{mark_as_failed}" do
+          service = described_class.new(purchase, mark_as_failed:)
+
+          expect(service.perform).to be(true)
+
+          expect(purchase.reload).to be_successful
+          expect(purchase.url_redirect).to be_present
+          expect(service.charge_outcome).to eq(:succeeded)
+          expect(charge.reload).not_to be_receipt_sent
+          expect(SendChargeReceiptJob.jobs.size).to eq(0)
+          expect(ErrorNotifier).to have_received(:notify).with(enqueue_error).once
+        end
+      end
+
+      it "contains the enqueue error at the outer commit and lets later callbacks run" do
+        later_callback_ran = false
+
+        Purchase.transaction do
+          expect(described_class.new(purchase, mark_as_failed: true).perform).to be(true)
+          expect(SendChargeReceiptJob).not_to have_received(:client_push)
+          AfterCommitEverywhere.after_commit { later_callback_ran = true }
+        end
+
+        expect(purchase.reload).to be_successful
+        expect(purchase.url_redirect).to be_present
+        expect(later_callback_ran).to be(true)
+        expect(charge.reload).not_to be_receipt_sent
+        expect(SendChargeReceiptJob.jobs.size).to eq(0)
+        expect(ErrorNotifier).to have_received(:notify).with(enqueue_error).once
+      end
+
+      it "lets SyncStuckPurchasesJob finalize the remaining purchases in the batch" do
+        purchase.update!(created_at: 12.hours.ago)
+        later_purchase = create(:purchase_in_progress, link: @product, email: "later-buyer@example.com", created_at: 10.hours.ago)
+
+        SyncStuckPurchasesJob.new.perform
+
+        expect(purchase.reload).to be_successful
+        expect(purchase.url_redirect).to be_present
+        expect(later_purchase.reload).to be_successful
+        expect(later_purchase.url_redirect).to be_present
+        expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(later_purchase.id)
+        expect(charge.reload).not_to be_receipt_sent
+        expect(SendChargeReceiptJob.jobs.size).to eq(0)
+        expect(ErrorNotifier).to have_received(:notify).with(enqueue_error).once
+      end
+    end
+
+    it "does not enqueue a receipt for an unsuccessful processor charge" do
+      processor_charge.status = "failed"
+
+      expect(described_class.new(purchase, mark_as_failed: true).perform).to be(false)
+      expect(purchase.reload).to be_failed
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "does not enqueue a receipt for an already successful purchase" do
+      purchase.update!(purchase_state: "successful")
+
+      expect(described_class.new(purchase).perform).to be(false)
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "preserves the standalone purchase receipt when there is no charge" do
+      charge.charge_purchases.destroy_all
+      purchase.reload
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+      expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(purchase.id)
+    end
+
+    it "does not enqueue a charge receipt that was already sent" do
+      charge.update!(receipt_sent: true)
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(purchase.reload).to be_successful
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "does not enqueue a receipt when finalization raises" do
+      allow_any_instance_of(Purchase::MarkSuccessfulService).to receive(:perform).and_raise("finalization failed")
+      allow(ErrorNotifier).to receive(:notify)
+
+      expect(described_class.new(purchase).perform).to be(false)
+      expect(purchase.reload).to be_in_progress
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "preserves the return value but does not enqueue if finalization leaves the purchase unsuccessful" do
+      allow_any_instance_of(Purchase::MarkSuccessfulService).to receive(:perform).and_return(false)
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(purchase.reload).to be_in_progress
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "waits for the surrounding transaction to commit before pushing to Redis" do
+      Sidekiq::Testing.disable! do
+        queued_receipts = -> { Sidekiq::Queue.new("critical").select { _1.klass == "SendChargeReceiptJob" } }
+        Purchase.transaction do
+          expect(described_class.new(purchase).perform).to be(true)
+          expect(purchase).to be_successful
+          expect(queued_receipts.call.size).to eq(0)
+        end
+
+        expect(queued_receipts.call.map(&:args)).to eq([[charge.id]])
+      end
+    end
+
+    it "does not push to Redis when the surrounding transaction rolls back" do
+      Sidekiq::Testing.disable! do
+        Purchase.transaction do
+          expect(described_class.new(purchase).perform).to be(true)
+          raise ActiveRecord::Rollback
+        end
+
+        expect(purchase.reload).to be_in_progress
+        expect(Sidekiq::Queue.new("critical").count { _1.klass == "SendChargeReceiptJob" }).to eq(0)
+      end
+    end
+
+    it "waits for the other purchases and sends each receipt once despite duplicate jobs" do
+      purchase.update!(is_part_of_combined_charge: true)
+      sibling = create(:purchase_in_progress, link: @product, email: purchase.email, is_part_of_combined_charge: true)
+      charge.purchases << sibling
+      charge.order.purchases << sibling
+      charge.update!(amount_cents: purchase.total_transaction_cents + sibling.total_transaction_cents)
+      processor_charge.flow_of_funds = FlowOfFunds.build_simple_flow_of_funds(Currency::USD, charge.amount_cents)
+      expect(ActionMailer::Base.delivery_method).to eq(:test)
+      ActionMailer::Base.deliveries.clear
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(SendChargeReceiptJob.jobs.size).to eq(1)
+      SendChargeReceiptJob.perform_one
+      expect(ActionMailer::Base.deliveries.size).to eq(0)
+      expect(charge.reload).not_to be_receipt_sent
+      expect(SendChargeReceiptJob).to have_enqueued_sidekiq_job(charge.id, 1)
+
+      expect(described_class.new(sibling).perform).to be(true)
+      expect(SendChargeReceiptJob.jobs.size).to eq(2)
+      SendChargeReceiptJob.drain
+
+      expect(ActionMailer::Base.deliveries.size).to eq(2)
+      expect(CustomerEmailInfo.where(email_name: SendgridEventInfo::RECEIPT_MAILER_METHOD).pluck(:purchase_id)).to contain_exactly(purchase.id, sibling.id)
+      expect(charge.reload).to be_receipt_sent
+    end
+
+    it "keeps receipt ownership with the client-confirmed finalizer" do
+      charge.update!(client_confirmed: true)
+      finalizer = instance_double(Order::FinalizeConfirmedChargeService, charge_intent: nil)
+      expect(Order::FinalizeConfirmedChargeService).to receive(:new).with(order: charge.order, charge:).and_return(finalizer)
+      expect(finalizer).to receive(:perform) { purchase.update!(purchase_state: "successful") }
+      expect(ChargeProcessor).not_to receive(:get_or_search_charge)
+
+      expect(described_class.new(purchase).perform).to be(true)
+      expect(SendChargeReceiptJob.jobs.size).to eq(0)
     end
   end
 

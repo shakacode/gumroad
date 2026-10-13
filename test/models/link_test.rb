@@ -582,6 +582,32 @@ class LinkTest < ActiveSupport::TestCase
     assert_equal [1, 2, 3, product.id].sort, section.reload.shown_products.sort
   end
 
+  test "product creation succeeds when the seller's profile row still has NULL theme columns" do
+    seller = create_user
+    create_seller_profile_products_section(seller:)
+    seller.create_seller_profile!
+    # A profile row written before the theme columns existed has NULL there, which the model's
+    # after_initialize defaults turn into unpersisted changes on every load.
+    SellerProfile.where(seller_id: seller.id).update_all(border_radius: nil, button_hover: nil)
+    seller.reload
+
+    product = create_product(user: seller)
+
+    assert product.persisted?
+  end
+
+  test "showing a product in sections succeeds when the profile row still has NULL theme columns" do
+    seller = create_user
+    section = create_seller_profile_products_section(seller:)
+    seller.create_seller_profile!
+    product = create_product(user: seller)
+    SellerProfile.where(seller_id: seller.id).update_all(border_radius: nil, button_hover: nil)
+
+    product.show_in_sections!([section.external_id])
+
+    assert_includes section.reload.shown_products, product.id
+  end
+
   test "adding to profile sections honors add_new_products on per-product sections" do
     seller = create_user
     other_product = create_product(user: seller)
@@ -1916,8 +1942,13 @@ class LinkTest < ActiveSupport::TestCase
     assert_equal "I like pie. Do you?", create_product(description: "I like <strong><u>pie</u></strong>. Do you?").plaintext_description
   end
 
-  test "plaintext_description encodes lone angle brackets" do
-    assert_equal "some &lt; text &gt;", create_product(description: "some < text >").plaintext_description
+  test "plaintext_description separates block elements" do
+    assert_equal "What you get A 25-page guide", create_product(description: "<h2>What you get</h2><p>A 25-page guide</p>").plaintext_description
+  end
+
+  test "plaintext_description leaves lone angle brackets literal" do
+    # Text comes back decoded; each caller escapes it for the context it renders in.
+    assert_equal "some < text >", create_product(description: "some < text >").plaintext_description
   end
 
   test "plaintext_description does not encode apostrophes" do
@@ -2450,6 +2481,21 @@ class LinkTest < ActiveSupport::TestCase
     product = create_product
     product.delete!
     assert_enqueued_in DeleteProductRichContentWorker, [product.id], delay: 10.minutes
+  end
+
+  # --- #save_files! ---------------------------------------------------------
+
+  test "save_files! does not write a client-supplied id into the primary key" do
+    product = create_product
+    existing_file = create_readable_document(link: product)
+    product.product_files.reload
+    original_id = existing_file.id
+
+    product.save_files!([{ external_id: "cli-upload-1", id: existing_file.external_id, url: existing_file.url, display_name: "Renamed" }])
+
+    surviving = ProductFile.find_by(id: original_id)
+    assert_not_nil surviving, "the row must keep its primary key"
+    assert_equal "Renamed", surviving.display_name
   end
 
   test "delete! enqueues product file and archive deletion after a 10-minute delay" do

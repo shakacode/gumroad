@@ -5,7 +5,6 @@ import ProductAnalytics from "$app/components/Product/ProductAnalytics.client";
 import { ProductBundleFromState } from "$app/components/Product/ProductBundle.client";
 import ProductDescription from "$app/components/Product/ProductDescription.client";
 import { ProductEditButton } from "$app/components/Product/ProductEditButton.client";
-import { ProductLicenseKeyLookup } from "$app/components/Product/ProductLicenseKeyLookup.client";
 import { ProductMedia } from "$app/components/Product/ProductMedia.client";
 import { ProductPreorderNotice } from "$app/components/Product/ProductPreorderNotice.client";
 import { ProductPriceFromState } from "$app/components/Product/ProductPrice.client";
@@ -55,33 +54,17 @@ export default function ProductArticle({
         )}
         {serverContent.quantityRemaining}
         <section className="lg:border-r">
-          <header className="grid gap-4 p-6 not-first:border-t">
-            {/* dir="auto" lets an RTL product name (Hebrew, Arabic) render right-to-left
-                instead of inheriting the document's LTR base direction, which misplaces
-                neutral characters like quotes and digits (gumroad-private#1259; same
-                rationale as the description fix in #6138). */}
-            {serverContent.title}
-          </header>
+          <header className="grid gap-4 p-6 not-first:border-t">{serverContent.title}</header>
           <section className="grid grid-cols-1 gap-[1px] border-t border-border p-0 sm:grid-cols-[auto_auto_minmax(max-content,1fr)]">
             <ProductPriceFromState product={product} />
             {serverContent.sellerAndRatings}
           </section>
-          {purchase !== null ? (
-            serverContent.receipt
-          ) : !product.can_edit ? (
-            <ProductLicenseKeyLookup
-              isLicensed={product.is_licensed}
-              hasDownload={
-                !product.is_physical && product.native_type !== "call" && product.native_type !== "commission"
-              }
-            />
-          ) : null}
+          {purchase !== null ? serverContent.receipt : null}
           <ProductBundleFromState product={product} bundleItems={serverContent.bundleItems} />
           <section className="border-t border-border p-6">
             <ProductDescription
               descriptionHtml={product.description_html}
               initialContent={serverContent.description}
-              needsClientEnhancement={serverContent.descriptionNeedsClientEnhancement}
               publicFiles={product.public_files}
             />
           </section>

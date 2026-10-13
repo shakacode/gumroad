@@ -7,7 +7,7 @@ import { Product, ProductDiscount } from "$app/components/Product";
 import { CoffeeProduct } from "$app/components/Product/CoffeeProduct";
 import { LandingPagePreview } from "$app/components/ProductEdit/LandingPagePreview";
 import { useProductUrl } from "$app/components/ProductEdit/Layout";
-import { RefundPolicyModalPreview } from "$app/components/ProductEdit/RefundPolicy";
+import { previewRefundPolicy, RefundPolicyModalPreview } from "$app/components/ProductEdit/RefundPolicy";
 import { useProductEditContext } from "$app/components/ProductEdit/state";
 import { Layout as ProfileLayout } from "$app/components/Profile/Layout";
 
@@ -121,9 +121,11 @@ export const ProductPreview = ({ showRefundPolicyModal }: { showRefundPolicyModa
       price_difference_cents: "price_difference_cents" in variant ? variant.price_difference_cents : 0,
       is_pwyw: "customizable_price" in variant ? variant.customizable_price : product.customizable_price,
       quantity_left:
-        variant.max_purchase_count !== null
-          ? variant.max_purchase_count - (variant.sales_count_for_inventory ?? 0)
-          : null,
+        "closed_to_new_purchases" in variant && variant.closed_to_new_purchases
+          ? 0
+          : variant.max_purchase_count !== null
+            ? variant.max_purchase_count - (variant.sales_count_for_inventory ?? 0)
+            : null,
       recurrence_price_values:
         "recurrence_price_values" in variant
           ? Object.fromEntries(
@@ -143,20 +145,12 @@ export const ProductPreview = ({ showRefundPolicyModal }: { showRefundPolicyModa
     has_third_party_analytics: false,
     ppp_details: null,
     can_edit: false,
-    refund_policy: seller_refund_policy_enabled
-      ? {
-          title: seller_refund_policy.title,
-          fine_print: seller_refund_policy.fine_print ?? "",
-          updated_at: "",
-        }
-      : {
-          title:
-            product.refund_policy.allowed_refund_periods_in_days.find(
-              ({ key }) => key === product.refund_policy.max_refund_period_in_days,
-            )?.value ?? "",
-          fine_print: product.refund_policy.fine_print ?? "",
-          updated_at: "",
-        },
+    refund_policy: previewRefundPolicy({
+      sellerRefundPolicyEnabled: seller_refund_policy_enabled,
+      sellerRefundPolicy: seller_refund_policy,
+      productRefundPolicyEnabled: product.product_refund_policy_enabled,
+      productRefundPolicy: product.refund_policy,
+    }),
     bundle_products: [],
     public_files: product.public_files,
   };
@@ -175,31 +169,34 @@ export const ProductPreview = ({ showRefundPolicyModal }: { showRefundPolicyModa
         }}
         hideFollowForm
       >
-        <CoffeeProduct
-          product={{
-            ...serializedProduct,
-            is_published: true,
-            pwyw: {
-              suggested_price_cents: Math.max(
-                ...serializedProduct.options.map(({ price_difference_cents }) => price_difference_cents ?? 0),
+        {/* Supplies the gutter CoffeeProduct no longer carries; must grow like the layout column. */}
+        <div className="flex grow flex-col px-4">
+          <CoffeeProduct
+            product={{
+              ...serializedProduct,
+              is_published: true,
+              pwyw: {
+                suggested_price_cents: Math.max(
+                  ...serializedProduct.options.map(({ price_difference_cents }) => price_difference_cents ?? 0),
+                ),
+              },
+              options: serializedProduct.options.sort(
+                (a, b) => (a.price_difference_cents ?? 0) - (b.price_difference_cents ?? 0),
               ),
-            },
-            options: serializedProduct.options.sort(
-              (a, b) => (a.price_difference_cents ?? 0) - (b.price_difference_cents ?? 0),
-            ),
-          }}
-          purchase={null}
-          selection={{
-            optionId: null,
-            price: {
-              value:
-                serializedProduct.options.length === 1
-                  ? (serializedProduct.options[0]?.price_difference_cents ?? null)
-                  : null,
-              error: false,
-            },
-          }}
-        />
+            }}
+            purchase={null}
+            selection={{
+              optionId: null,
+              price: {
+                value:
+                  serializedProduct.options.length === 1
+                    ? (serializedProduct.options[0]?.price_difference_cents ?? null)
+                    : null,
+                error: false,
+              },
+            }}
+          />
+        </div>
       </ProfileLayout>
     ) : (
       <>

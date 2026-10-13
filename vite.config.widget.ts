@@ -12,13 +12,14 @@ const entry = widgets[target];
 if (!entry) throw new Error(`Unknown WIDGET_TARGET: ${target}. Expected one of: ${Object.keys(widgets).join(", ")}`);
 
 export default defineConfig({
-  plugins: [UnpluginTypia({ cache: true })],
+  // Two typia files: a shared program would type-check the whole app first.
+  plugins: [UnpluginTypia({ cache: true, sharedProgram: false })],
   publicDir: false,
   build: {
     outDir: "public/js",
     emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, entry),
+      entry: resolve(import.meta.dirname, entry),
       name: target.replace(/-/gu, "_"),
       formats: ["iife"],
       fileName: () => `${target}-bundle.js`,
@@ -35,7 +36,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        loadPaths: [resolve(__dirname, "app/assets")],
+        loadPaths: [resolve(import.meta.dirname, "app/assets")],
       },
     },
   },

@@ -3,10 +3,30 @@
 require "spec_helper"
 
 describe ContactingCreatorMailer do
+  include_context "without the weekend window extension"
+
   let(:custom_mailer_route_helper) do
     Class.new(ActionMailer::Base) do
       include CustomMailerRouteBuilder
     end.new
+  end
+
+  def writing_role_pinned?
+    ApplicationRecord.connected_to_stack.any? { |entry| entry[:role] == :writing && entry[:klasses].include?(ApplicationRecord) }
+  end
+
+  # No replica role is configured in the test environment, so a pinned read and an unpinned one look
+  # the same at the connection level. Record placement instead: every Purchase/Refund read inside the
+  # block has to run while the writing role is on the stack.
+  def reads_with_pin_state
+    reads = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _start, _finish, _id, payload|
+      reads << [payload[:name], writing_role_pinned?] if ["Purchase Load", "Refund Load"].include?(payload[:name])
+    end
+    yield
+    reads
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
   end
 
   it "uses SUPPORT_EMAIL_WITH_NAME as default from address" do
@@ -312,6 +332,21 @@ describe ContactingCreatorMailer do
       mail = ContactingCreatorMailer.purchase_refunded(purchase.id, refund.id)
       expect(mail.body.encoded).not_to include "Reason:"
     end
+
+    it "reads the purchase, its seller and the refund note inside one primary block, so worker replica lag cannot blank the render" do
+      purchase = create(:purchase, link: create(:product, name: "Digital Membership"), email: "test@example.com", price_cents: 10_00)
+      refund = create(:refund, purchase:, note: "Buyer reported being charged twice")
+      expect(ApplicationRecord).to receive(:connected_to).with(role: :writing).and_call_original
+
+      reads = reads_with_pin_state do
+        @mail = ContactingCreatorMailer.purchase_refunded(purchase.id, refund.id).message
+      end
+
+      expect(@mail.to).to eq([purchase.seller.email])
+      expect(@mail.body.encoded).to include "Reason: Buyer reported being charged twice"
+      expect(reads.map(&:first)).to include("Purchase Load", "Refund Load")
+      expect(reads.map(&:last).uniq).to eq([true])
+    end
   end
 
   describe "purchase refunded for fraud" do
@@ -325,6 +360,18 @@ describe ContactingCreatorMailer do
       expect(mail.body.encoded).to include "We have refunded test@example.com's purchase of Digital Membership for $10."
       expect(mail.body.encoded).to include "We're doing our best to protect you, and no further action needs to be taken on your part."
       expect(mail.from).to eq([ApplicationMailer::SUPPORT_EMAIL])
+    end
+
+    it "reads the purchase and its seller inside the primary block, so worker replica lag cannot blank the render" do
+      purchase = create(:purchase, link: create(:product, name: "Digital Membership"), email: "test@example.com", price_cents: 10_00)
+
+      reads = reads_with_pin_state do
+        @mail = ContactingCreatorMailer.purchase_refunded_for_fraud(purchase.id).message
+      end
+
+      expect(@mail.to).to eq([purchase.seller.email])
+      expect(reads.map(&:first)).to include("Purchase Load")
+      expect(reads.map(&:last).uniq).to eq([true])
     end
   end
 
@@ -359,6 +406,33 @@ describe ContactingCreatorMailer do
           expect(mail.body.encoded).to include "Any additional information you can provide by"
           expect(mail.body.encoded).to include "(in the next 72 hours) will help us win on your behalf."
           expect(mail.body.encoded).to include "Submit additional information"
+        end
+
+        context "when the window was extended over a weekend" do
+          let(:stamp) { Time.utc(2026, 10, 10, 16, 18) } # a Saturday
+
+          before do
+            stub_const("DisputeEvidence::WEEKEND_EXTENSION_STARTS_AT", Time.utc(2026, 10, 5))
+            dispute_evidence.update!(seller_contacted_at: stamp)
+          end
+
+          it "quotes the extended hours and deadline in the notice" do
+            travel_to(stamp) do
+              mail = ContactingCreatorMailer.chargeback_notice(dispute.id)
+
+              expect(mail.body.encoded).to include "(in the next 120 hours) will help us win on your behalf."
+              expect(mail.body.encoded).to include "October 15, 2026"
+            end
+          end
+
+          it "sends the reminder with the hours left against the extended deadline" do
+            travel_to(stamp + 96.hours) do
+              mail = ContactingCreatorMailer.chargeback_evidence_due_soon(dispute.id)
+
+              expect(mail.body.encoded).to include "You have 24 hours left."
+              expect(mail.body.encoded).to include "October 15, 2026"
+            end
+          end
         end
 
         # The link outlives the deadline on purpose — check_if_needs_redirect refuses the late save,
@@ -484,7 +558,10 @@ describe ContactingCreatorMailer do
           mail = ContactingCreatorMailer.chargeback_notice(dispute.id)
 
           expect(mail.body.encoded).to include "A customer of yours (#{purchase.email}) has disputed their purchase of #{purchase.link.name} for #{purchase.formatted_disputed_amount}."
-          expect(mail.body.encoded).to include "Unfortunately, we’re unable to fight disputes on purchases via PayPal Connect since we don’t have access to your PayPal account."
+          expect(mail.body.encoded).to_not include "send PayPal our delivery record for this order"
+          Feature.activate(:submit_paypal_dispute_evidence)
+          expect(ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded).to include "send PayPal our delivery record for this order"
+          expect(mail.body.encoded).not_to include "we don’t have access to your PayPal account"
         end
       end
     end
@@ -545,7 +622,10 @@ describe ContactingCreatorMailer do
           charge.disputed_purchases.each do |purchase|
             expect(mail.body.encoded).to include purchase.link.name
           end
-          expect(mail.body.encoded).to include "Unfortunately, we’re unable to fight disputes on purchases via PayPal Connect since we don’t have access to your PayPal account."
+          expect(mail.body.encoded).to_not include "send PayPal our delivery record for this order"
+          Feature.activate(:submit_paypal_dispute_evidence)
+          expect(ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded).to include "send PayPal our delivery record for this order"
+          expect(mail.body.encoded).not_to include "we don’t have access to your PayPal account"
         end
       end
     end
@@ -2233,6 +2313,21 @@ describe ContactingCreatorMailer do
     end
   end
 
+  describe "chargeback_evidence_file_omitted" do
+    let!(:seller) { create(:user) }
+    let!(:purchase) { create(:purchase, seller:, link: create(:product, user: seller)) }
+    let!(:dispute) { create(:dispute, purchase:) }
+
+    it "tells the seller what was sent and why their file was left out" do
+      mail = ContactingCreatorMailer.chargeback_evidence_file_omitted(dispute.id)
+
+      expect(mail.to).to eq [seller.form_email]
+      expect(mail.subject).to eq "Your dispute response was sent without your attached file"
+      expect(mail.body.encoded).to include "We have sent our response to the dispute on #{purchase.email}'s purchase of #{purchase.link.name} for #{purchase.formatted_disputed_amount}."
+      expect(mail.body.encoded).to include "only accepts files of up to 50 pages"
+    end
+  end
+
   describe "preorder_summary" do
     before do
       @product = create(:product, price_cents: 600, is_in_preorder_state: false)
@@ -2798,6 +2893,14 @@ describe ContactingCreatorMailer do
         expect($redis.get(RedisKey.product_review_seller_notified(review.id))).to be_nil
         expect(review.reload.seller_notified_at).to be_nil
       end
+
+      it "reads the review and its associations from the primary, so a worker's replica lag cannot hide the purchase" do
+        expect(ApplicationRecord).to receive(:connected_to).with(role: :writing).and_call_original
+
+        mail = ContactingCreatorMailer.review_submitted(review.id)
+
+        expect(mail.to).to eq([review.link.user.email])
+      end
     end
 
     it "does not send for a deleted review" do
@@ -3034,8 +3137,29 @@ describe ContactingCreatorMailer do
         expect(mail.body.encoded).to include("won't clear on its own")
       end
 
-      it "offers a way out for a seller who has no other account" do
-        expect(mail.body.encoded).to include("reply to this email")
+      it "offers another way to pay a seller who can set up PayPal payouts" do
+        expect(seller.can_setup_paypal_payouts?).to be(true)
+        expect(mail.body.encoded).to include("work out another way to pay you")
+      end
+
+      context "when the seller's country only has bank payouts" do
+        let(:seller) { create(:user, payment_address: nil) }
+
+        before { create(:user_compliance_info, user: seller) }
+
+        it "does not promise a payout rail it cannot offer" do
+          expect(seller.can_setup_paypal_payouts?).to be(false)
+          expect(mail.body.encoded).not_to include("another way to pay you")
+          expect(mail.body.encoded).to include("we can only send payouts to a bank account")
+          expect(mail.body.encoded).to include("reply to this email")
+        end
+
+        it "keeps the offer for a seller with a connected PayPal account" do
+          create(:merchant_account_paypal, user: seller)
+          expect_any_instance_of(MerchantAccount).not_to receive(:paypal_account_details)
+
+          expect(mail.body.encoded).to include("work out another way to pay you")
+        end
       end
     end
 

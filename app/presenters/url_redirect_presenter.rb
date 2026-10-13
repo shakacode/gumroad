@@ -121,6 +121,7 @@ class UrlRedirectPresenter
           product_available: !purchase.link&.deleted?,
           disable_reviews_after_year: purchase.seller.disable_reviews_after_year?,
           review: review.present? ? ProductReviewPresenter.new(review).review_form_props : nil,
+          review_account_name: purchase.rater_account_name,
           membership: purchase.subscription.present? ? {
             has_active_subscription: purchase.has_active_subscription?,
             subscription_id: purchase.subscription.external_id,
@@ -184,13 +185,18 @@ class UrlRedirectPresenter
       }
     end
 
-    # The members a bundle's own download page links to. Only populated for a bundle parent whose
-    # buyer has no account: everyone else is redirected to /library before this renders.
+    # A bundle link has no files of its own. Members already in a library are reached
+    # through /library. Once this purchase is claimed, only a same-email unclaimed member
+    # stays listed: the member URL is the access token.
     def bundle_product_props
-      return [] unless purchase&.is_bundle_purchase? && purchase.purchaser_id.nil?
+      return [] unless purchase&.is_bundle_purchase?
 
       purchase.product_purchases.filter_map do |member|
         next unless member.has_content?
+        if purchase.purchaser_id.present?
+          next if member.purchaser_id.present?
+          next unless purchase.email.present? && member.email.to_s.casecmp?(purchase.email)
+        end
 
         {
           id: member.link.external_id,
@@ -274,7 +280,9 @@ class UrlRedirectPresenter
         latest_media_location: file.media_location_for_download_page(media_location),
         content_length: file.content_length,
         isbn: file.isbn,
-        read_url: file.browser_readable? && !file.try(:hide_kindle_and_read_buttons?) ? (
+        # A file with downloads disabled keeps its reader: for a document that is the only
+        # way to open it, whatever the seller's button opt-out says.
+        read_url: file.browser_readable? && (!file.try(:hide_kindle_and_read_buttons?) || file.try(:stream_only?)) ? (
           file.is_a?(Link) ? url_redirect_read_url(url_redirect.token) : file.is_a?(ProductFile) ? url_redirect_read_for_product_file_path(url_redirect.token, file.external_id) : nil
         ) : nil,
         external_link_url: file.external_link? ? file.url : nil,

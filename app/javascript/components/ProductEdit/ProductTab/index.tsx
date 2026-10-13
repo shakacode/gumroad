@@ -20,10 +20,12 @@ import { CoverEditor } from "$app/components/ProductEdit/ProductTab/CoverEditor"
 import { CustomButtonTextOptionInput } from "$app/components/ProductEdit/ProductTab/CustomButtonTextOptionInput";
 import { CustomPermalinkInput } from "$app/components/ProductEdit/ProductTab/CustomPermalinkInput";
 import { CustomSummaryInput } from "$app/components/ProductEdit/ProductTab/CustomSummaryInput";
+import { DefaultDiscountCodeSelector } from "$app/components/ProductEdit/ProductTab/DefaultDiscountCodeSelector";
 import { DescriptionEditor, useImageUpload } from "$app/components/ProductEdit/ProductTab/DescriptionEditor";
 import { DiscordIntegrationEditor } from "$app/components/ProductEdit/ProductTab/DiscordIntegrationEditor";
 import { DurationEditor } from "$app/components/ProductEdit/ProductTab/DurationEditor";
 import { DurationsEditor } from "$app/components/ProductEdit/ProductTab/DurationsEditor";
+import { EmptyVersionsNotice } from "$app/components/ProductEdit/ProductTab/EmptyVersionsNotice";
 import { FreeTrialSelector } from "$app/components/ProductEdit/ProductTab/FreeTrialSelector";
 import { GoogleCalendarIntegrationEditor } from "$app/components/ProductEdit/ProductTab/GoogleCalendarIntegrationEditor";
 import { MaxPurchaseCountToggle } from "$app/components/ProductEdit/ProductTab/MaxPurchaseCountToggle";
@@ -39,7 +41,7 @@ import { hasPaidVariantPricing, useProductEditContext } from "$app/components/Pr
 import { ToggleSettingRow } from "$app/components/SettingRow";
 import { TypeSafeOptionSelect } from "$app/components/TypeSafeOptionSelect";
 import { Alert } from "$app/components/ui/Alert";
-import { Fieldset, FieldsetTitle } from "$app/components/ui/Fieldset";
+import { Fieldset, FieldsetDescription, FieldsetTitle } from "$app/components/ui/Fieldset";
 import { Input } from "$app/components/ui/Input";
 import { Label } from "$app/components/ui/Label";
 import { LinkButton } from "$app/components/ui/LinkButton";
@@ -108,8 +110,12 @@ export const ProductTab = () => {
                 type="text"
                 dir="auto"
                 value={product.name}
+                aria-describedby={`${uid}-name-description`}
                 onChange={(evt) => updateProduct({ name: evt.target.value })}
               />
+              <FieldsetDescription id={`${uid}-name-description`}>
+                Shown as the title at the top of your product page.
+              </FieldsetDescription>
             </Fieldset>
             {isCoffee ? (
               <>
@@ -119,7 +125,7 @@ export const ProductTab = () => {
                     id={`${uid}-body`}
                     value={product.description}
                     placeholder="Add a short inspiring message"
-                    onChange={(evt) => updateProduct({ description: evt.target.value })}
+                    onChange={(evt) => updateProduct({ description: evt.target.value, description_changed: true })}
                   />
                 </Fieldset>
                 <Fieldset>
@@ -137,7 +143,7 @@ export const ProductTab = () => {
                 <DescriptionEditor
                   id={id}
                   initialDescription={initialProduct.description}
-                  onChange={(description) => updateProduct({ description })}
+                  onChange={(description) => updateProduct({ description, description_changed: true })}
                   setImagesUploading={setImagesUploading}
                   publicFiles={product.public_files}
                   updatePublicFiles={(updater) => updateProduct((product) => updater(product.public_files))}
@@ -256,6 +262,16 @@ export const ProductTab = () => {
                 <section className="grid gap-8 border-t border-border p-4 md:p-8">
                   <h2>Tiers</h2>
                   <TiersEditor tiers={product.variants} onChange={(variants) => updateProduct({ variants })} />
+                  <DefaultDiscountCodeSelector
+                    uniquePermalink={uniquePermalink}
+                    selectedOfferCode={product.default_offer_code}
+                    onChange={(offerCode) =>
+                      updateProduct({
+                        default_offer_code_id: offerCode ? offerCode.id : null,
+                        default_offer_code: offerCode,
+                      })
+                    }
+                  />
                 </section>
               ) : (
                 <>
@@ -366,6 +382,7 @@ export const ProductTab = () => {
                         versions={product.variants}
                         onChange={(variants) => updateProduct({ variants })}
                       />
+                      <EmptyVersionsNotice />
                     </section>
                   )}
                 </>

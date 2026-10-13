@@ -7,6 +7,12 @@ import {
   COLOMBIA_ID_NUMBER_ERROR_MESSAGE,
   isValidColombiaIdNumber,
 } from "$app/utils/colombiaIdNumbers";
+import {
+  HONG_KONG_PASSPORT_ID_CONFIG,
+  PERSONAL_ID_NUMBER_CONFIG,
+  stripeRequirementLabel,
+  type TaxIdConfig,
+} from "$app/utils/personalTaxId";
 import { countryRequiresPostalCode } from "$app/utils/postalCodes";
 import { request, ResponseError } from "$app/utils/request";
 
@@ -76,6 +82,7 @@ type BeneficialOwner = {
   nationality: string | null;
   verification_status: string | null;
   requirements_currently_due: string[];
+  requirements_alternatives?: { original_fields_due: string[]; alternative_fields_due: string[] }[];
 };
 
 const NATIONALITY_REQUIRED_COUNTRIES = ["AE", "SG", "BD", "PK"];
@@ -133,14 +140,6 @@ const STATE_LIST_LABEL: Record<string, string> = {
   IE: "County",
 };
 
-type TaxIdConfig = {
-  label: string;
-  placeholder: string;
-  minLength?: number;
-  maxLength?: number;
-  idSuffix: string;
-};
-
 const FALLBACK_TAX_ID_CONFIG: TaxIdConfig = {
   label: "Personal ID number",
   placeholder: "Government-issued ID number",
@@ -153,12 +152,6 @@ const SSN_LAST_4_CONFIG: TaxIdConfig = {
   minLength: 4,
   maxLength: 4,
   idSuffix: "social-security-number",
-};
-
-const PERSONAL_ID_NUMBER_CONFIG: TaxIdConfig = {
-  label: "Personal ID number",
-  placeholder: "Government-issued ID number",
-  idSuffix: "personal-id-number",
 };
 
 const TAX_ID_CONFIGS: Record<string, TaxIdConfig> = {
@@ -422,12 +415,14 @@ const BeneficialOwnersSection = ({
   defaultCountry,
   minDobYear,
   isFormDisabled,
+  onIdDocumentAlternativeChange,
 }: {
   countries: Record<string, string>;
   states: StatesByCountry;
   defaultCountry: string | null;
   minDobYear: number;
   isFormDisabled: boolean;
+  onIdDocumentAlternativeChange?: (available: boolean) => void;
 }) => {
   const [owners, setOwners] = React.useState<BeneficialOwner[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -470,6 +465,21 @@ const BeneficialOwnersSection = ({
     void refresh();
   }, [refresh]);
 
+  React.useEffect(() => {
+    onIdDocumentAlternativeChange?.(
+      owners.some(
+        (owner) =>
+          owner.relationship.representative &&
+          owner.requirements_currently_due.includes("id_number") &&
+          owner.requirements_alternatives?.some(
+            (alternative) =>
+              alternative.original_fields_due.includes("id_number") &&
+              alternative.alternative_fields_due.includes("verification.document"),
+          ),
+      ),
+    );
+  }, [owners, onIdDocumentAlternativeChange]);
+
   const openCreate = () => {
     setEditState({ mode: "create" });
     setFormState(blankFormState(defaultCountry));
@@ -493,6 +503,11 @@ const BeneficialOwnersSection = ({
   };
 
   const updateForm = (patch: Partial<FormState>) => setFormState((prev) => ({ ...prev, ...patch }));
+
+  // A person of a Hong Kong company who lives abroad has no HKID, so they give a passport number
+  // and the country that issued it (sent to Stripe as the nationality).
+  const hongKongPassport =
+    defaultCountry === "HK" && formState.address_country !== "" && formState.address_country !== "HK";
 
   const validateJpKanaFields = (): string | null => {
     if (editState?.mode === "edit" && editState.owner.relationship.representative) return null;
@@ -600,6 +615,39 @@ const BeneficialOwnersSection = ({
     [owners],
   );
 
+  // A Hong Kong company's foreign representative types the passport number before the country that
+  // issued it, so the issuing country renders after the number instead of above it.
+  const issuingCountryField =
+    NATIONALITY_REQUIRED_COUNTRIES.includes(defaultCountry ?? "") || hongKongPassport ? (
+      <Fieldset>
+        <FieldsetTitle>
+          <Label htmlFor={`${uid}-nationality`}>{hongKongPassport ? "Passport issuing country" : "Nationality"}</Label>
+        </FieldsetTitle>
+        <Select
+          id={`${uid}-nationality`}
+          required={!hongKongPassport || editState?.mode !== "edit"}
+          disabled={isFormDisabled}
+          aria-describedby={`${uid}-nationality-note`}
+          value={formState.nationality || ""}
+          onChange={(event) => updateForm({ nationality: event.target.value })}
+        >
+          <option value="" disabled>
+            {hongKongPassport ? "Select country" : "Nationality"}
+          </option>
+          {Object.entries(countries).map(([code, name]) => (
+            <option key={code} value={code} disabled={name.includes("(not supported)")}>
+              {name}
+            </option>
+          ))}
+        </Select>
+        <FieldsetDescription id={`${uid}-nationality-note`}>
+          {hongKongPassport
+            ? "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so those countries are not listed."
+            : "Nationals of Cuba, Iran, North Korea and Syria cannot be verified, so their nationalities are not listed."}
+        </FieldsetDescription>
+      </Fieldset>
+    ) : null;
+
   return (
     <section className="grid gap-4">
       <header className="grid gap-2">
@@ -638,11 +686,15 @@ const BeneficialOwnersSection = ({
                   <span className="text-sm text-muted">
                     {ownerRole(owner)}
                     {owner.relationship.percent_ownership != null ? ` · ${owner.relationship.percent_ownership}%` : ""}
-                    {owner.relationship.title ? ` · ${owner.relationship.title}` : ""}
+                    {owner.relationship.title &&
+                    !ownerRole(owner).toLowerCase().split(", ").includes(owner.relationship.title.trim().toLowerCase())
+                      ? ` · ${owner.relationship.title}`
+                      : ""}
                   </span>
                   {owner.requirements_currently_due.length > 0 ? (
                     <span className="text-sm text-warning">
-                      Stripe needs: {owner.requirements_currently_due.join(", ")}
+                      Stripe needs:{" "}
+                      {[...new Set(owner.requirements_currently_due.map(stripeRequirementLabel))].join(", ")}
                     </span>
                   ) : null}
                 </div>
@@ -1144,34 +1196,16 @@ const BeneficialOwnersSection = ({
                   </Select>
                 </Fieldset>
 
-                {NATIONALITY_REQUIRED_COUNTRIES.includes(defaultCountry ?? "") ? (
-                  <Fieldset>
-                    <FieldsetTitle>
-                      <Label htmlFor={`${uid}-nationality`}>Nationality</Label>
-                    </FieldsetTitle>
-                    <Select
-                      id={`${uid}-nationality`}
-                      required
-                      disabled={isFormDisabled}
-                      value={formState.nationality || ""}
-                      onChange={(event) => updateForm({ nationality: event.target.value })}
-                    >
-                      <option value="" disabled>
-                        Nationality
-                      </option>
-                      {Object.entries(countries).map(([code, name]) => (
-                        <option key={code} value={code} disabled={name.includes("(not supported)")}>
-                          {name}
-                        </option>
-                      ))}
-                    </Select>
-                  </Fieldset>
-                ) : null}
+                {hongKongPassport ? null : issuingCountryField}
 
                 {(() => {
                   const isUs = defaultCountry === "US";
                   const taxIdConfig =
-                    isUs && useGovernmentIdForUs ? PERSONAL_ID_NUMBER_CONFIG : taxIdConfigFor(defaultCountry);
+                    isUs && useGovernmentIdForUs
+                      ? PERSONAL_ID_NUMBER_CONFIG
+                      : hongKongPassport
+                        ? HONG_KONG_PASSPORT_ID_CONFIG
+                        : taxIdConfigFor(defaultCountry);
                   // Only creating an owner requires an ID number (the server enforces it via
                   // REQUIRED_CREATE_ONLY_FIELDS). Requiring it on edit stranded sellers completing a
                   // co-director's DOB and address — a third party's ID number they cannot obtain, for
@@ -1187,7 +1221,9 @@ const BeneficialOwnersSection = ({
                           <Label htmlFor={`${uid}-${taxIdConfig.idSuffix}`}>{taxIdConfig.label}</Label>
                         </FieldsetTitle>
                         <FieldsetDescription>
-                          We are required to collect this information to satisfy regulatory obligations.
+                          {hongKongPassport
+                            ? "Enter their passport number instead of a Hong Kong ID number, since they live outside Hong Kong."
+                            : "We are required to collect this information to satisfy regulatory obligations."}
                         </FieldsetDescription>
                         {hasTaxIdOnFile && !isEditingTaxId ? (
                           <div className="flex flex-col gap-2">
@@ -1239,6 +1275,8 @@ const BeneficialOwnersSection = ({
                     </Fieldset>
                   );
                 })()}
+
+                {hongKongPassport ? issuingCountryField : null}
               </>
             )}
 

@@ -33,7 +33,15 @@ class Payment < ApplicationRecord
   attr_json_data_accessor :arrival_date
   attr_json_data_accessor :payout_type
   attr_json_data_accessor :gumroad_fee_cents
+  attr_json_data_accessor :stripe_payout_destination_id
+  # The external account Stripe named when the payout request named none: recorded so a payout that
+  # moved money to a bank we have no row for still says where it went.
+  attr_json_data_accessor :stripe_payout_destination_last4
+  attr_json_data_accessor :stripe_payout_destination_fingerprint
+  attr_json_data_accessor :stripe_payout_destination_bank_name
   attr_json_data_accessor :error_message
+  # Set when the payout drains a retired managed account, so its outcome says nothing about the live bank.
+  attr_json_data_accessor :retired_account_drain
 
   # Payment state transitions:
   #
@@ -432,6 +440,47 @@ class Payment < ApplicationRecord
             .order(created_at: :desc, id: :desc)
   end
 
+  # The failed or returned payouts to this payment's destination that count toward the repeated-failure
+  # hold (Payment#pause_payouts_after_repeated_failures), as [destination label, relation]; nil when the
+  # destination cannot be identified. Drains of a retired account never count: their outcome says
+  # nothing about the live bank, even when they share its bank row.
+  def failed_payouts_counted_toward_hold
+    if bank_account_id.present?
+      destination = "bank account"
+      payouts_to_destination = user.payments.where(bank_account_id:)
+    elsif processor == PayoutProcessorType::STRIPE && stripe_payout_destination_id.present?
+      destination = "bank account"
+      payouts_to_destination = user.payments.where(processor:, stripe_connect_account_id:)
+        .where("json_data->>'$.stripe_payout_destination_id' = ?", stripe_payout_destination_id)
+    elsif processor == PayoutProcessorType::PAYPAL && payment_address.present?
+      destination = "PayPal account"
+      payouts_to_destination = user.payments.where(processor: PayoutProcessorType::PAYPAL, payment_address:)
+    else
+      return nil
+    end
+
+    payouts_to_destination = payouts_to_destination.where("COALESCE(payments.json_data->>'$.retired_account_drain', '') != 'true'")
+
+    last_completed_at = payouts_to_destination.completed.maximum(:created_at)
+    failed_payouts = payouts_to_destination.where(state: [FAILED, RETURNED])
+    # Exclude terminal-failure reasons so a later unrelated return can't still trip the hold.
+    # failure_reason is NULL on most non-PayPal rows; NOT IN never matches NULL, so spell
+    # the NULL case out or those rows stop counting.
+    failed_payouts = failed_payouts.where(
+      "failure_reason IS NULL OR failure_reason NOT IN (?)",
+      FailureReason::TERMINAL_PAYPAL_FAILURE_REASONS
+    )
+    failed_payouts = failed_payouts.where("created_at > ?", last_completed_at) if last_completed_at
+    # Internal/transient failures say nothing about the destination. IS NULL is load-bearing:
+    # NOT IN alone drops NULL rows (most failures) and disables this check.
+    failed_payouts = failed_payouts.where(
+      "failure_reason IS NULL OR failure_reason NOT IN (?)",
+      TRANSIENT_REASONS + INTERNAL_RECONCILIATION_REASONS
+    )
+
+    [destination, failed_payouts]
+  end
+
   private
     def balance_ids
       @balance_ids ||= balances.pluck(:id)
@@ -461,32 +510,12 @@ class Payment < ApplicationRecord
       # covered).
       return if terminal_paypal_failure?
 
-      if bank_account_id.present?
-        destination = "bank account"
-        payouts_to_destination = user.payments.where(bank_account_id:)
-      elsif processor == PayoutProcessorType::PAYPAL && payment_address.present?
-        destination = "PayPal account"
-        payouts_to_destination = user.payments.where(processor: PayoutProcessorType::PAYPAL, payment_address:)
-      else
-        return
-      end
+      # A failed drain says nothing about the live bank, so it cannot be the payout that trips the hold.
+      return if retired_account_drain
 
-      last_completed_at = payouts_to_destination.completed.maximum(:created_at)
-      failed_payouts = payouts_to_destination.where(state: [FAILED, RETURNED])
-      # Exclude terminal-failure reasons so a later unrelated return can't still trip the hold.
-      # failure_reason is NULL on most non-PayPal rows; NOT IN never matches NULL, so spell
-      # the NULL case out or those rows stop counting.
-      failed_payouts = failed_payouts.where(
-        "failure_reason IS NULL OR failure_reason NOT IN (?)",
-        FailureReason::TERMINAL_PAYPAL_FAILURE_REASONS
-      )
-      failed_payouts = failed_payouts.where("created_at > ?", last_completed_at) if last_completed_at
-      # Internal/transient failures say nothing about the destination. IS NULL is load-bearing:
-      # NOT IN alone drops NULL rows (most failures) and disables this check.
-      failed_payouts = failed_payouts.where(
-        "failure_reason IS NULL OR failure_reason NOT IN (?)",
-        TRANSIENT_REASONS + INTERNAL_RECONCILIATION_REASONS
-      )
+      destination, failed_payouts = failed_payouts_counted_toward_hold
+      return if destination.nil?
+
       failed_count = failed_payouts.count
       return if failed_count < MAX_CONSECUTIVE_FAILED_PAYOUTS
 

@@ -1624,6 +1624,201 @@ describe "Indian card mandate reliability" do
     expect(subscription.stripe_mandate_id).to eq("mandate_matching_terms")
   end
 
+  def create_installment_restart(original_cents:, charge_cents:)
+    plan_product = create(:product, :with_installment_plan, user: seller)
+    original = create(
+      :installment_plan_purchase,
+      link: plan_product,
+      seller:,
+      purchaser: buyer,
+      credit_card: card,
+      merchant_account:,
+      card_country: Compliance::Countries::IND.alpha2
+    )
+    subscription = original.subscription
+    subscription.update!(user: buyer, credit_card: card)
+    snapshot = subscription.last_payment_option.installment_plan_snapshot
+    snapshot.update!(total_price_cents: original_cents * snapshot.number_of_installments)
+    original.update_columns(
+      displayed_price_cents: original_cents,
+      price_cents: original_cents,
+      total_transaction_cents: original_cents
+    )
+    subscription.reload
+    restart = create(
+      :purchase,
+      link: plan_product,
+      seller:,
+      purchaser: buyer,
+      credit_card: card,
+      merchant_account:,
+      subscription:,
+      card_country: Compliance::Countries::IND.alpha2,
+      is_original_subscription_purchase: false,
+      is_installment_payment: true,
+      price_cents: charge_cents,
+      total_transaction_cents: charge_cents,
+      displayed_price_cents: charge_cents,
+      stripe_transaction_id: "ch_installment_restart_#{charge_cents}"
+    )
+    restart.installment_plan = plan_product.installment_plan
+    restart.setup_future_charges = true
+    allow(restart).to receive(:chargeable).and_return(double(requires_mandate?: true))
+    [original.reload, restart]
+  end
+
+  def confirmed_intent_for(restart, terms)
+    registered = restart.mandate_options_for_stripe[:payment_method_options][:card][:mandate_options]
+    instance_double(
+      StripeChargeIntent,
+      succeeded?: true,
+      payment_method_id: card.processor_payment_method_id,
+      customer_id: card.stripe_customer_id,
+      setup_future_usage: "off_session",
+      currency: terms[:currency],
+      card_mandate_options: Stripe::StripeObject.construct_from(
+        amount: registered[:amount],
+        amount_type: registered[:amount_type],
+        interval: registered[:interval],
+        interval_count: registered[:interval_count],
+        supported_types: registered[:supported_types]
+      )
+    )
+  end
+
+  it "clears plan reauthorization after an installment restart registers the original cap" do
+    _original, restart = create_installment_restart(original_cents: 36_31, charge_cents: 31_75)
+    subscription = restart.subscription
+    subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+    subscription.update_flag!(:indian_card_mandate_requires_reauthorization, true, true)
+    restart.mark_indian_card_mandate_registration!
+    allow(restart).to receive(:processor_payment_intent_id).and_return("pi_restart_matching")
+    terms = subscription.indian_card_mandate_terms
+    registered_amount = restart.mandate_options_for_stripe[:payment_method_options][:card][:mandate_options][:amount]
+    expect(registered_amount).to eq(terms[:amount])
+    allow(ChargeProcessor).to receive(:get_charge_intent)
+      .with(restart.merchant_account, "pi_restart_matching")
+      .and_return(confirmed_intent_for(restart, terms))
+
+    restart.record_indian_card_mandate_status!("active", mandate_id: "mandate_restart_matching")
+
+    expect(subscription.reload).not_to be_indian_card_mandate_requires_reauthorization
+    expect(subscription).not_to be_renewal_disabled_due_to_indian_card_mandate
+  end
+
+  it "clears plan reauthorization when an installment restart cap covers the original terms" do
+    _original, restart = create_installment_restart(original_cents: 20_00, charge_cents: 31_75)
+    subscription = restart.subscription
+    subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+    subscription.update_flag!(:indian_card_mandate_requires_reauthorization, true, true)
+    restart.mark_indian_card_mandate_registration!
+    allow(restart).to receive(:processor_payment_intent_id).and_return("pi_restart_larger")
+    terms = subscription.indian_card_mandate_terms
+    registered_amount = restart.mandate_options_for_stripe[:payment_method_options][:card][:mandate_options][:amount]
+    expect(registered_amount).to eq(31_75)
+    expect(registered_amount).not_to eq(terms[:amount])
+    allow(ChargeProcessor).to receive(:get_charge_intent)
+      .with(restart.merchant_account, "pi_restart_larger")
+      .and_return(confirmed_intent_for(restart, terms))
+
+    restart.record_indian_card_mandate_status!("active", mandate_id: "mandate_restart_larger")
+
+    expect(subscription.reload).not_to be_indian_card_mandate_requires_reauthorization
+    expect(subscription).not_to be_renewal_disabled_due_to_indian_card_mandate
+  end
+
+  [
+    { amount: 19_99 },
+    { currency: Currency::EUR },
+    { interval: "sporadic" },
+    { payment_method_id: "pm_other" },
+    { customer_id: "cus_other" },
+  ].each do |mismatch|
+    it "keeps installment reauthorization when the confirmed mandate differs in #{mismatch.keys.first}" do
+      _original, restart = create_installment_restart(original_cents: 20_00, charge_cents: 31_75)
+      subscription = restart.subscription
+      subscription.update_flag!(:indian_card_mandate_requires_reauthorization, true, true)
+      restart.mark_indian_card_mandate_registration!
+      allow(restart).to receive(:processor_payment_intent_id).and_return("pi_restart_mismatch")
+      terms = subscription.indian_card_mandate_terms
+      intent = confirmed_intent_for(restart, terms)
+      if mismatch.key?(:amount) || mismatch.key?(:interval)
+        intent.card_mandate_options[mismatch.keys.first] = mismatch.values.first
+      else
+        allow(intent).to receive_messages(mismatch)
+      end
+      allow(ChargeProcessor).to receive(:get_charge_intent)
+        .with(restart.merchant_account, "pi_restart_mismatch").and_return(intent)
+
+      restart.record_indian_card_mandate_status!("active", mandate_id: "mandate_restart_mismatch")
+
+      expect(subscription.reload).to be_indian_card_mandate_requires_reauthorization
+    end
+  end
+
+  it "does not let a larger rupee terms amount hide a US-cent cap below the restart charge" do
+    original, restart = create_installment_restart(original_cents: 20_00, charge_cents: 31_75)
+    subscription = restart.subscription
+    plan_product = original.link
+    plan_product.update_column(:price_currency_type, Currency::INR)
+    original.update_columns(
+      displayed_price_currency_type: Currency::INR,
+      displayed_price_cents: 1_60_000,
+      rate_converted_to_usd: "80"
+    )
+    subscription.reload
+    allow(subscription).to receive(:get_rate).with(Currency::INR).and_return("80.0")
+
+    terms = subscription.indian_card_mandate_terms
+    registered_amount = restart.mandate_options_for_stripe[:payment_method_options][:card][:mandate_options][:amount]
+
+    expect(terms).to include(currency: Currency::INR)
+    expect(terms[:amount]).to be > restart.total_transaction_cents
+    expect(registered_amount).to eq(31_75)
+  end
+
+  [31_75, 33_00].each do |charge_cents|
+    it "clears relisted installment reauthorization for a #{charge_cents}-cent restart" do
+      original, restart = create_installment_restart(original_cents: 31_75, charge_cents:)
+      original.update_columns(
+        displayed_price_currency_type: Currency::EUR,
+        rate_converted_to_usd: "0.874468",
+        total_transaction_cents: 36_31
+      )
+      original.link.update_column(:price_currency_type, Currency::USD)
+      subscription = restart.subscription.reload
+      subscription.update_flag!(:renewal_disabled_due_to_indian_card_mandate, true, true)
+      subscription.update_flag!(:indian_card_mandate_requires_reauthorization, true, true)
+      restart.mark_indian_card_mandate_registration!
+      allow(restart).to receive(:processor_payment_intent_id).and_return("pi_restart_relisted")
+
+      terms = subscription.indian_card_mandate_terms
+      registered_amount = restart.mandate_options_for_stripe[:payment_method_options][:card][:mandate_options][:amount]
+
+      expect(terms).to include(amount: 31_75, currency: Currency::USD)
+      expect(registered_amount).to eq(charge_cents)
+
+      intent = confirmed_intent_for(restart, terms)
+      restart = Purchase.find(restart.id)
+      allow(restart).to receive(:processor_payment_intent_id).and_return("pi_restart_relisted")
+      allow(ChargeProcessor).to receive(:get_charge_intent)
+        .with(restart.merchant_account, "pi_restart_relisted")
+        .and_return(intent)
+      restart.record_indian_card_mandate_status!("active", mandate_id: "mandate_restart_relisted")
+
+      expect(subscription.reload).not_to be_indian_card_mandate_requires_reauthorization
+      expect(subscription).not_to be_renewal_disabled_due_to_indian_card_mandate
+    end
+  end
+
+  it "keeps the signup total as the installment plan cap when the listed currency is unchanged" do
+    original, restart = create_installment_restart(original_cents: 36_31, charge_cents: 31_75)
+    original.update_columns(displayed_price_currency_type: original.link.price_currency_type)
+
+    expect(original).not_to be_installment_plan_relisted_in_another_currency
+    expect(restart.subscription.reload.indian_card_mandate_terms[:amount]).to eq(36_31)
+  end
+
   it "clears plan reauthorization for matching sporadic terms" do
     registration = create_registration
     subscription = registration.subscription

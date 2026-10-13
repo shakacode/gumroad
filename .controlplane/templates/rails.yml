@@ -18,6 +18,9 @@ spec:
         httpGet:
           path: /healthcheck
           port: 3000
+          httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
         initialDelaySeconds: 60
         periodSeconds: 15
         failureThreshold: 3
@@ -25,6 +28,9 @@ spec:
         httpGet:
           path: /healthcheck
           port: 3000
+          httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
         initialDelaySeconds: 20
         periodSeconds: 10
         failureThreshold: 6

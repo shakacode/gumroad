@@ -379,6 +379,12 @@ class Installment < ApplicationRecord
       node.replace(%(<p><a href="#{target_url}" target="_blank" rel="noopener noreferrer">#{content}</a></p>))
     end
 
+    # The editor saves buttons with Gumroad pink inline, so the seller's accent replaces it here.
+    if seller.present?
+      button_style = seller.seller_profile.email_primary_button_style
+      doc.search("a.tiptap__button").each { _1["style"] = button_style }
+    end
+
     doc.to_html
   end
 
@@ -822,9 +828,10 @@ class Installment < ApplicationRecord
     resendable_to_non_openers_emails(candidates:).size
   end
 
-  # Whether a "resend to non-openers" blast is applicable to this post.
+  # Whether a "resend to non-openers" blast is applicable to this post. A post whose send
+  # expired and never reached anyone has no non-openers.
   def resendable_to_non_openers?
-    published? && send_emails? && seller_or_product_or_variant_type?
+    published? && send_emails? && seller_or_product_or_variant_type? && !never_reached_anyone?
   end
 
   def unique_click_count
@@ -1053,6 +1060,11 @@ class Installment < ApplicationRecord
     end.reverse
   end
 
+  def never_reached_anyone?
+    regular = blasts.reject(&:to_non_openers?)
+    regular.any? { _1.expired_at.present? } && regular.none? { _1.completed_at.present? || _1.first_email_delivered_at.present? }
+  end
+
   def has_been_blasted? = blasts.loaded? ? blasts.any? : blasts.exists?
 
   # The send whose state the seller sees; resends to non-openers have their own rows.
@@ -1219,7 +1231,7 @@ class Installment < ApplicationRecord
       # name the flagged one — otherwise the seller has no way to tell which
       # of their emails to fix.
       noun = workflow_id.present? ? "email" : "post"
-      errors.add(:base, ContentModeration::ModerateRecordService.seller_message(result.reasons, noun, title: name))
+      errors.add(:base, ContentModeration::ModerateRecordService.seller_message(result.reasons, noun, title: name, empty_storefront: result.empty_storefront))
     end
 
     def normalize_tag(raw)

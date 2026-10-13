@@ -14,6 +14,16 @@ module StripeMerchantAccountManager
   private_constant :ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES
 
   NEW_ACCOUNT_CREATION_BLOCKED_COUNTRIES = [Compliance::Countries::IND.alpha2].freeze
+  LIVE_NON_INDIVIDUAL_BUSINESS_TYPES = %w[company non_profit government_entity].freeze
+  # Stripe US `company[structure]` values, applied only to a US legal entity. Types missing here
+  # (the legacy generic `llc`, and `profit`, which needs `business_type: non_profit`) send none.
+  US_COMPANY_STRUCTURES = {
+    UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP => "sole_proprietorship",
+    UserComplianceInfo::BusinessTypes::SINGLE_MEMBER_LLC => "single_member_llc",
+    UserComplianceInfo::BusinessTypes::MULTI_MEMBER_LLC => "multi_member_llc",
+    UserComplianceInfo::BusinessTypes::CORPORATION => "private_corporation",
+    UserComplianceInfo::BusinessTypes::PARTNERSHIP => "private_partnership",
+  }.freeze
 
   BANK_SYNC_FAILURE_NOTE_PREFIX = "Stripe bank sync failed"
 
@@ -62,6 +72,20 @@ module StripeMerchantAccountManager
   # Prefix for the breadcrumb left when Stripe rejects account creation or an account update
   # for a reason we do not handle specifically. See record_account_rejection_note below.
   ACCOUNT_REJECTION_NOTE_PREFIX = "Stripe rejected payout setup"
+  # Breadcrumb for an account-creation failure where Stripe never ruled on the seller's details
+  # (an outage, not a rejection). RetryStripeRejectedPayoutSetupsJob re-attempts these.
+  NO_VERDICT_FAILURE_NOTE_PREFIX = "Stripe payout setup failed without a verdict"
+  NO_VERDICT_ERROR_CLASSES = [Stripe::APIError, Stripe::APIConnectionError, Stripe::RateLimitError].freeze
+  NO_VERDICT_FIRST_RETRY_DELAY = 1.hour
+  # Stored on the note so a later retry replays the same Account.create. A fresh key on the
+  # retry would open a second account when the first response was lost.
+  ACCOUNT_CREATION_IDEMPOTENCY_KEY = "stripe_account_idempotency_key"
+  # The create this key belongs to. Recovery searches around this time, not the note's first save.
+  ACCOUNT_CREATION_ATTEMPTED_AT = "stripe_account_create_attempted_at"
+  # Stripe drops the stored result after this. A later retry has to find the account itself.
+  STRIPE_IDEMPOTENCY_RETENTION = 24.hours
+  ACCOUNT_RECOVERY_WINDOW = 15.minutes
+  ACCOUNT_RECOVERY_PAGE_LIMIT = 5
 
   # Marks the seller-facing half of an account-rejection breadcrumb, so the publish block can point
   # at that specific note rather than whatever seller-visible payout note happens to be newest.
@@ -156,7 +180,15 @@ module StripeMerchantAccountManager
 
   def self.account_holder_name_synced_to_stripe?(user)
     country_code = user.alive_user_compliance_info&.legal_entity_country_code
-    ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES.include?(country_code)
+    ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES.include?(country_code) || ecuador_company?(user)
+  end
+
+  # EC company holder-name changes go to the existing external account in place rather than
+  # re-attaching the bank like JP/VN/ID. Scoped to EC companies only.
+  def self.ecuador_company?(user)
+    compliance_info = user.alive_user_compliance_info
+    compliance_info.present? && compliance_info.is_business? &&
+      compliance_info.legal_entity_country_code == Compliance::Countries::ECU.alpha2
   end
 
   # Use "CEO" as the default title for all Stripe custom connect account owners for now.
@@ -185,6 +217,7 @@ module StripeMerchantAccountManager
     bank_account = nil
     account_params = {}
     merchant_account = nil
+    idempotency_key = nil
 
     ApplicationRecord.connected_to(role: :writing) do
       user.with_lock do
@@ -232,9 +265,17 @@ module StripeMerchantAccountManager
           currency:,
           charge_processor_id: StripeChargeProcessor.charge_processor_id
         )
+        idempotency_key = account_creation_idempotency_key(user)
+        raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") unless persist_account_creation_attempt!(user, idempotency_key)
       end
 
-      stripe_account = Stripe::Account.create(force_utf8_encoding(account_params))
+      stripe_account, recovered_account = create_or_recover_stripe_account(user, account_params, idempotency_key)
+      recovered_external_account = nil
+      if recovered_account && bank_account && !bank_account.is_a?(CardBankAccount)
+        stripe_account, recovered_external_account = align_recovered_account_bank(bank_account, stripe_account, passphrase:)
+      elsif recovered_account
+        remove_recovered_bank_destinations!(stripe_account)
+      end
 
       merchant_account.charge_processor_merchant_id = stripe_account.id
       merchant_account.save!
@@ -274,7 +315,7 @@ module StripeMerchantAccountManager
       # Card bank accounts are saved when we are notified via account.updated event that charges are enabled on the account
       # because token generation fails unless charges are enabled.
       if bank_account && !bank_account.is_a?(CardBankAccount)
-        save_stripe_bank_account_info(bank_account, stripe_account)
+        save_stripe_bank_account_info(bank_account, stripe_account, stripe_external_account: recovered_external_account)
       end
 
       begin
@@ -287,13 +328,18 @@ module StripeMerchantAccountManager
       clear_stale_postal_code_failure_notes(user)
       clear_stale_bank_sync_failure_notes(user)
       clear_stale_payout_setup_rejection_notes(user)
+      clear_stale_no_verdict_failure_notes(user)
 
       merchant_account
     end
   rescue => e
     ApplicationRecord.connected_to(role: :writing) do
+      deleted_created_account = false
       if merchant_account.present? && merchant_account.charge_processor_alive_at.nil?
-        cleanup_failed_merchant_account(merchant_account)
+        # A confirmed create followed by a later failure deletes that Stripe account. Replaying
+        # its idempotency key would return the deleted account, so the key has to be dropped.
+        deleted_created_account = cleanup_failed_merchant_account(merchant_account)
+        clear_account_creation_idempotency_key(user) if deleted_created_account
         # Bank-account, tax-ID, phone-number, JP address/kanji, and postal-code rejections are
         # expected seller-input errors — Stripe's message shows inline on the settings page and the
         # seller can just fix it (bank/postal-code rejections also get a payout-note breadcrumb
@@ -309,6 +355,12 @@ module StripeMerchantAccountManager
       # Record which field Stripe objected to unless the rejection already has its own dedicated
       # breadcrumb above, so support can read the cause off the account instead of reproducing it.
       record_account_rejection_note(user, e) if notify && undiagnosed_stripe_rejection?(e)
+      record_no_verdict_failure_note(
+        user,
+        e,
+        idempotency_key: deleted_created_account ? nil : (defined?(idempotency_key) ? idempotency_key : nil)
+      ) if no_verdict_stripe_error?(e)
+      discard_pending_account_creation_note(user) unless no_verdict_stripe_error?(e)
       raise
     end
   end
@@ -335,6 +387,7 @@ module StripeMerchantAccountManager
     "phone" => "phone number",
     "support_phone" => "business phone number",
     "id_number" => "Tax ID",
+    "ssn_last_4" => "Tax ID",
     "tax_id" => "business tax ID",
     "dob" => "date of birth",
     "first_name" => "first name",
@@ -396,7 +449,7 @@ module StripeMerchantAccountManager
   ADDRESS_SUBHASH_KEYS = %i[address address_kanji address_kana].freeze
   private_constant :ADDRESS_SUBHASH_KEYS
 
-  def self.update_account(user, passphrase:, notify: true, force_address_resync: false)
+  def self.update_account(user, passphrase:, notify: true, force_address_resync: false, on_provider_mutation: nil)
     validate_for_update(user)
 
     stripe_account = Stripe::Account.retrieve(user.stripe_account.charge_processor_merchant_id)
@@ -422,6 +475,8 @@ module StripeMerchantAccountManager
     if last_attributes[:individual].present?
       last_attributes[:individual][:email] = nil
       last_attributes[:individual][:phone] = nil
+      # Older payloads suppressed nationality even when the compliance record already contained it.
+      last_attributes[:individual].delete(:nationality) if user_compliance_info.nationality_resubmission_required?
       last_attributes[:individual][:relationship] = nil if user_compliance_info.country_code == Compliance::Countries::CAN.alpha2
     end
     if last_attributes[:company].present?
@@ -435,6 +490,13 @@ module StripeMerchantAccountManager
 
     diff_attributes = get_diff_attributes(current_attributes, last_attributes)
 
+    # A type changed outside Gumroad (e.g. via the hosted remediation form) leaves a non-individual account
+    # on Stripe while our last record says individual, so the diff would miss the type.
+    live_non_individual_for_individual = user_compliance_info.is_individual? && LIVE_NON_INDIVIDUAL_BUSINESS_TYPES.include?(stripe_account["business_type"])
+    # Send the whole individual: Stripe's person is not the one our last record described, so a diff could omit
+    # fields it lacks. Stripe test mode accepted this even for an already-verified individual.
+    diff_attributes[:individual] = current_attributes[:individual].deep_dup if live_non_individual_for_individual
+
     # If we have a full SSN, don't send the last 4 digits at the same time. If the last 4 digits are from a previous
     # compliance info and don't match the new full SSN, this will result in an invalid request.
     diff_attributes[:individual].delete(:ssn_last_4) if diff_attributes[:individual] && diff_attributes[:individual][:id_number].present?
@@ -445,10 +507,18 @@ module StripeMerchantAccountManager
       diff_attributes[:individual][:dob] = current_attributes[:individual][:dob]
     end
 
-    if last_user_compliance_info&.is_business? && user_compliance_info.is_individual?
+    diff_attributes[:business_type] = "individual" if live_non_individual_for_individual
+
+    if (last_user_compliance_info&.is_business? || live_non_individual_for_individual) && user_compliance_info.is_individual?
       # Clear structure first - Stripe rejects company[structure] when business_type is "individual"
-      if last_user_compliance_info.legal_entity_country_code == Compliance::Countries::USA.alpha2 &&
-        last_user_compliance_info.business_type == UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP
+      # The live-account arm keys on the ACCOUNT's country, not the compliance record's: the structure
+      # sits on the account, and the two diverge once the seller's legal entity moves.
+      if (last_user_compliance_info&.is_business? &&
+        last_user_compliance_info.legal_entity_country_code == Compliance::Countries::USA.alpha2 &&
+        US_COMPANY_STRUCTURES.key?(last_user_compliance_info.business_type)) ||
+        (live_non_individual_for_individual && stripe_account_country(stripe_account) == Compliance::Countries::USA.alpha2 &&
+        stripe_account["company"] && stripe_account["company"]["structure"].present?)
+        on_provider_mutation&.call
         Stripe::Account.update(stripe_account.id, { company: { structure: "" } })
       end
 
@@ -457,12 +527,13 @@ module StripeMerchantAccountManager
       diff_attributes[:company] = { name: user_compliance_info.first_and_last_name }
     end
 
-    # Only set structure for US accounts
+    # Only set structure for US accounts. country_code here is the legal entity's, which is the
+    # Stripe account country the structure is validated against.
     if user_compliance_info.is_business? &&
       country_code == Compliance::Countries::USA.alpha2 &&
-      user_compliance_info.business_type == UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP
+      US_COMPANY_STRUCTURES.key?(user_compliance_info.business_type)
       diff_attributes[:company] ||= {}
-      diff_attributes[:company][:structure] = user_compliance_info.business_type
+      diff_attributes[:company][:structure] = US_COMPANY_STRUCTURES.fetch(user_compliance_info.business_type)
     end
 
     capabilities = Country.new(user_compliance_info.legal_entity_country_code).stripe_capabilities
@@ -479,32 +550,34 @@ module StripeMerchantAccountManager
     # company.owners_provided, but the metadata marker has already moved forward, so
     # switching_to_business is false on later attempts and nothing repairs it again. Detect the
     # shape from Stripe's live state instead, so the next payout-settings save heals it.
-    #
-    # An empty owner list alone is a legitimate resting state for an ordinary business account
-    # (nobody filled the beneficial-owners form, or no one holds a reportable share) — seeding a
-    # 100% owner there would invent a claim the seller never made. Requiring the record
-    # IMMEDIATELY BEFORE the live one to be an individual is what distinguishes an interrupted
-    # migration from that: a seller who switched years ago and saved again has a business record
-    # in that slot, so a legitimate company isn't mistaken for a stuck switch.
     owners_provided_blocking = user_compliance_info.is_business? && !switching_to_business &&
-                               owners_provided_blocking_payouts?(stripe_account) &&
-                               switched_from_individual_immediately_before?(user, user_compliance_info)
+                               owners_provided_blocking_payouts?(stripe_account)
 
     # nil means the read failed, which is not the same as "nobody owns anything" — the seeding stays
     # off in that case rather than guessing.
     recorded_ownership_percent = owners_provided_blocking ? recorded_ownership_percent_on(stripe_account.id) : nil
+
+    # Seeding a 100% owner is only right for an interrupted individual-to-business switch. An empty
+    # owner list alone is a legitimate resting state for an ordinary business, so the record
+    # IMMEDIATELY BEFORE the live one must be an individual: a seller who switched years ago and saved
+    # again has a business record in that slot. A save moves that slot, so attestation must not
+    # depend on it.
+    #
     # An owner list holding nobody but the representative, whose share was never set at all, is the
     # fingerprint of a switch that died before it seeded. Once the seller has added anyone under
     # Settings → Payments, a zero-ownership list is a shape they configured, and a representative
     # whose share Stripe holds AS zero is one the seller set to zero themselves — the beneficial-owners
     # form sends 0 when Owner is unchecked. Re-seeding 100% in either case would overwrite a claim
     # they deliberately gave up.
-    stuck_mid_migration = (recorded_ownership_percent&.zero? && sole_unseeded_representative?(stripe_account.id)) || false
+    stuck_mid_migration = (owners_provided_blocking && recorded_ownership_percent&.zero? &&
+                           switched_from_individual_immediately_before?(user, user_compliance_info) &&
+                           sole_unseeded_representative?(stripe_account.id)) || false
     seed_representative_ownership = switching_to_business || stuck_mid_migration
 
-    # The other half of the stuck population: a representative who already holds a share, on an
-    # account still blocked only because nothing ever attested the list. Seeding would be wrong
-    # here — attestation is the whole fix — so the two conditions can't share one flag.
+    # The other half of the stuck population: owners Stripe already holds that add up to the whole
+    # company, on an account still blocked only because nothing ever attested the list. Seeding would
+    # be wrong here — attestation is the whole fix — and the history of compliance records says
+    # nothing about it, so it is decided from the ownership alone.
     #
     # A positive share isn't a COMPLETE list: a rep holding 25% still leaves 75% with owners
     # nobody entered, and attesting there would falsely tell Stripe the list is finished. Only the
@@ -538,9 +611,12 @@ module StripeMerchantAccountManager
     # note — see the isolation spec). Ids are snapshotted BEFORE the update for the same reason
     # clear_identity_rejection_notes takes ids rather than re-querying: a note from an overlapping
     # resync is a diagnostic this save has no result for.
-    switching_to_individual = !user_compliance_info.is_business? && last_user_compliance_info&.is_business?
+    switching_to_individual = !user_compliance_info.is_business? &&
+                              (last_user_compliance_info&.is_business? || live_non_individual_for_individual)
     obsolete_representative_note_ids = switching_to_individual ? identity_rejection_note_ids(user, scope: :representative) : []
 
+    # Mark before sending: a failed response can hide a successful Stripe update.
+    on_provider_mutation&.call
     account_update = update_account_attributes(user, stripe_account, diff_attributes, notify:, legal_entity_country: country_code)
     updated_stripe_account = account_update.stripe_account
 
@@ -664,6 +740,20 @@ module StripeMerchantAccountManager
     )
   end
 
+  # The attestation for a save that changes nothing: UpdateUserComplianceInfo returns before any
+  # Stripe sync then, so a company already blocked on company.owners_provided would never be looked
+  # at. Read-only unless Stripe says it is blocked and the owners it holds cover the whole company.
+  def self.attest_owners_provided_if_blocking(user)
+    return if user.has_stripe_account_connected?
+    return unless user.alive_user_compliance_info&.is_business?
+    return unless user_has_stripe_connect_merchant_account?(user)
+
+    stripe_account = Stripe::Account.retrieve(user.stripe_account.charge_processor_merchant_id)
+    attest_owners_provided(stripe_account.id) if owners_provided_blocking_payouts?(stripe_account)
+  rescue Stripe::StripeError => e
+    ErrorNotifier.notify(e)
+  end
+
   private_class_method
   def self.stripe_account_country(stripe_account)
     stripe_account.respond_to?(:country) ? stripe_account.country : stripe_account["country"]
@@ -740,6 +830,16 @@ module StripeMerchantAccountManager
   # `submit_identity_fields_in_isolation`.
   IDENTITY_SUBHASH_KEYS = %i[id_number ssn_last_4 tax_id].freeze
   private_constant :IDENTITY_SUBHASH_KEYS
+
+  # Person-payload keys a refill must never seed: the identifiers are gated on the account country
+  # further down `update_person`, and `relationship` carries ownership/title, which the caller sets.
+  PERSON_REFILL_EXCLUDED_KEYS = (IDENTITY_SUBHASH_KEYS + [:relationship]).freeze
+  private_constant :PERSON_REFILL_EXCLUDED_KEYS
+
+  # `dob` is one value to Stripe, so a missing part refills the whole date instead of a partial one
+  # Stripe rejects.
+  PERSON_REFILL_WHOLE_VALUE_KEYS = %i[dob].freeze
+  private_constant :PERSON_REFILL_WHOLE_VALUE_KEYS
 
   # Prefix distinct from the service-agreement note: support needs to tell "we withheld your
   # address" from "Stripe has not taken your tax ID", because only the second is the seller's to
@@ -950,6 +1050,12 @@ module StripeMerchantAccountManager
 
     current_attributes = person_hash(user_compliance_info, passphrase)
     current_attributes.deep_merge!(relationship: { representative: true })
+    # `relationship.title` is otherwise unsent on an update (only creation sets it), so a person whose
+    # title Stripe lost can never satisfy `person.<id>.relationship.title`. Fill it only when Stripe
+    # has none — a title set through the beneficial-owners UI stays.
+    if stripe_relationship_title(stripe_person).blank?
+      current_attributes[:relationship][:title] = user_compliance_info.job_title.presence || DEFAULT_RELATIONSHIP_TITLE
+    end
     seed_representative_ownership = last_user_compliance_info&.is_individual? && user_compliance_info.is_business? if seed_representative_ownership.nil?
     if seed_representative_ownership
       # Switching a seller from individual to business normally means one person who owns the whole
@@ -976,6 +1082,12 @@ module StripeMerchantAccountManager
       last_attributes[:phone] = nil
       diff_attributes = get_diff_attributes(current_attributes, last_attributes)
     end
+
+    address_submitted_before_refill = ADDRESS_SUBHASH_KEYS.any? { |address_key| diff_attributes[address_key].present? }
+    # Stripe can replace the person outright (its KYC pass, or our ownership editor) with a blank
+    # record while the metadata still names the last version we synced, so the diff above stays
+    # unchanged and the requirements are never met. Refill what the live person is missing.
+    seed_attributes_missing_from_stripe_person!(diff_attributes, current_attributes, stripe_person, user)
 
     if diff_attributes[:dob].present?
       # Re-add the full DOB field if any part of it is being kept. Stripe handles this field inconsistently and the full DOB
@@ -1036,7 +1148,9 @@ module StripeMerchantAccountManager
     end
     clear_identity_rejection_notes(user, note_ids: resolved_note_ids)
     submit_person_identity_fields_in_isolation(user, stripe_account, stripe_person, person_identity_attributes, account_country)
-    ADDRESS_SUBHASH_KEYS.any? { |address_key| diff_attributes[address_key].present? }
+    # A refill must not clear a postal-code note. Only a postal code the seller changed, or a forced resync, did.
+    ADDRESS_SUBHASH_KEYS.any? { |address_key| diff_attributes.dig(address_key, :postal_code).present? } &&
+      (address_submitted_before_refill || force_address_resync)
   end
 
   # The `update_person` counterpart of `submit_identity_fields_in_isolation`. Same contract: the
@@ -1056,6 +1170,77 @@ module StripeMerchantAccountManager
                       "#{account_country.inspect} account: #{e.class}: #{e.message}"
     raise unless e.is_a?(Stripe::InvalidRequestError) && marker_recorded
     false
+  end
+
+  private_class_method
+  # Refills a person record Stripe replaced with a blank one, from our compliance record. Only blanks
+  # are filled: a value Stripe already holds is never overwritten.
+  def self.seed_attributes_missing_from_stripe_person!(diff_attributes, current_attributes, stripe_person, user)
+    live_person = stripe_person.to_h
+    # A postal code Stripe rejected is retried by `force_address_resync` alone; refilling it here would
+    # fail the whole person update on the same code and take the rest of the refill down with it.
+    withhold_postal_code = postal_code_failure_note_outstanding?(user)
+    (current_attributes.keys - PERSON_REFILL_EXCLUDED_KEYS).each do |key|
+      current = current_attributes[key]
+      current = current.except(:postal_code) if withhold_postal_code && ADDRESS_SUBHASH_KEYS.include?(key)
+      next if current.blank?
+
+      existing = diff_attributes[key]
+      # A changed address leaf is already a non-empty hash. Skipping the key would leave the other
+      # blank leaves unsent. A scalar already in the diff is the whole value.
+      next if existing.present? && (!existing.is_a?(Hash) || PERSON_REFILL_WHOLE_VALUE_KEYS.include?(key))
+
+      refill = refill_values_for(key, stripe_value_at(live_person, key), current)
+      next if refill.blank?
+
+      diff_attributes[key] = existing.is_a?(Hash) ? refill.merge(existing) : refill
+    end
+  end
+
+  private_class_method
+  # What Stripe's person is missing, for one payload key, or `{}` when it holds it all. Addresses are
+  # filled per subfield, so a value Stripe already holds is never resent.
+  def self.refill_values_for(key, live_value, current_value)
+    return stripe_value_blank?(live_value) ? current_value : {} unless current_value.is_a?(Hash)
+
+    if PERSON_REFILL_WHOLE_VALUE_KEYS.include?(key)
+      missing = current_value.any? do |nested_key, nested|
+        nested.present? && stripe_value_blank?(stripe_value_at(live_value, nested_key))
+      end
+      return missing ? current_value : {}
+    end
+
+    current_value.each_with_object({}) do |(nested_key, nested), refill|
+      next if nested.blank?
+
+      missing = refill_values_for(nested_key, stripe_value_at(live_value, nested_key), nested)
+      refill[nested_key] = missing if missing.present?
+    end
+  end
+
+  private_class_method
+  # Nested payloads arrive as plain hashes or StripeObject instances alike; both answer `[]` for a
+  # missing key with nil, and StripeObject has no `dig`.
+  def self.stripe_value_at(container, key)
+    return nil if container.nil?
+    return nil unless container.respond_to?(:[])
+
+    container[key] || container[key.to_s]
+  end
+
+  private_class_method
+  def self.stripe_value_blank?(value)
+    return true if value.nil?
+    return value.empty? if value.respond_to?(:empty?)
+
+    value.to_s.strip.empty?
+  end
+
+  private_class_method
+  # The representative's title as Stripe currently has it, or nil when the person carries no
+  # relationship object at all (which `person.to_h` can return — see `owner_relationships_on`).
+  def self.stripe_relationship_title(stripe_person)
+    stripe_value_at(stripe_value_at(stripe_person.to_h, :relationship), :title)
   end
 
   private_class_method
@@ -1286,19 +1471,86 @@ module StripeMerchantAccountManager
     end
   end
 
-  def self.update_bank_account(user, passphrase:, notify: true)
+  def self.update_bank_account(user, passphrase:, notify: true, holder_name_only: false)
     validate_for_update(user)
 
     bank_account = user.active_bank_account
     raise MerchantRegistrationUserNotReadyError.new(user.id, "does not have a bank account") if bank_account.nil?
 
-    stripe_account = Stripe::Account.retrieve(user.stripe_account.charge_processor_merchant_id)
-    if stripe_account["metadata"]["bank_account_id"] == bank_account.external_id
-      return :noop_metadata_match unless account_holder_name_synced_to_stripe?(bank_account.user)
+    if holder_name_only
+      begin
+        stripe_account = Stripe::Account.retrieve(user.stripe_account.charge_processor_merchant_id)
+        if ecuador_company?(user) && bank_account.is_a?(EcuadorBankAccount) && bank_account.stripe_external_account_id.present? && stripe_account["business_type"] == "company" && bank_account.stripe_connect_account_id == stripe_account.id
+          stripe_external_account = retrieve_linked_external_account(stripe_account, bank_account)
+          if stripe_external_account && stripe_external_account["id"] == bank_account.stripe_external_account_id && stripe_external_account["object"] == "bank_account"
+            return :noop_metadata_match if stripe_external_account["account_holder_name"] == bank_account.account_holder_full_name
 
-      stripe_external_account = stripe_account["external_accounts"]&.first
-      stripe_holder_name = stripe_external_account && stripe_external_account["account_holder_name"]
-      return :noop_metadata_match if stripe_holder_name == bank_account.account_holder_full_name
+            return update_external_account_holder_name(bank_account, stripe_account, stripe_external_account)
+          end
+        end
+
+        return report_external_account_mismatch(bank_account, stripe_account)
+      rescue Stripe::InvalidRequestError => e
+        if e.code == "incorrect_account_holder_name"
+          ContactingCreatorMailer.invalid_account_holder_name(user.id).deliver_later(queue: "critical") if notify
+          return :invalid_account_holder_name
+        end
+
+        ErrorNotifier.notify(e)
+        return :stripe_invalid_request
+      rescue Stripe::StripeError => e
+        Rails.logger.error "Stripe error (#{e.class.name}) request ID #{e.request_id} when updating holder name for bank account #{bank_account&.id}"
+        ErrorNotifier.notify(e)
+        return :stripe_unknown_error
+      end
+    end
+
+    stripe_account = Stripe::Account.retrieve(user.stripe_account.charge_processor_merchant_id)
+
+    if ecuador_company?(user) && bank_account.is_a?(EcuadorBankAccount) && bank_account.stripe_external_account_id.blank?
+      metadata_bank_id = stripe_account["metadata"]["bank_account_id"]
+      if metadata_bank_id == bank_account.external_id
+        repair_result = restore_local_bank_link!(bank_account, stripe_account, clear_failure_notes: false)
+        if repair_result == :synced && stripe_account["business_type"] == "company" && bank_account.stripe_connect_account_id == stripe_account.id
+          stripe_external_account = retrieve_linked_external_account(stripe_account, bank_account)
+          if retrieved_linked_bank?(bank_account, stripe_external_account)
+            return update_identified_ecuador_holder_name(bank_account, stripe_account, stripe_external_account, notify:)
+          end
+
+          return :bank_link_not_restored
+        end
+        clear_stale_bank_sync_failure_notes(bank_account.user) if repair_result == :synced
+        return repair_result unless repair_result == :synced
+      end
+    end
+
+    if stripe_account["metadata"]["bank_account_id"] == bank_account.external_id
+      skip_metadata_noop = false
+      if identified_ecuador_company_bank?(user, bank_account, stripe_account)
+        stripe_external_account = retrieve_linked_external_account(stripe_account, bank_account)
+        if retrieved_linked_bank?(bank_account, stripe_external_account)
+          if linked_bank_details_replaced?(bank_account, stripe_external_account)
+            skip_metadata_noop = true
+          else
+            return update_identified_ecuador_holder_name(bank_account, stripe_account, stripe_external_account, notify:)
+          end
+        else
+          skip_metadata_noop = true
+        end
+      end
+
+      # A metadata match does not prove the local row is linked.
+      unless skip_metadata_noop
+        name_out_of_sync = false
+        if account_holder_name_synced_to_stripe?(bank_account.user)
+          stripe_external_account = stripe_account["external_accounts"]&.first
+          stripe_holder_name = stripe_external_account && stripe_external_account["account_holder_name"]
+          name_out_of_sync = stripe_holder_name != bank_account.account_holder_full_name
+        end
+
+        restored = restore_local_bank_link!(bank_account, stripe_account) unless name_out_of_sync
+        return restored if restored && restored != :bank_link_on_other_account
+      end
     end
 
     attributes = bank_account_hash(bank_account, stripe_account:, passphrase:)
@@ -1349,6 +1601,96 @@ module StripeMerchantAccountManager
     Rails.logger.error "Stripe error (#{e.class.name}) request ID #{e.request_id} when updating bank account #{bank_account&.id} for stripe account #{stripe_account&.inspect}"
     ErrorNotifier.notify(e)
     :stripe_unknown_error
+  end
+
+  private_class_method
+  def self.retrieve_linked_external_account(stripe_account, bank_account)
+    Stripe::Account.retrieve_external_account(stripe_account.id, bank_account.stripe_external_account_id)
+  rescue Stripe::InvalidRequestError => e
+    raise unless e.code.to_s == "resource_missing" || e.http_status == 404
+
+    nil
+  end
+
+  private_class_method
+  def self.report_external_account_mismatch(bank_account, stripe_account)
+    ErrorNotifier.notify("Skipped Stripe account_holder_name update for bank_account=#{bank_account.id}: local external account does not match Stripe account #{stripe_account.id}")
+    :external_account_mismatch
+  end
+
+  private_class_method
+  def self.update_external_account_holder_name(bank_account, stripe_account, stripe_external_account)
+    external_account_id = bank_account.stripe_external_account_id
+    unless bank_account.is_a?(EcuadorBankAccount) &&
+        stripe_account["business_type"] == "company" &&
+        bank_account.stripe_connect_account_id == stripe_account.id &&
+        external_account_id.present? &&
+        stripe_external_account&.[]("id") == external_account_id
+      return report_external_account_mismatch(bank_account, stripe_account)
+    end
+
+    Stripe::Account.update_external_account(
+      stripe_account.id,
+      external_account_id,
+      force_utf8_encoding({ account_holder_name: bank_account.account_holder_full_name })
+    )
+    :synced
+  end
+
+  private_class_method
+  def self.identified_ecuador_company_bank?(user, bank_account, stripe_account)
+    ecuador_company?(user) &&
+      bank_account.is_a?(EcuadorBankAccount) &&
+      bank_account.stripe_external_account_id.present? &&
+      stripe_account["business_type"] == "company" &&
+      bank_account.stripe_connect_account_id == stripe_account.id
+  end
+
+  private_class_method
+  def self.retrieved_linked_bank?(bank_account, stripe_external_account)
+    stripe_external_account &&
+      stripe_external_account["id"] == bank_account.stripe_external_account_id &&
+      stripe_external_account["object"] == "bank_account"
+  end
+
+  private_class_method
+  def self.update_identified_ecuador_holder_name(bank_account, stripe_account, stripe_external_account, notify:)
+    if stripe_external_account["account_holder_name"] == bank_account.account_holder_full_name
+      clear_stale_bank_sync_failure_notes(bank_account.user)
+      return :noop_metadata_match
+    end
+
+    result = update_external_account_holder_name(bank_account, stripe_account, stripe_external_account)
+    clear_stale_bank_sync_failure_notes(bank_account.user) if result == :synced
+    result
+  rescue Stripe::InvalidRequestError => e
+    if e.code == "incorrect_account_holder_name"
+      ContactingCreatorMailer.invalid_account_holder_name(bank_account.user.id).deliver_later(queue: "critical") if notify
+      return :invalid_account_holder_name
+    end
+
+    ErrorNotifier.notify(e)
+    :stripe_invalid_request
+  rescue Stripe::StripeError => e
+    Rails.logger.error "Stripe error (#{e.class.name}) request ID #{e.request_id} when updating holder name for bank account #{bank_account&.id}"
+    ErrorNotifier.notify(e)
+    :stripe_unknown_error
+  end
+
+  private_class_method
+  def self.linked_bank_details_replaced?(bank_account, stripe_external_account)
+    [
+      [stripe_external_account["last4"], bank_account.account_number_last_four, false],
+      [stripe_external_account["routing_number"], bank_account.stripe_external_account_routing_number, false],
+      [stripe_external_account["currency"], bank_account.stripe_external_account_currency, true],
+      [stripe_external_account["country"], bank_account.stripe_external_account_country, true]
+    ].any? do |remote, local, case_insensitive|
+      remote = remote.to_s
+      next false if remote.blank?
+
+      local = local.to_s
+      case_insensitive ? !remote.casecmp?(local) : remote != local
+    end
   end
 
   private_class_method
@@ -1484,6 +1826,17 @@ module StripeMerchantAccountManager
   # Stripe's string is handed to the seller verbatim today, and on its own it is unactionable: it
   # names no value, no field, and no next step. Prefix it with our own account of what we sent and
   # what to do about it.
+  def self.no_verdict_stripe_error?(error)
+    NO_VERDICT_ERROR_CLASSES.any? { |klass| error.is_a?(klass) }
+  end
+
+  def self.no_verdict_seller_message(error)
+    return unless no_verdict_stripe_error?(error)
+
+    "Our payment partner had a temporary problem and couldn't set up your payouts. Nothing you entered was rejected. " \
+      "Please try saving again in a few minutes. We'll also retry it for you automatically."
+  end
+
   def self.bank_directory_miss_seller_message(error, bank_account)
     return unless error.is_a?(Stripe::InvalidRequestError)
     return unless bank_details_directory_miss?(error)
@@ -1627,13 +1980,9 @@ module StripeMerchantAccountManager
     postal_code
   end
 
-  # Stripe validates the tax IDs we pass on account creation (individual `id_number`,
-  # business `tax_id`) and rejects obviously-fake values with an InvalidRequestError like
-  # `Invalid Tax ID. 123456789 is not an allowed value.` — placeholder numbers (all-same
-  # digits, sequential digits) are on Stripe's denylist. We don't pre-validate against that
-  # denylist, so these are expected seller-input errors: the seller sees Stripe's message
-  # inline on the payments settings page and can correct the tax ID themselves. Stripe
-  # doesn't always populate `code`/`param` on this rejection, so also match on the message.
+  # Stripe's placeholder denylist covers individual `id_number`, its 4-digit `ssn_last_4` and
+  # business `tax_id`; it rejects those as seller input to fix, not as an incident. `code`/`param`
+  # are not always populated, so the message spellings are matched too.
   private_class_method
   def self.tax_id_invalid_error?(error)
     return false unless error.is_a?(Stripe::InvalidRequestError)
@@ -1642,9 +1991,9 @@ module StripeMerchantAccountManager
     return true if code == "tax_id_invalid"
 
     param = error.respond_to?(:param) ? error.param.to_s : ""
-    return true if param.split("[").last.to_s.delete("]").in?(%w[id_number tax_id])
+    return true if param.split("[").last.to_s.delete("]").in?(%w[id_number ssn_last_4 tax_id])
 
-    error.message.to_s.match?(/invalid tax id/i)
+    error.message.to_s.match?(/invalid tax id|invalid ssn last 4/i)
   end
 
   # Stripe validates the phone numbers we pass on account creation (individual phone,
@@ -1761,6 +2110,408 @@ module StripeMerchantAccountManager
     ErrorNotifier.notify(e)
   end
 
+  # Internal only: the seller already saw no_verdict_seller_message inline, and a seller-visible
+  # payout note would read as a rejection on the Payouts page. One outstanding note per seller, so
+  # repeated saves during the same outage don't reset the weekly retry's bookkeeping.
+  private_class_method
+  def self.record_no_verdict_failure_note(user, error, idempotency_key: nil)
+    return if user.blank?
+
+    note = oldest_outstanding_no_verdict_note(user)
+    if note
+      note.content = no_verdict_note_content(error)
+      note.json_data["no_verdict"] = true
+      note.json_data["error_class"] = error.class.name
+      note.json_data["request_id"] = error.request_id if error.try(:request_id).present?
+      note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY] ||= idempotency_key if idempotency_key.present?
+      assign_account_creation_attempt_time(note) if note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY].present? && note.json_data[ACCOUNT_CREATION_ATTEMPTED_AT].blank?
+      note.json_data.delete("pending_create")
+      schedule_retry = note.json_data["retry_scheduled"] != true
+      note.json_data["retry_scheduled"] = true if schedule_retry
+      note.save!
+      # Outages clear in minutes; don't make the seller wait for the weekly sweep.
+      RetryStripeRejectedPayoutSetupForSellerJob.perform_in(NO_VERDICT_FIRST_RETRY_DELAY, user.id) if schedule_retry
+      return
+    end
+
+    user.add_payout_note(
+      content: no_verdict_note_content(error),
+      seller_visible: false,
+      json_data: {
+        "no_verdict" => true,
+        "error_class" => error.class.name,
+        "request_id" => error.try(:request_id),
+        "retry_scheduled" => true,
+        ACCOUNT_CREATION_IDEMPOTENCY_KEY => idempotency_key,
+        ACCOUNT_CREATION_ATTEMPTED_AT => (Time.current.iso8601 if idempotency_key.present?)
+      }.compact
+    )
+    RetryStripeRejectedPayoutSetupForSellerJob.perform_in(NO_VERDICT_FIRST_RETRY_DELAY, user.id)
+  rescue => e
+    Rails.logger.error "Failed to record no-verdict payout-setup note for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  private_class_method
+  def self.no_verdict_note_content(error)
+    "#{NO_VERDICT_FAILURE_NOTE_PREFIX}: #{error.class.name} — #{error.message.to_s.truncate(300)}"
+  end
+
+  # Reused from the outstanding note so a retry replays the same Account.create. A fresh key
+  # would open a second account when the first response was lost.
+  private_class_method
+  def self.account_creation_idempotency_key(user)
+    stored = recovery_note(user)&.json_data&.[](ACCOUNT_CREATION_IDEMPOTENCY_KEY)
+    return stored if stored.present?
+
+    SecureRandom.uuid
+  end
+
+  # The key belongs to one Account.create. Once that account is deleted, replaying the key
+  # returns the deleted account instead of opening a new one.
+  private_class_method
+  def self.clear_account_creation_idempotency_key(user)
+    notes = user.comments
+      .with_type_payout_note
+      .alive
+      .where(author_id: GUMROAD_ADMIN_ID)
+      .where("content LIKE ?", "#{NO_VERDICT_FAILURE_NOTE_PREFIX}%")
+      .select { |note| note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY].present? }
+    return if notes.empty?
+
+    notes.each do |note|
+      note.json_data.delete(ACCOUNT_CREATION_IDEMPOTENCY_KEY)
+      note.json_data.delete(ACCOUNT_CREATION_ATTEMPTED_AT)
+      note.save!
+    end
+  rescue => e
+    Rails.logger.error "Failed to clear Stripe account-creation idempotency key for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  private_class_method
+  def self.create_or_recover_stripe_account(user, account_params, idempotency_key)
+    recovered = recover_uncertain_stripe_account(user, country: account_params[:country])
+    return [recovered, true] if recovered.is_a?(Stripe::Account)
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") if recovered == :unreconciled
+
+    # Stripe keeps a key for at least 24 hours, including a cached 500. After a complete search
+    # finds no account, a new key is the only way the next create is a new request.
+    key = idempotency_key
+    if recovered != :replay && stale_stored_account_creation_key?(user)
+      key = SecureRandom.uuid
+      raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") unless remember_account_creation_idempotency_key(user, key)
+    end
+    [Stripe::Account.create(force_utf8_encoding(account_params), { idempotency_key: key }), false]
+  rescue Stripe::IdempotencyError
+    # The stored key was used with different parameters, so Stripe will not replay it. Adopt the
+    # account if the first request created one; do not open a second one to get past the error.
+    recovered = list_matching_uncertain_account(user, country: account_params[:country])
+    return [recovered, true] if recovered.is_a?(Stripe::Account)
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") if recovered == :unreconciled
+
+    replacement_key = SecureRandom.uuid
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") unless remember_account_creation_idempotency_key(user, replacement_key)
+    [Stripe::Account.create(force_utf8_encoding(account_params), { idempotency_key: replacement_key }), false]
+  end
+
+  private_class_method
+  def self.recover_uncertain_stripe_account(user, country: nil)
+    note = recovery_note(user)
+    return nil if note.nil?
+
+    stored_key = note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY]
+    attempted_at = account_creation_attempted_at(note)
+    return :replay if attempted_at > STRIPE_IDEMPOTENCY_RETENTION.ago && stored_key.present?
+
+    list_matching_uncertain_account(user, note:, country:)
+  end
+
+  private_class_method
+  def self.list_matching_uncertain_account(user, note: nil, country: nil)
+    note ||= oldest_outstanding_no_verdict_note(user)
+    return nil if note.nil?
+
+    attempted_at = account_creation_attempted_at(note)
+    window_start = (attempted_at - ACCOUNT_RECOVERY_WINDOW).to_i
+    window_end = (attempted_at + ACCOUNT_RECOVERY_WINDOW).to_i
+    matches = []
+    starting_after = nil
+    incomplete = false
+
+    ACCOUNT_RECOVERY_PAGE_LIMIT.times do
+      page = Stripe::Account.list({
+        limit: 100,
+        created: { gte: window_start, lte: window_end },
+        starting_after: starting_after
+      }.compact)
+      data = page.respond_to?(:data) ? Array(page.data) : Array(page)
+      matches.concat(data.select { |account| uncertain_account_match?(account, user) })
+      has_more = page.respond_to?(:has_more) && page.has_more && data.any?
+      incomplete = has_more
+      break unless has_more
+
+      starting_after = data.last["id"]
+    end
+    return :unreconciled if incomplete
+
+    compatible = matches.reject do |account|
+      account_country_conflicts_with_legal_entity?(stripe_account_country(account), country)
+    end
+    # Stripe will not change an account's country. Delete an old account only when no local
+    # row has linked it. A soft-deleted link can still receive a returned payout, so that
+    # mismatch stays unreconciled instead of opening a second account.
+    if compatible.empty? && matches.any?
+      return nil if release_country_mismatched_accounts!(matches, country)
+
+      return :unreconciled
+    end
+
+    ids = compatible.map { |account| account["id"] }.uniq
+    return :unreconciled if ids.size > 1
+    return nil if ids.empty?
+
+    # List rows omit the bank Stripe already attached. The create response includes it, so
+    # recovery has to retrieve the same shape before the local link is saved. A deleted account
+    # must not be adopted; the next create opens a new one.
+    account = Stripe::Account.retrieve(ids.first)
+    return nil if account["deleted"]
+    if account_country_conflicts_with_legal_entity?(stripe_account_country(account), country)
+      return nil if release_country_mismatched_accounts!([account], country)
+
+      return :unreconciled
+    end
+
+    account
+  end
+
+  private_class_method
+  def self.release_country_mismatched_accounts!(accounts, country)
+    mismatched = accounts.select do |account|
+      account_country_conflicts_with_legal_entity?(stripe_account_country(account), country)
+    end
+    return false if mismatched.empty?
+    # Country change soft-deletes the local row and keeps the Stripe id. alive would miss it.
+    return false if mismatched.any? do |account|
+      stripe_id = account["id"]
+      stripe_id.present? && MerchantAccount.unscoped.stripe.exists?(charge_processor_merchant_id: stripe_id)
+    end
+
+    mismatched.each do |account|
+      Stripe::Account.delete(account["id"])
+    rescue Stripe::StripeError
+      return false
+    end
+    true
+  end
+
+  private_class_method
+  def self.uncertain_account_match?(account, user)
+    return false if account["id"].blank? || account["deleted"]
+    return false if account["type"].present? && account["type"] != "custom"
+
+    linked_user_id = MerchantAccount.alive.stripe.find_by(charge_processor_merchant_id: account["id"])&.user_id
+    return false if linked_user_id.present? && linked_user_id != user.id
+
+    account["metadata"].to_h.with_indifferent_access["user_id"].to_s == user.external_id.to_s
+  end
+
+  private_class_method
+  def self.assign_account_creation_attempt_time(note)
+    note.json_data[ACCOUNT_CREATION_ATTEMPTED_AT] = Time.current.iso8601
+  end
+
+  private_class_method
+  def self.account_creation_attempted_at(note)
+    raw = note.json_data[ACCOUNT_CREATION_ATTEMPTED_AT]
+    return note.created_at if raw.blank?
+
+    Time.zone.parse(raw.to_s) || note.created_at
+  rescue ArgumentError
+    note.created_at
+  end
+
+  # A recovered account may still hold the bank from the lost request. Linking the seller's
+  # current row to that external account would record the wrong payout destination.
+  private_class_method
+  def self.align_recovered_account_bank(bank_account, stripe_account, passphrase:)
+    stored_bank_id = stripe_account["metadata"].to_h.with_indifferent_access["bank_account_id"]
+    identity_matches = stored_bank_id.blank? || stored_bank_id == bank_account.external_id
+    match = matching_stripe_external_account(bank_account, stripe_account) if identity_matches
+    return [stripe_account, match] if match
+
+    # An incomplete external-account list cannot prove the current bank is absent.
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") if external_accounts_for_link_match(stripe_account).nil?
+
+    Stripe::Account.update(stripe_account.id, force_utf8_encoding(bank_account_hash(bank_account, stripe_account:, passphrase:)))
+    [stripe_account.refresh, nil]
+  end
+
+  # The seller removed the bank, or switched to a card, after Stripe already stored the old one.
+  # Activating the recovered account without clearing it would pay out to a destination they removed.
+  def self.clear_removed_bank_destination!(user)
+    merchant_account = user.stripe_account
+    return if merchant_account&.charge_processor_merchant_id.blank?
+
+    bank_account = user.active_bank_account
+    return if bank_account.present? && !bank_account.is_a?(CardBankAccount)
+
+    stripe_account = Stripe::Account.retrieve(merchant_account.charge_processor_merchant_id)
+    remove_recovered_bank_destinations!(stripe_account)
+  end
+
+  private_class_method
+  def self.remove_recovered_bank_destinations!(stripe_account)
+    accounts = external_accounts_for_link_match(stripe_account)
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") if accounts.nil?
+
+    left_default_bank = false
+    accounts.each do |external_account|
+      next unless external_account["object"] == "bank_account"
+      # Stripe refuses to delete the default bank for the account currency until another
+      # destination replaces it. Leaving it attached is not a finished setup.
+      if external_account["default_for_currency"]
+        left_default_bank = true
+        next
+      end
+
+      begin
+        Stripe::Account.delete_external_account(stripe_account.id, external_account["id"])
+      rescue Stripe::InvalidRequestError => e
+        raise unless e.message.to_s.match?(/default external account/i)
+
+        left_default_bank = true
+      end
+    end
+    raise Stripe::APIError.new("Uncertain Stripe account creation could not be reconciled") if left_default_bank
+  end
+
+  private_class_method
+  def self.stale_stored_account_creation_key?(user)
+    note = recovery_note(user)
+    return false if note.nil? || note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY].blank?
+
+    account_creation_attempted_at(note) <= STRIPE_IDEMPOTENCY_RETENTION.ago
+  end
+
+  private_class_method
+  def self.persist_account_creation_attempt!(user, key)
+    return false if key.blank?
+
+    note = oldest_outstanding_no_verdict_note(user)
+    if note
+      note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY] ||= key
+      assign_account_creation_attempt_time(note) if note.json_data[ACCOUNT_CREATION_ATTEMPTED_AT].blank?
+      note.save!
+      return true
+    end
+
+    source = abandoned_keyed_no_verdict_note(user)
+    attempted_at = source && source.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY] == key ? account_creation_attempted_at(source).iso8601 : Time.current.iso8601
+    user.add_payout_note(
+      content: "#{NO_VERDICT_FAILURE_NOTE_PREFIX}: awaiting Stripe account creation",
+      seller_visible: false,
+      json_data: {
+        "no_verdict" => true,
+        "pending_create" => true,
+        ACCOUNT_CREATION_IDEMPOTENCY_KEY => key,
+        ACCOUNT_CREATION_ATTEMPTED_AT => attempted_at
+      }
+    )
+    true
+  rescue => e
+    Rails.logger.error "Failed to persist Stripe account-creation idempotency key for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+    false
+  end
+
+  private_class_method
+  def self.discard_pending_account_creation_note(user)
+    note = oldest_outstanding_no_verdict_note(user)
+    return if note.nil? || note.json_data["pending_create"] != true
+
+    note.mark_deleted!
+  rescue => e
+    Rails.logger.error "Failed to discard pending Stripe account-creation note for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  private_class_method
+  def self.remember_account_creation_idempotency_key(user, key)
+    note = oldest_outstanding_no_verdict_note(user)
+    return false if note.nil?
+
+    note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY] = key
+    note.json_data[ACCOUNT_CREATION_ATTEMPTED_AT] = Time.current.iso8601
+    note.save!
+    true
+  rescue => e
+    Rails.logger.error "Failed to update Stripe account-creation idempotency key for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+    false
+  end
+
+  private_class_method
+  def self.recovery_note(user)
+    outstanding = oldest_outstanding_no_verdict_note(user)
+    return outstanding if outstanding&.json_data&.[](ACCOUNT_CREATION_IDEMPOTENCY_KEY).present?
+
+    # An abandoned note still names the create whose response was lost. Use it only when no
+    # current attempt has a key, so a newer replacement key is not overridden.
+    return abandoned_keyed_no_verdict_note(user) if outstanding.nil?
+
+    outstanding
+  end
+
+  private_class_method
+  def self.abandoned_keyed_no_verdict_note(user)
+    user.comments
+      .with_type_payout_note
+      .alive
+      .where(author_id: GUMROAD_ADMIN_ID)
+      .where("content LIKE ?", "#{NO_VERDICT_FAILURE_NOTE_PREFIX}%")
+      .select { |note| note.json_data["abandoned_at"].present? && note.json_data[ACCOUNT_CREATION_IDEMPOTENCY_KEY].present? }
+      .max_by { |note| account_creation_attempted_at(note) }
+  end
+
+  private_class_method
+  def self.oldest_outstanding_no_verdict_note(user)
+    outstanding_no_verdict_failure_notes(user).min_by(&:created_at)
+  end
+
+  private_class_method
+  def self.outstanding_no_verdict_failure_notes(user)
+    user.comments
+        .with_type_payout_note
+        .alive
+        .where(author_id: GUMROAD_ADMIN_ID)
+        .where("content LIKE ?", "#{NO_VERDICT_FAILURE_NOTE_PREFIX}%")
+        .select { |note| note.json_data["abandoned_at"].blank? }
+  end
+
+  private_class_method
+  def self.clear_stale_no_verdict_failure_notes(user)
+    user.comments
+        .with_type_payout_note
+        .alive
+        .where(author_id: GUMROAD_ADMIN_ID)
+        .where("content LIKE ?", "#{NO_VERDICT_FAILURE_NOTE_PREFIX}%")
+        .update_all(deleted_at: Time.current)
+  rescue => e
+    Rails.logger.error "Failed to clear stale no-verdict payout-setup notes for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  private_class_method
+  def self.postal_code_failure_note_outstanding?(user)
+    user.comments
+        .with_type_payout_note
+        .alive
+        .where(author_id: GUMROAD_ADMIN_ID)
+        .where("content LIKE ?", "#{POSTAL_CODE_FAILURE_NOTE_PREFIX}%")
+        .exists?
+  end
+
   private_class_method
   def self.clear_stale_postal_code_failure_notes(user)
     user.comments
@@ -1826,15 +2577,96 @@ module StripeMerchantAccountManager
   end
 
   private_class_method
-  def self.save_stripe_bank_account_info(bank_account, stripe_account)
+  def self.save_stripe_bank_account_info(bank_account, stripe_account, stripe_external_account: nil)
     # We replace the bank account whenever adding a new one, so there will only be one in the list.
-    stripe_external_account = stripe_account.external_accounts.first
+    stripe_external_account ||= stripe_account.external_accounts.first
     bank_account.stripe_connect_account_id = stripe_account.id
     bank_account.stripe_external_account_id = stripe_external_account.id
     bank_account.stripe_fingerprint = stripe_external_account.fingerprint
     bank_account.save!(validate: false)
 
     CheckPaymentAddressWorker.perform_async(bank_account.user_id)
+  end
+
+  private_class_method
+  # Stripe can name this row in metadata while the local link is missing, and re-sending the details
+  # cannot repair that. Links the external account Stripe already holds, never guessing one: last4,
+  # routing number, currency and country must each match, or :bank_link_not_restored keeps the failure note.
+  def self.restore_local_bank_link!(bank_account, stripe_account, clear_failure_notes: true)
+    if bank_account.stripe_bank_account_id.present?
+      return :noop_metadata_match if bank_account.stripe_connect_account_id == stripe_account.id
+
+      # The row still names a destination on an older account. Re-sending the bank is the repair.
+      return :bank_link_on_other_account
+    end
+
+    stripe_external_account = matching_stripe_external_account(bank_account, stripe_account)
+    return :bank_link_not_restored if stripe_external_account.nil?
+
+    # Another bank sync may have linked or replaced the row while Stripe was being read.
+    linked = BankAccount.where(id: bank_account.id, stripe_bank_account_id: nil, deleted_at: nil,
+                               account_number_last_four: bank_account.account_number_last_four,
+                               bank_number: bank_account.bank_number, country: bank_account[:country])
+      .update_all(stripe_bank_account_id: stripe_external_account.id,
+                  stripe_connect_account_id: stripe_account.id,
+                  stripe_fingerprint: stripe_external_account.fingerprint,
+                  updated_at: Time.current)
+    return :bank_link_not_restored unless linked == 1
+
+    bank_account.reload
+    CheckPaymentAddressWorker.perform_async(bank_account.user_id)
+    clear_stale_bank_sync_failure_notes(bank_account.user) if clear_failure_notes
+    :synced
+  end
+
+  # Account#retrieve embeds only the ten most recent external accounts. Matching on that page
+  # alone can miss a second candidate on a later page and still report a unique match.
+  EXTERNAL_ACCOUNTS_MATCH_LIMIT = 100
+
+  private_class_method
+  def self.matching_stripe_external_account(bank_account, stripe_account)
+    external_accounts = external_accounts_for_link_match(stripe_account)
+    return nil if external_accounts.nil?
+
+    local_last4 = bank_account.account_number_last_four.to_s
+    local_routing = bank_account.stripe_external_account_routing_number.to_s
+    local_currency = bank_account.stripe_external_account_currency.to_s
+    local_country = bank_account.stripe_external_account_country.to_s
+    return nil if local_last4.blank? || local_routing.blank? || local_currency.blank? || local_country.blank?
+
+    matches = external_accounts.select do |external_account|
+      last4 = external_account["last4"].to_s
+      routing = external_account["routing_number"].to_s
+      currency = external_account["currency"].to_s
+      country = external_account["country"].to_s
+      next false if last4.blank? || routing.blank? || currency.blank? || country.blank?
+
+      last4 == local_last4 && routing == local_routing &&
+        currency.casecmp?(local_currency) && country.casecmp?(local_country)
+    end
+    matches.one? ? matches.first : nil
+  end
+
+  private_class_method
+  def self.external_accounts_for_link_match(stripe_account)
+    raw_external_accounts = stripe_account["external_accounts"]
+    return Array(raw_external_accounts) unless raw_external_accounts.respond_to?(:data)
+
+    embedded = raw_external_accounts.data
+    return embedded unless raw_external_accounts.respond_to?(:has_more) && raw_external_accounts.has_more
+
+    listed = Stripe::Account.list_external_accounts(
+      stripe_account.id,
+      { limit: EXTERNAL_ACCOUNTS_MATCH_LIMIT, object: "bank_account" }
+    )
+    return nil if listed.respond_to?(:has_more) && listed.has_more
+
+    listed.respond_to?(:data) ? listed.data : Array(listed)
+  rescue Stripe::StripeError => e
+    Rails.logger.error(
+      "StripeMerchantAccountManager: external-account list failed for #{stripe_account&.id}: #{e.class}: #{e.message}"
+    )
+    nil
   end
 
   private_class_method
@@ -1846,14 +2678,25 @@ module StripeMerchantAccountManager
   end
 
   def self.cleanup_failed_merchant_account(merchant_account)
+    deleted_on_stripe = false
     if merchant_account.charge_processor_merchant_id.present?
       begin
         Stripe::Account.delete(merchant_account.charge_processor_merchant_id)
+        deleted_on_stripe = true
       rescue Stripe::StripeError => cleanup_error
         ErrorNotifier.notify(cleanup_error)
+        deleted_on_stripe = stripe_account_deleted?(merchant_account.charge_processor_merchant_id)
       end
     end
     merchant_account.mark_deleted!
+    deleted_on_stripe
+  end
+
+  private_class_method
+  def self.stripe_account_deleted?(stripe_account_id)
+    Stripe::Account.retrieve(stripe_account_id)["deleted"] == true
+  rescue Stripe::StripeError
+    false
   end
 
   def self.blocks_new_managed_account?(user)
@@ -2103,12 +2946,7 @@ module StripeMerchantAccountManager
         end
       end
 
-      if [Compliance::Countries::ARE.alpha2,
-          Compliance::Countries::SGP.alpha2,
-          Compliance::Countries::BGD.alpha2,
-          Compliance::Countries::PAK.alpha2].include?(legal_entity_country_code)
-        hash.deep_merge!(nationality: user_compliance_info.nationality)
-      end
+      hash.deep_merge!(nationality: user_compliance_info.nationality) if user_compliance_info.nationality.present?
 
       hash.deep_values_strip!
     end
@@ -2185,8 +3023,9 @@ module StripeMerchantAccountManager
           structure: user_compliance_info.business_type == "non_profit" ? "" : user_compliance_info.business_type,
         }
       )
-    elsif user_compliance_info.country_code == Compliance::Countries::USA.alpha2 && user_compliance_info.business_type == UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP
-      hash[:company][:structure] = user_compliance_info.business_type
+    elsif user_compliance_info.legal_entity_country_code == Compliance::Countries::USA.alpha2 &&
+          US_COMPANY_STRUCTURES.key?(user_compliance_info.business_type)
+      hash[:company][:structure] = US_COMPANY_STRUCTURES.fetch(user_compliance_info.business_type)
     end
 
     hash
@@ -2406,7 +3245,11 @@ module StripeMerchantAccountManager
     end
 
     user.user_compliance_info_requests.requested.find_each do |user_compliance_info|
-      still_needed = fields_needed.map { |name_and_options| name_and_options[0] }.include?(user_compliance_info.field_needed)
+      field_needed = user_compliance_info.field_needed
+      if stripe_account["business_type"] == "individual" && field_needed == UserComplianceInfoFields::Individual::STRIPE_NATIONALITY
+        field_needed = UserComplianceInfoFields::Individual::NATIONALITY
+      end
+      still_needed = fields_needed.map { |name_and_options| name_and_options[0] }.include?(field_needed)
       still_needed ||= stripe_risk_fields_needed.include?(user_compliance_info.field_needed)
       user_compliance_info.mark_provided! unless still_needed
     end
@@ -2673,21 +3516,23 @@ module StripeMerchantAccountManager
     MerchantRegistrationMailer.stripe_account_rejected(user.id).deliver_later(queue: "critical")
   end
 
-  def self.handle_new_user_compliance_info(user_compliance_info, notify: true, force_address_resync: false)
+  def self.handle_new_user_compliance_info(user_compliance_info, notify: true, force_address_resync: false, on_provider_mutation: nil)
     return if user_compliance_info.user.has_stripe_account_connected?
     ApplicationRecord.connected_to(role: :writing) do
       return unless user_has_stripe_connect_merchant_account?(user_compliance_info.user)
 
-      update_account(user_compliance_info.user, passphrase: GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"), notify:, force_address_resync:)
+      update_account(user_compliance_info.user, passphrase: GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"), notify:, force_address_resync:, on_provider_mutation:)
     end
   end
 
-  def self.handle_new_bank_account(bank_account)
+  def self.handle_new_bank_account(bank_account, holder_name_only: false)
     return if bank_account.user.has_stripe_account_connected?
     ApplicationRecord.connected_to(role: :writing) do
       return unless user_has_stripe_connect_merchant_account?(bank_account.user)
+      # A name-only job is for the row that was queued. A newer bank has its own sync.
+      return if holder_name_only && bank_account.user.active_bank_account&.id != bank_account.id
 
-      update_bank_account(bank_account.user, passphrase: GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"))
+      update_bank_account(bank_account.user, passphrase: GlobalConfig.get("STRONGBOX_GENERAL_PASSWORD"), holder_name_only:)
     end
   end
 

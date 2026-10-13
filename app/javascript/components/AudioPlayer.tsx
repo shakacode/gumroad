@@ -1,6 +1,7 @@
 import { PauseCircle, PlayCircle, RotateCcw10, RotateCw10 } from "@boxicons/react";
 import * as React from "react";
 
+import { isResumableMediaLocation } from "$app/utils/mediaLocation";
 import { asyncVoid } from "$app/utils/promise";
 
 import { LoadingSpinner } from "$app/components/LoadingSpinner";
@@ -10,6 +11,7 @@ import { useUserAgentInfo } from "$app/components/UserAgent";
 type Props = {
   src: string;
   startTime?: number;
+  contentLength?: number | null;
   onPlay?: () => void;
   onPause?: () => void;
   onSeeked?: (currentTime: number) => void;
@@ -23,8 +25,17 @@ export const AudioPlayer = (props: Props) => {
   const userAgentInfo = useUserAgentInfo();
   const [isPlaying, setIsPlaying] = React.useState(props.isPlaying ?? false);
   const [isLoaded, setIsLoaded] = React.useState(false);
+  // An undecodable file (a corrupt upload, or a container the browser can't read)
+  // never fires loadedmetadata, so without this the row spins forever.
+  const [hasError, setHasError] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
+  React.useEffect(() => {
+    setHasError(false);
+    setIsLoaded(false);
+    setProgress(0);
+    setDuration(0);
+  }, [props.src]);
   const ref = React.useRef<HTMLAudioElement>(null);
 
   const formattedTime = (num: number) => {
@@ -49,7 +60,13 @@ export const AudioPlayer = (props: Props) => {
 
   const playAudio = withAudio(
     asyncVoid(async (audio: HTMLAudioElement) => {
-      await audio.play();
+      try {
+        await audio.play();
+      } catch {
+        // play() rejects for the same reasons the element's error event fires
+        // (and on a pause race, which is not an error) — never let it escape.
+        return;
+      }
       setIsPlaying(true);
       props.onPlay?.();
     }),
@@ -81,7 +98,9 @@ export const AudioPlayer = (props: Props) => {
   const onLoadedMetadata = withAudio((audio) => {
     setDuration(audio.duration);
     setIsLoaded(true);
-    audio.currentTime = props.startTime ?? 0;
+    audio.currentTime = isResumableMediaLocation(props.startTime, props.contentLength ?? audio.duration)
+      ? props.startTime
+      : 0;
     playAudio();
     props.onLoadedMetadata?.(audio.duration);
   });
@@ -96,8 +115,13 @@ export const AudioPlayer = (props: Props) => {
         onSeeked={withAudio((audio) => props.onSeeked?.(audio.currentTime))}
         onEnded={onEnded}
         onLoadedMetadata={onLoadedMetadata}
+        onError={() => setHasError(true)}
       />
-      {isLoaded ? (
+      {hasError ? (
+        <p className="text-[0.875rem] leading-[1.3]">
+          This file can't be played in your browser. Download it and open it in an audio player instead.
+        </p>
+      ) : isLoaded ? (
         <>
           <div role="toolbar" className="flex items-center gap-2 text-[1.25rem]">
             {isPlaying ? (

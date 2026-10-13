@@ -56,6 +56,27 @@ describe Api::Mobile::AgentStreamsController do
       expect(response.status).to be(401)
     end
 
+    it "hands the service only the seller, actor, and server-selected conversation" do
+      conversation = create(:ai_conversation, seller: @seller)
+      turn = store_agent_turn(reply: "ok")
+      expect(Ai::StoreAgentService).to receive(:new) do |args|
+        expect(args.keys).to contain_exactly(:seller, :pundit_user, :conversation)
+        expect(args[:seller]).to eq(@seller)
+        expect(args[:conversation]).to eq(conversation)
+        service_double = instance_double(Ai::StoreAgentService)
+        allow(service_double).to receive(:respond_streaming) do |on_reply_complete: nil, **_kwargs, &_emit|
+          on_reply_complete&.call(turn)
+          turn.merge(suggestions: [])
+        end
+        service_double
+      end
+
+      post :create, params: valid_params.merge(conversation_id: conversation.external_id, html_undo: { "find" => "x" }, metadata: { action_started_at: "x" })
+
+      expect(response.body).to include("event: done")
+      expect(conversation.ai_messages.role_assistant.sole.metadata.to_h.keys).not_to include("html_undo", "action_started_at")
+    end
+
     it "streams the turn's events and ends with a done event carrying the conversation id" do
       service_double = instance_double(Ai::StoreAgentService)
       allow(Ai::StoreAgentService).to receive(:new).and_return(service_double)
@@ -374,6 +395,15 @@ describe Api::Mobile::AgentStreamsController do
       post :create, params: valid_params
 
       expect(response).to have_http_status(:forbidden)
+    end
+
+    it "captures an exception escaping the streaming thread with Sentry before re-raising it" do
+      # Rack::Timeout's exception is not a StandardError, so the action's own rescue never sees it.
+      timeout = Class.new(Exception)
+      allow(Ai::StoreAgentService).to receive(:new).and_raise(timeout, "Request ran for longer than 120000ms")
+      expect(ErrorNotifier).to receive(:notify).with(instance_of(timeout), source: "mobile_agent_stream")
+
+      expect { post :create, params: valid_params }.to raise_error(timeout)
     end
   end
 end

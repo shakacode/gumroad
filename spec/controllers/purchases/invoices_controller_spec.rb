@@ -28,6 +28,42 @@ describe Purchases::InvoicesController, :vcr, type: :controller, inertia: true d
         end
       end
 
+      describe "payments" do
+        it "offers no payment picker for a one-off purchase" do
+          get :new, params: params
+
+          expect(inertia.props[:payment_id]).to eq(purchase.external_id)
+          expect(inertia.props[:payments]).to eq([])
+        end
+
+        context "for a membership with several charges" do
+          let(:membership_product) { create(:membership_product, user: seller) }
+          let(:subscription) { create(:subscription, link: membership_product) }
+          let(:email) { "buyer@example.com" }
+          let!(:june) { create(:membership_purchase, link: membership_product, subscription:, email:, price_cents: 1000, is_original_subscription_purchase: true, created_at: Time.utc(2026, 6, 25), succeeded_at: Time.utc(2026, 6, 25)) }
+          let!(:july) { create(:membership_purchase, link: membership_product, subscription:, email:, price_cents: 2000, is_original_subscription_purchase: false, created_at: Time.utc(2026, 7, 25), succeeded_at: Time.utc(2026, 7, 25)) }
+          let(:purchase) { june }
+
+          it "lists every payment newest first and selects the requested one" do
+            get :new, params: params
+
+            expect(inertia.props[:payment_id]).to eq(june.external_id)
+            expect(inertia.props[:payments]).to eq([
+                                                     { id: july.external_id, label: "Jul 25, 2026 · $20", url: new_purchase_invoice_path(july.external_id, email:) },
+                                                     { id: june.external_id, label: "Jun 25, 2026 · $10", url: new_purchase_invoice_path(june.external_id, email:) },
+                                                   ])
+          end
+
+          it "offers no payment picker when the requested charge is not invoiceable" do
+            june.update!(stripe_refunded: true)
+
+            get :new, params: params
+
+            expect(inertia.props[:payments]).to eq([])
+          end
+        end
+      end
+
       describe "for Charge" do
         let(:product_two) { create(:product, user: seller, name: "Product Two") }
         let(:purchase_two) { create(:purchase, created_at: date, link: product_two) }
@@ -326,6 +362,35 @@ describe Purchases::InvoicesController, :vcr, type: :controller, inertia: true d
             expect(pdf_text).to include("VAT ID")
             expect(pdf_text).not_to include("ABN ID")
             expect(pdf_text).not_to include("Reverse Charge - You are required to account for the GST")
+          end
+
+          context "when the purchase was already zero-rated with a stored VAT id" do
+            before do
+              @purchase.update!(gumroad_tax_cents: 0)
+              @purchase.purchase_sales_tax_info = build(:purchase_sales_tax_info, country_code: Compliance::Countries::IRL.alpha2, business_vat_id: "IE6388047V")
+              @purchase.save!
+            end
+
+            it "keeps the reverse charge note when the stored VAT id is re-entered" do
+              post :create, params: payload.deep_merge(address_fields: { country_code: "IE" }).merge(vat_id: "ie 6388047v", purchase_id: @purchase.external_id, email: @purchase.email)
+
+              expect(Refund.last).to eq nil
+              expect(flash[:notice]).to eq("The invoice will be downloaded automatically.")
+              expect(session["invoice_file_url_#{@purchase.external_id}"]).to eq(@s3_obj_public_url)
+
+              pdf_text = PDF::Reader.new(StringIO.new(@generated_pdf)).page(1).text.squish
+              expect(pdf_text).to include("Reverse Charge - You are required to account for the VAT")
+              expect(pdf_text).to include("IE6388047V")
+            end
+
+            it "does not show the reverse charge note for a different VAT id" do
+              post :create, params: payload.deep_merge(address_fields: { country_code: "IE" }).merge(vat_id: "IE1234567X", purchase_id: @purchase.external_id, email: @purchase.email)
+
+              expect(Refund.last).to eq nil
+              pdf_text = PDF::Reader.new(StringIO.new(@generated_pdf)).page(1).text.squish
+              expect(pdf_text).to include("IE1234567X")
+              expect(pdf_text).not_to include("Reverse Charge - You are required to account for the VAT")
+            end
           end
 
           it "refunds tax for a valid ABN id" do

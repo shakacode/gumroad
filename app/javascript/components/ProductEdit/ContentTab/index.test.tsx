@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
-import { cleanup, render, act, fireEvent } from "@testing-library/react";
+import { cleanup, render, act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/core";
 import * as React from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, assert, expect, it, vi } from "vitest";
 
 import { PICKED_FILE_SNAPSHOT_LIMIT_BYTES } from "$app/utils/snapshotPickedFile";
 
@@ -16,6 +16,10 @@ let mountedEditor: Editor | null = null;
 
 // vite.config.ts replaces the bare `SSR` identifier at build time.
 Object.assign(globalThis, { SSR: false });
+
+// The toolbar's `custom` slot holds the real entry points (link, upload, disable-downloads);
+// it stays unrendered everywhere else so a toolbar item can't affect an unrelated assertion.
+const toolbarCustom = vi.hoisted(() => ({ render: false }));
 
 const context = vi.hoisted(() => ({
   id: "product-id",
@@ -48,7 +52,10 @@ vi.mock("$app/components/RichTextEditor", async (importOriginal) => {
       mountedEditor = editor;
       return editor;
     },
-    RichTextEditorToolbar: () => null,
+    RichTextEditorToolbar: ({ custom }: { custom?: React.ReactNode }) => (toolbarCustom.render ? custom : null),
+    // The sibling toolbar items need the toolbar's own tooltip context, which the mock drops —
+    // only the disable-downloads item is under test when the custom slot renders.
+    PopoverMenuItem: () => null,
     useImageUploadSettings: () => ({ isUploading: false, onUpload: () => {}, allowedExtensions: [] }),
   };
 });
@@ -57,17 +64,32 @@ vi.mock("$app/components/ProductEdit/Layout", async (importOriginal) => {
   const mod = await importOriginal<typeof import("$app/components/ProductEdit/Layout")>();
   return { ...mod, useProductUrl: () => "#" };
 });
-const scheduledUploads = vi.hoisted((): { file: File; onComplete: () => void }[] => []);
+const scheduledUploads = vi.hoisted(
+  (): { file: File; cancellationKey: string; onComplete: () => void; onError: () => void }[] => [],
+);
+const cancelUpload = vi.hoisted(() => vi.fn());
+// Evaporate returns an error string instead of an index when it rejects a file up front.
+const scheduleResult = vi.hoisted((): { value: string | number } => ({ value: 0 }));
 vi.mock("$app/components/EvaporateUploader", async (importOriginal) => {
   const mod = await importOriginal<typeof import("$app/components/EvaporateUploader")>();
   return {
     ...mod,
     useEvaporateUploader: () => ({
-      scheduleUpload: ({ file, onComplete }: { file: File; onComplete: () => void }) => {
-        scheduledUploads.push({ file, onComplete });
-        return 0;
+      scheduleUpload: ({
+        file,
+        cancellationKey,
+        onComplete,
+        onError,
+      }: {
+        file: File;
+        cancellationKey: string;
+        onComplete: () => void;
+        onError: () => void;
+      }) => {
+        scheduledUploads.push({ file, cancellationKey, onComplete, onError });
+        return scheduleResult.value;
       },
-      cancelUpload: () => {},
+      cancelUpload,
     }),
   };
 });
@@ -78,7 +100,8 @@ vi.mock("$app/components/S3UploadConfig", async (importOriginal) => {
     useS3UploadConfig: () => ({ generateS3KeyForUpload: () => ({ s3key: "key", fileUrl: "url" }) }),
   };
 });
-vi.mock("$app/components/useIsAboveBreakpoint", () => ({ useIsAboveBreakpoint: () => true }));
+const viewport = vi.hoisted(() => ({ isDesktop: true }));
+vi.mock("$app/components/useIsAboveBreakpoint", () => ({ useIsAboveBreakpoint: () => viewport.isDesktop }));
 vi.mock("$app/components/ReviewForm", () => ({ ReviewForm: () => null }));
 vi.mock("$app/components/UpsellSelectModal", () => ({ UpsellSelectModal: () => null }));
 vi.mock("$app/components/TestimonialSelectModal", () => ({ TestimonialSelectModal: () => null }));
@@ -86,22 +109,23 @@ vi.mock("$app/components/ProductEdit/ContentTab/EpubNudge", () => ({ EpubNudge: 
 const sortable = vi.hoisted(() => ({ echoList: false }));
 vi.mock("react-sortablejs", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
-  // Production Sortable writes `list` back through setList during layout.
-  // Off by default so other tests keep a silent stub; the switch-overwrite
-  // case turns it on to reproduce that write.
+  // Echo layout writes only in the switch-overwrite regression.
+  // Preserve the container because Sortable uses raw child indices.
   ReactSortable: ({
     children,
     list,
     setList,
+    tag: Tag = "div",
   }: {
     children: React.ReactNode;
     list: unknown[];
     setList: (next: unknown[]) => void;
+    tag?: React.ElementType;
   }) => {
     React.useLayoutEffect(() => {
       if (sortable.echoList) setList(list);
     }, [list, setList]);
-    return children;
+    return <Tag data-testid="sortable">{children}</Tag>;
   },
 }));
 const alerts = vi.hoisted((): { message: string; level: string }[] => []);
@@ -114,7 +138,10 @@ afterEach(() => {
   mountedEditor = null;
   alerts.length = 0;
   scheduledUploads.length = 0;
+  cancelUpload.mockReset();
+  scheduleResult.value = 0;
   sortable.echoList = false;
+  viewport.isDesktop = true;
 });
 
 const getMountedEditor = () => {
@@ -623,6 +650,7 @@ const attachToolbarFiles = (input: HTMLInputElement, picked: File[]) => {
     configurable: true,
     // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- minimal FileList for the handler
     value: {
+      ...picked,
       length: picked.length,
       item: (index: number) => picked[index] ?? null,
       [Symbol.iterator]: () => picked[Symbol.iterator](),
@@ -691,6 +719,93 @@ it("does not reset an over-budget pick until Evaporate completes", async () => {
     uploaded.onComplete();
   });
   expect(valueWrites).toEqual([""]);
+});
+
+it("marks the row failed and tells the seller when an upload errors out", async () => {
+  const { product, input } = await renderToolbarPicker();
+  attachToolbarFile(input, new File(["x"], "huge.zip", { type: "application/zip" }));
+
+  await act(async () => {
+    fireEvent.change(input);
+  });
+
+  const upload = scheduledUploads[0];
+  const scheduled = product.files.at(-1);
+  if (!upload) throw new Error("No upload was scheduled");
+  if (!scheduled) throw new Error("Picked file was not added");
+  expect(upload.cancellationKey).toBe(`file_${scheduled.id}`);
+
+  await act(async () => {
+    upload.onError();
+  });
+
+  // A failed upload has to stop counting as in-flight, or Save changes stays
+  // disabled for the rest of the session.
+  expect(scheduled.status.type === "unsaved" && scheduled.status.uploadStatus.type).toBe("failed");
+  expect(alerts).toEqual([
+    { message: 'Could not upload huge.zip. Select "Upload again" on the file to retry.', level: "error" },
+  ]);
+  expect(cancelUpload).toHaveBeenCalledWith(`file_${scheduled.id}`);
+});
+
+it("restarts a failed upload in place with the file the seller picks again", async () => {
+  const { product, input } = await renderToolbarPicker();
+  attachToolbarFile(input, new File(["x"], "huge.zip", { type: "application/zip" }));
+  await act(async () => {
+    fireEvent.change(input);
+  });
+  const failed = product.files.at(-1);
+  if (!failed) throw new Error("Picked file was not added");
+  await act(async () => {
+    scheduledUploads[0]?.onError();
+  });
+
+  // Set while it was uploading: the retry keeps the description but drops what fit the old file type.
+  Object.assign(failed, { description: "Field notes", isbn: "978-3-16-148410-0", pdf_stamp_enabled: true });
+
+  const fileEmbed = getMountedEditor().extensionManager.extensions.find((ext) => ext.name === FileEmbed.name);
+  const onRetryUpload = fileEmbed?.options.getConfig?.()?.onRetryUpload;
+  if (!onRetryUpload) throw new Error("FileEmbed retry hook was not wired");
+  const repicked = new File(["xy"], "huge-v2.zip", { type: "application/zip" });
+  const retryInput = document.createElement("input");
+  retryInput.type = "file";
+  attachToolbarFile(retryInput, repicked);
+  await act(async () => {
+    onRetryUpload(failed.id, retryInput);
+  });
+
+  // Same id, so every embed of the file keeps its place in the content.
+  const retried = product.files.find((file) => file.id === failed.id);
+  expect(product.files).toHaveLength(1);
+  expect(scheduledUploads[1]?.cancellationKey).toBe(`file_${failed.id}`);
+  // A small pick is copied first, like the toolbar's, so the handle can be released.
+  expect(scheduledUploads[1]?.file).not.toBe(repicked);
+  expect(scheduledUploads[1]?.file.name).toBe("huge-v2.zip");
+  expect(retried).toMatchObject({ display_name: "huge-v2", file_size: 2, description: "Field notes" });
+  expect(retried?.isbn).toBeUndefined();
+  expect(retried?.pdf_stamp_enabled).toBe(false);
+  expect(retried?.status.type === "unsaved" && retried.status.uploadStatus.type).toBe("uploading");
+
+  await act(async () => {
+    scheduledUploads[1]?.onComplete();
+  });
+  const completed = product.files.find((file) => file.id === failed.id);
+  expect(completed?.status.type === "unsaved" && completed.status.uploadStatus.type).toBe("uploaded");
+});
+
+it("marks the row failed when Evaporate rejects the file up front", async () => {
+  const { product, input } = await renderToolbarPicker();
+  scheduleResult.value = "The file is too large.";
+  attachToolbarFile(input, new File(["x"], "huge.zip", { type: "application/zip" }));
+
+  await act(async () => {
+    fireEvent.change(input);
+  });
+
+  // Nothing will ever report progress for it, so leaving it "uploading" would block Save for good.
+  const rejected = product.files.at(-1);
+  expect(rejected?.status.type === "unsaved" && rejected.status.uploadStatus.type).toBe("failed");
+  expect(alerts).toEqual([{ message: "The file is too large.", level: "error" }]);
 });
 
 it("resets an over-budget pick when the seller cancels the upload", async () => {
@@ -787,5 +902,74 @@ it("ignores a second toolbar pick while a mixed pick is still snapshotting", asy
     expect(input.disabled).toBe(false);
   } finally {
     File.prototype.arrayBuffer = originalArrayBuffer;
+  }
+});
+
+it("keeps the mobile page-list summary row out of the Sortable's container", async () => {
+  viewport.isDesktop = false;
+  const product = buildProduct([
+    { id: "variant-paid", name: "Paid", rich_content: [makePage("page-a", "PAGE A"), makePage("page-b", "PAGE B")] },
+  ]);
+  context.product = product;
+
+  render(<ContentTabContent selectedVariantId="variant-paid" />);
+  await act(async () => {});
+
+  const summaryButton = [...document.querySelectorAll("button")].find((button) =>
+    button.textContent?.includes("Table of contents:"),
+  );
+  assert(summaryButton, "The mobile page-list summary is rendered");
+  expect(document.querySelector('[data-testid="sortable"]')).toBeNull();
+
+  await act(async () => {
+    fireEvent.click(summaryButton);
+  });
+
+  const list = document.querySelector('[data-testid="sortable"]');
+  expect(list).not.toBeNull();
+  expect(document.body.textContent).toContain("Table of contents:");
+  expect(list?.textContent).not.toContain("Table of contents:");
+  expect(list?.querySelectorAll('[role="tab"]')).toHaveLength(2);
+});
+
+// The result of the bulk disable-downloads action belongs to the content tab, so it is asserted
+// through the real toolbar entry point — a broken callback wiring or Dismiss would fail here.
+const disableDownloads = vi.hoisted((): unknown[] => []);
+vi.mock("$app/utils/request", () => ({
+  request: () => Promise.resolve({ ok: true, json: () => Promise.resolve(disableDownloads.shift()) }),
+  ResponseError: class ResponseError extends Error {},
+}));
+// The toolbar's link item renders only inside the custom slot, where it has no toolbar context.
+vi.mock("$app/components/TiptapExtensions/Link", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("$app/components/TiptapExtensions/Link")>()),
+  LinkMenuItem: () => null,
+}));
+
+it("shows the bulk disable-downloads result in flow and lets the seller dismiss it", async () => {
+  Object.assign(globalThis, {
+    Routes: {
+      disable_downloads_for_all_files_link_path: (permalink: string) =>
+        `/links/${permalink}/disable_downloads_for_all_files`,
+    },
+  });
+  toolbarCustom.render = true;
+  context.product = buildProduct([{ id: "variant-paid", name: "Paid", rich_content: [] }]);
+  disableDownloads.push({ disabled_count: 2, disabled_file_ids: [], ineligible_count: 1 });
+
+  try {
+    render(<ContentTabContent selectedVariantId="variant-paid" />);
+    await act(async () => {});
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable all downloads" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Yes, disable downloads" }));
+
+    const result = await screen.findByRole("status");
+    expect(result.textContent).toContain("Downloads are now off for 2 files.");
+    expect(result.textContent).toContain("1 file stays downloadable");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+  } finally {
+    toolbarCustom.render = false;
   }
 });

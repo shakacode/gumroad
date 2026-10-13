@@ -66,6 +66,10 @@ class Link < ApplicationRecord
   METADATA_CACHE_NAMESPACE = :product_metadata_cache
   REQUIRE_CAPTCHA_FOR_SELLERS_YOUNGER_THAN = 6.months
 
+  # The section write runs on every product create, inside whatever transaction the caller
+  # opened, so its wait for the seller_profiles row is bounded well below MySQL's 50s default.
+  PROFILE_SECTIONS_LOCK_WAIT_TIMEOUT_SECONDS = 1
+
   # Tax categories: https://developers.taxjar.com/api/reference/#get-list-tax-categories
   # Categories mapping choices: https://www.notion.so/gumroad/System-support-for-US-sales-tax-collection-on-Gumroad-MPF-sales-9fa88740bf3c4453b476b7fa0a7af1e7#3404578361074b4ca24a6fb63464f522
   NATIVE_TYPES_TO_TAX_CODE = {
@@ -88,6 +92,23 @@ class Link < ApplicationRecord
   end
   SERVICE_TYPES = [NATIVE_TYPE_COMMISSION, NATIVE_TYPE_CALL, NATIVE_TYPE_COFFEE].freeze
   LEGACY_TYPES = ["podcast", "newsletter", "audiobook"].freeze
+  TAXJAR_SAAS_TAX_CODE = "30070"
+
+  # Callers classifying many links in one run pass `software_and_plugins_taxonomy_ids`
+  # (Taxonomy.software_and_plugins_subtree_ids) so the subtree is looked up once per run rather
+  # than once per link.
+  def taxjar_product_tax_code(software_and_plugins_taxonomy_ids: nil)
+    native_code = NATIVE_TYPES_TO_TAX_CODE[native_type]
+    return TAXJAR_SAAS_TAX_CODE if native_code == "31000" && software_discover_taxonomy?(software_and_plugins_taxonomy_ids:)
+
+    native_code
+  end
+
+  def software_discover_taxonomy?(software_and_plugins_taxonomy_ids: nil)
+    return false if taxonomy_id.blank?
+
+    (software_and_plugins_taxonomy_ids || Taxonomy.software_and_plugins_subtree_ids).include?(taxonomy_id)
+  end
 
   DEFAULT_BOOSTED_DISCOVER_FEE_PER_THOUSAND = 300
 
@@ -194,6 +215,7 @@ class Link < ApplicationRecord
 
   before_validation :associate_price, on: :create
   before_validation :set_unique_permalink
+  before_validation :lock_seller_for_permalink_checks
   before_validation :release_custom_permalink_if_possible, if: :custom_permalink_changed?
   after_save :stage_renamed_custom_permalink, if: :saved_change_to_custom_permalink?
   after_commit :redirect_renamed_custom_permalinks
@@ -269,6 +291,7 @@ class Link < ApplicationRecord
   after_save :clear_detached_default_offer_code, if: -> { saved_change_to_deleted_at?(to: nil) || (!previously_new_record? && saved_change_to_price_currency_type?) }
   after_save :set_customizable_price
   after_update :invalidate_cache, if: ->(link) { (link.saved_changes.keys - PURCHASE_PROPERTIES).present? }
+  after_update :bump_seller_reputation_version_for_rollup_change, if: -> { saved_changes.keys.intersect?(User::ReputationSummary::ROLLUP_LINK_COLUMNS) }
   after_save :note_default_offer_code_assignment
   after_commit :repair_detached_default_offer_code, if: -> { @default_offer_code_assignment_pending }
   after_rollback :forget_default_offer_code_assignment
@@ -353,6 +376,16 @@ class Link < ApplicationRecord
   }
   scope :membership, -> { is_recurring_billing }
   scope :non_membership, -> { not_is_recurring_billing }
+
+  # A flag change can make a closed tier purchasable again. Discover keeps the old price until this runs.
+  def self.refresh_discover_prices_for_closed_tiers(user: nil)
+    products = is_tiered_membership.joins(:tiers).merge(Variant.alive.closed_to_new_purchases).distinct
+    products = products.where(user_id: user.id) if user
+    products.find_each do |product|
+      product.touch
+      product.enqueue_index_update_for(["available_price_cents"])
+    end
+  end
   scope :with_min_price, ->(min_price) { min_price.present? ? distinct.joins(:prices).where("prices.deleted_at IS NULL AND prices.price_cents >= ?", min_price) : where("1 = 1") }
 
   # !! MySQL ONLY !! Retrieves products in the order specified by the ids array. Relies on MySQL FIELD.
@@ -494,11 +527,13 @@ class Link < ApplicationRecord
     buy_only? || buy_and_rent?
   end
 
-  def delete!
-    mark_deleted!
-    clear_featured_product_sections!
-    remove_from_profile_sections!
-    custom_domain&.mark_deleted!
+  # `validate: false` is for account closure, which deletes every product an account owns: a legacy
+  # product row that no longer validates must not raise and abort the whole closure.
+  def delete!(validate: true)
+    mark_deleted!(validate:)
+    clear_featured_product_sections!(validate:)
+    remove_from_profile_sections!(validate:)
+    custom_domain&.mark_deleted!(validate:)
     alive_public_files.update_all(scheduled_for_deletion_at: 10.minutes.from_now)
     CancelSubscriptionsForProductWorker.perform_in(10.minutes, id) if subscriptions.active.present?
     DeleteProductFilesWorker.perform_in(10.minutes, id)
@@ -530,6 +565,8 @@ class Link < ApplicationRecord
       @content_moderation_checked_for_publish = true
       Link.transaction do
         AfterCommitEverywhere.after_commit { transaction_committed = true } unless caller_has_transaction
+        # A restore takes the seller row before this product row, as a permalink claim does, so the two cannot deadlock.
+        lock_seller_for_permalink_checks
         current_flags = Link.where(id:).lock.pick(:flags).to_i
         if caller_flags_change
           # Merge only the caller's changed bits because all Link flags share one column.
@@ -736,9 +773,10 @@ class Link < ApplicationRecord
   def plaintext_description
     return "" if description.blank?
 
-    escaped_description = sanitize(description, tags: [])
-    escaped_description = escaped_description.squish
-    escaped_description
+    # to_text separates block elements — sanitize(tags: []) fused "</h2><p>" into
+    # "What you getA 25-page guide" — and decodes entities, so callers get real text
+    # rather than "Fish &amp; Chips".
+    Loofah.fragment(description).to_text(encode_special_chars: false).squish
   end
 
   def html_safe_description
@@ -1162,6 +1200,13 @@ class Link < ApplicationRecord
     matched_signed_in_purchaser ? info : info.except(:license_key)
   end
 
+  # True when the visitor presents a review-reminder link for this product: a purchase
+  # external id together with that purchase's email digest. The custom-HTML landing page
+  # has no review form, so the product page lets a verified review link skip it.
+  def review_link_purchase?(purchase_id, purchase_email_digest)
+    purchase_for_email_digest(purchase_id, purchase_email_digest).present?
+  end
+
   def save_duration!(duration)
     self.duration_in_months = duration.present? ? duration.to_i : nil
     save!
@@ -1382,11 +1427,9 @@ class Link < ApplicationRecord
 
   def has_customizable_price_option?
     return customizable_price? unless is_tiered_membership?
-    if association(:tiers).loaded?
-      tiers.any? { |t| t.alive? && t.customizable_price? }
-    else
-      tiers.alive.exists?(customizable_price: true)
-    end
+
+    candidates = association(:tiers).loaded? ? tiers : nil
+    tiers_for_displayed_price(candidates).any?(&:customizable_price?)
   end
 
   def recurrence_price_enabled?(recurrence)
@@ -1416,7 +1459,10 @@ class Link < ApplicationRecord
     attrs = {}
     attrs[:rental] = !!params[:rent] && purchase_type != "buy_only"
     attrs[:options] = options
-    attrs[:option] = attrs[:options].find { |o| o[:id] == params[:option] } || (native_type != NATIVE_TYPE_COFFEE ? attrs[:options].find { |o| o[:quantity_left] != 0 } : nil)
+    requested = attrs[:options].find { |o| o[:id] == params[:option] }
+    # A closed tier reports quantity 0. Selecting it here makes checkout add a zero-quantity item.
+    requested = nil if requested && Variant.find_by_external_id(requested[:id])&.closed_to_new_buyers?
+    attrs[:option] = requested || (native_type != NATIVE_TYPE_COFFEE ? attrs[:options].find { |o| o[:quantity_left] != 0 } : nil)
     variant = attrs[:option] ? Variant.find_by_external_id(attrs[:option][:id]) : nil
     prices = (is_tiered_membership && variant ? variant : self).prices.is_buy.alive
     recurrence = if is_recurring_billing
@@ -1466,10 +1512,32 @@ class Link < ApplicationRecord
     product_refund_policy || build_product_refund_policy(seller: user)
   end
 
+  PermalinkChangedDuringLock = Class.new(StandardError)
+
+  # Takes the seller lock before the product lock when claiming a permalink. If the stored permalink moved
+  # since this record loaded, raises for a retry rather than take the seller lock out of order. No plain read
+  # runs first: it would pin the transaction's snapshot ahead of the locks. Call inside the editor's bounded
+  # lock wait.
+  def lock_for_permalink_claim!(permalink)
+    seller_locked = false
+    if user_id.present? && permalink.present? && permalink != custom_permalink
+      User.where(id: user_id).lock.pick(:id)
+      seller_locked = true
+    end
+
+    lock!
+    return if seller_locked || permalink.blank? || permalink == custom_permalink
+
+    raise PermalinkChangedDuringLock
+  end
+
   # `.on_profile`: a duplicate's own per-product section starts as a copy of the
   # original's shown_products, so an unscoped write here can silently strip products
   # from a sibling duplicate's section.
   def show_in_sections!(section_external_ids)
+    # The profile editor locks the seller, then the profile row. Take them in that order here too, ahead of
+    # the profile lock below, so a save that also changes the permalink cannot deadlock with it.
+    lock_seller_for_permalink_checks
     user.with_profile_sections_lock do
       user.seller_profile_products_sections.on_profile.reload.each do |section|
         shown = section.shown_products.include?(id)
@@ -1507,13 +1575,13 @@ class Link < ApplicationRecord
 
   # Deletion half of generate_product_files_archives!, run inside the save transaction so a
   # stale ready archive dies with the commit; GenerateProductFilesArchivesJob rebuilds afterwards.
-  def invalidate_stale_product_files_archives!
+  def invalidate_stale_product_files_archives!(for_files: [])
     if has_product_level_rich_content?
-      invalidate_stale_folder_archives!
+      invalidate_stale_folder_archives!(for_files:)
 
       alive_variants.find_each { _1.product_files_archives.alive.each(&:mark_deleted!) }
     else
-      alive_variants.find_each(&:invalidate_stale_folder_archives!)
+      alive_variants.find_each { _1.invalidate_stale_folder_archives!(for_files:) }
 
       product_files_archives.alive.each(&:mark_deleted!)
     end
@@ -1549,6 +1617,14 @@ class Link < ApplicationRecord
 
   def has_embedded_license_key?
     (has_product_level_rich_content? ? alive_rich_contents : alive_variants.flat_map(&:alive_rich_contents)).any?(&:has_license_key?)
+  end
+
+  # The collections has_embedded_license_key? reads are stale mid-request when pages were written
+  # through another instance, so derive the flag from the stored rows instead.
+  def recompute_is_licensed!
+    alive_variants.reset
+    alive_rich_contents.reset
+    self.is_licensed = has_embedded_license_key?
   end
 
   def has_another_collaborator?(collaborator: nil)
@@ -1621,13 +1697,58 @@ class Link < ApplicationRecord
       self.unique_permalink ||= generate_unique_permalink
     end
 
-    # Make sure custom permalink does not duplicate a unique permalink of another product by the same user
+    # Make sure custom permalink does not duplicate a unique permalink of another product by the same user.
+    # A deleted product no longer answers on its URL, so only visible (non-deleted) products hold a slug.
+    # Unpublished and banned products still resolve in fetch_leniently, so they keep theirs.
     def custom_and_unique_permalink_uniqueness
+      # The user_id hint keeps the locking reads below on this seller's own rows; the optimizer could otherwise
+      # pick a global permalink index and range-lock other sellers' rows.
+      other_products_by_user = (id.present? ? user.links.where.not(id:) : user.links).optimizer_hints("INDEX(links index_links_on_user_id)")
+      validate_restored_unique_permalink_is_free(other_products_by_user)
+      validate_claimed_custom_permalink_is_free(other_products_by_user)
       return if unique_permalink == custom_permalink
 
-      other_products_by_user = id.present? ? user.links.where.not(id:) : user.links
-      duplicates_unique_permalink = other_products_by_user.where(unique_permalink: custom_permalink).exists?
+      duplicates_unique_permalink = other_products_by_user.visible.where(unique_permalink: custom_permalink).lock(serialize_permalink_checks?).exists?
       errors.add(:custom_permalink, "is already used by another one of your products") if duplicates_unique_permalink
+    end
+
+    # A custom permalink may reuse a deleted product's unique_permalink, and unique_permalink never
+    # changes, so restoring that product would make two live products answer on one slug and
+    # fetch_leniently would hand it to the older one.
+    def validate_restored_unique_permalink_is_free(other_products_by_user)
+      return unless restoring_deleted_product?
+      return unless other_products_by_user.visible.where(custom_permalink: unique_permalink).lock(serialize_permalink_checks?).exists?
+
+      errors.add(:base, "Can't restore this product: another one of your products already uses its URL as a custom permalink")
+    end
+
+    # The uniqueness validator reads from the transaction's snapshot, which can predate a claim that committed
+    # while this save waited for the seller lock. A locking read sees it.
+    def validate_claimed_custom_permalink_is_free(other_products_by_user)
+      return unless claiming_custom_permalink? && serialize_permalink_checks?
+      return if errors.added?(:custom_permalink, "is already used by another one of your products")
+      return unless other_products_by_user.where(custom_permalink:).lock.exists?
+
+      errors.add(:custom_permalink, "is already used by another one of your products")
+    end
+
+    def restoring_deleted_product?
+      will_save_change_to_deleted_at? && deleted_at.nil?
+    end
+
+    def claiming_custom_permalink?
+      custom_permalink.present? && will_save_change_to_custom_permalink?
+    end
+
+    def serialize_permalink_checks?
+      user_id.present? && (restoring_deleted_product? || claiming_custom_permalink?)
+    end
+
+    # The claim and the restore lock different product rows and no constraint spans them, so they take
+    # the seller's row to run one at a time. The checks above then read with FOR UPDATE: under
+    # REPEATABLE READ a plain read could still see the snapshot from before the other save committed.
+    def lock_seller_for_permalink_checks
+      User.where(id: user_id).lock.pick(:id) if serialize_permalink_checks?
     end
 
     def custom_permalink_of_licensed_product
@@ -1811,11 +1932,14 @@ class Link < ApplicationRecord
     # SellerProfileFeaturedProductSection.featured_product_id (a JSON column).
     # Without this, the section's cached props would point at a missing product
     # and crash the seller's profile page until the cache TTL elapsed.
-    def clear_featured_product_sections!
+    def clear_featured_product_sections!(validate: true)
       SellerProfileFeaturedProductSection
         .where(seller_id: user_id)
         .where('CAST(JSON_EXTRACT(json_data, "$.featured_product_id") AS UNSIGNED) = ?', id)
-        .find_each { |section| section.update!(json_data: section.json_data.except("featured_product_id")) }
+        .find_each do |section|
+          section.json_data = section.json_data.except("featured_product_id")
+          section.save!(validate:)
+        end
     end
 
     # When a product is soft-deleted, strip its id from any
@@ -1825,11 +1949,12 @@ class Link < ApplicationRecord
     # ProfileSectionsPresenter filters shown products by is_alive_on_profile.
     # Deliberately unscoped: per-product sections list other products too
     # (e.g. "Related"), so a dead id must be stripped from those as well.
-    def remove_from_profile_sections!
+    def remove_from_profile_sections!(validate: true)
       user.with_profile_sections_lock do
         user.seller_profile_products_sections.reload.each do |section|
           next unless section.shown_products.include?(id)
-          section.update!(shown_products: section.shown_products - [id])
+          section.shown_products -= [id]
+          section.save!(validate:)
         end
       end
     end
@@ -1920,13 +2045,18 @@ class Link < ApplicationRecord
 
     # Deliberately unscoped: "Add new products by default" is a seller-facing
     # toggle on per-product sections too (EditSections), so honor it there.
+    # Best-effort: a held profile row must not fail the create or roll back the caller's transaction.
+    # The add is dropped when that wait runs out and nothing re-adds it later, so report it. Only the
+    # acquisition is bounded — a section write timing out behind the lock still raises.
     def add_to_profile_sections
-      user.with_profile_sections_lock do
+      user.with_profile_sections_lock(lock_wait_timeout_seconds: PROFILE_SECTIONS_LOCK_WAIT_TIMEOUT_SECONDS) do
         user.seller_profile_products_sections.reload.each do |section|
           next unless section.add_new_products
           section.update!(shown_products: section.shown_products + [id])
         end
       end
+    rescue User::ProfileSectionsLockTimeout => e
+      ErrorNotifier.notify(e.cause || e, product_id: id, seller_id: user_id, profile_sections_lock_timeout: true)
     end
 
     def alive_category_variants_presence

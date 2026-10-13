@@ -6,8 +6,6 @@ import { fetchWithOneRetry } from "$app/utils/lazy_chunk";
 
 import { CollapsibleDescription } from "$app/components/Product/CollapsibleDescription";
 
-const ENHANCEMENT_IDLE_TIMEOUT_MS = 2000;
-const ENHANCEMENT_FALLBACK_DELAY_MS = 500;
 const importProductDescriptionEnhancement = () => import("$app/components/Product/ProductDescriptionEnhancement");
 const ProductDescriptionEnhancement = React.lazy(() => fetchWithOneRetry(importProductDescriptionEnhancement));
 
@@ -40,34 +38,22 @@ export type PublicFile = {
 const ProductDescription = ({
   descriptionHtml,
   initialContent,
-  needsClientEnhancement,
   publicFiles,
 }: {
   descriptionHtml: string | null;
   initialContent: React.ReactNode;
-  needsClientEnhancement: boolean;
   publicFiles: PublicFile[];
 }) => {
   const [pageLoaded, setPageLoaded] = React.useState(false);
 
   React.useEffect(() => {
-    if (!needsClientEnhancement) return;
-
-    const enhance = () => setPageLoaded(true);
-
-    if (typeof window.requestIdleCallback === "function") {
-      const handle = window.requestIdleCallback(enhance, { timeout: ENHANCEMENT_IDLE_TIMEOUT_MS });
-      return () => window.cancelIdleCallback(handle);
-    }
-
-    const timer = window.setTimeout(enhance, ENHANCEMENT_FALLBACK_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [needsClientEnhancement]);
+    setPageLoaded(true);
+  }, []);
 
   return (
     <CollapsibleDescription>
       {/* Mixed-language blocks derive their own direction through _rich_text.scss. */}
-      {needsClientEnhancement && pageLoaded ? (
+      {pageLoaded ? (
         <ProductDescriptionEnhancementBoundary fallback={initialContent}>
           <React.Suspense fallback={initialContent}>
             <ProductDescriptionEnhancement

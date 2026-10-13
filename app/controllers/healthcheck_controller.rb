@@ -2,16 +2,21 @@
 
 class HealthcheckController < ApplicationController
   # The blue/green deploy gates on this action: Consul polls it through nginx and the
-  # cluster only receives traffic once it answers 200 (the `web` check in
-  # gumroad-deployment's web_server_{blue,green}.nomad.erb). So it must answer whenever
-  # nginx and Puma are serving and depend on nothing else -- a 500 here reads as "not
-  # ready" and stalls the deploy.
+  # cluster only receives traffic once it answers 200 (the `web` check in gumroad-private's
+  # deployment/nomad/production/web_server_{blue,green}.nomad.erb). So it must answer
+  # whenever nginx and Puma are serving and depend on nothing else -- a 500 here reads as
+  # "not ready" and stalls the deploy.
   #
   # redirect_to_custom_subdomain breaks that: it reads Rails.cache and falls through to
   # Redis on a miss, and the production cache is namespaced by REVISION, so every deploy
   # starts cold and the first poll of every deploy makes that call. Skipped only for
   # :index -- the monitoring actions below genuinely report on Redis.
   skip_before_action :redirect_to_custom_subdomain, only: :index
+
+  # PublicSuffix.valid? accepts the poll's IP as a domain, so set_is_user_custom_domain
+  # reaches CustomDomain.find_by_host and checks out a database connection -- another way
+  # for a blip unrelated to serving traffic to hold the readiness gate open.
+  skip_before_action :set_is_user_custom_domain, only: :index
 
   def index
     render plain: "healthcheck"

@@ -78,47 +78,49 @@ describe "Sentry configuration" do
     end
   end
 
-  describe "Gumhead gateway request scrubbing" do
-    def build_request(url)
-      Sentry::RequestInterface.allocate.tap do |request|
-        request.url = url
-        request.data = { "messages" => "seller prompt" }
-        request.headers = { "Authorization" => "Bearer secret" }
-        request.cookies = "session=abc"
-        request.query_string = "a=1"
-        request.env = { "REMOTE_ADDR" => "1.2.3.4" }
+  describe "retired Gumhead gateway requests" do
+    # Real events built through the SDK's scope, so the request context is the one a
+    # sampled production request would carry.
+    def event_for(url, type)
+      env = Rack::MockRequest.env_for(
+        url,
+        method: "POST",
+        input: { messages: "seller prompt" }.to_json,
+        "CONTENT_TYPE" => "application/json",
+        "HTTP_AUTHORIZATION" => "Bearer secret",
+      )
+      event = if type == :transaction
+        Sentry::TransactionEvent.new(configuration: Sentry.configuration, transaction: Sentry::Transaction.new(name: "POST", op: "http.server"))
+      else
+        Sentry::ErrorEvent.new(configuration: Sentry.configuration)
       end
+      scope = Sentry::Scope.new
+      scope.set_rack_env(env)
+      scope.apply_to_event(event)
+      event
     end
 
-    it "empties the request interface for gateway URLs in before_send" do
-      request = build_request("https://api.gumroad.com/v2/gumhead/v1/messages")
-      event = instance_double(Sentry::ErrorEvent, tags: {}, request:)
+    it "drops error events for the retired gateway URLs" do
+      event = event_for("https://example.com/v2/gumhead/v1/messages", :error)
+      expect(event.request.headers).to include("Authorization" => "Bearer secret")
 
-      expect(Sentry.configuration.before_send.call(event, nil)).to eq(event)
-      expect(request.data).to be_nil
-      expect(request.headers).to eq({})
-      expect(request.cookies).to be_nil
-      expect(request.query_string).to be_nil
-      expect(request.env).to be_nil
+      expect(Sentry.configuration.before_send.call(event, nil)).to be_nil
     end
 
-    it "empties the request interface for gateway URLs in before_send_transaction" do
-      request = build_request("https://gumroad.com/api/v2/gumhead/v1/messages")
-      event = instance_double(Sentry::TransactionEvent, request:)
+    it "drops transactions for the retired gateway URLs" do
+      event = event_for("https://example.com/api/v2/gumhead/v1/messages", :transaction)
+      expect(event.request.headers).to include("Authorization" => "Bearer secret")
+      expect(event.request.data).to include("seller prompt")
 
-      expect(Sentry.configuration.before_send_transaction.call(event, nil)).to eq(event)
-      expect(request.data).to be_nil
-      expect(request.headers).to eq({})
+      expect(Sentry.configuration.before_send_transaction.call(event, nil)).to be_nil
     end
 
-    it "leaves other routes' request data untouched" do
-      request = build_request("https://gumroad.com/purchases")
-      event = instance_double(Sentry::ErrorEvent, tags: {}, request:)
+    it "keeps events for other URLs" do
+      error = event_for("https://example.com/purchases", :error)
+      transaction = event_for("https://example.com/purchases", :transaction)
 
-      Sentry.configuration.before_send.call(event, nil)
-
-      expect(request.data).to eq({ "messages" => "seller prompt" })
-      expect(request.headers).to eq({ "Authorization" => "Bearer secret" })
+      expect(Sentry.configuration.before_send.call(error, nil)).to eq(error)
+      expect(Sentry.configuration.before_send_transaction.call(transaction, nil)).to eq(transaction)
     end
   end
 end

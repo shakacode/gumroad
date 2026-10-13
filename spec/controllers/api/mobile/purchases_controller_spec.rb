@@ -14,6 +14,53 @@ describe Api::Mobile::PurchasesController do
     }
   end
 
+  describe "unconfirmed account" do
+    before do
+      @purchaser.update_column(:confirmed_at, nil)
+      @purchase = create(:purchase, purchaser: @purchaser)
+    end
+
+    it "refuses to list purchases" do
+      get :index, params: @params
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body).to include(success: false)
+      expect(response.parsed_body).not_to have_key(:products)
+    end
+
+    it "refuses to search purchases" do
+      get :search, params: @params
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.parsed_body).not_to have_key(:purchases)
+    end
+
+    it "refuses to return, archive, unarchive or delete a purchase" do
+      get :purchase_attributes, params: @params.merge(id: @purchase.external_id)
+      expect(response).to have_http_status(:forbidden)
+
+      post :archive, params: @params.merge(id: @purchase.external_id)
+      expect(response).to have_http_status(:forbidden)
+
+      post :unarchive, params: @params.merge(id: @purchase.external_id)
+      expect(response).to have_http_status(:forbidden)
+
+      delete :destroy, params: @params.merge(id: @purchase.external_id)
+      expect(response).to have_http_status(:forbidden)
+
+      expect(@purchase.reload).to have_attributes(is_archived: false, is_deleted_by_buyer: false)
+    end
+
+    it "serves the same purchases once the account is confirmed" do
+      @purchaser.update_column(:confirmed_at, Time.current)
+
+      get :index, params: @params
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body[:products].map { |p| p[:purchase_id] }).to eq([@purchase.external_id])
+    end
+  end
+
   describe "GET index" do
     before do
       @mobile_friendly_pdf_product = create(:product, user: @user)
@@ -958,6 +1005,23 @@ describe Api::Mobile::PurchasesController do
         get :search, params: @params
 
         preorder_item = response.parsed_body[:purchases].find { _1[:purchase_id] == authorization_purchase.external_id }
+        expect(preorder_item).to be_present
+        expect(preorder_item).not_to have_key(:product_updates_data)
+      end
+
+      it "is omitted for a preorder whose charge purchase has no url_redirect" do
+        preorder_product = create(:product, user: @user, is_in_preorder_state: true)
+        preorder_link = create(:preorder_link, link: preorder_product, release_at: 2.days.from_now)
+        authorization_purchase = create(:preorder_authorization_purchase, link: preorder_product, purchaser: @purchaser, seller: @user, email: @purchaser.email)
+        preorder = create(:preorder, preorder_link:, seller: @user, purchaser: @purchaser, state: "charge_successful")
+        authorization_purchase.update!(preorder:)
+        charge_purchase = create(:purchase, link: preorder_product, preorder:, purchaser: @purchaser, seller: @user)
+
+        get :search, params: @params
+
+        expect(response).to have_http_status(:ok)
+        expect(response).to match_json_schema("api/mobile/purchases_search")
+        preorder_item = response.parsed_body[:purchases].find { _1[:purchase_id] == charge_purchase.external_id }
         expect(preorder_item).to be_present
         expect(preorder_item).not_to have_key(:product_updates_data)
       end

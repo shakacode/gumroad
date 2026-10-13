@@ -6,6 +6,10 @@ module Purchase::Risk
   CHARGEBACK_GRACE_PERIOD = 1.year
   CHARGEBACK_GRACE_LIMIT = 1
 
+  # The buyer-account columns #check_for_past_fraudulent_ips matches. Reporting paths read the same
+  # list (Purchase.checkout_account_ips_by_email) so they cannot miss a column checkout enforces.
+  ACCOUNT_IP_COLUMNS = [:current_sign_in_ip, :last_sign_in_ip, :account_created_ip].freeze
+
   # Shown when an identifier-level block stopped the purchase. Deliberately suggests nothing the
   # payer can change themselves: we cannot see from here which identifiers are blocked, and every
   # self-service suggestion we have tried sent people around a loop that could not end
@@ -83,12 +87,46 @@ module Purchase::Risk
     end
 
     def chargebacks_within_grace_period?(chargebacked_purchases)
-      unique_chargebacked_purchases = chargebacked_purchases.uniq do |purchase|
-        purchase.bundle_purchase&.id || purchase.id
-      end
-      return false if unique_chargebacked_purchases.count > CHARGEBACK_GRACE_LIMIT
+      cutoff = CHARGEBACK_GRACE_PERIOD.ago
+      return false unless chargebacked_purchases.all? { _1.chargeback_date.present? && _1.chargeback_date < cutoff }
 
-      unique_chargebacked_purchases.all? { _1.chargeback_date < CHARGEBACK_GRACE_PERIOD.ago }
+      ActiveRecord::Associations::Preloader.new(records: chargebacked_purchases, associations: :bundle_purchase).call
+      payments = chargebacked_purchases.map { _1.bundle_purchase || _1 }.uniq(&:id)
+      ActiveRecord::Associations::Preloader.new(records: payments, associations: [:merchant_account, :disputes, :charge_purchase, { charge: [:merchant_account, :dispute] }]).call
+
+      payment_groups = payments.group_by { chargeback_payment_identity(_1) }
+      return false if payment_groups.size > CHARGEBACK_GRACE_LIMIT
+
+      payment_groups.values.all? do |purchases|
+        next true if purchases.one?
+
+        # A shared transaction cannot resolve conflicting explicit dispute identifiers.
+        disputes = purchases.flat_map { _1.disputes.to_a + [_1.charge&.dispute].compact }.uniq(&:id)
+        processor = purchases.first.charge&.processor.presence || purchases.first.charge_processor_id.presence
+        disputes.map { _1.charge_processor_dispute_id.presence }.compact.uniq.size <= 1 &&
+          disputes.all? { processor.nil? || _1.charge_processor_id.blank? || _1.charge_processor_id == processor }
+      end
+    end
+
+    def chargeback_payment_identity(purchase)
+      fallback = [:purchase, purchase.id]
+      charge = purchase.charge
+      if charge
+        return fallback unless charge.processor.present? && charge.processor_transaction_id.present? &&
+          charge.merchant_account.present? && charge.merchant_account.charge_processor_id == charge.processor &&
+          charge.seller_id == purchase.seller_id &&
+          (purchase.charge_processor_id.blank? || purchase.charge_processor_id == charge.processor) &&
+          (purchase.merchant_account_id.nil? || purchase.merchant_account_id == charge.merchant_account_id) &&
+          (purchase.stripe_transaction_id.blank? || purchase.stripe_transaction_id == charge.processor_transaction_id)
+
+        return [:charge, charge.id]
+      end
+      return fallback if purchase.charge_purchase.present?
+
+      return fallback unless purchase.charge_processor_id.present? && purchase.stripe_transaction_id.present? &&
+        purchase.merchant_account.present? && purchase.merchant_account.charge_processor_id == purchase.charge_processor_id
+
+      [:transaction, purchase.charge_processor_id, purchase.merchant_account_id, purchase.stripe_transaction_id]
     end
 
     def check_for_past_fraudulent_buyers
@@ -103,7 +141,7 @@ module Purchase::Risk
       return if is_recurring_subscription_charge
       return if free_purchase?
 
-      buyer_ip_addresses = User.where(email: blockable_emails_if_fraudulent_transaction).pluck(:current_sign_in_ip, :last_sign_in_ip, :account_created_ip).flatten.compact.uniq
+      buyer_ip_addresses = User.where(email: blockable_emails_if_fraudulent_transaction).pluck(*ACCOUNT_IP_COLUMNS).flatten.compact.uniq
       seller_ip_addresses = [seller.current_sign_in_ip, seller.last_sign_in_ip, seller.account_created_ip].compact
       buyer_side_ip_addresses = ([ip_address].compact + buyer_ip_addresses).uniq
       ip_addresses_to_check = seller_ip_addresses + buyer_side_ip_addresses

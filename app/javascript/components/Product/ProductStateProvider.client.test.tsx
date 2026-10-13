@@ -151,7 +151,7 @@ describe("useSelectionFromUrl", () => {
     const { result } = renderHook(() => useSelectionFromUrl(configurableProduct));
 
     expect(result.current[0].recurrence).toBe("yearly");
-    expect(result.current[0].optionId).toBe("available");
+    expect(result.current[0].optionId).toBeNull();
     expect(result.current[0].quantity).toBe(0);
   });
 });

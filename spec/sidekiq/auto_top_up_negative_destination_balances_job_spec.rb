@@ -3,7 +3,7 @@
 require "spec_helper"
 
 describe AutoTopUpNegativeDestinationBalancesJob do
-  let(:seller) { create(:user) }
+  let(:seller) { create(:user, email: "seller@example.com") }
   let(:in_cycle_date) { User::PayoutSchedule.next_scheduled_payout_end_date - 1 }
   let(:merchant_account) do
     create(:merchant_account, user: seller, charge_processor_id: StripeChargeProcessor.charge_processor_id,
@@ -28,8 +28,31 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Digest::SHA1.hexdigest(balance_ids.join("-"))[0, 12]
   end
 
+  # USD → local rates; stubbed on the job because the shared Redis currencies namespace is flushed
+  # by other spec processes.
+  RATES = { "php" => "2.0", "lak" => "20000.0", "jpy" => "100.0" }.freeze
+
+  def usd_for(local_cents, currency: Currency::PHP)
+    (BigDecimal(local_cents.to_s) / BigDecimal(RATES.fetch(currency.to_s.downcase))).ceil.to_i
+  end
+
+  def funded_transfer(request)
+    payment_id = "py_#{SecureRandom.hex(6)}"
+    currency = request.fetch(:metadata).fetch(:destination_currency)
+    cents = request.fetch(:metadata).fetch(:destination_hole_cents)
+    @destination_payments[payment_id] = Stripe::Charge.construct_from(
+      id: payment_id, object: "charge",
+      balance_transaction: { object: "balance_transaction", currency:, amount: cents, net: cents }
+    )
+    Stripe::Transfer.construct_from(id: "tr_#{SecureRandom.hex(6)}", destination_payment: payment_id)
+  end
+
   before do
     allow(InternalNotificationWorker).to receive(:perform_async)
+    allow_any_instance_of(described_class).to receive(:get_rate) { |_job, currency| RATES[currency.to_s.downcase] }
+    @destination_payments = {}
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) { |**request| funded_transfer(request) }
+    allow(Stripe::Charge).to receive(:retrieve) { |params, _options| @destination_payments.fetch(params.fetch(:id)) }
   end
 
   it "stays silent when nothing is payable" do
@@ -60,7 +83,8 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
 
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
-      hash_including(stripe_account_id: merchant_account.charge_processor_merchant_id, currency: Currency::PHP, amount_cents: 728_50)
+      hash_including(stripe_account_id: merchant_account.charge_processor_merchant_id, currency: Currency::USD, amount_cents: usd_for(728_50),
+                     metadata: hash_including(destination_hole_cents: 728_50, destination_currency: Currency::PHP))
     )
 
     described_class.new.perform
@@ -98,7 +122,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
 
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
-      hash_including(stripe_account_id: merchant_account.charge_processor_merchant_id, currency: "lak", amount_cents: 10_000_00)
+      hash_including(stripe_account_id: merchant_account.charge_processor_merchant_id, currency: Currency::USD, amount_cents: usd_for(10_000_00, currency: "lak"))
     )
 
     described_class.new.perform
@@ -164,7 +188,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
 
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
       hash_including(
-        amount_cents: 150_00,
+        amount_cents: usd_for(150_00),
         idempotency_key: satisfy { |key| key == "#{dedupe_key}:#{fingerprint_for(row.id, new_row.id)}:0:15000" }
       )
     )
@@ -210,7 +234,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     # cycle window the weekly run actually pays is still -728_50 — the window resolve_entry's
     # full_total used and the one this re-read must preserve.
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
-      hash_including(amount_cents: 728_50)
+      hash_including(amount_cents: usd_for(728_50))
     )
 
     described_class.new.perform
@@ -239,7 +263,10 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     # (in_cycle_row only), not the whole current row set (which also includes the post-cutoff
     # credit row) — that's the bug this spec pins.
     call_count = 0
-    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) { call_count += 1 }
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+      call_count += 1
+      funded_transfer(request)
+    end
 
     described_class.new.perform
     expect(call_count).to eq(1)
@@ -301,7 +328,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.deactivate(:auto_topup_negative_destination_balances)
   end
 
-  it "releases the dedupe claim on a Stripe failure so the next run can retry instead of being blocked for 7 days" do
+  it "allows a retry after a rejected Stripe request instead of blocking it for 7 days" do
     residue_row(-728_50)
     make_payable
     Feature.activate(:auto_topup_negative_destination_balances)
@@ -311,7 +338,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
 
     expect($redis.get(RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id))).to be_nil
 
-    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).and_call_original
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) { |**request| funded_transfer(request) }
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).once
 
     described_class.new.perform
@@ -361,14 +388,14 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
     expect($redis.get(dedupe_key).to_i).to eq(100_00)
 
     row2 = residue_row(-150_00) # total shortfall is now 250_00 cents across both rows
 
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
-      hash_including(amount_cents: 150_00, idempotency_key: "#{dedupe_key}:#{fingerprint_for(row1.id, row2.id)}:10000:25000")
+      hash_including(amount_cents: usd_for(150_00), idempotency_key: "#{dedupe_key}:#{fingerprint_for(row1.id, row2.id)}:10000:25000")
     )
 
     described_class.new.perform
@@ -386,13 +413,13 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
 
     # Net shortfall is 50,000 cents (150,000 - 200,000).
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 5_00_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(5_00_00))).once
     described_class.new.perform
 
     # A new -30,000-cent row lands: net shortfall grows to 80,000 cents, a 30,000-cent increment.
     # The bug summed |150,000| + |-200,000| = 350,000 cents of "credit" and withheld this entirely.
     residue_row(-3_00_00)
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 3_00_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(3_00_00))).once
 
     described_class.new.perform
 
@@ -407,7 +434,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     make_payable
     Feature.activate(:auto_topup_negative_destination_balances)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
 
     # Leg two reconciles: the old row is paid off and a new, unrelated shortfall lands.
@@ -415,7 +442,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     old_row.mark_paid!
     residue_row(-50_00)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 50_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(50_00))).once
     described_class.new.perform
 
     expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, anything, a_string_including("ESCALATE")).exactly(0).times
@@ -430,7 +457,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
 
     expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
@@ -492,7 +519,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     $redis.del("#{RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)}:#{fingerprint_for(row.id)}:0:72850")
   end
 
-  it "releases the dedupe claim on a validation-style Stripe error, so the candidate is retryable" do
+  it "retains a retryable marker on a validation-style Stripe error" do
     row = residue_row(-728_50)
     make_payable
     Feature.activate(:auto_topup_negative_destination_balances)
@@ -502,9 +529,9 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     described_class.new.perform
 
     transfer_key = "#{dedupe_key}:#{fingerprint_for(row.id)}:0:72850"
-    expect($redis.get(transfer_key)).to be_nil # released — safe to retry next run
+    expect($redis.get(transfer_key)).to eq("retryable") # parameters must survive a safe retry
 
-    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).and_call_original
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) { |**request| funded_transfer(request) }
     expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).once
 
     described_class.new.perform
@@ -521,7 +548,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 250_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(250_00))).once
     described_class.new.perform
 
     # Only row_a reconciles; row_b (still unpaid, still funded) survives — partial reconciliation.
@@ -587,7 +614,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     make_payable
     Feature.activate(:auto_topup_negative_destination_balances)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 300_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(300_00))).once
     described_class.new.perform
 
     # row_a reconciles; row_b (still funded) survives; a brand-new, unrelated row_c lands alongside it.
@@ -597,7 +624,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
 
     # Only row_b's 200_00 credit should carry forward — the aggregate 300_00 must not swallow row_c's
     # new 50_00 shortfall (the exact "Aggregate credit suppresses new negative rows" scenario).
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 50_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(50_00))).once
     described_class.new.perform
 
     expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, anything, a_string_including("ESCALATE")).exactly(0).times
@@ -667,7 +694,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
     expect($redis.get(dedupe_key).to_i).to eq(100_00)
     $redis.expire(dedupe_key, 1.hour) # simulate the funded-state TTL nearly lapsing
@@ -698,7 +725,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
     expect($redis.get(dedupe_key).to_i).to eq(100_00)
     $redis.expire(dedupe_key, 1.hour)
@@ -717,7 +744,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     new_row = residue_row(-50_00)
     payable_balance.update!(amount_cents: 200_00, holding_amount_cents: 200_00)
     seller.reload
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 50_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(50_00))).once
 
     described_class.new.perform
   ensure
@@ -733,7 +760,7 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: 100_00)).once
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(hash_including(amount_cents: usd_for(100_00))).once
     described_class.new.perform
     expect($redis.get(dedupe_key).to_i).to eq(100_00)
     $redis.expire(dedupe_key, 1.hour)
@@ -809,7 +836,6 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.activate(:auto_topup_negative_destination_balances)
     dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
 
-    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account)
     # Simulates a Redis outage that outlives the accepted transfer: every `persist` call after
     # Stripe already accepted the money fails, so the durable dedupe write can never land.
     allow($redis).to receive(:persist).and_call_original
@@ -825,5 +851,598 @@ describe AutoTopUpNegativeDestinationBalancesJob do
     Feature.deactivate(:auto_topup_negative_destination_balances)
     $redis.del(dedupe_key)
     $redis.del("#{dedupe_key}:unresolved")
+  end
+
+  it "sizes the USD transfer from the local hole at the current rate, rounded up to a whole cent" do
+    residue_row(-101) # 101 / 2.0 = 50.5 → 51
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
+      hash_including(currency: Currency::USD, amount_cents: 51, metadata: hash_including(destination_hole_cents: 101))
+    )
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |_room, subject, message|
+      expect(subject).to eq("Negative destination balance top-ups")
+      expect(message).to include("FUNDED #{seller.email} — 101 php cents hole → 51 USD cents sent")
+      expect(message).to include("converted at the current rate and rounded up")
+      expect(message).not_to include("buffer")
+    end
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  context "when confirming destination funding" do
+    let!(:row) { residue_row(-100_00) }
+    let(:dedupe_key) { RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id) }
+    let(:transfer_key) { "#{dedupe_key}:#{fingerprint_for(row.id)}:0:10000" }
+
+    before do
+      make_payable
+      Feature.activate(:auto_topup_negative_destination_balances)
+      allow_any_instance_of(described_class).to receive(:sleep)
+    end
+
+    after do
+      Feature.deactivate(:auto_topup_negative_destination_balances)
+    end
+
+    def deliver_cents(*amounts)
+      allow(Stripe::Charge).to receive(:retrieve).and_wrap_original do |_original, params, _options|
+        payment = @destination_payments.fetch(params.fetch(:id))
+        payment.balance_transaction.net = amounts.shift
+        payment
+      end
+    end
+
+    [9_900, 4_000].each do |delivered_cents|
+      it "holds the account without a correction when Stripe delivers #{delivered_cents} of 10000 cents" do
+        deliver_cents(delivered_cents)
+
+        described_class.new.perform
+        residue_row(-50_00)
+        travel 8.days do
+          described_class.new.perform
+        end
+
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+        expect($redis.ttl(transfer_key)).to eq(-1)
+        expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, "NEEDS HUMAN: Negative destination balance top-ups", /#{10000 - delivered_cents} destination cents unfunded/)
+      end
+    end
+
+    [Stripe::RateLimitError.new("read rejected"), Stripe::InvalidRequestError.new("read rejected", nil), Stripe::APIConnectionError.new("read failed")].each do |error|
+      it "retains the accepted transfer when destination verification raises #{error.class}" do
+        allow(Stripe::Charge).to receive(:retrieve).and_raise(error)
+
+        described_class.new.perform
+        residue_row(-50_00)
+        travel 8.days do
+          described_class.new.perform
+        end
+
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get(transfer_key)).to eq("1")
+        expect($redis.ttl(transfer_key)).to eq(-1)
+        expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+        expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, "NEEDS HUMAN: Negative destination balance top-ups", /destination funding is incomplete or unverified/)
+      end
+    end
+
+    [nil, "txn_pending"].each do |pending_transaction|
+      it "confirms credit when #{pending_transaction.inspect} expands on the third read" do
+        reads = 0
+        allow(Stripe::Charge).to receive(:retrieve) do |params, _options|
+          reads += 1
+          reads < 3 ? Stripe::Charge.construct_from(balance_transaction: pending_transaction) : @destination_payments.fetch(params.fetch(:id))
+        end
+        job = described_class.new
+        allow(job).to receive(:sleep) do
+          expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+          expect($redis.ttl(transfer_key)).to eq(-1)
+        end
+
+        job.perform
+
+        expect(job).to have_received(:sleep).with(2).twice
+        expect(Stripe::Charge).to have_received(:retrieve).exactly(3).times
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+        expect($redis.get(dedupe_key)).to eq("10000:#{row.id}")
+        expect($redis.get("#{dedupe_key}:unresolved")).to be_nil
+      end
+    end
+
+    [nil, "txn_pending", { object: "balance_transaction", currency: "eur", net: 10000 },
+     { object: "balance_transaction", currency: "php", net: 0 }].each do |transaction|
+      it "holds the account when destination credit is #{transaction.inspect}" do
+        allow(Stripe::Charge).to receive(:retrieve).and_return(Stripe::Charge.construct_from(balance_transaction: transaction))
+
+        described_class.new.perform
+
+        expect(Stripe::Charge).to have_received(:retrieve).exactly(transaction.is_a?(Hash) ? 1 : 3).times
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+      end
+    end
+
+    it "sizes KRW in whole won and withholds funding when Stripe delivers only a fraction" do
+      merchant_account.update!(currency: Currency::KRW, country: "KR")
+      row.update!(holding_currency: Currency::KRW)
+      allow_any_instance_of(described_class).to receive(:get_rate).with(Currency::KRW).and_return("1000")
+      deliver_cents(99)
+
+      described_class.new.perform
+
+      expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).with(hash_including(amount_cents: 1_000)).once
+      expect($redis.get(dedupe_key)).to be_nil
+      expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+    end
+
+    it "sizes a currency with three decimal places without truncating its unit scale" do
+      merchant_account.update!(currency: "bhd", country: "BH")
+      row.update!(holding_currency: "bhd")
+      allow_any_instance_of(described_class).to receive(:get_rate).with("bhd").and_return("0.4")
+
+      described_class.new.perform
+
+      expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).with(hash_including(amount_cents: 2_500)).once
+      expect($redis.get(dedupe_key)).to eq("10000:#{row.id}")
+      expect($redis.get("#{dedupe_key}:unresolved")).to be_nil
+    end
+
+    %w[isk ugx].each do |currency|
+      it "preserves Stripe's two-decimal #{currency} amounts and holds an unfunded shortfall" do
+        merchant_account.update!(currency:)
+        row.update!(holding_currency: currency)
+        allow_any_instance_of(described_class).to receive(:get_rate).with(currency).and_return("100")
+        deliver_cents(9_900)
+
+        described_class.new.perform
+
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).with(hash_including(amount_cents: 100, idempotency_key: transfer_key)).once
+        expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+      end
+    end
+  end
+
+  it "sizes a single-unit destination currency through get_usd_cents, so a whole-unit hole is not treated as hundredths" do
+    merchant_account.update!(currency: "jpy", country: "JP")
+    create(:balance, user: seller, merchant_account:, date: in_cycle_date,
+                     amount_cents: 0, holding_currency: "jpy", holding_amount_cents: -1_000)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+
+    # ¥1,000 (single_unit) / 100 = 1,000 US cents; as hundredths it would be 10.
+    expect(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).with(
+      hash_including(currency: Currency::USD, amount_cents: 1_000)
+    )
+
+    described_class.new.perform
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  it "escalates without taking a claim when no exchange rate is available, instead of sending zero or a local-currency amount" do
+    residue_row(-728_50)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+    allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+    dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
+
+    expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |_room, _subject, message|
+      expect(message).to include("ESCALATE #{seller.email} — no usable USD exchange rate for php")
+    end
+    expect($redis.get(dedupe_key)).to be_nil
+    expect($redis.keys("#{dedupe_key}:*")).to be_empty
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  it "reports a rate-lookup failure as an error instead of misreading it as a missing rate" do
+    residue_row(-728_50)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+    allow_any_instance_of(described_class).to receive(:get_rate).and_raise(Redis::CannotConnectError)
+
+    expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |_room, _subject, message|
+      expect(message).to include("ERROR #{seller.email} — Redis::CannotConnectError")
+      expect(message).not_to include("no usable USD exchange rate")
+    end
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  it "escalates on a dry run too when no exchange rate is available, so the preview matches live readiness" do
+    residue_row(-728_50)
+    make_payable
+    allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |_room, _subject, message|
+      expect(message).to include("would top up 0 of 1 candidates")
+      expect(message).to include("ESCALATE #{seller.email} — no usable USD exchange rate for php")
+      expect(message).not_to include("nil USD cents")
+    end
+  end
+
+  it "flags a live run that processed payable candidates and funded none, in the subject and the body" do
+    residue_row(-728_50)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account)
+      .and_raise(Stripe::InvalidRequestError.new("You have insufficient funds in your Stripe account.", nil))
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |room, subject, message|
+      expect(room).to eq("payouts")
+      expect(subject).to eq("ALL FAILED: Negative destination balance top-ups")
+      expect(message).to start_with("ALL FAILED: a live run processed 1 payable candidates and topped up none — 0 withheld, 1 errored.")
+      expect(message).to include("Topped up 0 of 1 candidates")
+    end
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  it "does not raise the all-failed flag on a dry run, which never tops anything up by design" do
+    residue_row(-728_50)
+    make_payable
+
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async) do |_room, subject, message|
+      expect(subject).to eq("Negative destination balance top-ups")
+      expect(message).not_to include("ALL FAILED")
+      expect(message).to include("WOULD FUND #{seller.email} — 72850 php cents hole → #{usd_for(728_50)} USD cents sent")
+    end
+  end
+  context "with an immutable transfer request" do
+    let!(:row) { residue_row(-100_00) }
+    let(:dedupe_key) { RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id) }
+    let(:transfer_key) { "#{dedupe_key}:#{fingerprint_for(row.id)}:0:10000" }
+    let(:request_key) { "#{transfer_key}:request" }
+
+    before do
+      make_payable
+      Feature.activate(:auto_topup_negative_destination_balances)
+    end
+
+    after do
+      Feature.deactivate(:auto_topup_negative_destination_balances)
+    end
+
+    ["4.0", nil].each do |later_rate|
+      it "reuses every request parameter after a rejection when the later FX rate is #{later_rate.inspect}" do
+        requests = []
+        allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+          requests << request
+          raise Stripe::RateLimitError, "rate limited" if requests.one?
+          funded_transfer(request)
+        end
+
+        described_class.new.perform
+        original_destination = merchant_account.charge_processor_merchant_id
+        merchant_account.update!(charge_processor_merchant_id: "acct_changed", currency: "eur")
+        allow_any_instance_of(described_class).to receive(:get_rate).and_return(later_rate)
+
+        described_class.new.perform
+
+        expect(requests.size).to eq(2)
+        expect(requests.last).to eq(requests.first)
+        expect(JSON.parse($redis.get(request_key), symbolize_names: true)).to eq(requests.first)
+        expect($redis.ttl(request_key)).to eq(-1)
+        expect(requests.last).to include(stripe_account_id: original_destination, currency: Currency::USD, amount_cents: usd_for(100_00))
+        expect(requests.last[:metadata]).to include(destination_currency: "php", destination_hole_cents: 100_00)
+        expect($redis.get(dedupe_key)).to eq("10000:#{row.id}")
+        expect($redis.get("#{dedupe_key}:unresolved")).to be_nil
+      end
+    end
+
+    it "withholds a buffered request saved before exact sizing was enforced" do
+      legacy_request = {
+        message_why: "Reconciling negative destination ledger (gumroad-private#1903, auto top-up leg)",
+        stripe_account_id: merchant_account.charge_processor_merchant_id,
+        currency: Currency::USD,
+        amount_cents: 6_000,
+        idempotency_key: transfer_key,
+        metadata: { user_id: seller.id, merchant_account_id: merchant_account.id, reason: "negative_destination_balance_topup",
+                    destination_hole_cents: 100_00, destination_currency: "php" }
+      }
+      $redis.set(transfer_key, "retryable")
+      $redis.set(request_key, legacy_request.to_json)
+
+      expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+      described_class.new.perform
+
+      expect($redis.get(dedupe_key)).to be_nil
+      expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, anything, /invalid saved top-up request/)
+    end
+
+    it "retains the same request and error when Stripe replays an executed rejection" do
+      requests = []
+      allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+        requests << request
+        raise Stripe::InvalidRequestError.new("cached insufficient funds", nil, http_status: 400, http_headers: { "idempotent-replayed" => "true" })
+      end
+      described_class.new.perform
+      allow_any_instance_of(described_class).to receive(:get_rate).and_return("4.0")
+      described_class.new.perform
+
+      expect(requests.size).to eq(2)
+      expect(requests.last).to eq(requests.first)
+      expect($redis.get(transfer_key)).to eq("retryable")
+      expect($redis.ttl(transfer_key)).to eq(-1)
+      expect($redis.get(dedupe_key)).to be_nil
+      expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, /ALL FAILED/, /cached insufficient funds/).twice
+    end
+
+    it "retains parameters after the old claim TTL and Stripe idempotency window have elapsed" do
+      requests = []
+      allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+        requests << request
+        raise Stripe::RateLimitError, "rate limited" if requests.one?
+        funded_transfer(request)
+      end
+      described_class.new.perform
+      travel 8.days do
+        allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+        described_class.new.perform
+      end
+      expect(requests.size).to eq(2)
+      expect(requests.last).to eq(requests.first)
+      expect($redis.ttl(request_key)).to eq(-1)
+    end
+
+    [nil, "{", "{}", '{"amount_cents":0}'].each do |saved|
+      it "withholds a retry with missing or corrupt parameters #{saved.inspect}" do
+        allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).and_raise(Stripe::RateLimitError, "rate limited")
+        described_class.new.perform
+        saved ? $redis.set(request_key, saved) : $redis.del(request_key)
+        expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+        described_class.new.perform
+        expect($redis.get(dedupe_key)).to be_nil
+        expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, anything, /ESCALATE/).once
+      end
+    end
+
+    it "holds an existing legacy claim even without saved parameters or a current rate" do
+      $redis.set(transfer_key, 1)
+      allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+      expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+      described_class.new.perform
+      expect($redis.get(transfer_key)).to eq("1")
+      expect($redis.get(request_key)).to be_nil
+      expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, anything, /already in flight/)
+    end
+
+    [false, :raise].each do |failure|
+      it "sends nothing if persisting the request fails with #{failure}" do
+        allow($redis).to receive(:set).and_call_original
+        write = allow($redis).to receive(:set).with(request_key, anything, nx: true)
+        failure == :raise ? write.and_raise(Redis::BaseConnectionError) : write.and_return(false)
+        expect(StripeTransferInternallyToCreator).not_to receive(:transfer_funds_to_account)
+        described_class.new.perform
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get("#{dedupe_key}:lock")).to be_nil
+      end
+    end
+
+    it "reuses parameters when Redis saved them but the write acknowledgement was lost" do
+      allow($redis).to receive(:set).and_call_original
+      allow($redis).to receive(:set).with(request_key, anything, nx: true).and_wrap_original do |original, *args, **kwargs|
+        original.call(*args, **kwargs)
+        raise Redis::BaseConnectionError, "lost write acknowledgement"
+      end
+      described_class.new.perform
+      expect(StripeTransferInternallyToCreator).not_to have_received(:transfer_funds_to_account)
+      saved_request = $redis.get(request_key)
+      expect(saved_request).to be_present
+
+      allow($redis).to receive(:set).with(request_key, anything, nx: true).and_call_original
+      allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+      described_class.new.perform
+
+      expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).with(**JSON.parse(saved_request, symbolize_names: true)).once
+    end
+
+    ["marker false", "marker raise", "marker lost acknowledgement", "cleanup raise", "cleanup lost acknowledgement", "marker and persist raise"].each do |failure|
+      it "continues later candidates and reports rejection bookkeeping failure for #{failure}" do
+        other_account = create(:merchant_account, user: seller, charge_processor_id: StripeChargeProcessor.charge_processor_id,
+                                                  charge_processor_merchant_id: "acct_later", currency: Currency::PHP, country: "PH")
+        create(:balance, user: seller, merchant_account: other_account, date: in_cycle_date,
+                         amount_cents: 0, holding_currency: Currency::PHP, holding_amount_cents: -50_00)
+        requests = []
+        allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+          requests << request
+          if request[:stripe_account_id] == merchant_account.charge_processor_merchant_id
+            raise Stripe::RateLimitError, "rejected request" if failure == "marker false"
+
+            raise Stripe::InvalidRequestError.new("rejected request", nil)
+          end
+          funded_transfer(request)
+        end
+        allow($redis).to receive(:set).and_call_original
+        allow($redis).to receive(:del).and_call_original
+        operation = failure.start_with?("marker") ? :set : :del
+        args = operation == :set ? [transfer_key, "retryable"] : ["#{dedupe_key}:unresolved"]
+        allow($redis).to receive(operation).with(*args).and_wrap_original do |original, *arguments|
+          if failure == "marker false"
+            false
+          else
+            original.call(*arguments) if failure.include?("lost acknowledgement")
+            raise Redis::BaseConnectionError, "bookkeeping unavailable"
+          end
+        end
+        if failure == "marker and persist raise"
+          allow($redis).to receive(:persist).and_call_original
+          allow($redis).to receive(:persist).with(transfer_key).and_raise(Redis::BaseConnectionError)
+        end
+
+        described_class.new.perform
+
+        expect(requests.map { _1[:stripe_account_id] }).to eq([merchant_account.charge_processor_merchant_id, "acct_later"])
+        expect(JSON.parse($redis.get(request_key), symbolize_names: true)).to eq(requests.first)
+        expect($redis.ttl(request_key)).to eq(-1)
+        expect($redis.get(dedupe_key)).to be_nil
+        expect($redis.get("#{dedupe_key}:lock")).to be_nil
+        expect(InternalNotificationWorker).to have_received(:perform_async).with(
+          "payouts", "Negative destination balance top-ups",
+          a_string_including("Topped up 1 of 2 candidates", "rejected request", "rejection bookkeeping failed", "FUNDED")
+        ).once
+
+        if failure == "cleanup lost acknowledgement"
+          # The deletion completed after a known rejection; only the saved request may retry.
+          expect($redis.get("#{dedupe_key}:unresolved")).to be_nil
+          expect($redis.get(transfer_key)).to eq("retryable")
+          expect($redis.ttl(transfer_key)).to eq(-1)
+          allow($redis).to receive(:del).with("#{dedupe_key}:unresolved").and_call_original
+          allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+          described_class.new.perform
+          expect(requests.size).to eq(3)
+          expect(requests.last).to eq(requests.first)
+        else
+          expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+          expect($redis.ttl("#{dedupe_key}:unresolved")).to eq(-1)
+          expect($redis.ttl(transfer_key)).to eq(-1) unless failure == "marker and persist raise"
+          saved_request = $redis.get(request_key)
+          residue_row(-25_00)
+          described_class.new.perform
+          expect(requests.size).to eq(2)
+          expect($redis.get(request_key)).to eq(saved_request)
+        end
+      end
+    end
+
+    it "treats a cached success as funding and holds it through a failure to record ledger credit" do
+      allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+        expect($redis.get(request_key)).to eq(request.to_json)
+        funded_transfer(request)
+      end
+      allow($redis).to receive(:set).and_call_original
+      allow($redis).to receive(:set).with(dedupe_key, anything, ex: described_class::DEDUPE_TTL).and_raise(Redis::BaseConnectionError)
+      described_class.new.perform
+      expect($redis.ttl(transfer_key)).to eq(-1)
+      expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+      residue_row(-50_00)
+      allow_any_instance_of(described_class).to receive(:get_rate).and_return(nil)
+      described_class.new.perform
+      expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+    end
+
+    it "keeps cached server errors unresolved even after the gap grows and the rate changes" do
+      allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account) do |**request|
+        expect($redis.get(request_key)).to eq(request.to_json)
+        raise Stripe::APIError.new("cached server error", http_status: 500, http_headers: { "idempotent-replayed" => "true" })
+      end
+      described_class.new.perform
+      residue_row(-50_00)
+      allow_any_instance_of(described_class).to receive(:get_rate).and_return("4.0")
+      described_class.new.perform
+      expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+      expect($redis.ttl(transfer_key)).to eq(-1)
+      expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+    end
+  end
+
+  it "flags funded entries awaiting reconciliation for a human without calling them all failed" do
+    residue_row(-100_00)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+    described_class.new.perform
+    described_class.new.perform
+
+    expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+    expect(InternalNotificationWorker).to have_received(:perform_async).with(
+      anything, "NEEDS HUMAN: Negative destination balance top-ups",
+      a_string_including("all 1 are withheld for a human, 0 errored. Each line below says why it is held.", "already topped up")
+    ).once
+    expect(InternalNotificationWorker).not_to have_received(:perform_async).with(anything, /ALL FAILED/, anything)
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  [false, true].each do |retired|
+    it "still flags #{retired ? "withheld funding" : "transfer errors"} alongside funded entries awaiting reconciliation" do
+      residue_row(-100_00)
+      make_payable
+      Feature.activate(:auto_topup_negative_destination_balances)
+      described_class.new.perform
+      other_account = create(:merchant_account, user: seller, charge_processor_id: StripeChargeProcessor.charge_processor_id,
+                                                charge_processor_merchant_id: "acct_other", currency: Currency::PHP, country: "PH")
+      create(:balance, user: seller, merchant_account: other_account, date: in_cycle_date,
+                       amount_cents: 0, holding_currency: Currency::PHP, holding_amount_cents: -50_00)
+      other_account.mark_deleted! if retired
+      allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account).and_raise(Stripe::RateLimitError, "rate limited")
+      described_class.new.perform
+
+      subject = retired ? "NEEDS HUMAN: Negative destination balance top-ups" : "ALL FAILED: Negative destination balance top-ups"
+      counts = retired ? "all 2 are withheld for a human, 0 errored" : "1 withheld, 1 errored"
+      reason = retired ? "RETIRED" : "rate limited"
+      expect(InternalNotificationWorker).to have_received(:perform_async).with(anything, subject, a_string_including(counts, "already topped up", reason)).once
+    ensure
+      Feature.deactivate(:auto_topup_negative_destination_balances)
+    end
+  end
+
+  it "counts a funded entry awaiting reconciliation as withheld in the headline and the body alike" do
+    residue_row(-100_00)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+    described_class.new.perform
+    other_account = create(:merchant_account, user: seller, charge_processor_id: StripeChargeProcessor.charge_processor_id,
+                                              charge_processor_merchant_id: "acct_other", currency: Currency::PHP, country: "PH")
+    create(:balance, user: seller, merchant_account: other_account, date: in_cycle_date,
+                     amount_cents: 0, holding_currency: Currency::PHP, holding_amount_cents: -50_00)
+    other_account.mark_deleted!
+    described_class.new.perform
+
+    expect(InternalNotificationWorker).to have_received(:perform_async).with(
+      anything, "NEEDS HUMAN: Negative destination balance top-ups",
+      a_string_including("all 2 are withheld for a human, 0 errored", "2 withheld for a human, 0 errored")
+    ).once
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
+  end
+
+  it "withholds a reused idempotency key for a human instead of reporting a transfer error" do
+    row = residue_row(-100_00)
+    make_payable
+    Feature.activate(:auto_topup_negative_destination_balances)
+    dedupe_key = RedisKey.auto_topup_negative_destination_balance_last_amount(merchant_account.id)
+    transfer_key = "#{dedupe_key}:#{fingerprint_for(row.id)}:0:10000"
+    allow(StripeTransferInternallyToCreator).to receive(:transfer_funds_to_account)
+      .and_raise(Stripe::IdempotencyError.new("Keys for idempotent requests can only be used with the same parameters they were first used with."))
+
+    described_class.new.perform
+    described_class.new.perform
+
+    expect(StripeTransferInternallyToCreator).to have_received(:transfer_funds_to_account).once
+    expect($redis.get("#{dedupe_key}:unresolved")).to eq("10000")
+    expect($redis.ttl(transfer_key)).to eq(-1)
+    expect(InternalNotificationWorker).to have_received(:perform_async).with(
+      anything, "NEEDS HUMAN: Negative destination balance top-ups",
+      a_string_including("ESCALATE #{seller.email} — Stripe refused #{transfer_key}", "#{transfer_key}:request")
+    ).once
+    expect(InternalNotificationWorker).not_to have_received(:perform_async).with(anything, /ALL FAILED/, anything)
+  ensure
+    Feature.deactivate(:auto_topup_negative_destination_balances)
   end
 end

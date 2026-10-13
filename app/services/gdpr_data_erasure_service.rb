@@ -31,6 +31,11 @@ class GdprDataErasureService
 
     ActiveRecord::Base.transaction do
       @products_deleted = deactivate_account!
+      # Outside deactivate_account!, which returns early for an already-closed account: one closed
+      # before closure revoked third-party access still holds those tokens. Flags are cleared before
+      # the anonymize that overwrites the email gumroad_account? reads.
+      @user.revoke_all_oauth_access!
+      @user.clear_team_member_flags!
       anonymized_email = anonymize_user_pii!
       anonymize_compliance_info!
       delete_device_records!
@@ -183,7 +188,7 @@ class GdprDataErasureService
     def deactivate_account!
       return 0 if @user.deleted?
 
-      products_deleted = @user.links.alive.count
+      products_deleted = @user.links.visible.count
 
       # Skip balance validation for GDPR erasure. We are legally obligated
       # to erase regardless of outstanding balance (Article 17).
@@ -194,16 +199,12 @@ class GdprDataErasureService
         payouts_paused_internally: true,
       )
 
-      @user.links.alive.each(&:delete!)
-      @user.installments.alive.each(&:mark_deleted!)
-      @user.user_compliance_infos.alive.each(&:mark_deleted!)
-      @user.bank_accounts.alive.each(&:mark_deleted!)
+      # The account's own cleanup, shared with the self-serve closure so an erasure cannot leave
+      # behind records a closure removes. Validations are skipped: a legacy row that no longer
+      # validates must not abort a mandated erasure (Article 17).
+      @user.soft_delete_owned_records!
       @user.send(:cancel_active_subscriptions!)
       @user.invalidate_active_sessions!
-
-      if @user.custom_domain&.persisted? && !@user.custom_domain.deleted?
-        @user.custom_domain.mark_deleted!
-      end
 
       products_deleted
     end

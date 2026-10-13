@@ -579,6 +579,75 @@ describe Purchase::CreateService, :vcr do
     expect(purchase.total_transaction_cents).to eq(10_00)
   end
 
+  it "accepts a tip_cents the client serialized as a string" do
+    user.update!(tipping_enabled: true)
+    usd_product = create(:product, user:, price_currency_type: Currency::USD, price_cents: 10_00)
+
+    purchase, error = described_class.new(
+      product: usd_product,
+      params: {
+        purchase: base_params.fetch(:purchase).merge(perceived_price_cents: 11_00),
+        tip_cents: "100",
+        is_part_of_combined_charge: true,
+      },
+      buyer:
+    ).perform
+
+    expect(error).to be_nil
+    expect(purchase.tip.value_cents).to eq(1_00)
+  end
+
+  it "treats a string tip_cents of \"0\" as no tip" do
+    user.update!(tipping_enabled: true)
+    usd_product = create(:product, user:, price_currency_type: Currency::USD, price_cents: 10_00)
+
+    purchase, error = described_class.new(
+      product: usd_product,
+      params: {
+        purchase: base_params.fetch(:purchase).merge(perceived_price_cents: 10_00),
+        tip_cents: "0",
+        is_part_of_combined_charge: true,
+      },
+      buyer:
+    ).perform
+
+    expect(error).to be_nil
+    expect(purchase.tip).to be_nil
+  end
+
+  it "converts a string tip_cents on a listed-currency product at the quote's locked rate" do
+    user.update!(tipping_enabled: true)
+    eur_product = create(:product, user:, price_currency_type: Currency::EUR, price_cents: 10_00)
+    quote = signed_buyer_currency_quote(
+      seller: user,
+      product: eur_product,
+      rate: "0.8",
+      canonical_components: {
+        price_cents: 12_50,
+        tip_cents: 1_26,
+        seller_tax_cents: 0,
+        gumroad_tax_cents: 0,
+        shipping_cents: 0,
+      }
+    )
+
+    purchase, error = described_class.new(
+      product: eur_product,
+      params: {
+        purchase: base_params.fetch(:purchase).merge(perceived_price_cents: 11_00),
+        tip_cents: "100",
+        buyer_currency_quote: quote,
+        is_part_of_combined_charge: true,
+      },
+      buyer:
+    ).perform
+
+    expect(error).to be_nil
+    expect(purchase.tip.value_cents).to eq(1_00)
+    expect(purchase.reload.tip.value_usd_cents).to eq(1_26)
+    expect(purchase.total_transaction_cents).to eq(13_76)
+  end
+
   it "fails closed when repeated permalink rows cannot be bound by uid" do
     user.update!(tipping_enabled: true)
     eur_product = create(:product, user:, price_currency_type: Currency::EUR, price_cents: 10_00)
@@ -828,6 +897,46 @@ describe Purchase::CreateService, :vcr do
     ).perform
 
     expect(purchase.purchaser).to eq buyer
+  end
+
+  describe "attaching a guest purchase to the account with the same email" do
+    let(:free_product) { create(:product, user:, price_cents: 0) }
+    let(:guest_params) do
+      {
+        purchase: {
+          email: account.email,
+          quantity: 1,
+          perceived_price_cents: 0,
+          ip_address: "0.0.0.0",
+          session_id: "a107d0b7ab5ab3c1eeb7d3aaf9792977",
+          is_mobile: false,
+          browser_guid:,
+        }
+      }
+    end
+
+    context "when the account has confirmed the email" do
+      let(:account) { create(:user) }
+
+      it "attaches the purchase to the account" do
+        purchase, error = Purchase::CreateService.new(product: free_product, params: guest_params).perform
+
+        expect(error).to be_nil
+        expect(purchase.purchaser).to eq account
+      end
+    end
+
+    context "when the account has not confirmed the email" do
+      let(:account) { create(:unconfirmed_user) }
+
+      it "leaves the purchase unattached" do
+        purchase, error = Purchase::CreateService.new(product: free_product, params: guest_params).perform
+
+        expect(error).to be_nil
+        expect(purchase).to be_successful
+        expect(purchase.purchaser).to be_nil
+      end
+    end
   end
 
   context "when the product has a product refund policy enabled" do
@@ -1216,6 +1325,23 @@ describe Purchase::CreateService, :vcr do
       end
     end
 
+    context "when the client does not submit the bundle contents" do
+      before do
+        params[:purchase][:perceived_price_cents] = 100
+        params.delete(:bundle_products)
+      end
+
+      it "returns an error instead of raising" do
+        _, error = Purchase::CreateService.new(
+          product:,
+          params:,
+          buyer:
+        ).perform
+
+        expect(error).to eq("The bundle's contents have changed. Please refresh the page!")
+      end
+    end
+
     context "when a component product is sold out" do
       # The component is taken to its cap by real sales rather than by setting the counter directly,
       # so remaining_for_sale_count is derived the same way it is in production.
@@ -1317,6 +1443,40 @@ describe Purchase::CreateService, :vcr do
         expect(purchase.offer_code).to eq(offer_code)
         expect(purchase.link).to eq(product1)
         expect(error).to be_nil
+      end
+    end
+
+    context "when an ineligible option leaves the cart below the minimum amount" do
+      let(:category) { create(:variant_category, link: product1) }
+      let(:eligible_option) { create(:variant, variant_category: category) }
+      let(:ineligible_option) { create(:variant, variant_category: category) }
+
+      before do
+        offer_code.update!(minimum_amount_cents: 200, variants: [eligible_option])
+        params[:purchase][:perceived_price_cents] = 0
+        params[:purchase][:discount_code] = offer_code.code
+        params[:cart_items] = [
+          {
+            permalink: product1.unique_permalink,
+            price_cents: 100,
+            variants: [eligible_option.external_id],
+          },
+          {
+            permalink: product1.unique_permalink,
+            price_cents: 100,
+            variants: [ineligible_option.external_id],
+          }
+        ]
+      end
+
+      it "refuses the code instead of counting the ineligible option's spend" do
+        _, error = Purchase::CreateService.new(
+          product: product1,
+          params:,
+          buyer:
+        ).perform
+
+        expect(error).to eq("Sorry, you have not met the offer code's minimum amount.")
       end
     end
 
@@ -2981,6 +3141,7 @@ describe Purchase::CreateService, :vcr do
       expect(gift.gift_note).to eq "Happy birthday!"
       expect(gift.giftee_email).to eq "giftee@gumroad.com"
       expect(gift.gifter_email).to eq "gifter@gumroad.com"
+      expect(gift.is_gifter_hidden).to eq false
 
       giftee_purchase = gift.giftee_purchase
       expect(giftee_purchase.quantity).to eq 1
@@ -3037,6 +3198,21 @@ describe Purchase::CreateService, :vcr do
       expect(gift.gifter_purchase).to be_successful
       expect(gift.giftee_purchase.gift_receiver_purchase_successful?).to be true
       expect(gift.giftee_purchase.purchaser_id).to eq user.id
+    end
+
+    it "leaves the giftee purchase unattached until the account with giftee email is confirmed" do
+      user = create(:unconfirmed_user, email: gift_params[:gift][:giftee_email])
+
+      purchase, _ = Purchase::CreateService.new(product:, params: gift_params).perform
+
+      giftee_purchase = purchase.gift_given.giftee_purchase
+      expect(giftee_purchase.gift_receiver_purchase_successful?).to be true
+      expect(giftee_purchase.purchaser_id).to be_nil
+
+      user.confirm
+      AttachPastPurchasesToUserWorker.drain
+
+      expect(giftee_purchase.reload.purchaser_id).to eq user.id
     end
 
     it "creates a giftee and a gifter purchase successfully if user with giftee email doesn't exist" do
@@ -3367,6 +3543,15 @@ describe Purchase::CreateService, :vcr do
       end
     end
 
+    it "hides the gifter from the recipient when hide_gifter is set" do
+      gift_params[:gift][:hide_gifter] = true
+
+      purchase, _ = Purchase::CreateService.new(product:, params: gift_params).perform
+
+      expect(purchase.gift.is_gifter_hidden).to eq true
+      expect(purchase.gift.giftee_purchase.gifter_hidden_from_recipient?).to eq true
+    end
+
     context "but is missing giftee email" do
       it "returns an error message" do
         gift_params[:gift][:giftee_email] = nil
@@ -3567,6 +3752,7 @@ describe Purchase::CreateService, :vcr do
 
         expect(error).to eq "The transaction could not complete."
         expect(purchase.error_code).to eq PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT
+        expect(purchase.owner_sign_in_lifts_product_block?).to be true
         expect(purchase).not_to be_successful
       end
 
@@ -3629,6 +3815,7 @@ describe Purchase::CreateService, :vcr do
         expect(error).to eq "The transaction could not complete."
         expect(purchase.price_cents).to eq 0
         expect(purchase.error_code).to eq PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT
+        expect(purchase.owner_sign_in_lifts_product_block?).to be false
         expect(purchase).not_to be_successful
         expect(purchase.gift_given.state).to eq "failed"
         expect(purchase.gift_given.giftee_purchase.purchase_state).to eq "gift_receiver_purchase_failed"
@@ -3691,6 +3878,7 @@ describe Purchase::CreateService, :vcr do
 
       expect(error).to eq "The transaction could not complete."
       expect(purchase.error_code).to eq PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT
+      expect(purchase.owner_sign_in_lifts_product_block?).to be true
       expect(purchase).not_to be_successful
     end
 
@@ -3700,6 +3888,19 @@ describe Purchase::CreateService, :vcr do
       expect(error).to eq "The transaction could not complete."
       expect(purchase.purchaser).to be_nil
       expect(purchase.error_code).to eq PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT
+      expect(purchase.owner_sign_in_lifts_product_block?).to be true
+      expect(purchase).not_to be_successful
+    end
+
+    it "still refuses a guest free download that types in an existing non-seller account's email, and that account becomes the purchaser" do
+      other_user = create(:user)
+
+      purchase, error = Purchase::CreateService.new(product: free_product, params: free_download_params(email: other_user.email)).perform
+
+      expect(error).to eq "The transaction could not complete."
+      expect(purchase.purchaser).to eq other_user
+      expect(purchase.error_code).to eq PurchaseErrorCode::TEMPORARILY_BLOCKED_PRODUCT
+      expect(purchase.owner_sign_in_lifts_product_block?).to be true
       expect(purchase).not_to be_successful
     end
 
@@ -4092,6 +4293,51 @@ describe Purchase::CreateService, :vcr do
 
         expect(error).to eq "You have already paid for this product. It has been emailed to you. Do you want to buy it again?"
       end.not_to change { Purchase.count }
+    end
+
+    context "when an earlier attempt is unfinished with no processor status" do
+      def create_prior(purchase_state:, created_at:)
+        create(:purchase, link: product, email:, ip_address: "0.0.0.0", purchase_state:, stripe_status: nil, created_at:)
+      end
+
+      it "blocks a retry past the 3-minute window" do
+        create_prior(purchase_state: "in_progress", created_at: 5.minutes.ago)
+
+        expect do
+          _, error = Purchase::CreateService.new(product:, params:).perform
+
+          expect(error).to eq "You have already attempted to purchase this product. We will email you shortly if the purchase is successful."
+        end.not_to change { Purchase.successful.count }
+      end
+
+      it "still blocks it when the buyer confirms a repeat purchase" do
+        create_prior(purchase_state: "in_progress", created_at: 14.minutes.ago)
+        params[:purchase][:confirmed_duplicate_purchase] = true
+
+        _, error = Purchase::CreateService.new(product:, params:).perform
+
+        expect(error).to eq "You have already attempted to purchase this product. We will email you shortly if the purchase is successful."
+      end
+
+      it "allows the purchase once #{"15 minutes"} have passed" do
+        create_prior(purchase_state: "in_progress", created_at: 16.minutes.ago)
+
+        expect do
+          _, error = Purchase::CreateService.new(product:, params:).perform
+
+          expect(error).to be_nil
+        end.to change { Purchase.successful.count }.by(1)
+      end
+
+      it "keeps the 3-minute window for a successful prior" do
+        create_prior(purchase_state: "successful", created_at: 5.minutes.ago)
+
+        expect do
+          _, error = Purchase::CreateService.new(product:, params:).perform
+
+          expect(error).to be_nil
+        end.to change { Purchase.successful.count }.by(1)
+      end
     end
   end
 
@@ -4791,6 +5037,11 @@ describe Purchase::CreateService, :vcr do
   end
 
   describe "existing subscription handling" do
+    # Cassettes recorded by existing examples in this block. Examples that make the same requests replay
+    # them rather than carrying their own copy: a lone payment-method request, or a new membership charge.
+    setup_cassette = "Purchase_CreateService/existing_subscription_handling/when_buyer_has_a_restartable_subscription/restarts_the_subscription_and_returns_the_original_purchase"
+    new_purchase_cassette = "Purchase_CreateService/existing_subscription_handling/when_buyer_has_an_abandoned_in-progress_membership_purchase/allows_the_purchase"
+
     let(:membership_product) { create(:membership_product, user:, price_cents: price) }
     let(:membership_params) do
       bp = base_params.deep_dup
@@ -4889,15 +5140,70 @@ describe Purchase::CreateService, :vcr do
         )
       end
 
+      let(:restart_params) { membership_params.merge(restart_intent: Checkout::RestartIntentToken.issue(product: membership_product, buyer:)) }
+
       it "restarts the subscription and returns the original purchase" do
         updater_service = instance_double(Subscription::UpdaterService)
         allow(Subscription::UpdaterService).to receive(:new).and_return(updater_service)
         allow(updater_service).to receive(:perform).and_return({ success: true, success_message: "Membership restarted" })
 
-        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params, buyer:).perform
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: restart_params, buyer:).perform
 
         expect(error).to be_nil
         expect(purchase).to eq(subscription.original_purchase)
+      end
+
+      context "without a restart intent" do
+        it "refuses the line before restarting or creating a new subscription", vcr: { cassette_name: setup_cassette } do
+          expect(Subscription::UpdaterService).not_to receive(:new)
+
+          expect do
+            purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params, buyer:).perform
+
+            expect(purchase).to be_nil
+            expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+          end.not_to change { [Purchase.count, Subscription.count] }
+
+          expect(subscription.reload.deactivated_at).to be_present
+        end
+
+        it "logs the refusal without reporting to Sentry", vcr: { cassette_name: setup_cassette } do
+          expect(ErrorNotifier).not_to receive(:notify)
+          allow(Rails.logger).to receive(:info).and_call_original
+
+          Purchase::CreateService.new(product: membership_product, params: membership_params, buyer:).perform
+
+          expect(Rails.logger).to have_received(:info).with(/Refused cart checkout of lapsed membership: subscription_id=#{subscription.id} product_id=#{membership_product.id}/)
+        end
+
+        it "still buys a new subscription when the buyer explicitly asks for one", vcr: { cassette_name: new_purchase_cassette } do
+          expect(Subscription::UpdaterService).not_to receive(:new)
+
+          purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(force_new_subscription: true), buyer:).perform
+
+          expect(error).to be_nil
+          expect(purchase).to be_present
+          expect(purchase.subscription).not_to eq(subscription)
+        end
+      end
+
+      it "refuses an intent from before the subscription was cancelled", vcr: { cassette_name: setup_cassette } do
+        stale_intent = travel_to(3.days.ago) { Checkout::RestartIntentToken.issue(product: membership_product, buyer:) }
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: stale_intent), buyer:).perform
+
+        expect(purchase).to be_nil
+        expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+      end
+
+      it "refuses an intent issued to a different buyer", vcr: { cassette_name: setup_cassette } do
+        other_buyers_intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer: create(:user))
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        _, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: other_buyers_intent), buyer:).perform
+
+        expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
       end
 
       it "returns SCA data when the restart requires card action" do
@@ -4910,7 +5216,7 @@ describe Purchase::CreateService, :vcr do
                                                                  purchase: { id: "ext_id", stripe_connect_account_id: "acct_123" }
                                                                })
 
-        purchase, error, sca_response = Purchase::CreateService.new(product: membership_product, params: membership_params, buyer:).perform
+        purchase, error, sca_response = Purchase::CreateService.new(product: membership_product, params: restart_params, buyer:).perform
 
         expect(purchase).to be_nil
         expect(error).to be_nil
@@ -4919,6 +5225,111 @@ describe Purchase::CreateService, :vcr do
           client_secret: "pi_123_secret_456",
           purchase: { id: "ext_id", stripe_connect_account_id: "acct_123" }
         )
+      end
+    end
+
+    context "when the only subscription is not restartable" do
+      def refused_and_nothing_charged(params)
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        expect do
+          purchase, error = Purchase::CreateService.new(product: membership_product, params:, buyer:).perform
+
+          expect(purchase).to be_nil
+          expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+        end.not_to change { [Purchase.count, Subscription.count] }
+      end
+
+      context "because it ended" do
+        let!(:subscription) { create_subscription_for(product: membership_product, purchaser: buyer, email: email, ended_at: 1.day.ago, deactivated_at: 1.day.ago) }
+
+        it "refuses a stale line instead of buying a new subscription", vcr: { cassette_name: setup_cassette } do
+          refused_and_nothing_charged(membership_params)
+        end
+
+        it "lets the buyer start a new subscription from the product page", vcr: { cassette_name: new_purchase_cassette } do
+          intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer:)
+
+          purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: intent), buyer:).perform
+
+          expect(error).to be_nil
+          expect(purchase.subscription).not_to eq(subscription)
+        end
+
+        it "lets a signed-in buyer pick a new subscription explicitly with force_new_subscription", vcr: { cassette_name: new_purchase_cassette } do
+          purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(force_new_subscription: true), buyer:).perform
+
+          expect(error).to be_nil
+          expect(purchase.subscription).not_to eq(subscription)
+        end
+
+        it "refuses an intent issued before the subscription ended", vcr: { cassette_name: setup_cassette } do
+          subscription.update!(ended_at: 1.minute.ago, deactivated_at: 1.minute.ago)
+          intent = travel_to(1.hour.ago) { Checkout::RestartIntentToken.issue(product: membership_product, buyer:) }
+
+          refused_and_nothing_charged(membership_params.merge(restart_intent: intent))
+        end
+      end
+
+      context "because an admin cancelled it" do
+        let!(:subscription) { create_subscription_for(product: membership_product, purchaser: buyer, email: email, cancelled_at: 1.day.ago, cancelled_by_admin: true, deactivated_at: 1.day.ago) }
+
+        it "refuses a stale line instead of buying a new subscription", vcr: { cassette_name: setup_cassette } do
+          refused_and_nothing_charged(membership_params)
+        end
+
+        it "never restarts the barred subscription even with a fresh intent", vcr: { cassette_name: new_purchase_cassette } do
+          expect(Subscription::UpdaterService).not_to receive(:new)
+          intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer:)
+
+          Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: intent), buyer:).perform
+
+          expect(subscription.reload.deactivated_at).to be_present
+          expect(subscription.cancelled_by_admin?).to be true
+        end
+      end
+
+      context "for a logged-out email" do
+        let!(:subscription) { create_subscription_for(product: membership_product, purchaser: create(:user), email: email, ended_at: 1.day.ago, deactivated_at: 1.day.ago) }
+
+        it "refuses a stale line, even with force_new_subscription", vcr: { cassette_name: setup_cassette } do
+          expect(Subscription::UpdaterService).not_to receive(:new)
+
+          purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(force_new_subscription: true)).perform
+
+          expect(purchase).to be_nil
+          expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+        end
+      end
+    end
+
+    context "when a newer subscription is active and an older one is deactivated" do
+      let!(:old_subscription) { create_subscription_for(product: membership_product, purchaser: buyer, email: email, cancelled_at: 3.days.ago, deactivated_at: 3.days.ago) }
+      let!(:active_subscription) { create_subscription_for(product: membership_product, purchaser: buyer, email: email) }
+
+      it "returns the already-subscribed error, not the stale-line refusal, and never restarts the old one", vcr: { cassette_name: setup_cassette } do
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params, buyer:).perform
+
+        expect(purchase).to be_nil
+        expect(error).to eq("You already have an active subscription to this membership. Visit your Library to manage it.")
+      end
+    end
+
+    context "when an older subscription is restartable and a newer one ended after the buyer arrived" do
+      let!(:restartable) { create_subscription_for(product: membership_product, purchaser: buyer, email: email, cancelled_at: 5.days.ago, deactivated_at: 5.days.ago) }
+
+      it "refuses the restart because the intent predates the latest deactivation", vcr: { cassette_name: setup_cassette } do
+        intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer:)
+        travel_to(1.minute.from_now) do
+          create_subscription_for(product: membership_product, purchaser: buyer, email: email, ended_at: Time.current, deactivated_at: Time.current)
+          expect(Subscription::UpdaterService).not_to receive(:new)
+
+          _, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: intent), buyer:).perform
+
+          expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+        end
       end
     end
 
@@ -4985,11 +5396,39 @@ describe Purchase::CreateService, :vcr do
         updater_service = instance_double(Subscription::UpdaterService)
         allow(Subscription::UpdaterService).to receive(:new).and_return(updater_service)
         allow(updater_service).to receive(:perform).and_return({ success: true, success_message: "Membership restarted" })
+        restart_intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer: nil)
 
-        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params).perform
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent:)).perform
 
         expect(error).to be_nil
         expect(purchase).to eq(subscription.original_purchase)
+      end
+
+      it "refuses the restart without a restart intent", vcr: { cassette_name: setup_cassette } do
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params).perform
+
+        expect(purchase).to be_nil
+        expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+      end
+
+      it "refuses the restart even when force_new_subscription is sent, because only a signed-in buyer can skip the check", vcr: { cassette_name: setup_cassette } do
+        expect(Subscription::UpdaterService).not_to receive(:new)
+
+        purchase, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(force_new_subscription: true)).perform
+
+        expect(purchase).to be_nil
+        expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
+      end
+
+      it "refuses a signed-in buyer's intent when the checkout is a guest checkout", vcr: { cassette_name: setup_cassette } do
+        expect(Subscription::UpdaterService).not_to receive(:new)
+        signed_in_intent = Checkout::RestartIntentToken.issue(product: membership_product, buyer: create(:user))
+
+        _, error = Purchase::CreateService.new(product: membership_product, params: membership_params.merge(restart_intent: signed_in_intent)).perform
+
+        expect(error).to eq(Purchase::CreateService.restart_not_requested_message(membership_product))
       end
     end
 
@@ -5207,6 +5646,32 @@ describe Purchase::CreateService, :vcr do
         expect(purchase.purchase_payment_flow).to be_nil
         expect(error).to be_present
       end
+    end
+  end
+
+  describe ".restart_not_requested_message" do
+    let(:membership_product) { create(:membership_product, user:) }
+
+    def anchors_in(message) = Nokogiri::HTML.fragment(message).css("a")
+
+    it "leads with the money result and links this product's canonical page" do
+      message = described_class.restart_not_requested_message(membership_product)
+
+      expect(Nokogiri::HTML.fragment(message).text).to eq("You weren't charged for this membership. To rejoin, visit its product page.")
+      expect(anchors_in(message).map { [_1.text, _1["href"], _1["target"], _1["rel"]] })
+        .to eq([["product page", membership_product.long_url, "_blank", "noopener noreferrer"]])
+    end
+
+    it "escapes the URL so it cannot add markup" do
+      hostile_url = %(https://seller.example.com/l/x?q="><script>alert(1)</script>&a=b)
+      allow(membership_product).to receive(:long_url).and_return(hostile_url)
+
+      message = described_class.restart_not_requested_message(membership_product)
+
+      expect(message).not_to include("<script")
+      expect(message).not_to include('"><')
+      expect(anchors_in(message).sole["href"]).to eq(hostile_url)
+      expect(Nokogiri::HTML.fragment(message).css("script")).to be_empty
     end
   end
 end
