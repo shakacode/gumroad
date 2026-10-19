@@ -9,7 +9,7 @@ import {
   waitForNoMutations,
 } from "shaka-shared";
 
-import { prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
+import { getNavigationViolations, prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
@@ -48,6 +48,13 @@ const waitForStableSize = async (page: Page, selector: string) => {
     }
     if (stableFrames < 3) throw new Error("Product article size did not settle within 60 animation frames");
   });
+};
+
+const assertNoViolations = () => {
+  const violations = getNavigationViolations();
+  if (violations.length > 0) {
+    throw new Error(`Sample invalidated — ${violations.length} request violation(s):\n${violations.join("\n")}`);
+  }
 };
 
 const reportBlockingMetrics = async (page: Page) => {
@@ -107,6 +114,7 @@ abTest(
   async ({ page }) => {
     await waitForProduct(page, standardProduct);
     await reportBlockingMetrics(page);
+    assertNoViolations();
   },
 );
 
@@ -121,6 +129,7 @@ abTest(
   async ({ page }) => {
     await waitForProduct(page, standardProduct);
     await reportBlockingMetrics(page);
+    assertNoViolations();
   },
 );
 
@@ -134,6 +143,7 @@ abTest(
   async ({ page }) => {
     await waitForProduct(page, sellerProfileProduct);
     await reportBlockingMetrics(page);
+    assertNoViolations();
   },
 );
 
@@ -148,6 +158,7 @@ abTest(
   async ({ page }) => {
     await waitForProduct(page, sellerProfileProduct);
     await reportBlockingMetrics(page);
+    assertNoViolations();
   },
 );
 
@@ -218,6 +229,7 @@ const completeProfileCheckout = async ({ page, annotate }: TestFnContext) => {
     });
   });
   await waitForStableSize(page, "[data-checkout-scope]");
+  assertNoViolations();
 };
 
 // Retained for comparison; this path lets Playwright scroll to the inline purchase link.
