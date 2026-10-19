@@ -41,7 +41,9 @@ precompiles benchmark assets in both images. ShakaPerf forwards the host user,
 UID, and GID to the image build; the rendered Compose bind targets therefore
 match `/home/${USER}/app` on both sides.
 
-Container setup resets and normally seeds only that twin's databases. It also
+Container setup resets and normally seeds only that twin's databases, then
+rebuilds Vite and RSC assets with the runtime origin so that generated route
+helpers (js-routes) carry the correct twin host in both bundles. It also
 starts loopback Memcached if needed; rerunning setup reuses the healthy daemon.
 The control and experiment use separate cache namespaces in separate
 containers.

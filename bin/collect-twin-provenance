@@ -1,0 +1,97 @@
+#!/bin/sh
+set -eu
+
+# Collect provenance metadata from both running twin containers.
+# Writes compare-results/provenance.json.
+# Exits non-zero if any required field is empty or if the two Vite
+# manifest hashes differ (both twins must have rebuilt assets).
+#
+# Usage: bin/collect-twin-provenance <control-container> <experiment-container>
+
+CONTROL="${1:?usage: $0 <control-container> <experiment-container>}"
+EXPERIMENT="${2:?usage: $0 <control-container> <experiment-container>}"
+
+STRONGBOX_SETUP='export STRONGBOX_GENERAL="$(ruby -ropenssl -e "print OpenSSL::PKey::RSA.generate(2048).to_pem")" STRONGBOX_GENERAL_PASSWORD=""'
+errors=""
+
+# Run a command inside a container. Exits non-zero on failure.
+twin_exec() {
+  result=$(docker exec "$1" sh -c "$2") || { echo "FAILED: docker exec $1 $2" >&2; echo ""; return 1; }
+  echo "$result"
+}
+
+require_field() {
+  name="$1"; value="$2"
+  if [ -z "$value" ]; then
+    errors="${errors}  missing: ${name}\n"
+  fi
+}
+
+file_hash() {
+  twin_exec "$1" "sha256sum $2 | cut -d' ' -f1" 2>/dev/null || echo ""
+}
+
+collect_side() {
+  container="$1"; side="$2"
+
+  ruby_ver=$(twin_exec "$container" "ruby --version | head -1") || ruby_ver=""
+  node_ver=$(twin_exec "$container" "node --version | head -1") || node_ver=""
+  flag_val=$(twin_exec "$container" "${STRONGBOX_SETUP} && RAILS_ENV=benchmark DISABLE_SPRING=1 bundle exec rails runner 'product = Link.find_by!(unique_permalink: \"bgfjk\"); puts Feature.active?(:product_page_react_on_rails, product.user)'") || flag_val=""
+  vite_hash=$(file_hash "$container" "public/vite/.vite/manifest.json")
+  rsc_hash=$(file_hash "$container" "public/public-rsc/manifest.json")
+
+  require_field "${side}.ruby_version" "$ruby_ver"
+  require_field "${side}.node_version" "$node_ver"
+  require_field "${side}.flag_value" "$flag_val"
+  require_field "${side}.vite_manifest" "$vite_hash"
+
+  # Store for later comparison
+  eval "${side}_vite_hash=\$vite_hash"
+
+  cat <<EOF
+    "ruby_version": "${ruby_ver}",
+    "node_version": "${node_ver}",
+    "feature_flags": { "product_page_react_on_rails": ${flag_val:-null} },
+    "vite_manifest_sha256": "${vite_hash:-null}",
+    "rsc_manifest_sha256": "${rsc_hash:-null}"
+EOF
+}
+
+mkdir -p compare-results
+
+echo "Collecting provenance from control ($CONTROL)..."
+control_vite_hash=""
+control_data=$(collect_side "$CONTROL" "control")
+
+echo "Collecting provenance from experiment ($EXPERIMENT)..."
+experiment_vite_hash=""
+experiment_data=$(collect_side "$EXPERIMENT" "experiment")
+
+# Both twins must have rebuilt Vite with their own host — the manifests
+# will differ because the asset URLs embed different hostnames.
+if [ -n "$control_vite_hash" ] && [ -n "$experiment_vite_hash" ] && [ "$control_vite_hash" = "$experiment_vite_hash" ]; then
+  errors="${errors}  Vite manifests are identical — assets were not rebuilt per twin\n"
+fi
+
+cat > compare-results/provenance.json <<EOF
+{
+  "run_started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "control": {
+${control_data}
+  },
+  "experiment": {
+${experiment_data}
+  }
+}
+EOF
+
+echo ""
+cat compare-results/provenance.json
+echo ""
+
+if [ -n "$errors" ]; then
+  printf "\nProvenance check FAILED:\n%b" "$errors" >&2
+  exit 1
+fi
+
+echo "Provenance OK — written to compare-results/provenance.json"
