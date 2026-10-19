@@ -176,14 +176,6 @@ const profileCheckoutConfig: Parameters<typeof abTest>[1] = {
 
 const completeProfileCheckout = async ({ page, annotate }: TestFnContext) => {
   const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
-  // The local SSR fixture can retain the default app origin after hydration.
-  await addToCart.evaluate((link: HTMLAnchorElement) => {
-    const url = new URL(link.href);
-    if (url.origin === "http://gumroad.localhost:3000") {
-      url.host = window.location.host.replace(/^luisfurushio\./u, "");
-      link.href = url.href;
-    }
-  });
   await annotate("Add product to cart");
   await addToCart.click();
   const checkout = page.locator("[data-checkout-scope]");
@@ -242,13 +234,6 @@ abTest(
         rect.right <= window.innerWidth &&
         link.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
       );
-    });
-    await addToCart.evaluate((link: HTMLAnchorElement) => {
-      const url = new URL(link.href);
-      if (url.origin === "http://gumroad.localhost:3000") {
-        url.host = window.location.host.replace(/^luisfurushio\./u, "");
-        link.href = url.href;
-      }
     });
     const bounds = await addToCart.boundingBox();
     if (!bounds) throw new Error("Sticky Add to cart has no clickable bounds");
