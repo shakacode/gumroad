@@ -57,14 +57,26 @@ const assertNoViolations = () => {
   }
 };
 
-const reportBlockingMetrics = async (page: Page) => {
+const reportMetrics = async (page: Page, annotate: TestFnContext["annotate"]) => {
   const longTasks: Array<{ blocking: number }> = await page.evaluate(() => (window as any).__longTasks ?? []);
   const blockingFromStart = longTasks.reduce((sum, t) => sum + t.blocking, 0);
   const inpEntries: Array<{ duration: number }> = await page.evaluate(() => (window as any).__inpEntries ?? []);
   const worstInp = inpEntries.length > 0 ? Math.max(...inpEntries.map((e) => e.duration)) : 0;
-  process.stderr.write(
-    `[shaka-perf metrics] blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms\n`,
-  );
+  const summary = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms`;
+  process.stderr.write(`[shaka-perf metrics] ${summary}\n`);
+  await annotate(summary);
+};
+
+// Click "Add to cart" to generate a real interaction event for INP, then
+// prevent the navigation so the landing test stays on the product page.
+const clickForInp = async (page: Page) => {
+  const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+  await addToCart.evaluate((link: HTMLAnchorElement) => {
+    link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+  });
+  await addToCart.click();
+  // Give the browser a frame to record the interaction event.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 };
 
 const waitForProduct = async (page: Page, fixture: ProductFixture) => {
@@ -111,9 +123,10 @@ abTest(
     experimentPathOverride: standardProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => {
+  async ({ page, annotate }) => {
     await waitForProduct(page, standardProduct);
-    await reportBlockingMetrics(page);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
     assertNoViolations();
   },
 );
@@ -126,9 +139,10 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(standardProduct)),
   },
-  async ({ page }) => {
+  async ({ page, annotate }) => {
     await waitForProduct(page, standardProduct);
-    await reportBlockingMetrics(page);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
     assertNoViolations();
   },
 );
@@ -140,9 +154,10 @@ abTest(
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => {
+  async ({ page, annotate }) => {
     await waitForProduct(page, sellerProfileProduct);
-    await reportBlockingMetrics(page);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
     assertNoViolations();
   },
 );
@@ -155,9 +170,10 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(sellerProfileProduct)),
   },
-  async ({ page }) => {
+  async ({ page, annotate }) => {
     await waitForProduct(page, sellerProfileProduct);
-    await reportBlockingMetrics(page);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
     assertNoViolations();
   },
 );
@@ -229,6 +245,7 @@ const completeProfileCheckout = async ({ page, annotate }: TestFnContext) => {
     });
   });
   await waitForStableSize(page, "[data-checkout-scope]");
+  await reportMetrics(page, annotate);
   assertNoViolations();
 };
 
