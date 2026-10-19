@@ -152,7 +152,7 @@ services:
     healthcheck: *elasticsearch-healthcheck
 
   minio-control:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: pgsty/minio:latest
     environment: &minio-environment
       MINIO_ROOT_USER: shakaperf
       MINIO_ROOT_PASSWORD: shakaperf
@@ -168,7 +168,7 @@ services:
       retries: 30
 
   minio-experiment:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: pgsty/minio:latest
     environment: *minio-environment
     command: server /data
     ports:
@@ -178,7 +178,7 @@ services:
     healthcheck: *minio-healthcheck
 
   createbuckets-control:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: pgsty/mc:latest
     depends_on:
       minio-control:
         condition: service_healthy
@@ -192,7 +192,7 @@ services:
       MINIO_HOST: minio-control
 
   createbuckets-experiment:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: pgsty/mc:latest
     depends_on:
       minio-experiment:
         condition: service_healthy
