@@ -178,6 +178,115 @@ abTest(
   },
 );
 
+abTest(
+  "Product Page - Profile layout variant select and cart",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Select a variant option if the product has multiple editions.
+    const variantSelect = page.locator("article").getByRole("radio").first();
+    if ((await variantSelect.count()) > 0) {
+      await annotate("Select variant");
+      await variantSelect.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Click cart navigation button if visible.
+    const cartButton = page.getByRole("link", { name: /cart/iu }).first();
+    if ((await cartButton.count()) > 0 && (await cartButton.isVisible())) {
+      await cartButton.evaluate((link: HTMLAnchorElement) => {
+        link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+      });
+      await annotate("Click cart navigation");
+      await cartButton.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
+abTest(
+  "Product Page - Profile layout gallery and scroll",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Click through cover images if there are navigation controls.
+    const nextCover = page.locator("article").getByRole("button", { name: /next/iu }).first();
+    if ((await nextCover.count()) > 0 && (await nextCover.isVisible())) {
+      await annotate("Navigate product covers");
+      await nextCover.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await nextCover.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Scroll to bottom");
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }));
+    await page.waitForTimeout(500);
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
+abTest(
+  "Product Page - Profile layout subscribe and follow",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Click Subscribe button.
+    const subscribe = page.getByRole("button", { name: "Subscribe", exact: true });
+    if ((await subscribe.count()) > 0 && (await subscribe.isVisible())) {
+      await annotate("Click Subscribe");
+      await subscribe.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    // Click Follow link/button.
+    const follow = page.getByRole("button", { name: /follow/iu }).first();
+    if ((await follow.count()) > 0 && (await follow.isVisible())) {
+      await annotate("Click Follow");
+      await follow.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
 // The benchmark Rails launcher supplies a PayPal sandbox demo ID; this flow exercises card checkout only.
 const profileCheckoutConfig: Parameters<typeof abTest>[1] = {
   startingPath: sellerProfileProduct.controlUrl,
