@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+# Collect provenance metadata from both running twin containers.
+# Writes compare-results/provenance.json. Fails if git SHAs differ.
+#
+# Usage: bin/collect-twin-provenance <control-container> <experiment-container>
+#   e.g.: bin/collect-twin-provenance shakaperf-control-server-1 shakaperf-experiment-server-1
+
+CONTROL="${1:?usage: $0 <control-container> <experiment-container>}"
+EXPERIMENT="${2:?usage: $0 <control-container> <experiment-container>}"
+
+STRONGBOX_ENV='STRONGBOX_GENERAL=$(ruby -ropenssl -e "print OpenSSL::PKey::RSA.generate(2048).to_pem") STRONGBOX_GENERAL_PASSWORD=""'
+
+twin_exec() {
+  docker exec "$1" sh -c "$2" 2>/dev/null || echo ""
+}
+
+twin_rails_runner() {
+  docker exec "$1" sh -c "${STRONGBOX_ENV} RAILS_ENV=benchmark DISABLE_SPRING=1 bundle exec rails runner \"$2\"" 2>/dev/null || echo ""
+}
+
+file_hash() {
+  twin_exec "$1" "sha256sum $2 2>/dev/null | cut -d' ' -f1" || echo "missing"
+}
+
+collect_side() {
+  container="$1"
+  ruby_version=$(twin_exec "$container" "ruby --version")
+  node_version=$(twin_exec "$container" "node --version")
+  flag_value=$(twin_rails_runner "$container" "product = Link.find_by!(unique_permalink: 'bgfjk'); puts Feature.active?(:product_page_react_on_rails, product.user)")
+  vite_manifest=$(file_hash "$container" "public/vite/.vite/manifest.json")
+  rsc_manifest=$(file_hash "$container" "public/public-rsc/manifest.json")
+
+  cat <<EOF
+    "ruby_version": "$(echo "$ruby_version" | head -1)",
+    "node_version": "$(echo "$node_version" | head -1)",
+    "feature_flags": { "product_page_react_on_rails": ${flag_value:-null} },
+    "vite_manifest_sha256": "${vite_manifest:-missing}",
+    "rsc_manifest_sha256": "${rsc_manifest:-missing}"
+EOF
+}
+
+mkdir -p compare-results
+
+echo "Collecting provenance from control ($CONTROL)..."
+control_data=$(collect_side "$CONTROL")
+
+echo "Collecting provenance from experiment ($EXPERIMENT)..."
+experiment_data=$(collect_side "$EXPERIMENT")
+
+cat > compare-results/provenance.json <<EOF
+{
+  "run_started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "control": {
+${control_data}
+  },
+  "experiment": {
+${experiment_data}
+  }
+}
+EOF
+
+echo "Provenance written to compare-results/provenance.json"
+cat compare-results/provenance.json

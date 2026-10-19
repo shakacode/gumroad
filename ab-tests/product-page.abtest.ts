@@ -50,6 +50,16 @@ const waitForStableSize = async (page: Page, selector: string) => {
   });
 };
 
+const reportBlockingMetrics = async (page: Page) => {
+  const longTasks: Array<{ blocking: number }> = await page.evaluate(() => (window as any).__longTasks ?? []);
+  const blockingFromStart = longTasks.reduce((sum, t) => sum + t.blocking, 0);
+  const inpEntries: Array<{ duration: number }> = await page.evaluate(() => (window as any).__inpEntries ?? []);
+  const worstInp = inpEntries.length > 0 ? Math.max(...inpEntries.map((e) => e.duration)) : 0;
+  process.stderr.write(
+    `[shaka-perf metrics] blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms\n`,
+  );
+};
+
 const waitForProduct = async (page: Page, fixture: ProductFixture) => {
   const product = page.locator("article");
   await product.getByRole("heading", { level: 1, name: fixture.name }).waitFor({ state: "visible" });
@@ -94,7 +104,10 @@ abTest(
     experimentPathOverride: standardProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => waitForProduct(page, standardProduct),
+  async ({ page }) => {
+    await waitForProduct(page, standardProduct);
+    await reportBlockingMetrics(page);
+  },
 );
 
 abTest(
@@ -105,7 +118,10 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(standardProduct)),
   },
-  async ({ page }) => waitForProduct(page, standardProduct),
+  async ({ page }) => {
+    await waitForProduct(page, standardProduct);
+    await reportBlockingMetrics(page);
+  },
 );
 
 abTest(
@@ -115,7 +131,10 @@ abTest(
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => waitForProduct(page, sellerProfileProduct),
+  async ({ page }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    await reportBlockingMetrics(page);
+  },
 );
 
 abTest(
@@ -126,7 +145,10 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(sellerProfileProduct)),
   },
-  async ({ page }) => waitForProduct(page, sellerProfileProduct),
+  async ({ page }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    await reportBlockingMetrics(page);
+  },
 );
 
 // The benchmark Rails launcher supplies a PayPal sandbox demo ID; this flow exercises card checkout only.
