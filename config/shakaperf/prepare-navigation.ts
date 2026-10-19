@@ -86,10 +86,10 @@ export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context, 
 
     // Record long tasks from navigation start so we can compute blocking time
     // from page start (not just after FCP, which is what TBT measures).
-    window.__longTasks = [];
+    (window as any).__longTasks = [];
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        window.__longTasks.push({
+        (window as any).__longTasks.push({
           start: entry.startTime,
           duration: entry.duration,
           blocking: Math.max(0, entry.duration - 50),
@@ -98,15 +98,15 @@ export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context, 
     }).observe({ type: "longtask", buffered: true });
 
     // Record interaction events for INP measurement.
-    window.__inpEntries = [];
+    (window as any).__inpEntries = [];
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        window.__inpEntries.push({
+        (window as any).__inpEntries.push({
           name: entry.name,
           duration: entry.duration,
           startTime: entry.startTime,
         });
       }
-    }).observe({ type: "event", durationThreshold: 0, buffered: true });
+    }).observe({ type: "event", durationThreshold: 0, buffered: true } as any);
   });
 };

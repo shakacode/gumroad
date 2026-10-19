@@ -184,7 +184,7 @@ abTest(
     startingPath: sellerProfileProduct.controlUrl,
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     testTypes: ["perf"],
-    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
   },
   async ({ page, annotate }) => {
     await waitForProduct(page, sellerProfileProduct);
@@ -223,7 +223,7 @@ abTest(
     startingPath: sellerProfileProduct.controlUrl,
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     testTypes: ["perf"],
-    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
   },
   async ({ page, annotate }) => {
     await waitForProduct(page, sellerProfileProduct);
@@ -257,7 +257,7 @@ abTest(
     startingPath: sellerProfileProduct.controlUrl,
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     testTypes: ["perf"],
-    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareProductLandingNavigation } },
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
   },
   async ({ page, annotate }) => {
     await waitForProduct(page, sellerProfileProduct);
