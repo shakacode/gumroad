@@ -58,7 +58,7 @@ export default defineConfig({
   },
   perf: {
     viewports: ["desktop", "phone"],
-    numberOfMeasurements: 18,
+    numberOfMeasurements: 20,
     regressionThreshold: 50,
     pValueThreshold: 0.05,
     regressionThresholdStat: "estimator",
@@ -81,10 +81,6 @@ export default defineConfig({
       {
         command: "/shakaperf-twin/setup-database",
         description: "Resetting and normally seeding isolated databases",
-      },
-      {
-        command: "/shakaperf-twin/build-assets",
-        description: "Rebuilding Vite and RSC assets with twin-specific host",
       },
       {
         command: "/shakaperf-twin/setup-products",

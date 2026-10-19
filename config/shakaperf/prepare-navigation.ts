@@ -43,8 +43,12 @@ export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context }
   // RSC payload query strings contain recaptcha prop names; block only provider resources.
   await installRequestBlocking(context, [
     "www.google.com/recaptcha/",
+    "www.google-analytics.com/",
+    "www.googletagmanager.com/",
     "www.gstatic.com/recaptcha/",
     "www.recaptcha.net/recaptcha/",
+    "connect.facebook.net/",
+    "analytics.tiktok.com/",
   ]);
   await context.addInitScript(() => {
     window.addEventListener(
