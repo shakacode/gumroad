@@ -98,6 +98,7 @@ describe "Selective product renderer boundary", type: :request do
     expect(response).to be_successful
     expect(response.headers["Cache-Control"]).to include("no-store")
     document = Nokogiri::HTML(response.body)
+    expect(document.css('script[async][src*="/public-rsc/"]')).to be_empty
     expect(document.css("script[data-react-on-rails-rsc-payload]")).not_to be_empty
     inline_scripts = document.css("script:not([src])").reject { _1["type"].to_s.include?("json") }
     expect(inline_scripts).not_to be_empty

@@ -57,6 +57,7 @@ describe("public RSC asset fingerprinting", () => {
                   isServer: false,
                   clientReferences: [{ directory: root, include: /client\.js$/u }],
                 }),
+                ...(client?.plugins ?? []).filter((plugin) => plugin?.constructor.name === "SsrClientManifestPlugin"),
               ],
             },
             (error, stats) =>
@@ -71,6 +72,13 @@ describe("public RSC asset fingerprinting", () => {
           filePathToModuleMetadata: Record<string, { chunks: (string | number)[] }>;
         };
         expect(manifest.moduleLoading.prefix).toBe(prefix);
+        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+        const ssrManifest = JSON.parse(readFileSync(join(output, "react-client-ssr-manifest.json"), "utf8")) as {
+          moduleLoading: null;
+          filePathToModuleMetadata: typeof manifest.filePathToModuleMetadata;
+        };
+        expect(ssrManifest.moduleLoading).toBeNull();
+        expect(ssrManifest.filePathToModuleMetadata).toEqual(manifest.filePathToModuleMetadata);
         expect(client?.output?.publicPath).toBe(prefix);
         const chunks = Object.values(manifest.filePathToModuleMetadata).flatMap(({ chunks }) =>
           chunks.filter((_, index) => index % 2 === 1).map(String),

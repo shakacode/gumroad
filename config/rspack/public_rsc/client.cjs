@@ -11,6 +11,7 @@ const {
   publicAssetUrl,
   publicOutputPath,
 } = require("./common.cjs");
+const SsrClientManifestPlugin = require("./ssrClientManifestPlugin.cjs");
 
 shakapacker.publicPathWithoutCDN = publicAssetPath;
 const shakapackerConfig = generateRspackConfig();
@@ -38,7 +39,7 @@ module.exports = {
     ...shakapackerConfig.module,
     rules: [assetRule, ...createScriptRules()],
   },
-  plugins: [...shakapackerConfig.plugins, ...createPlugins(false)],
+  plugins: [...shakapackerConfig.plugins, ...createPlugins(false), new SsrClientManifestPlugin()],
   output: {
     ...shakapackerConfig.output,
     filename: "[name].[contenthash:8].js",

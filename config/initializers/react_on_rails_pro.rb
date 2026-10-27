@@ -14,6 +14,7 @@ ReactOnRailsPro.configure do |config|
   config.tracing = Rails.env.development?
 
   config.enable_rsc_support = true
+  config.react_client_manifest_file = "react-client-ssr-manifest.json"
   config.rsc_bundle_js_file = "rsc-bundle.js"
   config.rsc_payload_generation_url_path = "rsc_payload/"
 end
