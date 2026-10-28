@@ -196,7 +196,7 @@ export const buyerLocalContextFor = (product: Product): BuyerLocalCurrencyContex
   buyerLocalCurrencySubunitToUnit: product.buyer_local_currency_subunit_to_unit,
 });
 
-export const getMaxQuantity = (product: Product, option: Option | null) =>
+export const getMaxQuantity = (product: Pick<Product, "quantity_remaining">, option: Option | null) =>
   option?.quantity_left != null && product.quantity_remaining !== null
     ? Math.min(option.quantity_left, product.quantity_remaining)
     : (option?.quantity_left ?? product.quantity_remaining);

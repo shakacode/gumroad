@@ -260,7 +260,17 @@ export default function ProductPage({
         inertiaMeta={inertiaMeta}
         hydrationSnapshot={{ locale: global.locale, timeZone: "UTC", referenceTime: Date.now() }}
       >
-        <ProductStateProvider product={productProps.product} initialDiscountCode={productProps.discount_code}>
+        <ProductStateProvider product={{
+          options: productProps.product.options,
+          recurrences: productProps.product.recurrences,
+          rental: productProps.product.rental,
+          pwyw: productProps.product.pwyw,
+          installment_plan: productProps.product.installment_plan,
+          is_quantity_enabled: productProps.product.is_quantity_enabled,
+          is_multiseat_license: productProps.product.is_multiseat_license,
+          quantity_remaining: productProps.product.quantity_remaining,
+          native_type: productProps.product.native_type,
+        }} initialDiscountCode={productProps.discount_code}>
           {productContent}
         </ProductStateProvider>
       </ProductPageShell>
