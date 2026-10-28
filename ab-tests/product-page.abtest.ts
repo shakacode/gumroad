@@ -9,7 +9,7 @@ import {
   waitForNoMutations,
 } from "shaka-shared";
 
-import { getNavigationViolations, prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
+import { getAnalyticsRequests, getNavigationViolations, prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
@@ -58,12 +58,21 @@ const assertNoViolations = () => {
 };
 
 const reportMetrics = async (page: Page, annotate: TestFnContext["annotate"]) => {
-  const longTasks: Array<{ blocking: number }> = await page.evaluate(() => (window as any).__longTasks ?? []);
+  const longTasks: Array<{ start: number; duration: number; blocking: number; source: string }> = await page.evaluate(
+    () => (window as any).__longTasks ?? [],
+  );
   const blockingFromStart = longTasks.reduce((sum, t) => sum + t.blocking, 0);
   const inpEntries: Array<{ duration: number }> = await page.evaluate(() => (window as any).__inpEntries ?? []);
   const worstInp = inpEntries.length > 0 ? Math.max(...inpEntries.map((e) => e.duration)) : 0;
-  const summary = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms`;
+  const analytics = getAnalyticsRequests();
+
+  const taskDetail = longTasks
+    .map((t) => `  ${t.start.toFixed(0)}ms +${t.duration.toFixed(0)}ms (${t.blocking.toFixed(0)}ms blocking) ${t.source}`)
+    .join("\n");
+  const summary = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms, analytics=${analytics.length}`;
   process.stderr.write(`[shaka-perf metrics] ${summary}\n`);
+  if (taskDetail) process.stderr.write(`[shaka-perf long tasks]\n${taskDetail}\n`);
+  if (analytics.length > 0) process.stderr.write(`[shaka-perf analytics] ${analytics.length} requests intercepted\n`);
   await annotate(summary);
 };
 

@@ -17,11 +17,15 @@ const BLOCKED_PREFIXES = [
 const isBlockedUrl = (url: string) => BLOCKED_PREFIXES.some((prefix) => url.includes(prefix));
 
 let navigationViolations: string[] = [];
+let analyticsRequests: string[] = [];
+let listenersInstalled = false;
 
 export const getNavigationViolations = () => navigationViolations;
+export const getAnalyticsRequests = () => analyticsRequests;
 
 export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context, url }) => {
   navigationViolations = [];
+  analyticsRequests = [];
 
   // Determine which twin this navigation targets so we can detect cross-twin requests.
   const isControlSide = url.includes("control.localhost");
@@ -33,29 +37,38 @@ export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context, 
     navigationViolations.push(msg);
   };
 
-  context.on("requestfailed", (request) => {
-    const failure = request.failure()?.errorText ?? "unknown";
-    if (failure === "inspector" || failure === "net::ERR_ABORTED") return;
-    if (isBlockedUrl(request.url())) return;
-    addViolation(`REQUEST FAILED: ${failure}`, request.url());
-  });
+  // Register listeners once per context to avoid accumulating duplicate
+  // handlers across samples — ShakaPerf calls beforeNavigate per sample.
+  if (!listenersInstalled) {
+    context.on("requestfailed", (request) => {
+      const failure = request.failure()?.errorText ?? "unknown";
+      if (failure === "inspector" || failure === "net::ERR_ABORTED") return;
+      if (isBlockedUrl(request.url())) return;
+      addViolation(`REQUEST FAILED: ${failure}`, request.url());
+    });
 
-  context.on("request", (request) => {
-    try {
-      const { host } = new URL(request.url());
-      if (host === "gumroad.localhost:3000") addViolation("WRONG HOST", request.url());
-      else if (host.includes(oppositeTwinHost)) addViolation("CROSS-TWIN", request.url());
-    } catch {
-      // data: URIs and other non-http schemes
-    }
-  });
+    context.on("request", (request) => {
+      try {
+        const reqUrl = request.url();
+        const { host } = new URL(reqUrl);
+        if (host === "gumroad.localhost:3000") addViolation("WRONG HOST", reqUrl);
+        else if (host.includes(oppositeTwinHost)) addViolation("CROSS-TWIN", reqUrl);
+        // Record analytics requests that would have gone to tracking providers.
+        if (isBlockedUrl(reqUrl)) analyticsRequests.push(reqUrl);
+      } catch {
+        // data: URIs and other non-http schemes
+      }
+    });
 
-  context.on("response", (response) => {
-    const status = response.status();
-    if (status >= 400 && !isBlockedUrl(response.url())) {
-      addViolation(`HTTP ${status}`, response.url());
-    }
-  });
+    context.on("response", (response) => {
+      const status = response.status();
+      if (status >= 400 && !isBlockedUrl(response.url())) {
+        addViolation(`HTTP ${status}`, response.url());
+      }
+    });
+
+    listenersInstalled = true;
+  }
 
   // Development authorizes rack-mini-profiler on every request; keep its injected UI and requests out of measurements.
   await context.addCookies(
@@ -86,13 +99,21 @@ export const prepareShakaPerfNavigation: BeforeNavigateHook = async ({ context, 
 
     // Record long tasks from navigation start so we can compute blocking time
     // from page start (not just after FCP, which is what TBT measures).
+    // Include attribution (script URL) when the browser provides it.
     (window as any).__longTasks = [];
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
+        const attribution = (entry as any).attribution;
+        let source = "unknown";
+        if (attribution?.[0]) {
+          const attr = attribution[0];
+          source = attr.containerSrc || attr.containerName || attr.containerType || "unknown";
+        }
         (window as any).__longTasks.push({
           start: entry.startTime,
           duration: entry.duration,
           blocking: Math.max(0, entry.duration - 50),
+          source,
         });
       }
     }).observe({ type: "longtask", buffered: true });

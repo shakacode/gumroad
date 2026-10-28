@@ -2,88 +2,129 @@
 set -eu
 
 # Collect provenance metadata from both running twin containers.
-# Writes compare-results/provenance.json.
-# Exits non-zero if any required field is empty or if the two Vite
-# manifest hashes differ (both twins must have rebuilt assets).
+# Writes compare-results/provenance.json using jq for safe JSON generation.
+# Exits non-zero if any required field is empty, if the two Vite manifest
+# hashes are identical (proving assets were not rebuilt per twin), or if
+# container volumes contain stale data from a previous run.
 #
 # Usage: bin/collect-twin-provenance <control-container> <experiment-container>
 
 CONTROL="${1:?usage: $0 <control-container> <experiment-container>}"
 EXPERIMENT="${2:?usage: $0 <control-container> <experiment-container>}"
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq is required but not installed" >&2
+  exit 1
+fi
+
 STRONGBOX_SETUP='export STRONGBOX_GENERAL="$(ruby -ropenssl -e "print OpenSSL::PKey::RSA.generate(2048).to_pem")" STRONGBOX_GENERAL_PASSWORD=""'
 errors=""
 
-# Run a command inside a container. Exits non-zero on failure.
 twin_exec() {
-  result=$(docker exec "$1" sh -c "$2") || { echo "FAILED: docker exec $1 $2" >&2; echo ""; return 1; }
-  echo "$result"
+  docker exec "$1" sh -c "$2" 2>/dev/null || echo ""
 }
 
 require_field() {
-  name="$1"; value="$2"
-  if [ -z "$value" ]; then
-    errors="${errors}  missing: ${name}\n"
+  if [ -z "$2" ]; then
+    errors="${errors}  missing: ${1}\n"
   fi
 }
 
 file_hash() {
-  twin_exec "$1" "sha256sum $2 | cut -d' ' -f1" 2>/dev/null || echo ""
+  twin_exec "$1" "sha256sum $2 2>/dev/null | cut -d' ' -f1"
 }
 
 collect_side() {
   container="$1"; side="$2"
 
-  ruby_ver=$(twin_exec "$container" "ruby --version | head -1") || ruby_ver=""
-  node_ver=$(twin_exec "$container" "node --version | head -1") || node_ver=""
-  flag_val=$(twin_exec "$container" "${STRONGBOX_SETUP} && RAILS_ENV=benchmark DISABLE_SPRING=1 bundle exec rails runner 'product = Link.find_by!(unique_permalink: \"bgfjk\"); puts Feature.active?(:product_page_react_on_rails, product.user)'") || flag_val=""
+  ruby_ver=$(twin_exec "$container" "ruby --version | head -1")
+  node_ver=$(twin_exec "$container" "node --version | head -1")
+  flag_val=$(twin_exec "$container" "${STRONGBOX_SETUP} && RAILS_ENV=benchmark DISABLE_SPRING=1 bundle exec rails runner 'product = Link.find_by!(unique_permalink: \"bgfjk\"); puts Feature.active?(:product_page_react_on_rails, product.user)'")
   vite_hash=$(file_hash "$container" "public/vite/.vite/manifest.json")
   rsc_hash=$(file_hash "$container" "public/public-rsc/manifest.json")
+  gemfile_hash=$(file_hash "$container" "Gemfile.lock")
+  npm_hash=$(file_hash "$container" "package-lock.json")
+  fixture_ver=$(twin_exec "$container" "${STRONGBOX_SETUP} && RAILS_ENV=benchmark DISABLE_SPRING=1 bundle exec rails runner 'puts Link.find_by!(unique_permalink: \"bgfjk\").updated_at.iso8601'")
+  renderer_port=$(twin_exec "$container" "echo \${REACT_ON_RAILS_PRO_RENDERER_PORT:-not set}")
+  renderer_pool=$(twin_exec "$container" "echo \${REACT_ON_RAILS_PRO_RENDERER_POOL_SIZE:-not set}")
 
   require_field "${side}.ruby_version" "$ruby_ver"
   require_field "${side}.node_version" "$node_ver"
   require_field "${side}.flag_value" "$flag_val"
   require_field "${side}.vite_manifest" "$vite_hash"
 
-  # Store for later comparison
-  eval "${side}_vite_hash=\$vite_hash"
+  # Check that Vite assets were rebuilt after container start (not stale from image).
+  vite_mtime=$(twin_exec "$container" "stat -c %Y public/vite/.vite/manifest.json 2>/dev/null")
+  container_start=$(twin_exec "$container" "stat -c %Y /proc/1/cmdline 2>/dev/null")
+  if [ -n "$vite_mtime" ] && [ -n "$container_start" ] && [ "$vite_mtime" -lt "$container_start" ]; then
+    errors="${errors}  ${side}: Vite manifest is older than container start — volume is stale\n"
+  fi
 
-  cat <<EOF
-    "ruby_version": "${ruby_ver}",
-    "node_version": "${node_ver}",
-    "feature_flags": { "product_page_react_on_rails": ${flag_val:-null} },
-    "vite_manifest_sha256": "${vite_hash:-null}",
-    "rsc_manifest_sha256": "${rsc_hash:-null}"
-EOF
+  # Output JSON for this side using jq.
+  jq -n \
+    --arg ruby "$ruby_ver" \
+    --arg node "$node_ver" \
+    --arg flag "$flag_val" \
+    --arg vite "$vite_hash" \
+    --arg rsc "$rsc_hash" \
+    --arg gemfile "$gemfile_hash" \
+    --arg npm "$npm_hash" \
+    --arg fixture "$fixture_ver" \
+    --arg renderer_port "$renderer_port" \
+    --arg renderer_pool "$renderer_pool" \
+    '{
+      ruby_version: $ruby,
+      node_version: $node,
+      feature_flags: { product_page_react_on_rails: ($flag | if . == "true" then true elif . == "false" then false else null end) },
+      vite_manifest_sha256: (if $vite == "" then null else $vite end),
+      rsc_manifest_sha256: (if $rsc == "" then null else $rsc end),
+      gemfile_lock_sha256: (if $gemfile == "" then null else $gemfile end),
+      package_lock_sha256: (if $npm == "" then null else $npm end),
+      fixture_updated_at: (if $fixture == "" then null else $fixture end),
+      renderer: { port: $renderer_port, pool_size: $renderer_pool }
+    }'
+}
+
+# Collect container resource stats.
+collect_resources() {
+  container="$1"
+  docker stats "$container" --no-stream --format '{{json .}}' 2>/dev/null | jq '{
+    cpu_percent: .CPUPerc,
+    memory_usage: .MemUsage,
+    memory_percent: .MemPerc,
+    pids: .PIDs
+  }' 2>/dev/null || echo '{"cpu_percent":"?","memory_usage":"?","memory_percent":"?","pids":"?"}'
 }
 
 mkdir -p compare-results
 
 echo "Collecting provenance from control ($CONTROL)..."
-control_vite_hash=""
-control_data=$(collect_side "$CONTROL" "control")
+control_json=$(collect_side "$CONTROL" "control")
+control_resources=$(collect_resources "$CONTROL")
 
 echo "Collecting provenance from experiment ($EXPERIMENT)..."
-experiment_vite_hash=""
-experiment_data=$(collect_side "$EXPERIMENT" "experiment")
+experiment_json=$(collect_side "$EXPERIMENT" "experiment")
+experiment_resources=$(collect_resources "$EXPERIMENT")
 
-# Both twins must have rebuilt Vite with their own host — the manifests
-# will differ because the asset URLs embed different hostnames.
-if [ -n "$control_vite_hash" ] && [ -n "$experiment_vite_hash" ] && [ "$control_vite_hash" = "$experiment_vite_hash" ]; then
+# Both twins must have rebuilt Vite with their own host.
+control_vite=$(echo "$control_json" | jq -r '.vite_manifest_sha256 // ""')
+experiment_vite=$(echo "$experiment_json" | jq -r '.vite_manifest_sha256 // ""')
+if [ -n "$control_vite" ] && [ -n "$experiment_vite" ] && [ "$control_vite" = "$experiment_vite" ]; then
   errors="${errors}  Vite manifests are identical — assets were not rebuilt per twin\n"
 fi
 
-cat > compare-results/provenance.json <<EOF
-{
-  "run_started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "control": {
-${control_data}
-  },
-  "experiment": {
-${experiment_data}
-  }
-}
-EOF
+# Build the final JSON safely with jq.
+jq -n \
+  --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson control "$control_json" \
+  --argjson experiment "$experiment_json" \
+  --argjson control_res "$control_resources" \
+  --argjson experiment_res "$experiment_resources" \
+  '{
+    run_started_at: $timestamp,
+    control: ($control + { resources: $control_res }),
+    experiment: ($experiment + { resources: $experiment_res })
+  }' > compare-results/provenance.json
 
 echo ""
 cat compare-results/provenance.json
