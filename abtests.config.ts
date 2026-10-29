@@ -83,6 +83,10 @@ export default defineConfig({
         description: "Resetting and normally seeding isolated databases",
       },
       {
+        command: "/shakaperf-twin/build-assets",
+        description: "Rebuilding Vite and RSC assets with the twin's real host",
+      },
+      {
         command: "/shakaperf-twin/setup-products",
         description: "Loading deterministic benchmark catalogs",
       },
