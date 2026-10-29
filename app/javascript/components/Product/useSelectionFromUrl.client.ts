@@ -3,11 +3,20 @@
 import * as React from "react";
 
 import type { Product as ProductData } from "$app/components/Product";
-import { getMaxQuantity, type PriceSelection } from "$app/components/Product/ConfigurationSelector";
+import { getMaxQuantity, type Option, type PriceSelection, type Recurrences, type Rental } from "$app/components/Product/ConfigurationSelector";
 import { initialOptionId } from "$app/components/Product/purchaseReadiness";
 import { useOriginalLocation } from "$app/components/useOriginalLocation";
 
-export const useSelectionFromUrl = (product: ProductData) => {
+// The subset of product data that useSelectionFromUrl reads, so the RSC
+// Flight payload serializes only these fields instead of the full product.
+export type SelectionProductConfig = Pick<ProductData, "installment_plan" | "is_quantity_enabled" | "is_multiseat_license" | "quantity_remaining" | "native_type"> & {
+  options: Option[];
+  recurrences: Recurrences | null;
+  rental: Rental | null;
+  pwyw: { suggested_price_cents: number | null; default_price_cents?: number | null } | null;
+};
+
+export const useSelectionFromUrl = (product: SelectionProductConfig) => {
   const { searchParams } = new URL(useOriginalLocation());
   return React.useState<PriceSelection>(() => {
     const recurrence =

@@ -2,9 +2,9 @@
 
 import * as React from "react";
 
-import type { Product as ProductData, ProductDiscount } from "$app/components/Product";
+import type { ProductDiscount } from "$app/components/Product";
 import type { ConfigurationSelectorHandle, PriceSelection } from "$app/components/Product/ConfigurationSelector";
-import { useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client";
+import { type SelectionProductConfig, useSelectionFromUrl } from "$app/components/Product/useSelectionFromUrl.client";
 
 type ProductState = {
   selection: PriceSelection;
@@ -49,7 +49,7 @@ export const ProductStateProvider = ({
 }: {
   children: React.ReactNode;
   initialDiscountCode: ProductDiscount;
-  product: ProductData;
+  product: SelectionProductConfig;
 }) => {
   const [selection, setSelection] = useSelectionFromUrl(product);
 
@@ -67,7 +67,7 @@ export const FeaturedProductStateProvider = ({
 }: {
   children: React.ReactNode;
   initialDiscountCode: ProductDiscount;
-  product: ProductData;
+  product: Pick<SelectionProductConfig, "recurrences">;
 }) => {
   const [selection, setSelection] = React.useState<PriceSelection>({
     recurrence: product.recurrences?.default ?? null,
