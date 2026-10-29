@@ -9,7 +9,7 @@ import {
   waitForNoMutations,
 } from "shaka-shared";
 
-import { prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
+import { getAnalyticsRequests, getNavigationViolations, prepareShakaPerfNavigation } from "../config/shakaperf/prepare-navigation";
 
 const CONTROL_PORT = Number(process.env.SHAKAPERF_CONTROL_PORT || 3100);
 const EXPERIMENT_PORT = Number(process.env.SHAKAPERF_EXPERIMENT_PORT || 3200);
@@ -48,6 +48,58 @@ const waitForStableSize = async (page: Page, selector: string) => {
     }
     if (stableFrames < 3) throw new Error("Product article size did not settle within 60 animation frames");
   });
+};
+
+const assertNoViolations = () => {
+  const violations = getNavigationViolations();
+  if (violations.length > 0) {
+    throw new Error(`Sample invalidated — ${violations.length} request violation(s):\n${violations.join("\n")}`);
+  }
+};
+
+const reportMetrics = async (page: Page, annotate: TestFnContext["annotate"]) => {
+  const longTasks: Array<{ start: number; duration: number; blocking: number; source: string }> = await page.evaluate(
+    () => (window as any).__longTasks ?? [],
+  );
+  const blockingFromStart = longTasks.reduce((sum, t) => sum + t.blocking, 0);
+  const inpEntries: Array<{ duration: number }> = await page.evaluate(() => (window as any).__inpEntries ?? []);
+  const worstInp = inpEntries.length > 0 ? Math.max(...inpEntries.map((e) => e.duration)) : 0;
+  const analytics = getAnalyticsRequests();
+
+  const taskDetail = longTasks
+    .map((t) => `  ${t.start.toFixed(0)}ms +${t.duration.toFixed(0)}ms (${t.blocking.toFixed(0)}ms blocking) ${t.source}`)
+    .join("\n");
+  // annotate() has a 50-character limit; keep the annotation short.
+  const annotation = `B=${blockingFromStart.toFixed(0)} INP=${worstInp} A=${analytics.length}`;
+  const detail = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms, analytics=${analytics.length}`;
+  process.stderr.write(`[shaka-perf metrics] ${detail}\n`);
+  if (taskDetail) process.stderr.write(`[shaka-perf long tasks]\n${taskDetail}\n`);
+  if (analytics.length > 0) {
+    const byProvider: Record<string, number> = {};
+    for (const url of analytics) {
+      const provider = url.includes("google-analytics") ? "GA"
+        : url.includes("googletagmanager") ? "GTM"
+        : url.includes("facebook") ? "FB"
+        : url.includes("tiktok") ? "TikTok"
+        : "other";
+      byProvider[provider] = (byProvider[provider] ?? 0) + 1;
+    }
+    const breakdown = Object.entries(byProvider).map(([k, v]) => `${k}=${v}`).join(", ");
+    process.stderr.write(`[shaka-perf analytics] ${analytics.length} intercepted: ${breakdown}\n`);
+  }
+  await annotate(annotation);
+};
+
+// Click "Add to cart" to generate a real interaction event for INP, then
+// prevent the navigation so the landing test stays on the product page.
+const clickForInp = async (page: Page) => {
+  const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+  await addToCart.evaluate((link: HTMLAnchorElement) => {
+    link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+  });
+  await addToCart.click();
+  // Give the browser a frame to record the interaction event.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 };
 
 const waitForProduct = async (page: Page, fixture: ProductFixture) => {
@@ -94,7 +146,12 @@ abTest(
     experimentPathOverride: standardProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => waitForProduct(page, standardProduct),
+  async ({ page, annotate }) => {
+    await waitForProduct(page, standardProduct);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
 );
 
 abTest(
@@ -105,7 +162,12 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(standardProduct)),
   },
-  async ({ page }) => waitForProduct(page, standardProduct),
+  async ({ page, annotate }) => {
+    await waitForProduct(page, standardProduct);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
 );
 
 abTest(
@@ -115,7 +177,12 @@ abTest(
     experimentPathOverride: sellerProfileProduct.experimentUrl,
     ...landingCoverage,
   },
-  async ({ page }) => waitForProduct(page, sellerProfileProduct),
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
 );
 
 abTest(
@@ -126,7 +193,121 @@ abTest(
     testTypes: ["perf", "audit"],
     config: warmPerfConfig(warmCurrentProduct(sellerProfileProduct)),
   },
-  async ({ page }) => waitForProduct(page, sellerProfileProduct),
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    await clickForInp(page);
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
+abTest(
+  "Product Page - Profile layout variant select and cart",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Select a variant option if the product has multiple editions.
+    const variantSelect = page.locator("article").getByRole("radio").first();
+    if ((await variantSelect.count()) > 0) {
+      await annotate("Select variant");
+      await variantSelect.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Click cart navigation button if visible.
+    const cartButton = page.getByRole("link", { name: /cart/iu }).first();
+    if ((await cartButton.count()) > 0 && (await cartButton.isVisible())) {
+      await cartButton.evaluate((link: HTMLAnchorElement) => {
+        link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+      });
+      await annotate("Click cart navigation");
+      await cartButton.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
+abTest(
+  "Product Page - Profile layout gallery and scroll",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Click through cover images if there are navigation controls.
+    const nextCover = page.locator("article").getByRole("button", { name: /next/iu }).first();
+    if ((await nextCover.count()) > 0 && (await nextCover.isVisible())) {
+      await annotate("Navigate product covers");
+      await nextCover.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      await nextCover.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Scroll to bottom");
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }));
+    await page.waitForTimeout(500);
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
+);
+
+abTest(
+  "Product Page - Profile layout subscribe and follow",
+  {
+    startingPath: sellerProfileProduct.controlUrl,
+    experimentPathOverride: sellerProfileProduct.experimentUrl,
+    testTypes: ["perf"],
+    config: { shared: { viewports: ["desktop", "phone"], beforeNavigate: prepareShakaPerfNavigation } },
+  },
+  async ({ page, annotate }) => {
+    await waitForProduct(page, sellerProfileProduct);
+    // Click Subscribe button.
+    const subscribe = page.getByRole("button", { name: "Subscribe", exact: true });
+    if ((await subscribe.count()) > 0 && (await subscribe.isVisible())) {
+      await annotate("Click Subscribe");
+      await subscribe.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    // Click Follow link/button.
+    const follow = page.getByRole("button", { name: /follow/iu }).first();
+    if ((await follow.count()) > 0 && (await follow.isVisible())) {
+      await annotate("Click Follow");
+      await follow.click();
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    }
+    await annotate("Click Add to cart");
+    const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
+    await addToCart.evaluate((link: HTMLAnchorElement) => {
+      link.addEventListener("click", (e) => e.preventDefault(), { once: true });
+    });
+    await addToCart.click();
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await reportMetrics(page, annotate);
+    assertNoViolations();
+  },
 );
 
 // The benchmark Rails launcher supplies a PayPal sandbox demo ID; this flow exercises card checkout only.
@@ -176,14 +357,6 @@ const profileCheckoutConfig: Parameters<typeof abTest>[1] = {
 
 const completeProfileCheckout = async ({ page, annotate }: TestFnContext) => {
   const addToCart = page.locator("article").getByRole("link", { name: "Add to cart", exact: true });
-  // The local SSR fixture can retain the default app origin after hydration.
-  await addToCart.evaluate((link: HTMLAnchorElement) => {
-    const url = new URL(link.href);
-    if (url.origin === "http://gumroad.localhost:3000") {
-      url.host = window.location.host.replace(/^luisfurushio\./u, "");
-      link.href = url.href;
-    }
-  });
   await annotate("Add product to cart");
   await addToCart.click();
   const checkout = page.locator("[data-checkout-scope]");
@@ -204,6 +377,8 @@ const completeProfileCheckout = async ({ page, annotate }: TestFnContext) => {
     });
   });
   await waitForStableSize(page, "[data-checkout-scope]");
+  await reportMetrics(page, annotate);
+  assertNoViolations();
 };
 
 // Retained for comparison; this path lets Playwright scroll to the inline purchase link.
@@ -242,13 +417,6 @@ abTest(
         rect.right <= window.innerWidth &&
         link.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
       );
-    });
-    await addToCart.evaluate((link: HTMLAnchorElement) => {
-      const url = new URL(link.href);
-      if (url.origin === "http://gumroad.localhost:3000") {
-        url.host = window.location.host.replace(/^luisfurushio\./u, "");
-        link.href = url.href;
-      }
     });
     const bounds = await addToCart.boundingBox();
     if (!bounds) throw new Error("Sticky Add to cart has no clickable bounds");
