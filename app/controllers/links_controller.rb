@@ -6,6 +6,8 @@ class LinksController < ApplicationController
           CreateDiscoverSearch, DiscoverCuratedProducts, FetchProductByUniquePermalink
 
   include PageMeta::Favicon, PageMeta::Product
+  include LiveActiveRecordConnectionCleanup
+  include LiveStreamingResponseHeaders
   include RequireAccountEmail
   include RendersCustomHtmlPages
   include MobileAppWebView
@@ -217,7 +219,17 @@ class LinksController < ApplicationController
       format.html do
         case params[:layout]
         when Product::Layout::PROFILE
-          render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          unless product_react_on_rails_enabled?
+            return render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+          end
+
+          if request.inertia?
+            response.set_header("X-Inertia-Location", request.original_url)
+            return head :conflict
+          end
+
+          product_props = presenter.profile_product_props(sections_editing: false, **presenter_props)
+          render_product_rsc_document(product_rsc_document_props(product_props).merge(page_layout: Product::Layout::PROFILE))
         when Product::Layout::DISCOVER
           if request.headers["X-Inertia-Partial-Data"] == "autocomplete_results"
             return render inertia: "Products/Discover/Show", props: {
@@ -233,12 +245,22 @@ class LinksController < ApplicationController
         else
           if params[:embed] || params[:overlay]
             render inertia: "Products/Iframe/Show", props: presenter.iframe_product_props(**presenter_props)
-          elsif @product.user.product_page_storefront_enabled? && pundit_user&.seller != @product.user
+          elsif product_storefront_profile?
             # Storefront-wrapped product page (gumroad-private#2196): profile header above the
             # product, catalog below (injected in ProductPresenter#product_page_props). Same
             # component the `layout=profile` branch above renders. The seller's own view keeps
             # the standalone page — the presenter suppresses the catalog for owners anyway.
-            render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+            if product_react_on_rails_enabled?
+              if request.inertia?
+                response.set_header("X-Inertia-Location", request.original_url)
+                return head :conflict
+              end
+
+              product_props = presenter.profile_product_props(sections_editing: false, **presenter_props)
+              render_product_rsc_document(product_rsc_document_props(product_props).merge(page_layout: Product::Layout::PROFILE))
+            else
+              render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
+            end
           else
             render inertia: "Products/Show", props: presenter.product_page_props(**presenter_props)
           end
@@ -885,6 +907,88 @@ class LinksController < ApplicationController
   end
 
   private
+    def ensure_product_renderer_available
+      return if ReactOnRailsPro.configuration.server_renderer == "NodeRenderer" && ReactOnRailsPro.configuration.renderer_password.present?
+
+      response.headers["Cache-Control"] = "no-store"
+      render plain: "Product rendering is temporarily unavailable.", status: :service_unavailable
+    end
+
+    def product_rsc_route_request?
+      is_a?(ProductRscLinksController) && !request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request)
+    end
+
+    def product_react_on_rails_enabled?
+      (is_a?(ProductRscLinksController) || (request.inertia? && ProductRscDocumentRequestConstraint.profile_request?(request))) &&
+        Feature.active?(:product_page_react_on_rails, @product.user)
+    end
+
+    def product_rsc_document_eligible?
+      fetch_product_for_show
+      request.env["gumroad.product_rsc_lookup"] = { product: @product, custom_domain_product: @_product_by_custom_domain }
+      return false unless Feature.active?(:product_page_react_on_rails, @product.user)
+      return false if @product.banned? || @product.user.deleted? || active_session_invalidated? || custom_html_visible?
+      return true if params[:layout] == Product::Layout::PROFILE
+      product_storefront_profile?
+    end
+
+    def product_storefront_profile?
+      return false unless @product.user.product_page_storefront_enabled?
+
+      seller = find_seller_from_cookie(cookies.encrypted[:current_seller_id]) if user_signed_in?
+      seller = logged_in_user unless valid_seller?(seller)
+      seller != @product.user
+    end
+
+    def product_rsc_document_props(product_props)
+      product_props.merge(
+        rsc_product_content: ProductPresenter::RscContentProps.new(product_props: product_props.fetch(:product)).props,
+        rsc_featured_product_content: product_props.fetch(:sections).filter_map do |section|
+          featured_product_props = section[:props]
+          next unless featured_product_props
+
+          [section.fetch(:id), ProductPresenter::RscContentProps.new(product_props: featured_product_props.fetch(:product)).props]
+        end.to_h
+      )
+    end
+
+    def render_product_rsc_document(product_props)
+      ensure_product_renderer_available
+      return if performed?
+
+      prepare_live_streaming_response
+      # React owns RSC image hints so Inertia's initial head cleanup cannot cancel them.
+      meta_tags.values.select { |tag| tag[:rel] == "preload" && tag[:as] == "image" }.each do |tag|
+        remove_meta_tag(tag[:head_key])
+      end
+      @precomputed_rendering_context = RenderingExtension.custom_context(view_context)
+      @product_rsc_document_props = product_props.merge(
+        _inertia_meta: inertia_meta.meta_tags,
+        global: inertia_shared_data.except(:csp_nonce).compact.merge(href: request.original_url)
+      )
+      @rendering_product_rsc_document = true
+      release_live_active_record_connections
+
+      begin
+        stream_view_containing_react_components(
+          template: "links/rsc_show",
+          layout: "inertia",
+          rsc_stream_observability: true
+        )
+      rescue StandardError => error
+        transport_error = error
+        until transport_error.nil? || transport_error.is_a?(ReactOnRailsPro::RendererHttpClient::ConnectionError) || transport_error.is_a?(ReactOnRailsPro::RendererHttpClient::TimeoutError)
+          transport_error = transport_error.cause
+        end
+        raise if response.committed? || transport_error.nil?
+
+        @rendering_product_rsc_document = false
+        response.headers.delete("Last-Modified")
+        response.headers["Cache-Control"] = "no-store"
+        render plain: "Product rendering is temporarily unavailable.", status: :service_unavailable
+      end
+    end
+
     def external_analytics_view_id(analytics_view_payload:)
       Digest::SHA256.hexdigest([@product.id, analytics_view_payload.fetch("event_id")].join("\0"))
     end
@@ -938,6 +1042,11 @@ class LinksController < ApplicationController
     end
 
     def fetch_product_for_show
+      if (lookup = request.env["gumroad.product_rsc_lookup"])
+        @_product_by_custom_domain = lookup[:custom_domain_product]
+        return @product = lookup.fetch(:product)
+      end
+
       fetch_product_by_custom_domain || fetch_product_by_general_permalink
     end
 

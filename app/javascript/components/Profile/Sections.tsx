@@ -162,7 +162,14 @@ export const FeaturedProductView = ({ props }: { props: ProductProps }) => {
   return props.product.native_type === "coffee" ? (
     <CoffeeProduct {...props} />
   ) : (
-    <Product {...props} selection={selection} setSelection={setSelection} scaleLongTitle={false} />
+    <Product
+      product={props.product}
+      purchase={props.purchase}
+      wishlists={props.wishlists}
+      selection={selection}
+      setSelection={setSelection}
+      scaleLongTitle={false}
+    />
   );
 };
 

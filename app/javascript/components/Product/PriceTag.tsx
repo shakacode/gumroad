@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 import { classNames } from "$app/utils/classNames";
@@ -8,7 +10,10 @@ import {
 } from "$app/utils/currency";
 import { formatRecurrenceWithDuration, RecurrenceId } from "$app/utils/recurringPricing";
 
+import { useProductHydration } from "$app/components/PublicPages/ProductHydration.client";
+
 type Props = {
+  locale?: string | undefined;
   url?: string;
   currencyCode: CurrencyCode;
   price: number;
@@ -30,6 +35,7 @@ type Props = {
 };
 
 export const PriceTag = ({
+  locale,
   url,
   currencyCode,
   oldPrice,
@@ -44,7 +50,14 @@ export const PriceTag = ({
   buyerLocalPriceCents,
   buyerLocalOriginalPriceCents,
 }: Props) => {
-  const buyerLocalContext = { currencyCode, buyerCurrency, buyerLocalCurrencyRate, buyerLocalCurrencySubunitToUnit };
+  const snapshot = useProductHydration();
+  const buyerLocalContext = {
+    currencyCode,
+    buyerCurrency,
+    buyerLocalCurrencyRate,
+    buyerLocalCurrencySubunitToUnit,
+    locale: locale ?? snapshot?.locale,
+  };
   const formatDisplayPrice = (amountCents: number, fallbackLocalCents?: number | null) =>
     formatBuyerLocalOrSetPrice(amountCents, buyerLocalContext, { fallbackLocalCents });
 

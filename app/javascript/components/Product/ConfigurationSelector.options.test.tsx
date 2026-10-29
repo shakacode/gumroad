@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -9,6 +10,7 @@ import {
   type PriceSelection,
   type Product,
 } from "$app/components/Product/ConfigurationSelector";
+import { ProductVariantNavigationProvider } from "$app/components/Product/ProductVariantNavigation.client";
 
 afterEach(cleanup);
 
@@ -88,6 +90,116 @@ const describedByTexts = (radio: HTMLElement) => {
   if (!describedBy) throw new Error("expected aria-describedby on the version radio");
   return describedBy.split(" ").map((id) => document.getElementById(id)?.textContent ?? "");
 };
+
+describe("streamed variant navigation", () => {
+  const nativeChoice = (document: Document, name: string) => {
+    const radio = document.querySelector(`[role="radio"][aria-label="${name}"]`);
+    const form = document.getElementById(radio?.getAttribute("form") ?? "");
+    const url = new URL(form?.getAttribute("action") ?? "");
+    for (const input of form?.querySelectorAll("input") ?? [])
+      url.searchParams.append(input.getAttribute("name") ?? "", input.getAttribute("value") ?? "");
+    return { radio, form, url };
+  };
+  const navigation = {
+    productId: versionedProduct.id,
+    url: "https://seller.example.com/l/album?layout=profile&variant=Listener&code=SAVE&quantity=2&price=999",
+  };
+  const selector = (product = versionedProduct, selection = { ...initialSelection, quantity: 2 }) => (
+    <ProductVariantNavigationProvider value={navigation}>
+      <ConfigurationSelector
+        product={{ ...product, is_quantity_enabled: true }}
+        selection={selection}
+        discount={null}
+      />
+    </ProductVariantNavigationProvider>
+  );
+
+  it("provides a native first-choice URL before hydration with the discount and quantity intact", () => {
+    const document = new DOMParser().parseFromString(renderToString(selector()), "text/html");
+    const { radio, form, url } = nativeChoice(document, "Collector's Edition");
+    expect(radio?.tagName).toBe("BUTTON");
+    expect(radio?.getAttribute("type")).toBe("submit");
+    expect(form?.getAttribute("method")).toBe("get");
+    expect(url.origin + url.pathname).toBe("https://seller.example.com/l/album");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      layout: "profile",
+      code: "SAVE",
+      quantity: "2",
+      option: "opt-collector",
+    });
+    expect(document.getElementById(url.hash.slice(1))?.hasAttribute("data-option-picker")).toBe(true);
+  });
+
+  it("keeps ordinary and featured product selectors as buttons", () => {
+    renderSelector();
+    expect(screen.getByRole("radio", { name: "Collector's Edition" }).tagName).toBe("BUTTON");
+    expect(screen.getByRole("radio", { name: "Collector's Edition" }).getAttribute("form")).toBeNull();
+    cleanup();
+    render(selector({ ...versionedProduct, id: "featured-product" }));
+    expect(screen.getByRole("radio", { name: "Collector's Edition" }).tagName).toBe("BUTTON");
+    expect(screen.getByRole("radio", { name: "Collector's Edition" }).getAttribute("form")).toBeNull();
+  });
+
+  it("updates the hydrated selection and cancels native submission", () => {
+    const Harness = () => {
+      const [selection, setSelection] = React.useState(initialSelection);
+      return (
+        <ProductVariantNavigationProvider value={navigation}>
+          <ConfigurationSelector
+            product={versionedProduct}
+            selection={selection}
+            setSelection={setSelection}
+            discount={null}
+          />
+        </ProductVariantNavigationProvider>
+      );
+    };
+    render(<Harness />);
+    const collector = screen.getByRole("radio", { name: "Collector's Edition" });
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    fireEvent(collector, event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(collector.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "Listener's Edition" }));
+    expect(screen.getByRole("radio", { name: "Listener's Edition" }).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("preserves the current amount when the already-selected option is clicked before hydration", () => {
+    const document = new DOMParser().parseFromString(renderToString(selector()), "text/html");
+    expect(nativeChoice(document, "Listener's Edition").url.searchParams.get("price")).toBe("999");
+  });
+
+  it("retains the clamped quantity when changing to a version with more stock", () => {
+    const document = new DOMParser().parseFromString(
+      renderToString(
+        selector(
+          {
+            ...versionedProduct,
+            options: [{ ...versionedOption(0), quantity_left: 1 }, versionedOption(1)],
+          },
+          { ...initialSelection, quantity: 1 },
+        ),
+      ),
+      "text/html",
+    );
+    expect(nativeChoice(document, "Collector's Edition").url.searchParams.get("quantity")).toBe("1");
+  });
+
+  it("keeps a sold-out version as an accessible disabled button", () => {
+    const document = new DOMParser().parseFromString(
+      renderToString(
+        selector({
+          ...versionedProduct,
+          options: [{ ...versionedOption(0), quantity_left: 0 }, versionedOption(1)],
+        }),
+      ),
+      "text/html",
+    );
+    const radio = document.querySelector('[role="radio"][aria-label="Listener\'s Edition"]');
+    expect(radio?.tagName).toBe("BUTTON");
+    expect(radio?.hasAttribute("disabled")).toBe(true);
+  });
+});
 
 describe("version selector accessibility", () => {
   it("exposes price, stock, and description to screen readers via aria-describedby", () => {
