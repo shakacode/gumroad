@@ -15,11 +15,13 @@ STRONGBOX_GENERAL="$(ruby -ropenssl -e 'print OpenSSL::PKey::RSA.generate(2048).
 export STRONGBOX_GENERAL
 export STRONGBOX_GENERAL_PASSWORD=""
 
+# Regenerate routes.js with this twin's host. The image baked in the
+# default (gumroad.localhost:3000); without this step the cart iframe
+# and Add-to-cart link point at a host that doesn't exist.
+bundle exec rails js:export
+
 if node -e 'process.exit(require("./package.json").scripts["build:public-rsc"] ? 0 : 1)'; then
   npm run build:public-rsc
 fi
 
-# Rebuild Vite so routes.js carries this twin's real host instead of the
-# image-time default (gumroad.localhost:3000). Without this the cart iframe
-# and Add-to-cart link point at a host that doesn't exist.
 bundle exec rails assets:precompile
