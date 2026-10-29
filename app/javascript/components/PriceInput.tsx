@@ -30,6 +30,7 @@ export const PriceInput = React.forwardRef<
     onBlur?: () => void;
     disabled?: boolean;
     suffix?: React.ReactNode;
+    preservePreHydrationValue?: boolean;
   }
 >(
   (
@@ -46,11 +47,21 @@ export const PriceInput = React.forwardRef<
       onBlur,
       disabled,
       suffix,
+      preservePreHydrationValue = false,
     },
     ref,
   ) => {
     const parsedValue = cents == null ? "" : formatPriceCentsWithoutCurrencySymbolAndComma(currencyCode, cents);
     const [value, setValue] = React.useState(parsedValue);
+    const inputRef = React.useRef<HTMLInputElement | null>(null);
+    const setInputRef = React.useCallback(
+      (input: HTMLInputElement | null) => {
+        inputRef.current = input;
+        if (typeof ref === "function") return ref(input);
+        if (ref) ref.current = input;
+      },
+      [ref],
+    );
     React.useEffect(() => {
       if (parseCurrencyUnitStringToCents(currencyCode, value) !== cents) setValue(parsedValue);
     }, [parsedValue]);
@@ -64,6 +75,12 @@ export const PriceInput = React.forwardRef<
       setValue(newValue);
       onChange?.(cents);
     };
+
+    // Adopt native edits before localization or another controlled render replaces them.
+    React.useLayoutEffect(() => {
+      const input = inputRef.current;
+      if (preservePreHydrationValue && input && input.value !== input.defaultValue) handleChange(input.value);
+    }, []);
 
     return (
       <InputGroup disabled={disabled}>
@@ -112,7 +129,7 @@ export const PriceInput = React.forwardRef<
           aria-label={ariaLabel}
           onBlur={onBlur}
           disabled={disabled}
-          ref={ref}
+          ref={setInputRef}
         />
         {suffix}
       </InputGroup>

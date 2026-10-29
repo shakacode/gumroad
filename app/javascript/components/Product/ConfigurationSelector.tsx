@@ -121,6 +121,7 @@ const PWYWInput = React.forwardRef<
             onBlur();
           }}
           ref={ref}
+          preservePreHydrationValue
           {...(hideLabel ? { ariaLabel: "Name a fair price" } : {})}
         />
       </Fieldset>
@@ -836,6 +837,12 @@ export const ConfigurationSelector = React.forwardRef<
   };
 
   const quantityInputUID = React.useId();
+  const quantityInputRef = React.useRef<HTMLInputElement>(null);
+  React.useLayoutEffect(() => {
+    const input = quantityInputRef.current;
+    if (input && input.value !== input.defaultValue)
+      update({ quantity: Number.parseInt(input.value.replace(/\D/gu, ""), 10) || 0 });
+  }, []);
 
   const pwywInputRef = React.useRef<HTMLInputElement>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -1107,7 +1114,16 @@ export const ConfigurationSelector = React.forwardRef<
             <Label htmlFor={quantityInputUID}>{product.is_multiseat_license ? "Seats" : "Quantity"}</Label>
           </FieldsetTitle>
           <NumberInput onChange={(quantity) => update({ quantity: quantity ?? 0 })} value={selection.quantity}>
-            {(props) => <Input type="number" id={quantityInputUID} {...props} min={1} max={maxQuantity ?? undefined} />}
+            {(props) => (
+              <Input
+                type="number"
+                ref={quantityInputRef}
+                id={quantityInputUID}
+                {...props}
+                min={1}
+                max={maxQuantity ?? undefined}
+              />
+            )}
           </NumberInput>
         </Fieldset>
       ) : null}
