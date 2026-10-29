@@ -36,7 +36,7 @@ spec:
   type: stateful
   containers:
     - name: mysql
-      cpu: 250m
+      cpu: 100m
       memory: 768Mi
       image: mysql:8.0.32
       inheritEnv: false
@@ -75,9 +75,25 @@ spec:
   identityLink: "//identity/{{APP_NAME}}-mysql-identity"
   defaultOptions:
     autoscaling:
-      metric: disabled
-      minScale: 1
+      metric: keda
+      minScale: 0
       maxScale: 1
+      keda:
+        pollingInterval: 10
+        cooldownPeriod: 180
+        fallback:
+          failureThreshold: 3
+          replicas: 1
+        triggers:
+          - type: prometheus
+            metadata:
+              serverAddress: https://metrics.cpln.io:443/metrics/org/{{APP_ORG}}
+              query: max(replica_count{gvc="{{APP_NAME}}",workload="rails"} and (timestamp(replica_count{gvc="{{APP_NAME}}",workload="rails"}) > time() - 45)) or vector(0)
+              threshold: '1'
+              activationThreshold: '0'
+              authModes: bearer
+            authenticationRef:
+              name: gumroad-on-demand-metrics
     capacityAI: false
     timeoutSeconds: 120
   firewallConfig:

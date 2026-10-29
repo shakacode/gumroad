@@ -80,3 +80,51 @@ bash -n bin/prepare-control-plane-benchmark-secrets
 ```
 
 A Docker build, secret and policy checks, R2 API and public delivery, release job, workload readiness, and domain smoke tests require live infrastructure. The bucket is provisioned separately.
+
+## On-demand runtime
+
+The two demo frontends use serverless workloads with a two-minute idle timeout.
+KEDA scales their supporting services from zero when the Rails container starts.
+The trigger uses fresh `replica_count` samples: desired scale can remain zero while
+an incoming request waits for Rails to become ready. The startup script waits for
+database sockets and a yellow or green Elasticsearch cluster before starting Rails.
+The request timeout and liveness budget allow that bounded startup to finish.
+
+Redis uses a retained volume so queued jobs survive sleep. Sidekiq's cooldown is
+shorter than the databases' cooldowns, and Redis remains available longest to allow
+workers to shut down. KEDA operators remain running per GVC; operator capacity and
+retained volumes remain billable while the application services sleep.
+
+The staging organization must have a dictionary secret named
+`gumroad-on-demand-metrics` with a `bearerToken` field. Use a dedicated service
+account whose only grant is `readMetrics` on the organization. Provision and rotate
+that credential through Control Plane; never put its value in templates or logs.
+
+Both deployment workflows run `.controlplane/deploy_on_demand.sh`. It publishes the
+startup script as an opaque secret, applies the complete runtime configuration,
+holds Rails at one replica while release jobs run, and restores scale-to-zero mode
+on exit, including a failed release. Run the same script locally with `APP_NAME`
+and `CPLN_ORG` set to one of these staging demos. The startup script is mounted
+rather than baked into an image, so configuration updates preserve the deployed
+application image.
+
+### First migration
+
+Workload types are immutable. Migrate the existing standard Rails and Redis
+workloads before running these templates against an existing demo. Save their
+complete specifications and preserve all existing image references and domains.
+For Redis, stop Rails and Sidekiq, verify the queues have drained, take an RDB
+backup, and restore it into the retained Redis volume before starting the new
+stateful workload. Keep the backup and original specifications outside the
+repository. Do not delete a volume set during migration or rollback.
+
+After migration, verify a complete idle period with all nine application services
+at zero replicas, then request a seeded product through its public custom domain.
+Check the first response, rendering, assets, Redis data, and a subsequent warm
+request. A homepage check alone does not establish that a seeded product renders.
+
+Run the focused startup and deployment-failure checks with:
+
+```sh
+ruby test/scripts/on_demand_startup_test.rb
+```
