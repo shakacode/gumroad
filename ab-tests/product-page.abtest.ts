@@ -69,13 +69,12 @@ const reportMetrics = async (page: Page, annotate: TestFnContext["annotate"]) =>
   const taskDetail = longTasks
     .map((t) => `  ${t.start.toFixed(0)}ms +${t.duration.toFixed(0)}ms (${t.blocking.toFixed(0)}ms blocking) ${t.source}`)
     .join("\n");
-  const summary = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms, analytics=${analytics.length}`;
-  process.stderr.write(`[shaka-perf metrics] ${summary}\n`);
+  // annotate() has a 50-character limit; keep the annotation short.
+  const annotation = `B=${blockingFromStart.toFixed(0)} INP=${worstInp} A=${analytics.length}`;
+  const detail = `blocking-from-start=${blockingFromStart.toFixed(0)}ms (${longTasks.length} long tasks), INP=${worstInp}ms, analytics=${analytics.length}`;
+  process.stderr.write(`[shaka-perf metrics] ${detail}\n`);
   if (taskDetail) process.stderr.write(`[shaka-perf long tasks]\n${taskDetail}\n`);
   if (analytics.length > 0) {
-    // Group by provider so the benchmark report shows which analytics each
-    // side attempted. A parity mismatch (e.g. GA fires on one side but not
-    // the other) stands out in the side-by-side sample annotations.
     const byProvider: Record<string, number> = {};
     for (const url of analytics) {
       const provider = url.includes("google-analytics") ? "GA"
@@ -88,7 +87,7 @@ const reportMetrics = async (page: Page, annotate: TestFnContext["annotate"]) =>
     const breakdown = Object.entries(byProvider).map(([k, v]) => `${k}=${v}`).join(", ");
     process.stderr.write(`[shaka-perf analytics] ${analytics.length} intercepted: ${breakdown}\n`);
   }
-  await annotate(summary);
+  await annotate(annotation);
 };
 
 // Click "Add to cart" to generate a real interaction event for INP, then
