@@ -23,13 +23,11 @@ The bootstrap creates `gumroad-rorp-mysql` and `gumroad-rorp-r2` only when absen
 
 `setup-app` creates the app-owned `gumroad-rorp-secrets` dictionary, policy, and identity. Before deploying, populate that dictionary through Control Plane secret management with `SECRET_KEY_BASE`, `DEVISE_SECRET_KEY`, `STRONGBOX_GENERAL`, `STRONGBOX_GENERAL_PASSWORD`, `OBFUSCATE_IDS_CIPHER_KEY`, `OBFUSCATE_IDS_NUMERIC_CIPHER_KEY`, `RENDERER_PASSWORD`, and `REACT_ON_RAILS_PRO_LICENSE` (which may be empty). Confirm that only the app identity can reveal it. Do not copy another app's secrets or put values in repository files.
 
-For an existing GVC, reapply changed templates before deploying; `setup-app` does not update them:
-
-```sh
-cpflow apply-template \
-  app-rorp r2 mysql dynamodb redis elasticsearch memcached rails sidekiq renderer \
-  --app gumroad-rorp --org "$CPLN_ORG" --preserve-existing-runtime --yes
-```
+For an existing GVC, complete the one-time migration below before deploying.
+Use the guarded deployment wrapper in the next section; it reapplies the runtime
+templates only after verifying the existing migration. Do not apply these runtime
+templates directly to legacy workloads. R2 provisioning remains a separate bootstrap
+operation and is unchanged by the runtime migration.
 
 ## Build and deploy
 
@@ -87,7 +85,7 @@ The two demo frontends use serverless workloads with a two-minute idle timeout.
 KEDA scales their supporting services from zero when the Rails container starts.
 The trigger uses fresh `replica_count` samples: desired scale can remain zero while
 an incoming request waits for Rails to become ready. The image-packaged startup script waits for
-database sockets and a yellow or green Elasticsearch cluster before starting Rails.
+database sockets, the renderer for Rails and release jobs, and a yellow or green\nElasticsearch cluster before starting Rails.
 The request timeout and liveness budget allow that bounded startup to finish.
 
 Redis uses a retained volume so queued jobs survive sleep. Sidekiq's cooldown is

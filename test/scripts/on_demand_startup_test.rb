@@ -157,7 +157,7 @@ class OnDemandStartupTest < Minitest::Test
       YAML.load_stream(File.read(path))
     end
     workloads = resources.select { |resource| resource["kind"] == "workload" }
-    autoscaling = workloads.to_h { |resource| [resource["name"], resource.dig("spec", "defaultOptions", "autoscaling")] } # -- Standalone configuration test.
+    autoscaling = workloads.to_h { |resource| [resource["name"], resource.dig("spec", "defaultOptions", "autoscaling")] }
     dependents = autoscaling.reject { |name, _| name == "rails" }
     assert dependents.values.all? { |options| options["minScale"].zero? && options["metric"] == "keda" }
     assert_equal 1, dependents.values.map { |options| options.dig("keda", "triggers") }.uniq.length
