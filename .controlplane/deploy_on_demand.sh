@@ -9,8 +9,7 @@ esac
 [ "${CPLN_ORG:-}" = "shakacode-open-source-examples-staging" ] || exit 1
 
 ruby .controlplane/prepare_renderer_secret.rb
-ruby .controlplane/prepare_on_demand_startup.rb
-cpflow apply-template "$app_template" on-demand mysql mongo dynamodb redis elasticsearch memcached renderer sidekiq rails \
+cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcached renderer sidekiq rails \
   -a "$APP_NAME" --org "$CPLN_ORG" --preserve-existing-runtime --yes
 
 # Release jobs need databases even when no browser is visiting the demo.

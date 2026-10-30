@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 
@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 
@@ -125,7 +125,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 

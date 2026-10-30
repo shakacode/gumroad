@@ -11,12 +11,10 @@ apps:
       - app-rorp
       - r2
       - mysql
-      - mongo
       - dynamodb
       - redis
       - elasticsearch
       - memcached
-      - on-demand
       - rails
       - sidekiq
       - renderer
@@ -31,7 +29,6 @@ apps:
       - renderer
     additional_workloads:
       - mysql
-      - mongo
       - dynamodb
       - redis
       - elasticsearch
@@ -52,12 +49,10 @@ apps:
       - app-inertia
       - r2
       - mysql
-      - mongo
       - dynamodb
       - redis
       - elasticsearch
       - memcached
-      - on-demand
       - rails
       - sidekiq
       - renderer
@@ -72,7 +67,6 @@ apps:
       - renderer
     additional_workloads:
       - mysql
-      - mongo
       - dynamodb
       - redis
       - elasticsearch

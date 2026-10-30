@@ -6,12 +6,9 @@ spec:
     - name: sidekiq
       cpu: 500m
       memory: 1Gi
-      volumes:
-        - uri: "cpln://secret/{{APP_NAME}}-on-demand-startup.payload"
-          path: /etc/gumroad-on-demand/startup.rb
       args:
         - ruby
-        - /etc/gumroad-on-demand/startup.rb
+        - .controlplane/on_demand_startup.rb
         - bundle
         - exec
         - sidekiq

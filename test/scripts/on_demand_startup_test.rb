@@ -79,10 +79,18 @@ class OnDemandStartupTest < Minitest::Test
 
   def test_refuses_to_modify_other_environments
     with_fake_deployment_commands do |env, log|
-      _, _, status = Open3.capture3(env.merge("APP_NAME" => "production"), ".controlplane/deploy_on_demand.sh")
-      assert_equal 1, status.exitstatus
-      assert_empty Dir.glob(log)
+      [{ "APP_NAME" => "production" }, { "CPLN_ORG" => "another-org" }].each do |override|
+        _, _, status = Open3.capture3(env.merge(override), ".controlplane/deploy_on_demand.sh")
+        assert_equal 1, status.exitstatus
+        assert_empty Dir.glob(log)
+      end
     end
+  end
+
+  def test_startup_cli_rejects_other_apps_before_connecting
+    _, error, status = Open3.capture3({ "CPLN_GVC" => "production" }, "ruby", ".controlplane/on_demand_startup.rb", "true")
+    assert_equal 1, status.exitstatus
+    assert_match "Refusing startup outside the demo apps", error
   end
 
   private

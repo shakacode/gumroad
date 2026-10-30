@@ -11,12 +11,9 @@ spec:
           value: "3000"
       inheritEnv: true
       image: "{{APP_IMAGE_LINK}}"
-      volumes:
-        - uri: "cpln://secret/{{APP_NAME}}-on-demand-startup.payload"
-          path: /etc/gumroad-on-demand/startup.rb
       args:
         - ruby
-        - /etc/gumroad-on-demand/startup.rb
+        - .controlplane/on_demand_startup.rb
         - bundle
         - exec
         - rails
