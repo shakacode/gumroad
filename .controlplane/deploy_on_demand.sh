@@ -10,7 +10,7 @@ esac
 
 ruby .controlplane/check_on_demand_migration.rb
 ruby .controlplane/prepare_renderer_secret.rb
-cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcached renderer sidekiq rails \
+cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcached renderer sidekiq rails robots \
   -a "$APP_NAME" --org "$CPLN_ORG" --preserve-existing-runtime --yes
 
 # Release jobs need databases even when no browser is visiting the demo.

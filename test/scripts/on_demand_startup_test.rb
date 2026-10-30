@@ -186,7 +186,9 @@ class OnDemandStartupTest < Minitest::Test
     workloads = resources.select { |resource| resource["kind"] == "workload" }
     assert_equal false, workloads.find { |resource| resource["name"] == "rails" }.dig("spec", "defaultOptions", "capacityAI")
     autoscaling = workloads.to_h { |resource| [resource["name"], resource.dig("spec", "defaultOptions", "autoscaling")] }
-    dependents = autoscaling.reject { |name, _| name == "rails" }
+    assert_equal "concurrency", autoscaling.dig("robots", "metric")
+    assert_equal false, workloads.find { |resource| resource["name"] == "robots" }.dig("spec", "containers", 0, "inheritEnv")
+    dependents = autoscaling.reject { |name, _| %w[rails robots].include?(name) }
     assert dependents.values.all? { |options| options["minScale"].zero? && options["metric"] == "keda" }
     assert_equal 1, dependents.values.map { |options| options.dig("keda", "triggers") }.uniq.length
     worker_cooldown = autoscaling.dig("sidekiq", "keda", "cooldownPeriod")
@@ -194,6 +196,40 @@ class OnDemandStartupTest < Minitest::Test
       assert_operator autoscaling.dig(name, "keda", "cooldownPeriod") - worker_cooldown, :>=, 90
     end
     assert_operator autoscaling.dig("redis", "keda", "cooldownPeriod"), :>, autoscaling.dig("mysql", "keda", "cooldownPeriod")
+  end
+
+  def test_robots_routing_preserves_other_domains_and_is_idempotent
+    Dir.mktmpdir do |dir|
+      state = File.join(dir, "domains.json")
+      log = File.join(dir, "writes")
+      cpln = File.join(dir, "cpln")
+      File.write(cpln, <<~SH)
+      #!/bin/sh
+      if [ "$1 $2" = 'domain get' ]; then cat "$ROBOTS_TEST_STATE"; else cat >> "$ROBOTS_TEST_LOG"; fi
+      SH
+      File.chmod(0755, cpln)
+      link = "/org/shakacode-open-source-examples-staging/gvc/gumroad-inertia/workload/rails"
+      route = { "prefix" => "/", "workloadLink" => link }
+      own = { "kind" => "domain", "name" => "demo.example", "spec" => { "ports" => [{ "number" => 443, "routes" => [route], "tls" => { "minProtocolVersion" => "TLSv1_2" } }] } }
+      other = Marshal.load(Marshal.dump(own))
+      other["name"] = "other.example"
+      other["spec"]["ports"][0]["routes"][0]["workloadLink"] = link.sub("gumroad-inertia", "production")
+      File.write(state, JSON.generate(items: [own, other]))
+      env = { "PATH" => "#{dir}:#{ENV.fetch('PATH')}", "ROBOTS_TEST_STATE" => state, "ROBOTS_TEST_LOG" => log,
+              "APP_NAME" => "gumroad-inertia", "CPLN_ORG" => "shakacode-open-source-examples-staging" }
+      _, _, status = Open3.capture3(env, "ruby", ".controlplane/prepare_demo_robots.rb")
+      assert status.success?
+      written = JSON.parse(File.read(log))
+      assert_equal "demo.example", written["name"]
+      assert_equal route, written.dig("spec", "ports", 0, "routes", 1)
+      assert_equal own.dig("spec", "ports", 0, "tls"), written.dig("spec", "ports", 0, "tls")
+      assert_equal link.sub("/rails", "/robots"), written.dig("spec", "ports", 0, "routes", 0, "workloadLink")
+      File.write(state, JSON.generate(items: [written, other]))
+      File.write(log, "")
+      _, _, status = Open3.capture3(env, "ruby", ".controlplane/prepare_demo_robots.rb")
+      assert status.success?
+      assert_empty File.read(log)
+    end
   end
 
   private
