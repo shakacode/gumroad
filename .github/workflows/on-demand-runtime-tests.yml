@@ -1,0 +1,29 @@
+name: On-demand runtime tests
+
+on:
+  pull_request:
+    paths:
+      - .controlplane/**
+      - test/scripts/on_demand_startup_test.rb
+      - .github/workflows/on-demand-runtime-tests.yml
+  push:
+    branches: ["ramez/cpln/cpflow"]
+    paths:
+      - .controlplane/**
+      - test/scripts/on_demand_startup_test.rb
+      - .github/workflows/on-demand-runtime-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  startup-and-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+      - run: gem install minitest --version 5.27.0 --no-document
+      - run: ruby test/scripts/on_demand_startup_test.rb

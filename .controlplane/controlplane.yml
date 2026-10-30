@@ -9,6 +9,7 @@ apps:
     default_location: aws-us-east-2
     setup_app_templates:
       - app-rorp
+      - robots
       - r2
       - mysql
       - dynamodb
@@ -28,6 +29,7 @@ apps:
       - sidekiq
       - renderer
     additional_workloads:
+      - robots
       - mysql
       - dynamodb
       - redis
@@ -47,6 +49,7 @@ apps:
     default_location: aws-us-east-2
     setup_app_templates:
       - app-inertia
+      - robots
       - r2
       - mysql
       - dynamodb
@@ -66,6 +69,7 @@ apps:
       - sidekiq
       - renderer
     additional_workloads:
+      - robots
       - mysql
       - dynamodb
       - redis
