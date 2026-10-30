@@ -5,6 +5,7 @@ require "open3"
 require "socket"
 require "tmpdir"
 require "timeout"
+require "yaml"
 require_relative "../../.controlplane/on_demand_startup"
 
 class OnDemandStartupTest < Minitest::Test
@@ -87,10 +88,84 @@ class OnDemandStartupTest < Minitest::Test
     end
   end
 
+  def test_successful_release_restores_on_demand_mode
+    with_fake_deployment_commands do |env, log|
+      _, _, status = Open3.capture3(env.merge("DEPLOYMENT_TEST_EXIT_CODE" => "0"), ".controlplane/deploy_on_demand.sh")
+      assert status.success?
+      assert_includes File.readlines(log).last, "minScale=0"
+      assert File.readlines(log).any? { |line| line.include?("--preserve-existing-runtime") }
+    end
+  end
+
+  def test_deployment_preflight_rejects_legacy_workloads
+    Dir.mktmpdir do |dir|
+      state = File.join(dir, "state.json")
+      cpln = File.join(dir, "cpln")
+      File.write(cpln, "#!/bin/sh\n[ \"$1 $2\" = 'workload get' ] || exit 91\ncat \"$MIGRATION_TEST_STATE\"\n")
+      File.chmod(0755, cpln)
+      env = { "PATH" => "#{dir}:#{ENV.fetch('PATH')}", "MIGRATION_TEST_STATE" => state,
+              "APP_NAME" => "gumroad-inertia", "CPLN_ORG" => "shakacode-open-source-examples-staging" }
+      resources = %w[rails sidekiq redis].map do |name|
+        types = { "rails" => "serverless", "redis" => "stateful", "sidekiq" => "standard" }
+        { name:, spec: { type: types.fetch(name),
+                         containers: [{ name:, args: ["ruby", ".controlplane/on_demand_startup.rb"] }] } }
+      end
+      File.write(state, JSON.generate(items: resources))
+      _, _, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
+      assert status.success?
+      resources.first[:spec][:type] = "standard"
+      resources.first[:spec][:containers].first[:args] = []
+      File.write(state, JSON.generate(items: resources))
+      _, error, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
+      assert_equal 1, status.exitstatus
+      assert_match "one-time image and workload migration", error
+    end
+  end
+
   def test_startup_cli_rejects_other_apps_before_connecting
     _, error, status = Open3.capture3({ "CPLN_GVC" => "production" }, "ruby", ".controlplane/on_demand_startup.rb", "true")
     assert_equal 1, status.exitstatus
     assert_match "Refusing startup outside the demo apps", error
+  end
+
+  def test_release_does_not_modify_data_before_dependency_readiness
+    Dir.mktmpdir do |dir|
+      Dir.mkdir(File.join(dir, "bin"))
+      ruby = File.join(dir, "bin/ruby")
+      File.write(ruby, <<~SH)
+        #!/bin/sh
+        if [ "$1" = .controlplane/on_demand_startup.rb ]; then
+          echo wait >> "$RELEASE_TEST_LOG"
+          exit "$RELEASE_WAIT_STATUS"
+        fi
+      SH
+      rails = File.join(dir, "bin/rails")
+      File.write(rails, "#!/bin/sh\necho \"rails $*\" >> \"$RELEASE_TEST_LOG\"\n")
+      [ruby, rails].each { |path| File.chmod(0755, path) }
+      log = File.join(dir, "calls")
+      env = { "PATH" => "#{dir}/bin:#{ENV.fetch('PATH')}", "RELEASE_TEST_LOG" => log, "RELEASE_WAIT_STATUS" => "17",
+              "CPLN_GVC" => "gumroad-rorp", "GUMROAD_RENDERING_SURFACE" => "rorp" }
+      script = File.expand_path("../../.controlplane/release_script.sh", __dir__)
+      _, _, status = Open3.capture3(env, script, chdir: dir)
+      assert_equal 1, status.exitstatus
+      assert_equal ["wait\n"], File.readlines(log)
+    end
+  end
+
+  def test_scaling_contract_allows_workers_to_drain_before_backing_services_sleep
+    resources = Dir[File.expand_path("../../.controlplane/templates/*.yml", __dir__)].flat_map do |path|
+      YAML.load_stream(File.read(path))
+    end
+    workloads = resources.select { |resource| resource["kind"] == "workload" }
+    autoscaling = workloads.to_h { |resource| [resource["name"], resource.dig("spec", "defaultOptions", "autoscaling")] } # -- Standalone configuration test.
+    dependents = autoscaling.reject { |name, _| name == "rails" }
+    assert dependents.values.all? { |options| options["minScale"].zero? && options["metric"] == "keda" }
+    assert_equal 1, dependents.values.map { |options| options.dig("keda", "triggers") }.uniq.length
+    worker_cooldown = autoscaling.dig("sidekiq", "keda", "cooldownPeriod")
+    %w[mysql dynamodb elasticsearch memcached].each do |name|
+      assert_operator autoscaling.dig(name, "keda", "cooldownPeriod") - worker_cooldown, :>=, 90
+    end
+    assert_operator autoscaling.dig("redis", "keda", "cooldownPeriod"), :>, autoscaling.dig("mysql", "keda", "cooldownPeriod")
   end
 
   private
@@ -102,7 +177,7 @@ class OnDemandStartupTest < Minitest::Test
           File.write(path, <<~SH)
             #!/bin/sh
             echo "#{name} $*" >> "$DEPLOYMENT_TEST_LOG"
-            if [ "#{name}" = cpflow ] && [ "$1" = deploy-image ]; then exit 42; fi
+            if [ "#{name}" = cpflow ] && [ "$1" = deploy-image ]; then exit "${DEPLOYMENT_TEST_EXIT_CODE:-42}"; fi
           SH
           File.chmod(0755, path)
         end

@@ -111,6 +111,11 @@ feature need the original runtime specifications when rolling back.
 
 ### First migration
 
+The deployment wrapper refuses legacy workloads before applying any changes.
+The one-time migration must install an image containing the startup helper, then
+configure both Rails and Sidekiq to use it. Verify the helper exists in each
+selected image before switching runtime arguments.
+
 Workload types are immutable. Migrate the existing standard Rails and Redis
 workloads before running these templates against an existing demo. Save their
 complete specifications and preserve all existing image references and domains.
@@ -119,7 +124,13 @@ backup, and restore it into the retained Redis volume before starting the new
 stateful workload. Keep the backup and original specifications outside the
 repository. Do not delete a volume set during migration or rollback.
 
-Existing unused MongoDB workloads remain suspended with their volumes retained;\nthe application has no MongoDB dependency and these templates do not provision it.\n\nScheduled background work waits until the demo next wakes; these are interactive\nbenchmark environments rather than continuously running job processors.\n\nAfter migration, verify a complete idle period with all eight application services
+Existing unused MongoDB workloads remain suspended with their volumes retained;
+the application has no MongoDB dependency and these templates do not provision it.
+
+Scheduled background work waits until the demo next wakes; these are interactive
+benchmark environments rather than continuously running job processors.
+
+After migration, verify a complete idle period with all eight application services
 at zero replicas, then request a seeded product through its public custom domain.
 Check the first response, rendering, assets, Redis data, and a subsequent warm
 request. A homepage check alone does not establish that a seeded product renders.

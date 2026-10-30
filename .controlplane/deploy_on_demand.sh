@@ -8,6 +8,7 @@ case "${APP_NAME:-}" in
 esac
 [ "${CPLN_ORG:-}" = "shakacode-open-source-examples-staging" ] || exit 1
 
+ruby .controlplane/check_on_demand_migration.rb
 ruby .controlplane/prepare_renderer_secret.rb
 cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcached renderer sidekiq rails \
   -a "$APP_NAME" --org "$CPLN_ORG" --preserve-existing-runtime --yes
