@@ -11,6 +11,10 @@ output, status = Open3.capture2e("cpln", "workload", "get", "rails", "sidekiq", 
 abort "Cannot verify the existing on-demand migration" unless status.success?
 workloads = JSON.parse(output).fetch("items").to_h { |workload| [workload.fetch("name"), workload] } # rubocop:disable Rails/IndexBy -- This preflight runs without Rails.
 migrated = workloads.dig("rails", "spec", "type") == "serverless" && workloads.dig("redis", "spec", "type") == "stateful"
+redis = workloads.dig("redis", "spec", "containers")&.find { |item| item["name"] == "redis" }
+migrated &&= redis&.fetch("volumes", [])&.any? do |volume|
+  volume["path"] == "/data" && volume["uri"] == "cpln://volumeset/#{app}-redis-vs" && volume["recoveryPolicy"] == "retain"
+end
 migrated &&= %w[rails sidekiq].all? do |name|
   container = workloads.dig(name, "spec", "containers")&.find { |item| item["name"] == name }
   container&.fetch("args", [])&.first(2) == ["ruby", ".controlplane/on_demand_startup.rb"]

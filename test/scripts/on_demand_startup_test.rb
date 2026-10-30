@@ -126,13 +126,16 @@ class OnDemandStartupTest < Minitest::Test
         { name:, spec: { type: types.fetch(name),
                          containers: [{ name:, args: ["ruby", ".controlplane/on_demand_startup.rb"] }] } }
       end
+      resources.last[:spec][:containers].first[:volumes] = [{ path: "/data", uri: "cpln://volumeset/gumroad-inertia-redis-vs", recoveryPolicy: "retain" }]
       File.write(state, JSON.generate(items: resources))
       _, _, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
       assert status.success?
       original = Marshal.dump(resources)
-      [[:rails_type, 0], [:rails_args, 0], [:worker_args, 1], [:redis_type, 2]].each do |failure, index|
+      [[:rails_type, 0], [:rails_args, 0], [:worker_args, 1], [:redis_type, 2], [:redis_volume, 2]].each do |failure, index|
         resources = Marshal.load(original)
-        if failure.to_s.end_with?("type")
+        if failure == :redis_volume
+          resources[index][:spec][:containers].first[:volumes] = []
+        elsif failure.to_s.end_with?("type")
           resources[index][:spec][:type] = "standard"
         else
           resources[index][:spec][:containers].first[:args] = []

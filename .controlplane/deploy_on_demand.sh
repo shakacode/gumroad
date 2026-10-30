@@ -14,8 +14,6 @@ cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcach
   -a "$APP_NAME" --org "$CPLN_ORG" --preserve-existing-runtime --yes
 
 # Release jobs need databases even when no browser is visiting the demo.
-cpln workload update rails --org "$CPLN_ORG" --gvc "$APP_NAME" \
-  --set spec.defaultOptions.autoscaling.minScale=1 -o names
 restore_on_demand() {
   result=$?
   trap - EXIT
@@ -27,4 +25,6 @@ trap restore_on_demand EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+cpln workload update rails --org "$CPLN_ORG" --gvc "$APP_NAME" \
+  --set spec.defaultOptions.autoscaling.minScale=1 -o names
 cpflow deploy-image -a "$APP_NAME" --org "$CPLN_ORG" --run-release-phase --verbose
