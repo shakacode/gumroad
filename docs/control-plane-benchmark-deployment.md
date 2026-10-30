@@ -85,7 +85,8 @@ The two demo frontends use serverless workloads with a two-minute idle timeout.
 KEDA scales their supporting services from zero when the Rails container starts.
 The trigger uses fresh `replica_count` samples: desired scale can remain zero while
 an incoming request waits for Rails to become ready. The image-packaged startup script waits for
-database sockets, the renderer for Rails and release jobs, and a yellow or green\nElasticsearch cluster before starting Rails.
+database sockets, the renderer for Rails and release jobs, and a yellow or green
+Elasticsearch cluster before starting Rails.
 The request timeout and liveness budget allow that bounded startup to finish.
 
 Redis uses a retained volume so queued jobs survive sleep. Sidekiq's cooldown is

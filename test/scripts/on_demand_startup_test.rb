@@ -97,6 +97,22 @@ class OnDemandStartupTest < Minitest::Test
     end
   end
 
+  def test_failed_restore_fails_an_otherwise_successful_deployment
+    with_fake_deployment_commands do |env, _log|
+      _, error, status = Open3.capture3(env.merge("DEPLOYMENT_TEST_EXIT_CODE" => "0", "RESTORE_TEST_FAILURE" => "1"), ".controlplane/deploy_on_demand.sh")
+      assert_equal 1, status.exitstatus
+      assert_match "Failed to restore on-demand mode", error
+    end
+  end
+
+  def test_preflight_failure_prevents_all_mutations
+    with_fake_deployment_commands do |env, log|
+      _, _, status = Open3.capture3(env.merge("PREFLIGHT_TEST_FAILURE" => "1"), ".controlplane/deploy_on_demand.sh")
+      assert_equal false, status.success?
+      assert_equal 1, File.readlines(log).length
+    end
+  end
+
   def test_deployment_preflight_rejects_legacy_workloads
     Dir.mktmpdir do |dir|
       state = File.join(dir, "state.json")
@@ -113,12 +129,20 @@ class OnDemandStartupTest < Minitest::Test
       File.write(state, JSON.generate(items: resources))
       _, _, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
       assert status.success?
-      resources.first[:spec][:type] = "standard"
-      resources.first[:spec][:containers].first[:args] = []
-      File.write(state, JSON.generate(items: resources))
-      _, error, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
-      assert_equal 1, status.exitstatus
-      assert_match "one-time image and workload migration", error
+      original = Marshal.dump(resources)
+      [[:rails_type, 0], [:rails_args, 0], [:worker_args, 1], [:redis_type, 2]].each do |failure, index|
+        resources = Marshal.load(original)
+        if failure.to_s.end_with?("type")
+          resources[index][:spec][:type] = "standard"
+        else
+          resources[index][:spec][:containers].first[:args] = []
+        end
+
+        File.write(state, JSON.generate(items: resources))
+        _, error, status = Open3.capture3(env, "ruby", ".controlplane/check_on_demand_migration.rb")
+        assert_equal 1, status.exitstatus
+        assert_match "one-time image and workload migration", error
+      end
     end
   end
 
@@ -177,7 +201,9 @@ class OnDemandStartupTest < Minitest::Test
           File.write(path, <<~SH)
             #!/bin/sh
             echo "#{name} $*" >> "$DEPLOYMENT_TEST_LOG"
-            if [ "#{name}" = cpflow ] && [ "$1" = deploy-image ]; then exit "${DEPLOYMENT_TEST_EXIT_CODE:-42}"; fi
+if [ "#{name}" = ruby ] && [ "$1" = .controlplane/check_on_demand_migration.rb ] && [ "${PREFLIGHT_TEST_FAILURE:-0}" = 1 ]; then exit 19; fi
+case "$*" in *minScale=0*) [ "${RESTORE_TEST_FAILURE:-0}" = 1 ] && exit 23 ;; esac
+if [ "#{name}" = cpflow ] && [ "$1" = deploy-image ]; then exit "${DEPLOYMENT_TEST_EXIT_CODE:-42}"; fi
           SH
           File.chmod(0755, path)
         end

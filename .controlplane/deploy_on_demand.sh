@@ -17,8 +17,11 @@ cpflow apply-template "$app_template" mysql dynamodb redis elasticsearch memcach
 cpln workload update rails --org "$CPLN_ORG" --gvc "$APP_NAME" \
   --set spec.defaultOptions.autoscaling.minScale=1 -o names
 restore_on_demand() {
+  result=$?
+  trap - EXIT
   cpln workload update rails --org "$CPLN_ORG" --gvc "$APP_NAME" \
-    --set spec.defaultOptions.autoscaling.minScale=0 -o names
+    --set spec.defaultOptions.autoscaling.minScale=0 -o names || { echo "Failed to restore on-demand mode" >&2; exit 1; }
+  exit "$result"
 }
 trap restore_on_demand EXIT
 trap 'exit 129' HUP
