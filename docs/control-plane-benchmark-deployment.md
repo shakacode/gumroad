@@ -143,3 +143,5 @@ ruby test/scripts/on_demand_startup_test.rb
 Rails uses fixed CPU and memory while awake. Capacity AI is disabled for serverless Rails because its periodic rollouts create new revisions that start a replica even without visitor traffic.
 
 A separate 25m/32Mi serverless `robots` workload serves `User-agent: *` and `Disallow: /`. Configure the demo domain routes once with `APP_NAME` and `CPLN_ORG` set, then run `ruby .controlplane/prepare_demo_robots.rb` after applying the robots template. Regular deploys preserve those domain routes and refresh the robots workload. Crawlers can retrieve `/robots.txt` without waking Rails or databases; bots that ignore the policy can still wake the demo. The robots workload does not inherit application secrets.
+
+Renderer Capacity AI matches the setting already used by both live demos. The renderer uses a standard workload with KEDA, and both native sleep/wake checks confirmed it reaches zero. Rails Capacity AI stays disabled because serverless revision rollouts can start a replica without a visitor.

@@ -13,7 +13,7 @@ rails_link = "/org/#{org}/gvc/#{app}/workload/rails"
 robots_link = "/org/#{org}/gvc/#{app}/workload/robots"
 JSON.parse(output).fetch("items").each do |domain|
   changed = false
-  domain.fetch("spec").fetch("ports").each do |port|
+  domain.fetch("spec").fetch("ports", []).each do |port|
     routes = port.fetch("routes", [])
     next unless routes.any? { |route| route["workloadLink"] == rails_link }
     next if routes.any? { |route| route["prefix"] == "/robots.txt" && route["workloadLink"] == robots_link }

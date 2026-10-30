@@ -214,7 +214,8 @@ class OnDemandStartupTest < Minitest::Test
       other = Marshal.load(Marshal.dump(own))
       other["name"] = "other.example"
       other["spec"]["ports"][0]["routes"][0]["workloadLink"] = link.sub("gumroad-inertia", "production")
-      File.write(state, JSON.generate(items: [own, other]))
+      legacy = { "kind" => "domain", "name" => "legacy.example", "spec" => { "gvcLink" => "/org/example/gvc/other" } }
+      File.write(state, JSON.generate(items: [own, other, legacy]))
       env = { "PATH" => "#{dir}:#{ENV.fetch('PATH')}", "ROBOTS_TEST_STATE" => state, "ROBOTS_TEST_LOG" => log,
               "APP_NAME" => "gumroad-inertia", "CPLN_ORG" => "shakacode-open-source-examples-staging" }
       _, _, status = Open3.capture3(env, "ruby", ".controlplane/prepare_demo_robots.rb")
@@ -224,7 +225,7 @@ class OnDemandStartupTest < Minitest::Test
       assert_equal route, written.dig("spec", "ports", 0, "routes", 1)
       assert_equal own.dig("spec", "ports", 0, "tls"), written.dig("spec", "ports", 0, "tls")
       assert_equal link.sub("/rails", "/robots"), written.dig("spec", "ports", 0, "routes", 0, "workloadLink")
-      File.write(state, JSON.generate(items: [written, other]))
+      File.write(state, JSON.generate(items: [written, other, legacy]))
       File.write(log, "")
       _, _, status = Open3.capture3(env, "ruby", ".controlplane/prepare_demo_robots.rb")
       assert status.success?
