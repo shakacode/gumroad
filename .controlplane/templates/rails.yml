@@ -44,7 +44,7 @@ spec:
       minScale: 0
       maxScale: 1
       scaleToZeroDelay: 120
-    capacityAI: true
+    capacityAI: false
     timeoutSeconds: 600
   firewallConfig:
     external:

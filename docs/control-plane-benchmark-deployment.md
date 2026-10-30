@@ -139,3 +139,5 @@ Run the focused startup and deployment-failure checks with:
 ```sh
 ruby test/scripts/on_demand_startup_test.rb
 ```
+
+Rails uses fixed CPU and memory while awake. Capacity AI is disabled for serverless Rails because its periodic rollouts create new revisions that start a replica even without visitor traffic.
