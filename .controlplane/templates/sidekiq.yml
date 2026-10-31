@@ -7,6 +7,8 @@ spec:
       cpu: 500m
       memory: 1Gi
       args:
+        - ruby
+        - .controlplane/on_demand_startup.rb
         - bundle
         - exec
         - sidekiq
@@ -38,9 +40,25 @@ spec:
         failureThreshold: 3
   defaultOptions:
     autoscaling:
-      metric: disabled
-      minScale: 1
+      metric: keda
+      minScale: 0
       maxScale: 1
+      keda:
+        pollingInterval: 10
+        cooldownPeriod: 60
+        fallback:
+          failureThreshold: 3
+          replicas: 1
+        triggers:
+          - type: prometheus
+            metadata:
+              serverAddress: https://metrics.cpln.io:443/metrics/org/{{APP_ORG}}
+              query: max(replica_count{gvc="{{APP_NAME}}",workload="rails"} and (timestamp(replica_count{gvc="{{APP_NAME}}",workload="rails"}) > time() - 45)) or vector(0)
+              threshold: '1'
+              activationThreshold: '0'
+              authModes: bearer
+            authenticationRef:
+              name: gumroad-on-demand-metrics
     capacityAI: true
     timeoutSeconds: 120
   firewallConfig:

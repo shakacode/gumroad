@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 
@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 
@@ -95,8 +95,8 @@ jobs:
           org: ${{ vars.CPLN_ORG_STAGING }}
           working_directory: .cpflow
           cpln_cli_version: ${{ vars.CPLN_CLI_VERSION }}
-          cpflow_version: ${{ vars.CPFLOW_VERSION }}
-          control_plane_flow_ref: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@refs/tags/v5.2.0
+          cpflow_version: "6.0.1"
+          control_plane_flow_ref: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@refs/tags/v6.0.1
 
       - name: Build Docker image
         uses: ./.cpflow/.github/actions/cpflow-build-docker-image
@@ -125,7 +125,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: shakacode/control-plane-flow
-          ref: 1d1ec7f7af181c5c6cf07f512ce336dbdb367246
+          ref: 6aa575780f2d9175755881b79cbb3253adbc9c1f
           path: .cpflow
           persist-credentials: false
 
@@ -136,14 +136,8 @@ jobs:
           org: ${{ vars.CPLN_ORG_STAGING }}
           working_directory: .cpflow
           cpln_cli_version: ${{ vars.CPLN_CLI_VERSION }}
-          cpflow_version: ${{ vars.CPFLOW_VERSION }}
-          control_plane_flow_ref: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@refs/tags/v5.2.0
+          cpflow_version: "6.0.1"
+          control_plane_flow_ref: shakacode/control-plane-flow/.github/workflows/cpflow-deploy-staging.yml@refs/tags/v6.0.1
 
-      - name: Prepare renderer password
-        run: ruby .controlplane/prepare_renderer_secret.rb
-
-      - name: Apply benchmark app and renderer configuration
-        run: cpflow apply-template app-rorp renderer -a "${APP_NAME}" --org "${CPLN_ORG}" --yes
-
-      - name: Deploy staging image and verify rendering flag
-        run: cpflow deploy-image -a "${APP_NAME}" --org "${CPLN_ORG}" --run-release-phase --verbose
+      - name: Configure on-demand services and deploy staging image
+        run: .controlplane/deploy_on_demand.sh

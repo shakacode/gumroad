@@ -16,38 +16,15 @@ error_exit() {
   exit 1
 }
 
-wait_for_tcp() {
-  host="$1"
-  port="$2"
-  name="$3"
-
-  if [ "${SKIP_CONTROL_PLANE_SERVICE_WAIT:-}" = "true" ]; then
-    log "Skipping wait for ${name}"
-    return
-  fi
-
-  log "Waiting for ${name} at ${host}:${port}"
-  attempt=1
-  while [ "$attempt" -le 90 ]; do
-    if ruby -rsocket -e "TCPSocket.new('${host}', ${port}).close"; then
-      return
-    fi
-    attempt=$((attempt + 1))
-    sleep 2
-  done
-
-  error_exit "Timed out waiting for ${name}"
-}
-
 app_name="${CPLN_GVC:-${BRANCH:-}}"
 [ "$app_name" = "$EXPECTED_APP" ] || error_exit "Refusing release for app ${app_name:-<unset>}; expected ${EXPECTED_APP}"
 [ "${GUMROAD_RENDERING_SURFACE:-}" = "$EXPECTED_SURFACE" ] || error_exit "Refusing release for surface ${GUMROAD_RENDERING_SURFACE:-<unset>}; expected ${EXPECTED_SURFACE}"
 
-wait_for_tcp "${DATABASE_HOST}" "${DATABASE_PORT:-3306}" mysql
-wait_for_tcp "dynamodb.${app_name}.cpln.local" 8000 dynamodb
-wait_for_tcp "redis.${app_name}.cpln.local" 6379 redis
-wait_for_tcp "memcached.${app_name}.cpln.local" 11211 memcached
-wait_for_tcp "elasticsearch.${app_name}.cpln.local" 9200 elasticsearch
+# Rails must stay awake while release jobs run: its replica metric wakes dependencies.
+# Use deploy_on_demand.sh rather than invoking the release phase directly.
+if [ "${SKIP_CONTROL_PLANE_SERVICE_WAIT:-}" != true ]; then
+  ruby .controlplane/on_demand_startup.rb true || error_exit "Demo dependencies did not become ready"
+fi
 
 [ -x ./bin/rails ] || error_exit "./bin/rails does not exist or is not executable"
 

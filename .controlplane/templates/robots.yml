@@ -1,0 +1,33 @@
+kind: workload
+name: robots
+spec:
+  type: serverless
+  containers:
+    - name: robots
+      image: busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+      cpu: 25m
+      memory: 32Mi
+      inheritEnv: false
+      command: sh
+      args:
+        - -c
+        - "mkdir -p /www; printf 'User-agent: *\\nDisallow: /\\n' > /www/robots.txt; exec httpd -f -p 8080 -h /www"
+      ports:
+        - number: 8080
+          protocol: http
+  defaultOptions:
+    autoscaling:
+      metric: concurrency
+      target: 100
+      minScale: 0
+      maxScale: 1
+      scaleToZeroDelay: 30
+    capacityAI: false
+    timeoutSeconds: 120
+  firewallConfig:
+    external:
+      inboundAllowCIDR:
+        - 0.0.0.0/0
+      outboundAllowCIDR: []
+    internal:
+      inboundAllowType: none

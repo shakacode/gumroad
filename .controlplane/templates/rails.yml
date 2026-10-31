@@ -1,7 +1,7 @@
 kind: workload
 name: rails
 spec:
-  type: standard
+  type: serverless
   containers:
     - name: rails
       cpu: "1"
@@ -11,6 +11,15 @@ spec:
           value: "3000"
       inheritEnv: true
       image: "{{APP_IMAGE_LINK}}"
+      args:
+        - ruby
+        - .controlplane/on_demand_startup.rb
+        - bundle
+        - exec
+        - rails
+        - server
+        - -b
+        - 0.0.0.0
       ports:
         - number: 3000
           protocol: http
@@ -18,9 +27,9 @@ spec:
         httpGet:
           path: /healthcheck
           port: 3000
-        initialDelaySeconds: 60
-        periodSeconds: 15
-        failureThreshold: 3
+        initialDelaySeconds: 120
+        periodSeconds: 30
+        failureThreshold: 16
       readinessProbe:
         httpGet:
           path: /healthcheck
@@ -30,11 +39,13 @@ spec:
         failureThreshold: 6
   defaultOptions:
     autoscaling:
-      metric: disabled
-      minScale: 1
+      metric: concurrency
+      target: 100
+      minScale: 0
       maxScale: 1
-    capacityAI: true
-    timeoutSeconds: 120
+      scaleToZeroDelay: 120
+    capacityAI: false
+    timeoutSeconds: 600
   firewallConfig:
     external:
       inboundAllowCIDR:

@@ -116,6 +116,10 @@ spec:
       value: auto
     - name: BENCHMARK_STORAGE_S3_BUCKET
       value: "cpln://secret/{{APP_NAME}}-r2.bucket"
+  keda:
+    enabled: true
+    secrets:
+      - //secret/gumroad-on-demand-metrics
   staticPlacement:
     locationLinks:
       - "{{APP_LOCATION_LINK}}"
