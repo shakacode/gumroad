@@ -117,7 +117,7 @@ class OnDemandStartupTest < Minitest::Test
     Dir.mktmpdir do |dir|
       state = File.join(dir, "state.json")
       cpln = File.join(dir, "cpln")
-      File.write(cpln, "#!/bin/sh\n[ \"$1 $2\" = 'workload get' ] || exit 91\ncat \"$MIGRATION_TEST_STATE\"\n")
+      File.write(cpln, "#!/bin/sh\n[ \"$1 $2\" = 'workload get' ] || exit 91\necho 'A newer CLI version is available' >&2\ncat \"$MIGRATION_TEST_STATE\"\n")
       File.chmod(0755, cpln)
       env = { "PATH" => "#{dir}:#{ENV.fetch('PATH')}", "MIGRATION_TEST_STATE" => state,
               "APP_NAME" => "gumroad-inertia", "CPLN_ORG" => "shakacode-open-source-examples-staging" }

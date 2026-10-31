@@ -20,6 +20,8 @@ app_name="${CPLN_GVC:-${BRANCH:-}}"
 [ "$app_name" = "$EXPECTED_APP" ] || error_exit "Refusing release for app ${app_name:-<unset>}; expected ${EXPECTED_APP}"
 [ "${GUMROAD_RENDERING_SURFACE:-}" = "$EXPECTED_SURFACE" ] || error_exit "Refusing release for surface ${GUMROAD_RENDERING_SURFACE:-<unset>}; expected ${EXPECTED_SURFACE}"
 
+# Rails must stay awake while release jobs run: its replica metric wakes dependencies.
+# Use deploy_on_demand.sh rather than invoking the release phase directly.
 if [ "${SKIP_CONTROL_PLANE_SERVICE_WAIT:-}" != true ]; then
   ruby .controlplane/on_demand_startup.rb true || error_exit "Demo dependencies did not become ready"
 fi

@@ -7,7 +7,8 @@ app = ENV.fetch("APP_NAME")
 org = ENV.fetch("CPLN_ORG")
 abort "Refusing inspection outside demo staging" unless org == "shakacode-open-source-examples-staging" && %w[gumroad-rorp gumroad-inertia].include?(app)
 
-output, status = Open3.capture2e("cpln", "workload", "get", "rails", "sidekiq", "redis", "--org", org, "--gvc", app, "-o", "json")
+output, error, status = Open3.capture3("cpln", "workload", "get", "rails", "sidekiq", "redis", "--org", org, "--gvc", app, "-o", "json")
+warn error unless error.empty?
 abort "Cannot verify the existing on-demand migration" unless status.success?
 workloads = JSON.parse(output).fetch("items").to_h { |workload| [workload.fetch("name"), workload] } # rubocop:disable Rails/IndexBy -- This preflight runs without Rails.
 migrated = workloads.dig("rails", "spec", "type") == "serverless" && workloads.dig("redis", "spec", "type") == "stateful"
