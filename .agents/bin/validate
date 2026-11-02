@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 if [ "$#" -gt 1 ]; then
-  echo "Usage: .agents/bin/validate [base-ref]" >&2
+  echo "Usage: .agents/shaka/bin/validate [base-ref]" >&2
   exit 2
 fi
 base_ref=${1:-main}
@@ -29,14 +29,14 @@ if ! git fetch --no-tags --quiet "$base_remote" "+refs/heads/$base_branch:refs/r
   echo "Could not refresh $base_remote/$base_branch; check the remote and branch." >&2
   exit 1
 fi
-ruby -c .agents/bin/setup >/dev/null
-sh -n .agents/bin/test
+ruby -c bin/setup >/dev/null
+sh -n .agents/shaka/bin/test
 if [ ! -x node_modules/.bin/eslint ]; then
-  echo "JavaScript dependencies are missing; run .agents/bin/setup first." >&2
+  echo "JavaScript dependencies are missing; run .agents/shaka/bin/setup first." >&2
   exit 1
 fi
 if ! bundle check >/dev/null 2>&1; then
-  echo "Ruby dependencies are missing; run .agents/bin/setup first." >&2
+  echo "Ruby dependencies are missing; run .agents/shaka/bin/setup first." >&2
   exit 1
 fi
 npm run lint-fast

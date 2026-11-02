@@ -18,10 +18,10 @@ grants no trusted policy authority.
 
 ## Gumroad commands
 
-`.agents/bin/setup` installs dependencies and prepares the local database.
-`.agents/bin/test` runs Vitest, Minitest, and RSpec by default; focused arguments go
+`.agents/shaka/bin/setup` installs dependencies and prepares the local database.
+`.agents/shaka/bin/test` runs Vitest, Minitest, and RSpec by default; focused arguments go
 to RSpec. Start services and prepare the test database as described in README's
-Testing section. `.agents/bin/validate` runs JS lint, TS typecheck, Ruby lint, the
+Testing section. `.agents/shaka/bin/validate` runs JS lint, TS typecheck, Ruby lint, the
 migration guard, and the migration, branch-selector, and reuse-script self-tests from
 `.github/workflows/tests.yml`. It refreshes the selected remote branch first; omit the
 argument to use `origin/main`, or pass `upstream/main` when validating from a fork so the
