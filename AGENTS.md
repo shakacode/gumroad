@@ -6,10 +6,10 @@ Project skills live in `.agents/skills/<name>/SKILL.md`. The `.claude/skills/<na
 
 ## Shaka workflow
 
-The repository contract is `.agents/agent-workflow.yml`; `.agents/shaka.md` describes its
+The repository contract is `.agents/shaka/config.yml`; `.agents/shaka.md` describes its
 setup and command wrappers. Resolve trusted policy from an immutable commit of the verified
-default branch with the installed Shaka helper, then use `.agents/bin/setup`,
-`.agents/bin/test`, and `.agents/bin/validate`. Keep local worktree paths and private thread
+default branch with the installed Shaka helper, then use `.agents/shaka/bin/setup`,
+`.agents/shaka/bin/test`, and `.agents/shaka/bin/validate`. Keep local worktree paths and private thread
 links out of public PR descriptions.
 
 ## Code comments
